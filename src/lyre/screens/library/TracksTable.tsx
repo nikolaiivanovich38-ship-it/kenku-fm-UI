@@ -55,6 +55,11 @@ export interface TracksTableProps {
   onPreview: (id: string) => void;
   onPlay: (id: string) => void;
   rowMenu: (t: LibraryTrack) => readonly PopMenuEntry[];
+  /** Item 6: Preview or Play on air was pressed on this track's row (the Library opens its details). */
+  onPlayed?: (id: string) => void;
+  /** Item 35: where the list starts scrolled, and where it is scrolled to (kept while the screen is drawn afresh). */
+  initialScroll?: number;
+  onScrolled?: (top: number) => void;
   sort: string;
   /** Round 6: the id of the key legend under the list, read out with it. */
   describedBy?: string;
@@ -63,11 +68,18 @@ export interface TracksTableProps {
 export function TracksTable(props: TracksTableProps) {
   const { list, sel, cursor, sort, describedBy } = props;
   const boxRef = useRef<HTMLDivElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
+  const [scrollTop, setScrollTop] = useState(props.initialScroll ?? 0);
   const [viewHeight, setViewHeight] = useState(UNMEASURED_HEIGHT);
   const [rowHeight, setRowHeight] = useState(ROW_HEIGHT);
   const [headHeight, setHeadHeight] = useState(26);
   const focusAfter = useRef<string | null>(null);
+
+  // Item 35: back where it was before the screen was drawn afresh (opening a track is a new address).
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    if (box && props.initialScroll) box.scrollTop = props.initialScroll;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the list is first drawn
+  }, []);
 
   useLayoutEffect(() => {
     const box = boxRef.current;
@@ -180,13 +192,21 @@ export function TracksTable(props: TracksTableProps) {
         missing={props.missing.has(t.id)}
         onOpen={props.onOpen}
         onToggle={props.onToggle}
+        onPlayed={props.onPlayed}
         rowMenu={props.rowMenu}
       />,
     );
   }
 
   return (
-    <div className="lb-scroll" ref={boxRef} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}>
+    <div
+      className="lb-scroll"
+      ref={boxRef}
+      onScroll={(e) => {
+        setScrollTop(e.currentTarget.scrollTop);
+        props.onScrolled?.(e.currentTarget.scrollTop);
+      }}
+    >
       <table className="grid lb-table" role="grid" aria-multiselectable="true" aria-label="Tracks" aria-describedby={describedBy} aria-rowcount={n + 1}>
         <thead>
           <tr aria-rowindex={1}>
@@ -246,11 +266,12 @@ interface TrackRowProps {
   missing: boolean;
   onOpen: (id: string) => void;
   onToggle: (id: string, range: boolean) => void;
+  onPlayed?: (id: string) => void;
   rowMenu: (t: LibraryTrack) => readonly PopMenuEntry[];
 }
 
 /** One track's line: drawn again only when that track, its selection or its state changes. */
-const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, tabbable, onAir, previewing, missing, onOpen, onToggle, rowMenu }: TrackRowProps) {
+const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, tabbable, onAir, previewing, missing, onOpen, onToggle, onPlayed, rowMenu }: TrackRowProps) {
   const own = t.title;
   const meta = t.metaTitle;
   const shown = shownTitle(t);
@@ -353,8 +374,11 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
       </td>
       <td className="lb-c-pv">
         <div className="lb-rowbtns">
-          <PreviewButton target={{ kind: "track", id: t.id }} name={shown} tabIndex={-1} />
-          <PlayOnAirButton target={{ kind: "track", id: t.id }} name={shown} tabIndex={-1} />
+          {/* Item 6: a click on either play button also opens the track (before the button plays it). */}
+          <span className="lb-play" onClickCapture={() => onPlayed?.(t.id)}>
+            <PreviewButton target={{ kind: "track", id: t.id }} name={shown} tabIndex={-1} />
+            <PlayOnAirButton target={{ kind: "track", id: t.id }} name={shown} tabIndex={-1} />
+          </span>
           <PopMenuButton label={`More for ${shown}`} ariaLabel={`More for ${shown}`} title="More" className="btn s icon ghost" tabIndex={-1} items={() => rowMenu(t)}>
             <Icon name="more" size="s" />
           </PopMenuButton>

@@ -25,3 +25,47 @@ describe("item 7: the list shows a track's length, and its length after its Audi
     expect(plain.querySelector(".lb-played")).toBeNull();
   });
 });
+
+describe("item 6: either play button on a track's row opens that track's details", () => {
+  it("Preview opens the track in Details and previews it; Play on air does the same for another track", async () => {
+    const { audio } = openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(within(rowOf("t13")).getByRole("button", { name: /^Preview / }));
+    await waitFor(() => expect(window.location.hash).toBe("#/library/t13"));
+    expect(audio.calls.some((c) => c[0] === "previewTrack" && c[1] === "t13")).toBe(true);
+    await user.click(within(rowOf("t01")).getByRole("button", { name: /^Play on air: / }));
+    await waitFor(() => expect(window.location.hash).toBe("#/library/t01"));
+    expect(rowOf("t01")).toHaveAttribute("aria-current", "true");
+    // More only opens its menu.
+    await user.click(within(rowOf("t13")).getByRole("button", { name: /^More for / }));
+    expect(window.location.hash).toBe("#/library/t01");
+  });
+});
+
+describe("item 35: opening a track keeps the list scrolled where it was", () => {
+  it("the list is at the same place after a click on a row far down", async () => {
+    const tops = new WeakMap<Element, number>();
+    const spies = [
+      vi.spyOn(HTMLElement.prototype, "scrollTop", "get").mockImplementation(function (this: HTMLElement) {
+        return tops.get(this) ?? 0;
+      }),
+      vi.spyOn(HTMLElement.prototype, "scrollTop", "set").mockImplementation(function (this: HTMLElement, top: number) {
+        tops.set(this, Math.max(0, top));
+      }),
+    ];
+    try {
+      openAt("library");
+      await loaded();
+      const box = () => grid().closest(".lb-scroll") as HTMLElement;
+      box().scrollTop = 900;
+      box().dispatchEvent(new Event("scroll"));
+      const user = userEvent.setup();
+      await user.click(rowOf("t40").querySelector("td.lb-c-title") as HTMLElement);
+      await waitFor(() => expect(window.location.hash).toBe("#/library/t40"));
+      await waitFor(() => expect(box().scrollTop).toBe(900));
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+});

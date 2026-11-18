@@ -614,4 +614,28 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await expect(length).toContainText("7:21");
     await expect(length.getByTitle("Plays 5:18 with its Audio profile (file 7:21)")).toBeVisible();
   });
+
+  test("item 6: Preview or Play on air on a row opens that track's details", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const ashes = row(page, "Ashes");
+    await ashes.getByRole("button", { name: /^Preview / }).click();
+    await expect(ashes).toHaveAttribute("aria-current", "true");
+    await expect(page).toHaveURL(/#\/library\/[^/]+$/);
+    const eerie = row(page, /^Select Eerie dread/);
+    await eerie.getByRole("button", { name: /^Play on air: / }).click();
+    await expect(eerie).toHaveAttribute("aria-current", "true");
+  });
+
+  test("item 35: opening a track keeps the list scrolled where it was", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const box = page.locator(".lb-scroll");
+    await box.evaluate((el) => (el.scrollTop = 400));
+    const target = grid(page).locator("tbody tr[data-tid]").nth(20);
+    await target.locator("td.lb-c-title").click();
+    await expect(target).toHaveAttribute("aria-current", "true");
+    await expect.poll(() => box.evaluate((el) => el.scrollTop)).toBeGreaterThan(390);
+    expect(await box.evaluate((el) => el.scrollTop)).toBeLessThan(410);
+  });
 });

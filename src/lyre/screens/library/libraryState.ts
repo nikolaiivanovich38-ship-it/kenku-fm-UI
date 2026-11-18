@@ -53,9 +53,20 @@ export function setLibraryState(change: Partial<LibraryViewState> | ((s: Library
   state = { ...state, ...(typeof change === "function" ? change(state) : change) };
   listeners.forEach((l) => l());
 }
+/**
+ * Item 35: where the track list is scrolled. Kept apart from the state above, so scrolling redraws nothing; opening a
+ * track draws the screen afresh (a new address), and the list comes back at this place.
+ */
+let listScroll = 0;
+export const getListScroll = (): number => listScroll;
+export const setListScroll = (top: number): void => {
+  listScroll = top;
+};
+
 /** Back to a fresh Library (tests). */
 export function resetLibraryState(): void {
   state = INITIAL_LIBRARY_STATE;
+  listScroll = 0;
   listeners.forEach((l) => l());
 }
 function subscribe(listener: () => void) {

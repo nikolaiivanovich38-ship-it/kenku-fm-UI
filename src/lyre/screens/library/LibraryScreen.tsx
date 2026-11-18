@@ -22,7 +22,7 @@ import type { ScreenProps } from "../index";
 import { droppedPaths, hasFiles, NOTHING_TO_ADD } from "./drops";
 import { FiltersBody } from "./FiltersBody";
 import { useLayoutMode } from "./layout";
-import { getLibraryState, setLibraryState, useLibraryState, type Guide } from "./libraryState";
+import { getLibraryState, getListScroll, setLibraryState, setListScroll, useLibraryState, type Guide } from "./libraryState";
 import { DEFAULT_FILTER, filterCount, filterSummary, filtersOn, KIND_NAMES, plural, shownTitle, visibleTracks } from "./model";
 import { focusSoon, onAirTrackIds, pausedTrackIds, useWriteResult } from "./shared";
 import { UseInDialog } from "./UseInDialog";
@@ -98,6 +98,14 @@ export function LibraryScreen({ route }: ScreenProps) {
       window.location.hash = hashOf(`library/${id}`);
     },
     [mode],
+  );
+  /** Item 6: a row's Preview or Play on air opens its details (on a narrow window it only moves the keyboard there). */
+  const played = useCallback(
+    (id: string) => {
+      if (mode === "narrow") setLibraryState({ cursor: id });
+      else if (getLibraryState().cursor !== id || route.params.tid !== id) openTrack(id);
+    },
+    [mode, openTrack, route.params.tid],
   );
   const closeTrack = () => {
     const cursor = getLibraryState().cursor;
@@ -478,6 +486,9 @@ export function LibraryScreen({ route }: ScreenProps) {
         onPreview={preview}
         onPlay={playOnAir}
         rowMenu={rowMenu}
+        onPlayed={played}
+        initialScroll={getListScroll()}
+        onScrolled={setListScroll}
         describedBy="lb-keys"
       />
       {/* Round 6: the keys show only while the keyboard is in the list, and are read out with it. */}

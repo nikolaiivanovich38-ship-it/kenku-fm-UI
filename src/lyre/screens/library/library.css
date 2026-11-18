@@ -234,6 +234,9 @@ body .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
 .view .lb-tg.lb-normrow { display: block; }
 .view .lb-normrow .norm { grid-template-columns: 74px minmax(0, 1fr); gap: 6px; }
 
+/* 0.5.2 item 6: the two play buttons are wrapped (a click opens the track) without changing the row's layout. */
+.view .lb-play { display: contents; }
+
 /* 0.5.2 item 7: the file's length, and under it the length its Audio profile plays. */
 .view .lb-len { display: flex; flex-direction: column; line-height: 1.1; }
 .view .lb-played { font-size: var(--fs-xs); color: var(--ink-3); }
