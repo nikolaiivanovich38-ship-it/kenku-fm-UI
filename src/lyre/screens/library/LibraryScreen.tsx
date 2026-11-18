@@ -30,6 +30,7 @@ import { useNormaliseSettings } from "./normalise";
 import { NormaliseDialog } from "../../kit/NormaliseChoice";
 import { PopMenuButton, TwoLines, type PopMenuEntry } from "../../kit/PopMenu";
 import { TagSheet } from "./TagSheet";
+import { forgetRemoved, RemoveTracksDialog, type Removal } from "./RemoveTracks";
 import { TrackDetails } from "./TrackDetails";
 import { TracksTable } from "./TracksTable";
 import { useTrackList } from "./trackStore";
@@ -194,9 +195,14 @@ export function LibraryScreen({ route }: ScreenProps) {
 
   /** ORG-5: the tracks whose Add to… is open. */
   const [addingTo, setAddingTo] = useState<string[] | null>(null);
+  /** 0.5.2 items 1 and 50: the tracks a Remove from library or Delete file from disk… confirmation is open for. */
+  const [removal, setRemoval] = useState<Removal | null>(null);
   const rowMenu = useCallback(
     (t: LibraryTrack): PopMenuEntry[] => {
       const on = getLibraryState().sel.includes(t.id);
+      // As Add to…: a ticked row takes the other ticked rows along.
+      const ids = on ? getLibraryState().sel : [t.id];
+      const many = ids.length > 1 ? ` (${ids.length})` : "";
       return [
         { content: <Item icon="file" text="Open details" />, onSelect: () => openTrack(t.id) },
         { content: <Item icon="check" text={on ? "Deselect" : "Select"} />, onSelect: () => toggleSel(t.id, false) },
@@ -205,6 +211,10 @@ export function LibraryScreen({ route }: ScreenProps) {
         // Round 7 (ORG-5): the keyboard's way to what a drag does; a ticked row takes the other ticked rows along.
         { content: <Item icon="plus" text="Add to…" />, onSelect: () => setAddingTo(on ? getLibraryState().sel : [t.id]) },
         { content: <Item icon="fade" text="Audio profile" />, onSelect: () => (window.location.hash = hashOf(`profile/${t.id}`)) },
+        { separator: true },
+        { content: <Item icon="close" text={`Remove from library${many}`} />, onSelect: () => setRemoval({ how: "remove", ids }) },
+        // Less prominent: last, apart, plain words and a confirmation that names the files.
+        { className: "lb-mi-quiet", content: <Item icon="warn" text={`Delete file from disk${many}…`} />, onSelect: () => setRemoval({ how: "delete", ids }) },
       ];
     },
     [openTrack, toggleSel],
@@ -342,6 +352,16 @@ export function LibraryScreen({ route }: ScreenProps) {
     if (result.ok) offer(msg, result.undoLabel);
   };
 
+  /** 0.5.2: the selection's ⋯: Remove from library and, last and apart, Delete files from disk…. */
+  const selectionMenu = (): PopMenuEntry[] => {
+    const ids = getLibraryState().sel;
+    return [
+      { content: <Item icon="close" text="Remove from library" />, onSelect: () => setRemoval({ how: "remove", ids }) },
+      { separator: true },
+      { className: "lb-mi-quiet", content: <Item icon="warn" text={ids.length === 1 ? "Delete file from disk…" : "Delete files from disk…"} />, onSelect: () => setRemoval({ how: "delete", ids }) },
+    ];
+  };
+
   const addToPlaylists = async (pids: string[], ids: string[], single: boolean) => {
     if (!pids.length) return;
     const done: string[] = [];
@@ -465,6 +485,9 @@ export function LibraryScreen({ route }: ScreenProps) {
           <button type="button" className="btn s ghost" onClick={clearSel}>
             Clear selection
           </button>
+          <PopMenuButton label="More for the selected tracks" ariaLabel="More for the selected tracks" title="More" className="btn s icon ghost" items={selectionMenu}>
+            <Icon name="more" size="s" />
+          </PopMenuButton>
         </div>
       )}
       <TracksTable
@@ -615,7 +638,11 @@ export function LibraryScreen({ route }: ScreenProps) {
           Add tracks
           <Icon name="chevdown" size="s" />
         </PopMenuButton>
-        <LibraryMoreMenu onNormalise={() => setNormaliseOpen(true)} />
+        <LibraryMoreMenu
+          onNormalise={() => setNormaliseOpen(true)}
+          // Item 50: every track a filter or search shows, with the count in the confirmation.
+          onRemoveShown={st.q || filtersOn(st.filter) ? { count: list.length, remove: () => setRemoval({ how: "remove", ids: list.map((t) => t.id), shown: true }) } : undefined}
+        />
         {/* 0.5.1 (Nik, 11 Nov): the Prep | Live switch, as on Rooms and a campaign's pages. */}
         <PrepOrLive />
       </div>
@@ -649,6 +676,7 @@ export function LibraryScreen({ route }: ScreenProps) {
         }}
       />
       {addingTo && <AddToDialog what={{ ids: addingTo, from: null }} onClose={() => setAddingTo(null)} />}
+      {removal && <RemoveTracksDialog removal={removal} tracks={byId} onClose={() => setRemoval(null)} onRemoved={(ids) => forgetRemoved(ids, open?.id)} />}
       {useIn && (
         <UseInDialog
           track={byId.get(useIn)}

@@ -213,3 +213,75 @@ describe("items 20 and 40: a library folder's ⋯ in the Filters box", () => {
     expect((await api.library.listTracks()).length).toBe(before);
   });
 });
+
+describe("items 1 and 50: Remove from library, Delete file from disk…, Remove all shown…", () => {
+  it("a row's ⋯ › Remove from library names where it is used, removes it, leaves its file, and Undo brings it back", async () => {
+    const { api } = openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(within(rowOf("t13")).getByRole("button", { name: /^More for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from library" }));
+    const dialog = screen.getByRole("dialog", { name: /^Remove “Eerie dread.*” from the library\?$/ });
+    expect(dialog).toHaveTextContent("Its file stays on your computer");
+    expect(within(dialog).getByRole("note")).toHaveTextContent("It is used in:Scenes: The abbey ruins (Session 14)");
+    await user.click(within(dialog).getByRole("button", { name: "Remove" }));
+    await waitFor(() => expect(rowOf("t13")).toBeNull());
+    expect(api.trashedFiles()).toEqual([]);
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(rowOf("t13")).not.toBeNull());
+  });
+
+  it("the selection's ⋯ removes every ticked track in one step", async () => {
+    const { api } = openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("checkbox", { name: "Select Ashes" }));
+    await user.click(within(rowOf("t13")).getByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: "More for the selected tracks" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from library" }));
+    await user.click(within(screen.getByRole("dialog", { name: "Remove 2 tracks from the library?" })).getByRole("button", { name: "Remove 2 tracks" }));
+    await waitFor(async () => expect((await api.library.listTracks()).map((t) => t.id)).not.toContain("t44"));
+    expect(screen.queryByRole("toolbar", { name: "Selected tracks" })).toBeNull();
+    expect((await api.history.state()).undoLabel).toBe("Remove 2 tracks from the library");
+  });
+
+  it("Delete file from disk… names the file, says it can't be undone, and sends it to the Recycle Bin", async () => {
+    const { api } = openAt("library/t13");
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(within(rowOf("t13")).getByRole("button", { name: /^More for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete file from disk…" }));
+    const dialog = screen.getByRole("dialog", { name: "Delete its file from disk?" });
+    expect(dialog).toHaveTextContent("06 Bridge of Death.flac");
+    expect(dialog).toHaveTextContent("This can't be undone in Lyre");
+    expect(dialog).toHaveTextContent("Recycle Bin");
+    // Cancel does nothing.
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(api.trashedFiles()).toEqual([]);
+    await user.click(within(rowOf("t13")).getByRole("button", { name: /^More for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete file from disk…" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete file" }));
+    await waitFor(() => expect(api.trashedFiles()).toEqual(["H:\\Audio\\Scores\\Hildur Gudnadottir\\Chernobyl\\06 Bridge of Death.flac"]));
+    await waitFor(() => expect(rowOf("t13")).toBeNull());
+    // The open track was it: Details closes.
+    await waitFor(() => expect(window.location.hash).toBe("#/library"));
+  });
+
+  it("item 50: Remove all shown… removes what a filter shows, with the count in the confirmation; it is offered only with a filter on", async () => {
+    const { api } = openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    const more = () => screen.getByRole("button", { name: "More for the library" });
+    await user.click(more());
+    expect(screen.queryByRole("menuitem", { name: /^Remove all shown/ })).toBeNull();
+    await user.keyboard("{Escape}");
+    await user.click(within(within(filters()).getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
+    const shown = shownTitles().length;
+    await user.click(more());
+    await user.click(screen.getByRole("menuitem", { name: `Remove all shown (${shown})…` }));
+    const dialog = screen.getByRole("dialog", { name: `Remove all ${shown} shown tracks from the library?` });
+    const before = (await api.library.listTracks()).length;
+    await user.click(within(dialog).getByRole("button", { name: `Remove ${shown} tracks` }));
+    await waitFor(async () => expect((await api.library.listTracks()).length).toBe(before - shown));
+  });
+});

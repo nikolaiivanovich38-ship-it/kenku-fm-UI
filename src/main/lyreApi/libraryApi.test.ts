@@ -12,6 +12,7 @@ import { MessageChannel, type MessagePort } from "worker_threads";
 
 import { lyreApiContract, valueOf, type ContractFixture } from "../../common/lyre/contract";
 import { lyreApiOverPort, serveLyreApi, type PortLike } from "../../common/lyre/rpc";
+import { isRefused } from "../../common/lyre/api";
 import { prototypeSeed } from "../../common/lyre/seed";
 import { LEGACY_CATCH_UP_JOB, LibraryBusyError, NotFoundError, ValidationError, catchUpLegacyLibrary, importLegacyLibrary, openLibrary, type PeakReader } from "../data";
 import { createLibraryApi, refusalFor, type LibraryHost } from "./libraryApi";
@@ -19,7 +20,9 @@ import { seedLibrary } from "./seedLibrary";
 
 /** A host with no person to ask: choosers answer what the test says. */
 function testHost(over: Partial<LibraryHost> = {}): LibraryHost {
-  return { chooseFiles: async () => null, chooseFolder: async () => null, showItemInFolder: () => undefined, chooseSaveFile: async () => null, chooseLyreFile: async () => null, ...over };
+  // 0.5.2 item 1: the test's Recycle Bin renames the file, so a test can see it went.
+  const trashFile = async (file: string) => fs.renameSync(file, `${file}.in-the-bin`);
+  return { chooseFiles: async () => null, chooseFolder: async () => null, showItemInFolder: () => undefined, chooseSaveFile: async () => null, chooseLyreFile: async () => null, trashFile, ...over };
 }
 
 async function seededLibrary() {
@@ -88,6 +91,30 @@ lyreApiContract("main-process LyreApi over the library, across a message port", 
 });
 
 describe("main-process LyreApi only", () => {
+  it("0.5.2 item 1: Delete file from disk hands the host the file the library has for the track, and refuses without a Recycle Bin", async () => {
+    const { dir, library, write } = await seededLibrary();
+    const file = write("in/Rain.wav");
+    const asked: string[] = [];
+    const api = createLibraryApi(library, testHost({ trashFile: async (f) => (asked.push(f), fs.renameSync(f, `${f}.in-the-bin`)) }));
+    const id = valueOf(await api.import.start({ from: "paths", paths: [file] })).added[0];
+    expect(valueOf(await api.library.deleteFiles([id])).removed).toEqual([id]);
+    expect(asked).toEqual([file]);
+    expect(fs.existsSync(file)).toBe(false);
+    expect(fs.existsSync(`${file}.in-the-bin`)).toBe(true);
+    // A refusal from the host keeps the track and says why.
+    const other = write("in/Wind.wav");
+    const api2 = createLibraryApi(library, testHost({ trashFile: async () => Promise.reject(new Error("Lyre could not move Wind.wav to the Recycle Bin.")) }));
+    const id2 = valueOf(await api2.import.start({ from: "paths", paths: [other] })).added[0];
+    expect(valueOf(await api2.library.deleteFiles([id2]))).toEqual({ removed: [], problems: [{ trackId: id2, reason: "Lyre could not move Wind.wav to the Recycle Bin." }] });
+    expect(fs.existsSync(other)).toBe(true);
+    const noBin = createLibraryApi(library, { ...testHost(), trashFile: undefined });
+    const refused = await noBin.library.deleteFiles([id2]);
+    expect(isRefused(refused) && refused.refusal.code).toBe("unavailable");
+    for (const a of [api, api2, noBin]) a.stopBackgroundWork();
+    library.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   it("DAT-15: measures every track not measured yet in the background, a while after it starts, and says so", async () => {
     const { dir, library, write } = await seededLibrary();
     const file = write("new/Bells.wav");

@@ -727,4 +727,42 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(f.getByRole("button", { name: "More for the folder H:\\Audio\\Effects" })).toBeVisible();
   });
+
+  test("items 1 and 50: Remove from library names where a track is used and works with Undo; Delete file from disk… asks first", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const eerie = row(page, /^Select Eerie dread/);
+    await eerie.getByRole("button", { name: /^More for / }).click();
+    await page.getByRole("menuitem", { name: "Remove from library" }).click();
+    const dialog = page.getByRole("dialog", { name: /^Remove “Eerie dread.*” from the library\?$/ });
+    await expect(dialog.getByRole("note")).toContainText("The abbey ruins (Session 14)");
+    await dialog.getByRole("button", { name: "Remove" }).click();
+    await expect(eerie).toHaveCount(0);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(eerie).toBeVisible();
+    // The file's own confirmation: it names the file and says it can't be undone (Cancel here: the files are the test build's).
+    await eerie.getByRole("button", { name: /^More for / }).click();
+    await page.getByRole("menuitem", { name: "Delete file from disk…" }).click();
+    const del = page.getByRole("dialog", { name: "Delete its file from disk?" });
+    await expect(del).toContainText("06 Bridge of Death.flac");
+    await expect(del).toContainText("This can't be undone in Lyre");
+    await del.getByRole("button", { name: "Cancel" }).click();
+    await expect(eerie).toBeVisible();
+  });
+
+  test("item 50: Remove all shown… removes the tracks a filter shows, with the count in its confirmation", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const toggle = page.getByRole("button", { name: "Filters", exact: true });
+    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+    await filters(page).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ }).click();
+    const shown = (await shownTitles(page)).length;
+    await page.getByRole("button", { name: "More for the library" }).click();
+    await page.getByRole("menuitem", { name: `Remove all shown (${shown})…` }).click();
+    const dialog = page.getByRole("dialog", { name: `Remove all ${shown} shown tracks from the library?` });
+    await dialog.getByRole("button", { name: `Remove ${shown} tracks` }).click();
+    await expect.poll(async () => (await shownTitles(page)).length).toBe(0);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect.poll(async () => (await shownTitles(page)).length).toBe(shown);
+  });
 });

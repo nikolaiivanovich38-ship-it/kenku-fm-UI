@@ -104,6 +104,8 @@ export interface FakeLyreOptions {
   choose?: { files?: () => string[] | null; folder?: () => string | null; saveFile?: (suggested: string) => string | null; lyreFile?: () => string | null };
   /** DAT-7: what came across from Kenku FM (default: the prototype's sample report; null: nothing did). */
   moved?: Omit<MoveReport, "missing"> | null;
+  /** 0.5.2 item 1: sending a file to the Recycle Bin; throw to refuse it (default: it goes). */
+  trash?: (path: string) => void;
 }
 
 export interface FakeLyreApi extends LyreApi {
@@ -113,6 +115,8 @@ export interface FakeLyreApi extends LyreApi {
   previewableFiles(): string[];
   /** Files appear in a watched folder: they become New tracks, as the real folder watcher makes them. Returns their ids. */
   arrive(folder: string, fileNames: string[]): Promise<string[]>;
+  /** 0.5.2 item 1: the files sent to the Recycle Bin so far, in order. */
+  trashedFiles(): string[];
 }
 
 /* ---------- state ---------- */
@@ -138,6 +142,10 @@ interface State {
   boardFolders: Round7State["boardFolders"];
   settings: Round7State["settings"];
 }
+
+/** What changes when tracks leave the library: every list that can name a track (as the database's cascades). */
+const TRACKS_GONE: LyreArea[] = ["tracks", "playlists", "boards", "campaigns", "profiles"];
+const KIND_WORDS = { music: "Music", amb: "Ambience", fx: "FX" } as const;
 
 /** Which part of the state each area is: an undo step keeps a copy of the parts its areas name. */
 const SLICES: Record<Exclude<LyreArea, "history">, (keyof State)[]> = {
@@ -255,6 +263,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   const workingOut = new Set<string>();
   let nextId = 1;
   const listeners = new Set<(event: LyreEvent) => void>();
+  /** 0.5.2 item 1: files sent to the Recycle Bin (trashedFiles). */
+  const trashed: string[] = [];
 
   /* ---------- plumbing ---------- */
 
@@ -808,6 +818,58 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           name = shownTitle(t);
           t.normalise = choice;
           return asListed(t);
+        });
+      },
+      async removeTracks(trackIds) {
+        const ids = [...new Set(trackIds)];
+        let label = "";
+        return write(() => label, TRACKS_GONE, () => {
+          const tracks = ids.map(track);
+          label = tracks.length === 1 ? `Remove ${quoted(shownTitle(tracks[0]))} from the library` : `Remove ${plural(tracks.length, "track")} from the library`;
+          dropTracks(ids);
+          return { removed: ids };
+        });
+      },
+      async deleteFiles(trackIds) {
+        const ids = [...new Set(trackIds)];
+        let n = 0;
+        return write(() => `Delete ${plural(n, "file")} and take ${n === 1 ? "its track" : "their tracks"} out of the library`, TRACKS_GONE, () => {
+          const tracks = ids.map(track);
+          const removed: string[] = [];
+          const problems: { trackId: string; reason: string }[] = [];
+          for (const t of tracks) {
+            if (state.missing.includes(t.id)) problems.push({ trackId: t.id, reason: "Its file is not where your library expects it." });
+            else if (!t.url?.startsWith("file:")) problems.push({ trackId: t.id, reason: "It plays from a web address, not a file on this computer." });
+            else {
+              try {
+                options.trash?.(pathOf(t));
+                trashed.push(pathOf(t));
+                removed.push(t.id);
+              } catch (e) {
+                problems.push({ trackId: t.id, reason: e instanceof Error ? e.message : "Lyre could not move its file to the Recycle Bin." });
+              }
+            }
+          }
+          n = removed.length;
+          dropTracks(removed);
+          return { removed, problems };
+        });
+      },
+      async setKind(trackIds, kind) {
+        const ids = [...new Set(trackIds)];
+        let label = "";
+        return write(() => label, ["tracks"], () => {
+          const tracks = ids.map(track);
+          if (!(TRACK_KINDS as readonly string[]).includes(kind)) refuse("invalid", "A track is music, ambience or a sound effect.", "kind");
+          const changing = tracks.filter((t) => t.kind !== kind);
+          for (const t of changing) {
+            // Effect is a sound effect's role: an effect gets it when it has none, and a track that stops being one loses it.
+            if (kind === "fx" && t.role === null) t.role = "effect";
+            else if (kind !== "fx" && t.role === "effect") t.role = null;
+            t.kind = kind;
+          }
+          label = `Type ${KIND_WORDS[kind]} for ${changing.length === 1 ? quoted(shownTitle(changing[0])) : plural(changing.length, "track")}`;
+          return tracks.map(asListed);
         });
       },
       async showInFolder(trackId) {
@@ -1816,6 +1878,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     },
     previewableFiles() {
       return previewing ? [previewing] : [];
+    },
+    trashedFiles() {
+      return [...trashed];
     },
     async arrive(folder, fileNames) {
       if (!state.folders.some((f) => f.watched && f.path.toLowerCase() === folder.toLowerCase())) return [];

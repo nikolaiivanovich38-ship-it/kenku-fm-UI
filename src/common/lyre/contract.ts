@@ -202,6 +202,57 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expect((await track("t44")).isNew).toBe(false);
       });
 
+      it("0.5.2 items 1 and 50: Remove from library takes tracks out of every list, in one undo step", async () => {
+        const uses = async () => ({
+          playlists: (await api.playlists.list()).filter((p) => p.kind === "manual" && p.trackIds.includes("t13")).length,
+          scenes: (await api.campaigns.list()).flatMap((c) => c.sessions.flatMap((s) => s.scenes)).filter((sc) => sc.music.some((m) => m.kind === "track" && m.id === "t13")).length,
+        });
+        const before = await uses();
+        expect(before.playlists + before.scenes).toBeGreaterThan(0);
+        const count = (await api.library.listTracks()).length;
+        expect(valueOf(await api.library.removeTracks(["t13", "t02", "t13"]))).toEqual({ removed: ["t13", "t02"] });
+        const after = await api.library.listTracks();
+        expect(after).toHaveLength(count - 2);
+        expect(after.map((t) => t.id)).not.toContain("t13");
+        expect(await uses()).toEqual({ playlists: 0, scenes: 0 });
+        await changedEvent("tracks", "playlists", "campaigns", "history");
+        expect((await api.history.state()).undoLabel).toMatch(/^Remove 2 tracks from the library$/);
+        valueOf(await api.history.undo());
+        expect(await api.library.listTracks()).toHaveLength(count);
+        expect(await uses()).toEqual(before);
+        expectRefused(await api.library.removeTracks(["t02", "nope"]), "not-found");
+        expect(await api.library.listTracks()).toHaveLength(count);
+      });
+
+      it("0.5.2 item 1: Delete file from disk sends files to the Recycle Bin and takes their tracks out; a missing file keeps its track", async () => {
+        const summary = valueOf(await api.import.start({ from: "paths", paths: [fx.newAudioFiles[1]] }));
+        const id = summary.added[0];
+        const done = valueOf(await api.library.deleteFiles([id, fx.missingTrackId]));
+        expect(done.removed).toEqual([id]);
+        expect(done.problems).toEqual([{ trackId: fx.missingTrackId, reason: expect.stringMatching(/not where your library expects it/) }]);
+        const ids = (await api.library.listTracks()).map((t) => t.id);
+        expect(ids).not.toContain(id);
+        expect(ids).toContain(fx.missingTrackId);
+        expect((await api.history.state()).undoLabel).toBe("Delete 1 file and take its track out of the library");
+        expectRefused(await api.library.deleteFiles(["nope"]), "not-found");
+      });
+
+      it("0.5.2 items 4, 12 and 39: Type for several tracks at once, in one undo step; an effect gets the Effect role", async () => {
+        const done = valueOf(await api.library.setKind(["t44", "t13"], "fx"));
+        expect(done.map((t) => [t.id, t.kind, t.role])).toEqual([
+          ["t44", "fx", "effect"],
+          ["t13", "fx", "loop_bed"],
+        ]);
+        await changedEvent("tracks", "history");
+        expect((await api.history.state()).undoLabel).toBe("Type FX for 2 tracks");
+        valueOf(await api.history.undo());
+        expect((await track("t44")).kind).toBe("music");
+        expect((await track("t44")).role).toBeNull();
+        // An effect that becomes ambience loses the Effect role.
+        expect(valueOf(await api.library.setKind(["f01"], "amb")).map((t) => [t.kind, t.role])).toEqual([["amb", null]]);
+        expectRefused(await api.library.setKind(["nope"], "music"), "not-found");
+      });
+
       it("lists the library folders", async () => {
         const folders = await api.library.listFolders();
         expect(folders.map((f) => f.path)).toEqual(expect.arrayContaining(["H:\\Audio\\Scores", "H:\\Audio\\Ambience", "H:\\Audio\\Effects"]));

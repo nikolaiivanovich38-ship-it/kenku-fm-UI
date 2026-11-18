@@ -911,3 +911,10 @@ Built straight in the app, as 0.5.1's changes were. Each item's unit or componen
   (`deleteTag(store, id, { dropEmptyGroup: true })`; `TagChangeCount.groupRemoved`), and the Tags screen says so. A
   group a dynamic playlist's rule names stays: removing it would delete that condition and widen the playlist (DB
   review 2: a rule never widens when a tag goes).
+- **Taking tracks out (items 1, 50).** `RemoveTracks.tsx`: Remove from library (a row's ⋯, the selection's ⋯, and
+  Remove all shown (n)… in the ⋯ beside Add tracks while a filter or search narrows the list) calls
+  `library.removeTracks` (one undo step; the files stay); Delete file from disk… (last in the same menus) calls
+  `library.deleteFiles`, which sends each file to the Recycle Bin through the main process (`trashFile.ts`, see
+  docs/security.md "w52-lib") and then removes the tracks whose files went. Both confirmations name the manual
+  playlists, scenes and pads that use the tracks (`trackUses.ts`). Removed tracks leave the selection, and an open one
+  closes.

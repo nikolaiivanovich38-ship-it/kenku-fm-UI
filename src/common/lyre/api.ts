@@ -780,6 +780,20 @@ export interface LyreApi {
     find(request: FindRequest): Promise<FindResult>;
     /** ORG-5: a drop, or Add to… (r7org.js put): one undo step, copying (or with `move`, moving) what was dragged. */
     put(request: PutRequest): Promise<WriteResult<PutResult>>;
+    /**
+     * 0.5.2 items 1 and 50: Remove from library. The tracks leave the library and every playlist, pad and scene that
+     * names them; their files are not touched. One undo step.
+     */
+    removeTracks(trackIds: string[]): Promise<WriteResult<{ removed: string[] }>>;
+    /**
+     * 0.5.2 item 1: Delete file from disk…. Each track's file goes to the Recycle Bin (never deleted outright), then
+     * the tracks whose files went leave the library, as removeTracks, in one undo step (Undo brings the tracks back,
+     * not the files: they are in the Recycle Bin). A file that could not go (missing, a web address, refused) keeps
+     * its track and is named in `problems`.
+     */
+    deleteFiles(trackIds: string[]): Promise<WriteResult<{ removed: string[]; problems: { trackId: string; reason: string }[] }>>;
+    /** 0.5.2 items 4, 12 and 39: Type (Music, Ambience, FX) for one or many tracks, in one undo step. */
+    setKind(trackIds: string[], kind: TrackKind): Promise<WriteResult<LibraryTrack[]>>;
   };
   tags: {
     /** Tag groups and their values. library.js filters, tag combobox and Tag… sheet; playlists.js rule builder (plvaladd). */
@@ -1045,7 +1059,7 @@ export interface LyreApi {
 
 /** Method names by area, for the contract tests' "every method is covered" guard and for IPC channel lists. */
 export const LYRE_API_METHODS = {
-  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise", "find", "put"],
+  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise", "find", "put", "removeTracks", "deleteFiles", "setKind"],
   tags: ["listGroups", "tagTracks", "createGroup", "updateGroup", "moveGroup", "deleteGroup", "createTag", "renameTag", "mergeTag", "deleteTag", "updateTag", "moveTag"],
   folders: ["list", "create", "update", "delete", "moveInto"],
   playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise", "trackOrders", "setTrackOrder", "clearTrackOrder", "addDivider", "renameDivider", "removeDivider", "moveItem"],

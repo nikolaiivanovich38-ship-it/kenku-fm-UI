@@ -15,6 +15,7 @@ import path from "path";
 
 import {
   isFx,
+  TRACK_KINDS,
   keyOfPlace,
   tracksInPlaceOrder,
   type DomainCampaign,
@@ -147,6 +148,7 @@ import {
   updateRoot,
   removeRoot,
   removeRootWithTracks,
+  deleteTracks,
   updateScene,
   updateSession,
   updateTrack,
@@ -185,6 +187,11 @@ export interface LibraryHost {
   chooseFolder(): Promise<string | null>;
   /** Opens File Explorer with the file selected. */
   showItemInFolder(path: string): void;
+  /**
+   * 0.5.2 item 1: sends one audio file to the Recycle Bin (the main process checks it again: trashFile.ts), or
+   * rejects in plain words. Never deletes outright. Without it, Delete file from disk refuses ("unavailable").
+   */
+  trashFile?(path: string): Promise<void>;
   /** DAT-7: a save dialog for a .lyre file, starting at the suggested name; null when closed. */
   chooseSaveFile(suggestedName: string): Promise<string | null>;
   /** DAT-7: an open dialog for .lyre files; null when closed. */
@@ -482,6 +489,14 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     });
   }
   const requireTrack = (id: string) => libraryTracks(id)[0] ?? refuse("not-found", ENTITY_WORDS.track);
+  /** 0.5.2: the tracks named, each once, all in the library (else the write is refused, nothing changed). */
+  const existingTracks = (ids: readonly string[]) => {
+    const unique = [...new Set(ids)];
+    for (const id of unique) if (!store.get("SELECT 1 FROM tracks WHERE id = ?", id)) refuse("not-found", ENTITY_WORDS.track);
+    return unique;
+  };
+  /** What changes when tracks leave the library (ON DELETE CASCADE): every list that can name a track. */
+  const TRACKS_GONE: LyreArea[] = ["tracks", "playlists", "boards", "campaigns", "profiles"];
   /** A library folder by its path, in any letter case (0.5.2 items 20 and 40). */
   const requireRoot = (folder: string) => listRoots(store).find((r) => r.path.toLowerCase() === String(folder).toLowerCase()) ?? refuse("not-found", `Lyre has no library folder at ${folder}.`);
 
@@ -840,6 +855,57 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         return write(["tracks"], () => {
           setTrackNormalise(store, trackId, choice);
           return requireTrack(trackId);
+        });
+      },
+      async removeTracks(trackIds) {
+        return write(TRACKS_GONE, async () => {
+          const ids = existingTracks(trackIds);
+          await deleteTracks(store, ids, ids.length === 1 ? `Remove ${quoted(shownTitle(requireTrack(ids[0])))} from the library` : `Remove ${plural(ids.length, "track")} from the library`);
+          return { removed: ids };
+        });
+      },
+      async deleteFiles(trackIds) {
+        return write(TRACKS_GONE, async () => {
+          const trash = host.trashFile;
+          if (!trash) refuse("unavailable", "Lyre cannot send files to the Recycle Bin here.");
+          const ids = existingTracks(trackIds);
+          const roots = rootPaths();
+          const removed: string[] = [];
+          const problems: { trackId: string; reason: string }[] = [];
+          // One file at a time: the file comes from the library's own record of the track, never from the page.
+          for (const id of ids) {
+            const file = fullPath(store.get<TrackExtra>(`${TRACK_EXTRA_SQL} WHERE id = ?`, id) as TrackExtra, roots);
+            if (file === null) problems.push({ trackId: id, reason: "It plays from a web address, not a file on this computer." });
+            else if (!(await probe.exists(file))) problems.push({ trackId: id, reason: "Its file is not where your library expects it." });
+            else {
+              try {
+                await trash.call(host, file);
+                removed.push(id);
+              } catch (error) {
+                problems.push({ trackId: id, reason: error instanceof Error && error.message ? error.message : "Lyre could not move its file to the Recycle Bin." });
+              }
+            }
+          }
+          if (removed.length) await deleteTracks(store, removed, `Delete ${plural(removed.length, "file")} and take ${removed.length === 1 ? "its track" : "their tracks"} out of the library`);
+          return { removed, problems };
+        });
+      },
+      async setKind(trackIds, kind) {
+        return write(["tracks"], async () => {
+          const ids = existingTracks(trackIds);
+          if (!(TRACK_KINDS as readonly string[]).includes(kind)) refuse("invalid", "A track is music, ambience or a sound effect.", "kind");
+          const words = { music: "Music", amb: "Ambience", fx: "FX" }[kind];
+          // Effect is a sound effect's role: an effect gets it when it has none, and a track that stops being one loses it.
+          const rows = store.all<{ id: string; kind: string; role: string | null }>(`SELECT id, kind, role FROM tracks WHERE id IN (SELECT value FROM json_each(?))`, JSON.stringify(ids));
+          const changing = rows.filter((r) => r.kind !== kind);
+          await store.changeInBatches(`Type ${words} for ${changing.length === 1 ? quoted(shownTitle(requireTrack(changing[0].id))) : plural(changing.length, "track")}`, changing, (batch) => {
+            for (const r of batch) {
+              const role = kind === "fx" && r.role === null ? "effect" : kind !== "fx" && r.role === "effect" ? null : r.role;
+              updateTrack(store, r.id, { kind, role: role as never });
+            }
+          });
+          const byId = new Map(libraryTracks().map((t) => [t.id, t]));
+          return ids.map((id) => byId.get(id) as LibraryTrack);
         });
       },
       async peaksOf(trackId) {
