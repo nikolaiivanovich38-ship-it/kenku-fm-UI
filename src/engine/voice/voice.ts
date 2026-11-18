@@ -84,6 +84,8 @@ export interface VoiceEnding {
   endSeconds: number | null;
   /** Why it failed. */
   message: string | null;
+  /** Decoded into memory, or streamed from its file (null when it never loaded). */
+  sourceKind: "buffer" | "stream" | null;
 }
 
 export interface VoiceDeps {
@@ -667,6 +669,7 @@ export class Voice extends TypedEmitter<VoiceEvents> {
       fileSeconds: Number.isFinite(this.duration) ? this.duration : null,
       endSeconds: atEnd && this.plan ? this.plan.endAt : null,
       message: state === "failed" ? this.errorMessage : null,
+      sourceKind: this.sourceKind,
     };
   }
 

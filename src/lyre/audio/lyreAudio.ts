@@ -26,6 +26,7 @@
 import { TypedEmitter } from "tiny-typed-emitter";
 
 import {
+  cryptoRandom,
   DEFAULT_LIBRARY_NORMALISE,
   normalisedGainDb,
   playlistTracks,
@@ -55,7 +56,6 @@ import type { GainLike, NodeLike } from "../../engine/audio/types";
 import type { PlaybackEngine } from "../../engine/engine";
 import {
   padPreview,
-  playlistPreview,
   trackPreview,
   type PreviewKind,
   type PreviewPlayer,
@@ -65,14 +65,15 @@ import type { DeviceStatus, OutputDeviceChooser, OutputDeviceInfo } from "../../
 import { DEFAULT_FADES, type CueAction, type CueOutcome, type TrackFrom } from "../../engine/queue/actions";
 import { Director, padWithoutSound, type ListWhat } from "../../engine/queue/director";
 import type { PadSound, SceneRef, ShowLibrary } from "../../engine/queue/library";
-import { playOrderOf, type Origin } from "../../engine/queue/nowPlaying";
+import { itemAt, locate, playlistItem, playOrderOf, sequenceOf, single, type Origin, type Playing } from "../../engine/queue/nowPlaying";
 import type { Random } from "../../engine/queue/queue";
 import type { PlayingReport, RoomReport } from "../../engine/queue/roomPlayer";
 import type { RoomLane } from "../../engine/rooms.contract";
 import { TABLE_ROOM, type RoomMixer } from "../../engine/rooms";
-import { laneProfile, profileInputFor } from "../../engine/profile/trackProfile";
+import { endsAtFileEnd, laneProfile, profileInputFor, repeatProfile } from "../../engine/profile/trackProfile";
 import type { MediaRequest } from "../../engine/sources/sourceLoader";
-import type { Voice } from "../../engine/voice/voice";
+import type { Voice, VoiceEnding } from "../../engine/voice/voice";
+import { endingLine } from "./playbackLog";
 import { StableRooms } from "./stableRooms";
 
 export type { CueAction, CueOutcome, TrackFrom, SceneRef, Origin, RoomLane, OutputDeviceInfo, DeviceStatus, PreviewKind, ListWhat, UpNextRef };
@@ -376,6 +377,13 @@ export interface LyreAudio {
   previewTrack(trackId: string, options?: PreviewTrackOptions): CueOutcome;
   /** 0.5.1 (the seek bars): jump the preview to `seconds` in its file. */
   seekPreview(seconds: number): CueOutcome;
+  /**
+   * 28: the Audio profile changed while `trackId` previews: the playing sound takes `profile` at once, from where it
+   * is, without starting again. 24: without a profile (the screen was left), it plays on as the players would hear
+   * it from where it was started, and what follows it (a playlist's next track, its Followed by) plays when it ends.
+   * { ok: false } when that track is not previewing; nothing is said then.
+   */
+  changePreview(trackId: string, profile?: AudioProfile): CueOutcome;
   previewPlaylist(playlistId: string, options?: PreviewFrom): CueOutcome;
   previewPad(boardId: string, padId: string, options?: PreviewFrom): CueOutcome;
   /**
@@ -481,6 +489,23 @@ export interface LyreAudioParts {
   resumePositions?: Map<string, number>;
   /** OUT-10: listens to a room's mix (an AnalyserNode in the app) for its level meter; none: every level is 0. */
   meter?: (output: GainLike) => RoomMeter;
+  /** 52: writes a line to Lyre's log, which Save diagnostics keeps (default: a console warning, which reaches it). */
+  logLine?: (line: string) => void;
+}
+
+/**
+ * What the preview plays through (9, 30): a track, which its Followed by may follow, or a playlist in its place's play
+ * order, track after track.
+ */
+interface PreviewRun {
+  /** The preview's key: the track's id, or "pl:<id>" for a playlist. */
+  key: string;
+  /** The track playing now; for a playlist, its step in the dealt order (nowPlaying's Playing). */
+  item: Playing;
+  place: UsePlace | null;
+  from: string | null;
+  /** The Audio profile gave it its profile and moves on by itself, until it lets go (changePreview with none). */
+  held: boolean;
 }
 
 /** OUT-10: one room's level meter. */
@@ -526,6 +551,10 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   /** Each room's volume by its real id (a bot id, or "table"), kept while the app runs. */
   private readonly roomVolumes = new Map<string, number>();
   private readonly cleanups: (() => void)[] = [];
+  /** The library as the show engine reads it (for the preview's playlists, as on air). */
+  private readonly show: ShowLibrary;
+  /** 9, 30: what the preview plays through; null for a pad or nothing. */
+  private previewRun: PreviewRun | null = null;
 
   constructor(parts: LyreAudioParts) {
     super();
@@ -548,6 +577,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       crossfade: () => this.library.crossfade?.() ?? { ms: DEFAULT_FADES.crossfade * 1000, curve: "even" },
       nextScene: (ref) => this.library.nextScene?.(ref) ?? null,
     };
+    this.show = library;
     this.director = new Director({ engine: parts.engine, rooms: this.rooms, library, random: parts.random, resumeAt: parts.resumePositions });
 
     const onChange = () => this.changed();
@@ -558,13 +588,18 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       this.changed();
     };
     const onBroadcast = () => this.changed();
-    const onVoice = () => this.changed();
+    const onVoice = (voice: Voice) => {
+      if (voice.isFinal()) this.logEnding(voice);
+      this.changed();
+    };
     const onPreview = (_state: PreviewState | null, announcement: string) => {
       if (announcement) this.emit("announce", announcement);
       this.changed();
     };
     const onPreviewPosition = (key: string, seconds: number) => this.emit("preview-position", { key, positionMs: seconds * 1000 });
     const onPreviewFailed = (key: string, message: string) => this.emit("preview-failed", { key, message });
+    const onPreviewEnded = (state: PreviewState) => this.previewEnded(state);
+    const onPreviewFinish = (state: PreviewState, ending: VoiceEnding) => this.log(state.trackId, ending, "preview");
     const onDevice = (role: string, status: DeviceStatus) => {
       if (role === "preview" && status.message) {
         this.emit("announce", status.message);
@@ -584,6 +619,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     parts.preview.on("change", onPreview);
     parts.preview.on("position", onPreviewPosition);
     parts.preview.on("failed", onPreviewFailed);
+    parts.preview.on("ended", onPreviewEnded);
+    parts.preview.on("finish", onPreviewFinish);
     parts.previewDevices?.on("status", onDevice);
     this.cleanups.push(
       () => parts.mixer.off("rooms", onRooms),
@@ -592,6 +629,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       () => parts.preview.off("change", onPreview),
       () => parts.preview.off("position", onPreviewPosition),
       () => parts.preview.off("failed", onPreviewFailed),
+      () => parts.preview.off("ended", onPreviewEnded),
+      () => parts.preview.off("finish", onPreviewFinish),
       () => parts.previewDevices?.off("status", onDevice),
     );
     this.applyRoomVolumes();
@@ -837,8 +876,32 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     }
     const gainDb = this.previewGain(track.id, options?.playlistId ?? null);
     const profile = options?.profile ?? this.previewProfile(track, options?.place ?? null, options?.playlistId ?? null);
-    const voice = { startAt: options?.startAtMs === undefined ? undefined : options.startAtMs / 1000, profile, gainDb };
+    // 52: an End at the track's length is the end of its file, whatever length the library has.
+    const voice = { startAt: options?.startAtMs === undefined ? undefined : options.startAtMs / 1000, profile, gainDb, endAtFileEnd: endsAtFileEnd(track, profile) };
     preview.play({ ...trackPreview(track, media), playlistId: options?.playlistId ?? null, options: voice, quiet: options?.quiet, from: options?.from ?? null });
+    const place = options?.place ?? null;
+    // The Audio profile (a profile of its own) and Find missing files (another file) move on by themselves.
+    this.previewRun = {
+      key: track.id,
+      item: { ...single(track.id), origin: { kind: "single", place }, playlistId: options?.playlistId ?? null },
+      place,
+      from: options?.from ?? null,
+      held: options?.profile !== undefined || options?.file !== undefined,
+    };
+    return OK;
+  }
+
+  changePreview(trackId: string, profile?: AudioProfile): CueOutcome {
+    const run = this.previewRun;
+    const track = this.library.track(trackId);
+    if (this.disposed || !track || this.parts.preview.current()?.trackId !== trackId) return { ok: false, message: "That track is not previewing." };
+    let heard = profile;
+    if (!heard) {
+      // As the players would hear it from where it was previewed; what follows it plays when it ends.
+      heard = run ? this.stepProfile(track, run.item, run.place) : this.previewProfile(track, null, null);
+      if (run) run.held = false;
+    }
+    this.parts.preview.setProfile(trackId, heard, endsAtFileEnd(track, heard));
     return OK;
   }
 
@@ -852,18 +915,92 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if (!playlist) {
       return this.fail("That playlist is no longer there.");
     }
-    const first = playlistTracks(playlist, this.library)[0];
-    const media = first ? this.library.media(first) : null;
-    if (first && !media) {
-      return this.fail(`Unable to preview: ${trackTitle(first)}`);
+    // 30: the whole playlist, dealt as it plays where it is previewed (its place's play order and track order).
+    const place = options.place ?? null;
+    const item = playlistItem(playlistId, null, this.show, { place, seed: this.newSeed() });
+    if (!item) {
+      return this.fail("This playlist has no tracks yet");
     }
-    const item = playlistPreview(playlist, this.library, () => media!);
-    if ("message" in item) {
-      return this.fail(item.message);
+    return this.previewStep({ key: `pl:${playlistId}`, item, place, from: options.from ?? null, held: false });
+  }
+
+  /** 30: plays one track of a playlist's preview, as the players would hear it from there. */
+  private previewStep(run: PreviewRun): CueOutcome {
+    const { item } = run;
+    const track = this.library.track(item.trackId);
+    const playlist = item.playlistId ? this.library.playlist(item.playlistId) : undefined;
+    const media = track ? this.library.media(track) : null;
+    if (!track || !media) {
+      this.previewRun = null;
+      return this.fail(`Unable to preview: ${trackTitle(track)}`);
     }
-    const profile = this.previewProfile(first!, options.place ?? null, playlistId);
-    preview.play({ ...item, options: { gainDb: this.previewGain(item.trackId ?? null, playlistId), profile }, from: options.from ?? null });
+    const profile = this.stepProfile(track, item, run.place);
+    this.parts.preview.play({
+      key: run.key,
+      label: `${playlist?.name ?? ""}: ${trackTitle(track)}`,
+      media,
+      kind: "playlist",
+      trackId: track.id,
+      playlistId: item.playlistId,
+      options: { gainDb: this.previewGain(track.id, item.playlistId), profile, endAtFileEnd: endsAtFileEnd(track, profile) },
+      from: run.from,
+    });
+    this.previewRun = run;
     return OK;
+  }
+
+  /**
+   * The profile a previewed track plays with: as the players hear it from that place and playlist; 37: with its
+   * playlist's Repeat one there, going round by its loop setting.
+   */
+  private stepProfile(track: DomainTrack, item: Playing, place: UsePlace | null): AudioProfile {
+    const profile = this.previewProfile(track, place, item.playlistId);
+    const repeatsOne = item.playlistId !== null && item.origin.kind === "playlist" && playOrderOf(item.playlistId, item.origin, this.show).repeat === "one";
+    return (repeatsOne ? repeatProfile(track, profile) : null) ?? profile;
+  }
+
+  /**
+   * 9, 30: the preview reached its end by itself: a playlist goes on as its play order says (each round of a shuffle
+   * dealt again, never starting with the track just heard); after a track, or a playlist's last, its Followed by.
+   * Nothing for a pad, or while the Audio profile holds the preview.
+   */
+  private previewEnded(state: PreviewState): void {
+    const run = this.previewRun;
+    if (this.disposed || !run || run.key !== state.key || run.held) return;
+    this.previewRun = null;
+    const next = run.item.origin.kind === "playlist" ? this.nextInPreview(run.item) : null;
+    if (next) {
+      this.previewStep({ ...run, item: next });
+      return;
+    }
+    const follow = this.library.track(run.item.trackId)?.follow;
+    const from = run.from ?? undefined;
+    if (follow?.kind === "track" && this.library.track(follow.id)) this.previewTrack(follow.id, { from });
+    else if (follow?.kind === "playlist" && this.library.playlist(follow.id)) this.previewPlaylist(follow.id, { from });
+  }
+
+  /** 30: a previewed playlist's track after `item`, by its play order there; null after its last without Repeat all. */
+  private nextInPreview(item: Playing): Playing | null {
+    if (item.origin.kind !== "playlist" || !item.playlistId) return null;
+    const order = playOrderOf(item.playlistId, item.origin, this.show);
+    const seq = sequenceOf(item.origin, this.show);
+    const { index, found } = locate(seq, item);
+    if (seq.length === 0) return null;
+    if (order.repeat === "one" && found) return itemAt(item, seq, index);
+    const at = found ? index + 1 : index;
+    const ahead = seq.findIndex((step, i) => i >= at && step.trackId !== item.trackId);
+    if (ahead > -1) return itemAt(item, seq, ahead);
+    if (order.repeat !== "all") return null;
+    // 46: the next round is dealt again; it does not start with the track just heard.
+    const origin = { ...item.origin, seed: this.newSeed() };
+    const round = sequenceOf(origin, this.show);
+    const first = Math.max(0, round.findIndex((step) => step.trackId !== item.trackId));
+    return round.length ? itemAt({ ...item, origin }, round, first) : null;
+  }
+
+  /** A seed to deal a shuffled preview with (46: from cryptographic random numbers unless a test gives its own). */
+  private newSeed(): number {
+    return Math.floor((this.parts.random ?? cryptoRandom)() * 2 ** 32);
   }
 
   previewPad(boardId: string, padId: string, options: PreviewFrom = {}): CueOutcome {
@@ -880,6 +1017,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     }
     // A pad's sound plays on its own on air: the track's choice, then the library's.
     preview.play({ ...padPreview({ boardId, padId, label: pad.label, media }), trackId: track!.id, options: { gainDb: this.previewGain(track!.id, null) }, from: options.from ?? null });
+    this.previewRun = null;
     return OK;
   }
 
@@ -909,6 +1047,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const loop = pad.mode === "toggle" || pad.mode === "hold";
     // Quiet: the board says what the press did ("Storm: loop stopped"), in the words of Try pads.
     preview.play({ ...padPreview({ boardId, padId, label: pad.label, media }), options: { loop, volume: pad.volume }, quiet: true, from: options.from ?? null });
+    this.previewRun = null;
     return OK;
   }
 
@@ -920,10 +1059,11 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       this.tryTurns.set(key, turn + 1);
       return trackIds[turn % trackIds.length];
     }
-    return trackIds[Math.min(trackIds.length - 1, Math.floor(Math.random() * trackIds.length))];
+    return trackIds[Math.min(trackIds.length - 1, Math.floor((this.parts.random ?? cryptoRandom)() * trackIds.length))];
   }
 
   stopPreview(): void {
+    this.previewRun = null;
     this.parts.preview.stop();
   }
 
@@ -1060,6 +1200,20 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   }
 
   // ---------- inside ----------
+
+  /** 52: an on-air voice finished: a line for Save diagnostics when it ended early, failed, or its file is not the library's length. */
+  private logEnding(voice: Voice): void {
+    if (!voice.ending || !voice.trackId || !voice.bus) return;
+    const room = this.parts.mixer.rooms().find((r) => r.botId === this.rooms.toReal(voice.room ?? ""))?.name ?? "Table";
+    this.log(voice.trackId, voice.ending, `${room}, ${voice.bus}`);
+  }
+
+  private log(trackId: string | null, ending: VoiceEnding, where: string): void {
+    const track = trackId ? this.library.track(trackId) : undefined;
+    if (!track) return;
+    const line = endingLine({ title: trackTitle(track), fileName: track.fileName, libraryMs: track.durationMs, ending, where, sourceKind: ending.sourceKind });
+    if (line) (this.parts.logLine ?? ((text: string) => console.warn(text)))(line);
+  }
 
   /**
    * The audio profile a track plays with on air from that place and playlist (the scene's own settings, the

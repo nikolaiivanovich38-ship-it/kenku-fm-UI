@@ -87,6 +87,7 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   toggleShuffle = this.record("toggleShuffle");
   seek = this.record("seek");
   seekPreview = this.record("seekPreview");
+  changePreview = this.record("changePreview");
 
   savedRepeatOneChanged(scene: unknown, trackId: string): void {
     this.calls.push(["savedRepeatOneChanged", scene, trackId]);

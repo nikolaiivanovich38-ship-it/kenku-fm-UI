@@ -105,7 +105,7 @@ describe("52: a track plays to the end of its file when its End is the length th
   it("says how it ended: at the end of the file, with the length it found (for Save diagnostics)", async () => {
     const voice = await play(stream(20, 18.4), { profile: profileOf(3), endAtFileEnd: true });
     await context.advance(21);
-    expect(voice.ending).toEqual({ how: "file end", atSeconds: 20, fileSeconds: 20, endSeconds: null, message: null });
+    expect(voice.ending).toEqual({ how: "file end", atSeconds: 20, fileSeconds: 20, endSeconds: null, message: null, sourceKind: "stream" });
   });
 
   it("says when it stopped at End, and where", async () => {

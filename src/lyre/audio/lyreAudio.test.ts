@@ -540,7 +540,9 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     rig.data.profiles = { ...rig.data.profiles, [placeKey({ kind: "playlist", playlistId: "P" })]: { m2: { endMs: 3000, after: "next" } } };
     rig.audio.previewPlaylist("P");
     await rig.advance(3.5);
-    expect(state().preview).toBeNull();
+    // 30: the playlist's preview goes on to its next track when the first reaches its End there.
+    expect(state().preview).toMatchObject({ key: "pl:P", trackId: "m3" });
+    rig.audio.stopPreview();
     rig.audio.previewTrack("m2", { playlistId: "P" });
     await rig.advance(3.5);
     expect(state().preview).toBeNull();
