@@ -770,3 +770,42 @@ describe("dragging a scene", () => {
   });
 });
 
+/*
+ * 0.5.2 (Nik's item 41: "I need to be able to drag and drop tracks in order on music lists in scenes"; item 36: exactly
+ * where the line shows): The abbey ruins' music has four items; its pad boards drag the same way.
+ */
+describe("dragging in a scene's music and pad boards", () => {
+  const sc3 = async (api: FakeLyreApi) => (await s14(api)).scenes.find((x) => x.id === "sc3")!;
+  const rowsOf = (name: string) => Array.from(abbey().getByRole("list", { name }).children) as HTMLElement[];
+  const lines = (name: string) => rowsOf(name).filter((li) => /cp-drop-(before|after)/.test(li.className)).length;
+
+  it.each(dropPlaces(4))("the third music item dropped on item %i, %s half", async (onto, half) => {
+    const { api } = await openAbbey();
+    const before = (await sc3(api)).music;
+    const want = orderAfterDrop(before, 2, onto, half);
+    const moves = JSON.stringify(want) !== JSON.stringify(before);
+    dragRow(rowsOf("Music in order"), 2, onto, half, { between: () => expect(lines("Music in order")).toBe(moves ? 1 : 0) });
+    await waitFor(async () => expect((await sc3(api)).music).toEqual(want));
+  });
+
+  it("each music row has a handle to drag it by; a drop elsewhere in the scene leaves the music as it was", async () => {
+    const { api } = await openAbbey();
+    const rows = rowsOf("Music in order");
+    expect(rows.every((li) => li.querySelector("[title^='Drag to']"))).toBe(true);
+    const before = (await sc3(api)).music;
+    fireEvent.pointerDown(rows[0].querySelector("[title^='Drag to']")!);
+    fireEvent.dragStart(rows[0], { dataTransfer: { effectAllowed: "", dropEffect: "", types: ["text/plain"], files: [], setData: (): void => undefined } });
+    const notes = abbey().getByRole("textbox", { name: "Notes" });
+    fireEvent.drop(notes);
+    fireEvent.dragEnd(rows[0]);
+    expect((await sc3(api)).music).toEqual(before);
+  });
+
+  it("a pad board dropped below the last goes last", async () => {
+    const { api } = await openAbbey();
+    const before = (await sc3(api)).boardIds;
+    dragRow(rowsOf("Pad boards in order"), 0, before.length - 1, "lower");
+    await waitFor(async () => expect((await sc3(api)).boardIds).toEqual([...before.slice(1), before[0]]));
+  });
+});
+

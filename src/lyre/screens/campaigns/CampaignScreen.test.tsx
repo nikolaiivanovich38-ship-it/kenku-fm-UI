@@ -335,6 +335,30 @@ describe("round 6: the campaign's own order (ORG-13)", () => {
     await waitFor(() => expect(box().queryByRole("button", { name: "Back to the playlist's order" })).toBeNull());
   });
 
+  // 0.5.2 (Nik's item 36): a playlist's track dropped in this campaign's order lands exactly where the line shows.
+  it.each([
+    [0, "upper"],
+    [0, "lower"],
+    [2, "upper"],
+    [2, "lower"],
+    [-1, "upper"],
+    [-1, "lower"],
+  ] as const)("the second track of The Company themes dropped on track %i (from the end when below 0), %s half", async (at, half) => {
+    const user = userEvent.setup();
+    const { api } = openAt("campaign/crown");
+    await screen.findByRole("region", { name: "Campaign playlists" });
+    await user.click(await box().findByRole("button", { name: "Show contents of The Company themes" }));
+    const rows = () => within(box().getByRole("list", { name: /^Tracks in The Company themes/ })).getAllByRole("listitem");
+    const before = await api.playlists.tracks("p-company");
+    const onto = at < 0 ? before.length + at : at;
+    const want = orderAfterDrop(before, 1, onto, half);
+    const moves = want.join() !== before.join();
+    const lines = () => rows().filter((li) => /cp-drop-(before|after)/.test(li.className)).length;
+    dragRow(rows(), 1, onto, half, { between: () => expect(lines()).toBe(moves ? 1 : 0) });
+    if (moves) await waitFor(async () => expect((await api.playlists.trackOrders())["cp:crown"]?.["p-company"]).toEqual(want));
+    else expect((await api.playlists.trackOrders())["cp:crown"]?.["p-company"]).toBeUndefined();
+  });
+
   it("the campaign's playlists themselves move with Alt+Down on their name", async () => {
     const user = userEvent.setup();
     openAt("campaign/crown");

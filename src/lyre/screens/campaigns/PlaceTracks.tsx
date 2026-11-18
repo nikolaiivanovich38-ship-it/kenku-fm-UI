@@ -18,6 +18,7 @@ import { RepeatOneButton } from "../../kit/RepeatOneButton";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import { TagStrip } from "../../kit/TagStrip";
 import { ownNameTitle, trackNameAt, useTrackNames } from "../../kit/trackName";
+import { useDragReorder } from "../../kit/reorder";
 import { useAnnounce } from "../../shell/Announcer";
 import { useSave } from "../../shell/useSave";
 import { formatLength } from "./model";
@@ -41,7 +42,6 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
   const key = keyOfPlace(place);
   const group = `${key}|${playlistId}`;
   const [on, setOn] = useState(() => reordering.has(group));
-  const [dragFrom, setDragFrom] = useState<number | null>(null);
   const listRef = useRef<HTMLOListElement>(null);
   const focusAfter = useRef<{ trackId: string; control: string } | null>(null);
   // While a new order is being saved it shows at once; the library's answer then takes over.
@@ -82,6 +82,8 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
     say(`${name} plays in its own order ${words}`);
   };
 
+  // 0.5.2 (Nik's item 36): dragged by the handle with kit/reorder, it lands exactly where the line shows.
+  const drag = useDragReorder(`tro-${group}`, (from, to) => void move(from, to), { zone: "list" });
   const onKeyDown = (event: React.KeyboardEvent, index: number) => {
     if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
     event.preventDefault();
@@ -122,38 +124,8 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
         {ordered.map((t, i) => {
           const n = trackNameAt(t, place.kind === "campaign" ? null : place, names);
           return (
-            <li
-              key={t.id}
-              className={dragFrom === i ? "xp-row ro-dragging" : "xp-row"}
-              data-tid={t.id}
-              onKeyDown={(e) => onKeyDown(e, i)}
-              onDragOver={(e) => {
-                if (dragFrom === null) return;
-                // Handled here: the page's drop guard (SEC-7) would otherwise refuse the drop.
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onDrop={(e) => {
-                if (dragFrom === null) return;
-                e.preventDefault();
-                e.stopPropagation();
-                const from = dragFrom;
-                setDragFrom(null);
-                void move(from, i);
-              }}
-            >
-              <span
-                className="ro-handle"
-                draggable
-                title={`Drag to change the order ${words} (or Alt+Up / Alt+Down)`}
-                aria-hidden="true"
-                onDragStart={(e) => {
-                  e.stopPropagation();
-                  e.dataTransfer.effectAllowed = "move";
-                  setDragFrom(i);
-                }}
-                onDragEnd={() => setDragFrom(null)}
-              >
+            <li key={t.id} className={`xp-row ${drag.rowClass(i)}`} data-tid={t.id} onKeyDown={(e) => onKeyDown(e, i)} {...drag.rowProps(i)}>
+              <span className="ro-handle" title={`Drag to change the order ${words} (or Alt+Up / Alt+Down)`} aria-hidden="true" {...drag.handleProps}>
                 <Icon name="drag" size="s" />
               </span>
               <span className="faint num">{i + 1}</span>

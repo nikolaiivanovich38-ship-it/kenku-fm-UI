@@ -53,7 +53,7 @@ import { NameInSceneDialog, TrackUseInDialog } from "./trackDialogs";
 import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
 import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { DeleteSessionDialog } from "./deleting";
-import { useDragReorder } from "../../kit/reorder";
+import { useDragReorder, type DragReorder } from "../../kit/reorder";
 
 import "./campaigns.css";
 import { takeBackOpen, TopLead } from "../../shell/TopBar";
@@ -830,6 +830,7 @@ function ItemRow({
   count,
   ctx,
   dropBefore,
+  drag,
   onChange,
 }: {
   scene: SceneInfo;
@@ -840,6 +841,8 @@ function ItemRow({
   ctx: SceneContext;
   /** Files dropped now would land before this row (an insertion line). */
   dropBefore?: boolean;
+  /** 0.5.2 (Nik's item 41): the list's drag and drop (kit/reorder): the row is dragged by its handle. */
+  drag: DragReorder;
   onChange: (op: "first" | "up" | "down" | "remove") => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -869,8 +872,13 @@ function ItemRow({
     { label: "Remove from this scene", icon: "close", onSelect: () => onChange("remove") },
   ];
   return (
-    <li className={`cp-it${position === 0 ? " first" : ""}${dropBefore ? " cp-ins-before" : ""}`}>
+    <li className={`cp-it${position === 0 ? " first" : ""}${dropBefore ? " cp-ins-before" : ""} ${drag.rowClass(position)}`} {...drag.rowProps(position)}>
       <div className="cp-it-row">
+        {count > 1 && (
+          <span className="cp-handle" title="Drag to change the order (or use ⋯ Move up and Move down)" aria-hidden="true" {...drag.handleProps}>
+            <Icon name="drag" size="s" />
+          </span>
+        )}
         {playlist || board ? <ExpanderButton label={info.name} expanded={open} onToggle={() => setOpen(!open)} /> : <span className="cp-xpgap" aria-hidden="true" />}
         <span className="num cp-it-n" aria-hidden="true">
           {position + 1}
@@ -952,7 +960,7 @@ function ItemRow({
 function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
   const { say } = useAnnounce();
   const nameOf = (id: string) => (list === "boards" ? ctx.index.board(id)?.name : soundInfo(scene.music.find((r) => r.id === id) ?? { kind: "track", id }, ctx.index)?.name) ?? "item";
-  return async (at: number, op: "first" | "up" | "down" | "remove") => {
+  return async (at: number, op: "first" | "up" | "down" | "remove" | { to: number }) => {
     ctx.workedOn(scene.id);
     const items: (SoundRef | string)[] = list === "music" ? [...scene.music] : [...scene.boardIds];
     const idOf = (x: SoundRef | string) => (typeof x === "string" ? x : x.id);
@@ -967,7 +975,7 @@ function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
       say(`Removed ${name} from this scene${at === 0 && items.length ? `. ${nameOf(idOf(items[0]))}${lead}` : ""}`);
       return;
     }
-    const to = op === "first" ? 0 : op === "up" ? at - 1 : at + 1;
+    const to = typeof op === "object" ? op.to : op === "first" ? 0 : op === "up" ? at - 1 : at + 1;
     if (to < 0 || to >= items.length) return;
     const [moved] = items.splice(at, 1);
     items.splice(to, 0, moved);
@@ -982,6 +990,8 @@ function MusicList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
   const change = useListChange(scene, "music", ctx);
   const [over, setOver] = useState<{ index: number } | null>(null);
   const rows = scene.music.map((ref, at) => ({ at, info: soundInfo(ref, ctx.index) })).filter((r): r is { at: number; info: ItemInfo } => !!r.info);
+  // 0.5.2 (Nik's item 41): drag a row by its handle; it lands exactly where the line shows.
+  const drag = useDragReorder(`music-${scene.id}`, (from, to) => void change(rows[from].at, { to: rows[to].at }), { zone: "list" });
   return (
     <div
       className={`cp-box${over ? " cp-fdrop" : ""}${over && over.index >= rows.length ? " cp-ins-end" : ""}`}
@@ -1018,6 +1028,7 @@ function MusicList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
               count={rows.length}
               ctx={ctx}
               dropBefore={over?.index === i}
+              drag={drag}
               onChange={(op) => void change(row.at, op)}
             />
           ))}
@@ -1039,6 +1050,7 @@ function MusicList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
 function BoardList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
   const change = useListChange(scene, "boards", ctx);
   const rows = scene.boardIds.map((id, at) => ({ at, board: ctx.index.board(id) })).filter((r) => !!r.board);
+  const drag = useDragReorder(`boards-${scene.id}`, (from, to) => void change(rows[from].at, { to: rows[to].at }), { zone: "list" });
   return (
     <div className="cp-box">
       {rows.length ? (
@@ -1052,6 +1064,7 @@ function BoardList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
               position={i}
               count={rows.length}
               ctx={ctx}
+              drag={drag}
               onChange={(op) => void change(row.at, op)}
             />
           ))}

@@ -221,7 +221,6 @@ a.btn.cp-prof:hover { color: var(--ink); }
 .ro-own { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 4px; }
 .ro-own-t { font-size: var(--fs-s); color: var(--ink-2); }
 .ro-handle { display: inline-grid; place-items: center; width: 16px; color: var(--ink-3); cursor: grab; flex: none; }
-.ro-dragging { opacity: 0.5; }
 .ro-btns { display: inline-flex; gap: 2px; flex: none; }
 /* PLY-17: Repeat one, saved with the scene. */
 .rep1 { position: relative; }
