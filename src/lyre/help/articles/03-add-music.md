@@ -12,4 +12,8 @@ Lyre never copies or changes your audio files. It remembers where they are.
 
 The search box finds titles, file names, artists and tags. **Filters** narrows the list by kind (Music, Ambience, FX), tag, energy, shape, folder and missing files.
 
-Tags are what dynamic playlists and Live's **Find a track or playlist** use, so a few good tags save time at the table.
+Tags are what dynamic playlists and Live's **Find a track or playlist** use, so a few good tags save time at the table. A track is **New** until you give it a tag.
+
+**Type** in a track's Details (Music, Ambience or FX) decides where it is offered: FX for pads, Ambience for a scene's ambience. To change several, select them and use **⋯** › **Type**. In **Filters** › **Folders**, a folder's **⋯** says what its new tracks are, or removes the folder.
+
+**⋯** on a row › **Remove from library** takes a track out of Lyre and leaves its file; **Undo** brings it back. **Delete file from disk…** sends the file to the Recycle Bin.
