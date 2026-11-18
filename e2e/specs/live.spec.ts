@@ -1572,14 +1572,14 @@ test.describe("0.5.2: Live's empty boxes, loop settings and track names", () => 
     await expect(region(page, "Campaign playlists")).toBeVisible();
   });
 
-  test("the music on air shows its loop setting and leads to its details in the Library (items 53, 3 and 11)", async ({ page }) => {
+  test("the music on air shows its loop setting and leads to its details in the Track library (items 53, 3 and 11)", async ({ page }) => {
     appOnly();
     await openRoute(page, "live");
     await startAbbey(page);
     const table = room(page, "Table");
     await expect(table.getByRole("img", { name: /^(Loop|Crossfade loop|Don't loop)$/ }).first()).toBeVisible();
     await table.getByRole("link", { name: /^Eerie dread/ }).click();
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Library/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Track library");
     await expect(page.getByRole("region", { name: "Details", exact: true }).getByRole("textbox", { name: "Your title" })).toBeVisible();
   });
 
