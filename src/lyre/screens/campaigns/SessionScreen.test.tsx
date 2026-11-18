@@ -735,4 +735,22 @@ describe("round 6, part 4: Reorder in a scene's playlist (Must 3, ORG-13)", () =
     await waitFor(() => expect(window.location.hash).toBe("#/campaign/crown"));
     expect(await screen.findByText(/^Deleted Session 15/)).toBeInTheDocument();
   });
+
+  it("0.5.2 (Nik's item 13): with numbers typed, the session's details have its number, and the heading follows it", async () => {
+    const api = createFakeLyreApi();
+    await api.campaigns.update("crown", { numbering: "typed" });
+    openAt("session/crown/s14", { api });
+    const number = await screen.findByRole("spinbutton", { name: "Session number" });
+    expect(number).toHaveValue(14);
+    await userEvent.clear(number);
+    await userEvent.type(number, "30{Enter}");
+    expect(await screen.findByRole("heading", { level: 1, name: "Session 30: The Drowned Abbey" })).toBeInTheDocument();
+    expect((await api.campaigns.get("crown"))!.sessions[2].number).toBe(30);
+  });
+
+  it("0.5.2: while sessions count on by themselves, a session has no number to type", async () => {
+    openAt("session/crown/s14");
+    await screen.findByRole("heading", { level: 1, name: "Session 14: The Drowned Abbey" });
+    expect(screen.queryByRole("spinbutton", { name: "Session number" })).toBeNull();
+  });
 });

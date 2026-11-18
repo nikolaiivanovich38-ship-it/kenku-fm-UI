@@ -8,7 +8,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import type { SoundRef, TrackNames, UsePlace } from "../../../common/domain";
-import { isRefused, type CampaignInfo, type SceneAddress, type SceneInfo, type SessionInfo, type SessionStatus } from "../../../common/lyre/api";
+import { isRefused, MAX_SESSION_NUMBER, type CampaignInfo, type SceneAddress, type SceneInfo, type SessionInfo, type SessionStatus } from "../../../common/lyre/api";
 import { shownTitle } from "../../../common/lyre/text";
 import { useCampaign, useLyreApi, useTagGroups } from "../../api";
 import { Button, IconButton } from "../../kit/Button";
@@ -362,6 +362,25 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
               onSave={(name) => void saveSession({ name }, `session name “${name.trim()}”`)}
             />
           </div>
+          {/* 0.5.2 (Nik's item 13): a campaign whose numbers are typed has each session's number here. */}
+          {c.numbering === "typed" && (
+            <div className="field cp-f-number">
+              <label htmlFor="cp-s-number">Session number</label>
+              <DraftField
+                className="input"
+                id="cp-s-number"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={MAX_SESSION_NUMBER}
+                value={String(s.number)}
+                onSave={(text) => {
+                  const number = Number(text);
+                  if (text.trim() !== "" && number !== s.number) void saveSession({ number }, `session number ${text.trim()}`);
+                }}
+              />
+            </div>
+          )}
           <div className="field cp-f-date">
             <label htmlFor="cp-s-date">Date</label>
             <input className="input" type="date" id="cp-s-date" value={s.date ?? ""} onChange={(event) => void saveSession({ date: event.target.value || null }, `Session ${s.number} date`)} />

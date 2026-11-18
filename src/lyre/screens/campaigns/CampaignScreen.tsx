@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useRef, useState } from "react";
 
-import type { CampaignInfo, CampaignPatch, SessionInfo } from "../../../common/lyre/api";
+import { MAX_SESSION_NUMBER, type CampaignInfo, type CampaignPatch, type SessionInfo, type SessionNumbering } from "../../../common/lyre/api";
 import { useCampaign, useLyreApi } from "../../api";
 import { Button } from "../../kit/Button";
 import { Icon } from "../../kit/Icon";
@@ -115,6 +115,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
             <label htmlFor="cp-c-blurb">Description</label>
             <DraftField className="input" id="cp-c-blurb" autoComplete="off" value={c.description} onSave={(description) => void saveField({ description }, `${c.name} description`)} />
           </div>
+          <SessionNumbers campaign={c} save={saveField} />
         </div>
         <div className="cp-split">
           <Column>
@@ -187,6 +188,54 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
   );
 }
 
+/**
+ * 0.5.2 (Nik's list, item 13): how sessions are numbered: counting on in order from a first number ("we began using
+ * Lyre at session 12"), or each number typed in the session's details (SessionScreen), which nothing renumbers.
+ */
+function SessionNumbers({ campaign: c, save }: { campaign: CampaignInfo; save: (patch: CampaignPatch, what: string) => Promise<unknown> }) {
+  const { say } = useAnnounce();
+  return (
+    <>
+      <div className="field cp-f-numbers">
+        <label htmlFor="cp-c-numbers">Session numbers</label>
+        <select
+          className="input"
+          id="cp-c-numbers"
+          value={c.numbering}
+          onChange={async (event) => {
+            const numbering = event.target.value as SessionNumbering;
+            if ((await save({ numbering }, `${c.name} session numbers`)) !== undefined) say(numbering === "typed" ? "Each session keeps the number typed for it" : "Sessions count on from the first one's number");
+          }}
+        >
+          <option value="auto">Count on from a number</option>
+          <option value="typed">Type each number</option>
+        </select>
+      </div>
+      {c.numbering === "auto" ? (
+        <div className="field cp-f-first">
+          <label htmlFor="cp-c-first">First session number</label>
+          <DraftField
+            className="input"
+            id="cp-c-first"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={MAX_SESSION_NUMBER}
+            title="The first session's number; the others count on in order (for a campaign begun before Lyre)"
+            value={String(c.firstSessionNumber)}
+            onSave={(text) => {
+              const firstSessionNumber = Number(text);
+              if (text.trim() !== "" && firstSessionNumber !== c.firstSessionNumber) void save({ firstSessionNumber }, `${c.name} first session number`);
+            }}
+          />
+        </div>
+      ) : (
+        <p className="hint cp-f-first">Type each session&apos;s number in its details. New sessions follow the last one.</p>
+      )}
+    </>
+  );
+}
+
 /** The sessions in order: drag a handle, or use a row's ⋯ menu, to move one; they are numbered in their order. */
 function SessionList({ campaign: c }: { campaign: CampaignInfo }) {
   const api = useLyreApi();
@@ -199,9 +248,9 @@ function SessionList({ campaign: c }: { campaign: CampaignInfo }) {
     if (!s || to < 0 || to >= c.sessions.length || from === to) return;
     focusLater(`sm-${s.id}`, to);
     if ((await write(api.sessions.move(c.id, s.id, to))) === undefined) return;
-    // Sessions are numbered in their order from the lowest number (session numbers are derived from order).
-    const number = Math.min(...c.sessions.map((x) => x.number)) + to;
-    say(`${s.name || "That session"} is now Session ${number}, ${to + 1} of ${c.sessions.length}`);
+    // Sessions count on in their order from the first number, unless their numbers are typed (0.5.2).
+    if (c.numbering === "typed") return say(`${sessionLabel(s)} is now ${to + 1} of ${c.sessions.length}`);
+    say(`${s.name || "That session"} is now Session ${c.firstSessionNumber + to}, ${to + 1} of ${c.sessions.length}`);
   };
   const drag = useDragReorder("sessions", (from, to) => void move(from, to));
   const [deleting, setDeleting] = useState<string | null>(null);

@@ -367,4 +367,25 @@ describe("round 6: the campaign's own order (ORG-13)", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/campaigns"));
     expect(await screen.findByText('Deleted the campaign "The Sixth Year".')).toBeInTheDocument();
   });
+
+  it("0.5.2 (Nik's item 13): sessions count on from the first session number in the campaign's details, which can be changed", async () => {
+    const { api } = openAt("campaign/crown");
+    expect(await screen.findByRole("combobox", { name: "Session numbers" })).toHaveValue("auto");
+    const first = screen.getByRole("spinbutton", { name: "First session number" });
+    expect(first).toHaveValue(12);
+    await userEvent.clear(first);
+    await userEvent.type(first, "1{Enter}");
+    await waitFor(() => expect(sessions().getByRole("link", { name: "Session 1: Smugglers of Greyhollow" })).toBeInTheDocument());
+    expect(sessions().getByRole("link", { name: "Session 4: Black sails" })).toBeInTheDocument();
+    expect((await api.campaigns.get("crown"))!.firstSessionNumber).toBe(1);
+  });
+
+  it("0.5.2 (Nik's item 13): Type each number keeps every session's number as it is, and the first number goes", async () => {
+    const { api } = openAt("campaign/crown");
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Session numbers" }), "Type each number");
+    await waitFor(async () => expect((await api.campaigns.get("crown"))!.numbering).toBe("typed"));
+    expect(screen.queryByRole("spinbutton", { name: "First session number" })).toBeNull();
+    expect(sessions().getByRole("link", { name: "Session 12: Smugglers of Greyhollow" })).toBeInTheDocument();
+    expect(screen.getByText("Type each session's number in its details. New sessions follow the last one.")).toBeInTheDocument();
+  });
 });
