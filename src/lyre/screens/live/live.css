@@ -614,4 +614,8 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 /* 0.5.2 (Nik's item 53): a track's loop setting, a small quiet icon (LoopMark); its name is on hover. */
 .lv-loop { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; color: var(--ink-3); vertical-align: -3px; }
 .lv-lane-t .lv-loop { margin-right: 4px; }
+/* 0.5.2: the loop mark, then the name, which truncates (the link is a flex item with min-width 0). */
+.lv-lane-tl { display: flex; align-items: center; }
+.lv-lane-tl > .lv-loop { flex: none; }
+.lv-lane-tl > a.track-link { min-width: 0; flex: 0 1 auto; }
 .lv-loop-none { opacity: .7; }

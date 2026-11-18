@@ -429,5 +429,7 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 [data-drag].cp-drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 
 /* kit/trackName TrackNameLink: a track's name that leads to its details; it reads as the name until hovered. */
-a.track-link { color: inherit; text-decoration: none; }
+/* 0.5.2: a track's name as a link. A 24 px tall target (WCAG 2.5.8) with the same text; it truncates inside its box, so
+   a long name ends in "…" (its full name is the title) instead of running out of a box that does not scroll. */
+a.track-link { color: inherit; text-decoration: none; display: inline-block; max-width: 100%; min-height: 24px; line-height: 24px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.track-link:hover, a.track-link:focus-visible { text-decoration: underline; }
