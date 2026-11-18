@@ -2899,7 +2899,7 @@ li.pl-item.r9-pl-dragging { opacity: .5; }
 
 /* Help's setup progress: an outline chip, drawn by CSS so Help's name stays Help (look D12). */
 .r9-help-ring { background: transparent; border-color: var(--line-strong); }
-.r9-help-ring::after { content: attr(data-progress); }
+.r9-help-ring::after { content: attr(data-count); } /* Round 10 fixes: not data-progress, which the playing bars use (core.js tick set the chip to 0 px wide) */
 .r10-esc { font-size: var(--fs-s); color: var(--warn); font-weight: 700; }
 .r9-tp-bar a.btn { text-decoration: none; }
 /* Music and ambience lanes keep one height, playing or not, so starting a scene moves nothing. */
@@ -2920,6 +2920,108 @@ li.pl-item.r9-pl-dragging { opacity: .5; }
 a.r9-dragname { color: inherit; text-decoration: none; }
 a.r9-dragname:hover, a.r9-dragname:focus-visible { text-decoration: underline; }
 
+/* Round 10 fixes (R10-FIX.md §3): nothing drawn on top of anything else.
+   Nik, 18 Nov 13:00: "there are a lot of overlapping features in the visual design" (he meant panels, menus or buttons
+   covering or cutting off other parts of the screen).
+
+   #work is the window. #app (the menu and the screen) and the side panels sit in it side by side: Help, the Track
+   panel, the queue, Find's results in Live and Add music docked left or right. A panel takes its width from the
+   screen, which narrows and reflows (its container queries and Live's columns follow #app's width). Only Add music
+   set to Float lies over the screen, and it can be moved. Below 760 px of window a side panel takes the whole window
+   until it is closed, so it still covers nothing in part. */
+#work { flex: 1; min-height: 0; min-width: 0; width: 100%; display: flex; position: relative; background: var(--bg);
+  container-type: inline-size; container-name: work; --wco-w: calc(138px / var(--zoom, 1)); --wco-h: calc(36px / var(--zoom, 1)); }
+#stagewrap.half #work { max-width: var(--frame-w); box-shadow: 0 0 0 1px var(--line-strong), 0 0 40px rgb(0 0 0 / .5); }
+#stagewrap.half #app { max-width: none; box-shadow: none; }
+#app { flex: 1 1 0; min-width: 0; width: auto; grid-template-columns: auto minmax(0, 1fr); }
+
+/* The side panels: beside #app, in this order from left to right. */
+#work > .r10-side, #work > .helpsheet, #work > .r9-tp, #work > .r9-queue { position: relative; inset: auto; flex: none; min-height: 0; z-index: auto; box-shadow: none;
+  display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--line-strong); }
+#work > [hidden] { display: none !important; }
+#work > .r10-dock-left { order: -1; border-left: 0; border-right: 1px solid var(--line-strong); }
+#work > .helpsheet { order: 5; width: 340px; }
+#work > .r9-tp { order: 3; width: 380px; }
+#work > .r9-queue { order: 2; width: 340px; max-height: none; margin: 0; border: 0; border-left: 1px solid var(--line-strong); border-radius: 0; box-shadow: inset 4px 0 0 var(--preview); }
+#work > #r10-find { order: 1; width: 400px; }
+#work > .r10-dock-right { order: 4; }
+@container work (max-width: 1099px) { #work > .r9-tp { width: 340px; } #work > #r10-find { width: 360px; } }
+
+/* Each panel at the right starts under a strip as tall as the screen's top strip, so the window's own buttons sit over
+   that strip and never over the panel's head; the strip drags the window, as the top strip does. */
+#work > .r9-queue::before, #work > #r10-find::before, #work > .r10-dock-right::before { content: ""; display: block; flex: none; height: 44px; border-bottom: 1px solid var(--line); background: var(--bg); -webkit-app-region: drag; app-region: drag; }
+/* With a panel beside it, the screen's own strip no longer reaches the window's buttons. */
+/* (From 760 px of window: below that a panel takes the whole window and the strip keeps its room.) */
+@container work (min-width: 760px) {
+  #work:has(> :is(.helpsheet, .r9-tp, .r9-queue, #r10-find, .r10-dock-right):not([hidden])) .viewhead { padding-right: 12px; }
+  #work:has(> :is(.helpsheet, .r9-tp, .r9-queue, #r10-find, .r10-dock-right):not([hidden])) .lv-top { padding-right: 8px; }
+}
+
+/* Narrow windows: a side panel takes the whole window until it is closed. */
+@container work (max-width: 759px) {
+  #work > .r10-side, #work > .helpsheet, #work > .r9-tp, #work > .r9-queue { position: absolute; top: 0; bottom: 0; left: 0; right: 0; width: auto; z-index: 35; border: 0; }
+  #work > .r9-tp, #work > .helpsheet { padding-top: 0; }
+}
+
+/* Add music docked: a side panel, no longer a box over the screen. Float keeps it over the screen, movable. */
+#work > .sheet.r10-docked { position: relative; inset: auto; z-index: auto; display: flex; flex-direction: column; padding: 0; background: var(--surface); pointer-events: auto;
+  width: var(--r10-dock-w, clamp(360px, 36cqw, 560px)); flex: none; }
+#work > .sheet.r10-docked > .panel { position: relative; left: auto !important; top: auto !important; width: 100% !important; height: auto !important; flex: 1; min-height: 0;
+  max-height: none; border: 0; border-radius: 0; box-shadow: none; }
+#work > .sheet.r10-docked .r9-fl-head { cursor: default; }
+#work > .sheet.r10-docked .r9-fl-grip { left: -3px; right: auto; top: 0; bottom: 0; width: 6px; height: auto; background: none; cursor: ew-resize; }
+#work > .sheet.r10-dock-left .r9-fl-grip { left: auto; right: -3px; }
+
+/* The queue in its side panel: the whole height, the list scrolls. */
+#work > .r9-queue .r9-q-list { flex: 1; min-height: 0; }
+
+/* Find's results in Live: a side panel at the right, the whole height, the list scrolls inside it. */
+#r10-find .lv-found { position: static; width: auto !important; left: auto !important; max-height: none; flex: 1; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+
+/* Arrange: the grip and Move… on a row of their own above the box, not over its head. */
+.r10-arr { position: static; height: auto; margin: 4px 4px 0; pointer-events: auto; }
+
+/* Playlists: the row's buttons (Preview, Play on air, play order, ⋯, Open) need 143 px; the column had 128, so the
+   first button lay over the length. */
+.pl-grid { grid-template-columns: minmax(0, 1fr) 48px 56px 152px; }
+
+/* The Undo note sits at the bottom of the screen, above the Now playing bar, in the flow: the list above it gets
+   shorter, so its last row is never under the note. */
+#view > .undo-note { position: relative; right: auto !important; bottom: auto !important; max-width: none !important; margin: 0 8px 6px; box-shadow: none; z-index: auto; }
+
+/* The Help button's Set up progress in the folded menu: a dot inside the button (its hover text gives the count); the
+   "8/9" chip stuck out of the menu over the screen's names. */
+.rail.min .nav { position: relative; }
+.rail.min .r9-help-ring { position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; padding: 0; margin: 0; transform: none; border: 2px solid var(--accent); background: var(--surface); }
+.rail.min .r9-help-ring::after { content: none; }
+
+/* A search field's glyph lies inside the field: the pointer goes through it to the field. */
+.search > svg.i { pointer-events: none; }
+
+/* The row of buttons at the bottom of a panel wraps when the panel is narrow (Add music docked at half a screen): "4 chosen" ran under its buttons. */
+.sheet > .panel > footer { flex-wrap: wrap; row-gap: 6px; }
+#pk-count { min-width: 6em; overflow-wrap: anywhere; }
+
+/* In a narrow panel (Add music docked at half a screen) a track's tags in the list give way to its name: they had
+   pushed the row wider than the panel, over its tick box. The tags stay in the row's hover text and the Track panel. */
+.sheet > .panel { container-type: inline-size; container-name: sheetpanel; }
+@container sheetpanel (max-width: 480px) { .pk-row > .tagstrip, .pk-item .tagstrip { display: none; } .pk-item input { flex: none; } }
+/* The open menu's Help with its "8/9" chip was 3 px wider than the menu: a little less space around the chip. */
+.rail:not(.min) button.nav:has(.r9-help-ring) { gap: 6px; padding-right: 4px; }
+.rail:not(.min) .r9-help-ring { flex: none; padding: 0 4px; }
+
+/* Round 10 fixes (R10-FIX §1 and §2, r10remove.js and library.js): taking tracks out, deleting in line. */
+/* Delete file from disk… is last in its menu and plainer than the items above it. */
+.menu .r10-mi-quiet { color: var(--ink-2); }
+.menu .r10-mi-quiet:hover, .menu .r10-mi-quiet:focus-visible { color: var(--ink); }
+/* The confirmations: the files it names, and where the tracks are used. */
+.r10-files { margin: 8px 0 0; padding-left: 20px; font-size: var(--fs-s); overflow-wrap: anywhere; }
+.r10-uses { margin-top: 10px; padding: 6px 8px; border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); }
+.r10-uses p { margin: 0 0 4px; }
+.r10-uses ul { margin: 0; padding-left: 20px; }
+/* A manual playlist's track shown unfolded: its ⋯ greyed at rest like the other row buttons. */
+.xp-row .r10-xpmore:not(:hover):not(:focus-visible):not([aria-expanded="true"]) { opacity: .62; }
+
 </style>
 </head>
 <body>
@@ -2927,9 +3029,13 @@ a.r9-dragname:hover, a.r9-dragname:focus-visible { text-decoration: underline; }
   <div class="proto" id="proto" role="region" aria-label="Prototype controls (not part of Lyre)"></div>
   <div class="notes" id="notes" role="region" aria-label="Design notes (not part of Lyre)"></div>
   <div id="stagewrap">
-    <div id="app">
-      <aside id="rail" class="rail"></aside>
-      <main id="view" class="view"></main>
+    <!-- Round 10 (R10-FIX §3): #work is the window; side panels sit beside #app (the menu and the screen), so the
+         screen narrows and reflows when one opens instead of being covered. -->
+    <div id="work">
+      <div id="app">
+        <aside id="rail" class="rail"></aside>
+        <main id="view" class="view"></main>
+      </div>
     </div>
   </div>
 </div>
@@ -4774,7 +4880,7 @@ var L = (function () {
     if (aside) return aside;
     aside = document.createElement('aside');
     aside.id = 'lyre-help'; aside.className = 'helpsheet'; aside.hidden = true; aside.setAttribute('aria-labelledby', 'help-title');
-    document.getElementById('app').appendChild(aside);
+    (document.getElementById('work') || document.getElementById('app')).appendChild(aside); // Round 10: beside the screen, never over it
     aside.addEventListener('keydown', function (e) {
       keepKeys(e);
       if (e.key !== 'Escape' || e.shiftKey || e.defaultPrevented) return;
@@ -5289,7 +5395,9 @@ var L = (function () {
   L.acts.plrowmore = function (el) {
     var p = L.playlist(el.dataset.id);
     L.menu(el, (L.playlistMoveItems ? L.playlistMoveItems(p) : '') + '<button role="menuitem" data-act="plrow" data-id="' + p.id + '">' + L.icon('right', 's') + 'Open</button>' +
-      '<button role="menuitem" data-act="pluse" data-id="' + p.id + '">' + L.icon('link', 's') + 'Use in…</button>' + L.moveToFolderItem('playlists', p.id, p.name), 'More for ' + p.name);
+      '<button role="menuitem" data-act="pluse" data-id="' + p.id + '">' + L.icon('link', 's') + 'Use in…</button>' + L.moveToFolderItem('playlists', p.id, p.name) +
+      // Round 10 fixes (R10-FIX §2): delete it from here, without opening it (it asks first, then Undo).
+      '<div class="sep"></div><button role="menuitem" data-act="r10pldelask" data-id="' + p.id + '">' + L.icon('trash', 's') + 'Delete playlist…</button>', 'More for ' + p.name);
   };
   L.acts.plnew = function (el) {
     function item(kind, lane, sub) { return '<button role="menuitem" data-act="plcreate" data-kind="' + kind + '" data-lane="' + lane + '">' + L.icon(KIND[kind].icon, 's') + '<span class="grow"><span style="display:block">' + KIND[kind].name + '</span><span class="hint" style="display:block">' + sub + '</span></span></button>'; }
@@ -5497,6 +5605,8 @@ var L = (function () {
   });
   L.acts.plrm = function (el) {
     var pl = cur(), tid = el.dataset.tid, i = pl.items.indexOf(tid); if (i < 0) return;
+    // Round 10 fixes (R10-FIX §1): with Undo; the track stays in the Track library.
+    L.undoNote('Removed “' + L.title(L.track(tid)) + '” from this playlist. It is still in the Track library.', L.snapshot(['playlists']));
     pl.items.splice(i, 1); var next = pl.items[i] || pl.items[i - 1];
     L.render(); focusK(next ? 'm-more-' + next : 'pladdopen');
     L.say('Removed ' + L.title(L.track(tid)) + '. ' + plural(pl.items.length, 'track') + ' left.'); L.saved(pl.name, { detail: 'removed ' + L.title(L.track(tid)), key: 'pl-' + pl.id });
@@ -5577,22 +5687,28 @@ var L = (function () {
   };
 
   // Delete
-  L.acts.pldel = function () {
-    var pl = cur(), uses = L.usesOfPlaylist(pl.id);
+  // Round 10 fixes (R10-FIX §2): the same question from a row on the Playlists page (its ⋯, or Delete on the row),
+  // without opening the playlist; Delete playlist then offers Undo.
+  L.acts.pldel = function () { askDelete(cur()); };
+  L.acts.r10pldelask = function (el) { var p = L.playlist(el.dataset.id); if (p) askDelete(p); };
+  function askDelete(pl) {
+    var uses = L.usesOfPlaylist(pl.id);
     L.sheet({ title: 'Delete "' + (pl.name || 'Untitled playlist') + '"?',
       body: (uses.length ? '<p>It is used in ' + esc(usedText(uses)) + '. Deleting it takes it out of these:</p><ul class="pl-dellist">' + uses.map(function (u) { return '<li>' + esc(u.label) + '</li>'; }).join('') + '</ul>'
         : '<p>It is not used in any campaign, session or scene.</p>') +
         '<p class="muted" style="margin-top:8px">The tracks stay in your library.</p>',
-      footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="pldeldo">' + L.icon('trash', 's') + 'Delete playlist</button>' });
-  };
-  L.acts.pldeldo = function () {
-    var pl = cur(), id = pl.id;
+      footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="pldeldo" data-id="' + pl.id + '">' + L.icon('trash', 's') + 'Delete playlist</button>' });
+  }
+  L.acts.pldeldo = function (el) {
+    var pl = L.playlist(el && el.dataset.id) || cur(), id = pl.id, restore = L.snapshot(['playlists', 'campaigns']);
     D.campaigns.forEach(function (c) {
       function out(a) { var i = a.indexOf(id); if (i > -1) a.splice(i, 1); }
       out(c.playlists); c.sessions.forEach(function (s) { out(s.playlists); s.scenes.forEach(function (sc) { out(sc.music); if (sc.amb === id) sc.amb = ''; }); });
     });
     D.playlists.splice(D.playlists.indexOf(pl), 1);
-    L.closeSheet(); L.route('#/playlists'); L.toast('Deleted "' + pl.name + '"');
+    L.undoNote('Deleted the playlist "' + pl.name + '" and took it out of the places that used it. Its tracks are still in the Track library.', restore);
+    L.closeSheet(); if (L.current().name === 'playlists') L.render(); else L.route('#/playlists');
+    L.say('Deleted "' + pl.name + '". Undo is at the bottom of the screen, or press Ctrl+Z.'); focusK('plfq');
   };
 
   /* ---------- dropping files and folders from the computer ----------
@@ -7225,6 +7341,8 @@ var L = (function () {
           (L.profileLink && profileKey !== false ? L.profileLink(t.id, profileKey || 'pl:' + id, true) : '') +
           // Round 6 part 3 (decision 4): a scene's Repeat one, saved with the scene, shows and changes here as in Live.
           (inScene && p.lane === 'music' ? L.repeatOneButton(inScene, t.id, 'r1-' + (did || id) + '-' + t.id, nm) : '') +
+          // Round 10 fixes (R10-FIX §1): a manual playlist's track comes out of the playlist from here too (r10remove.js).
+          (p.kind === 'manual' && L.acts.r10xpmore ? '<button type="button" class="btn s icon r10-xpmore" data-act="r10xpmore" data-pid="' + esc(id) + '" data-tid="' + t.id + '" data-k="xpm-' + esc(did || id) + '-' + t.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(nm) + '" title="More">' + L.icon('more', 's') + '</button>' : '') +
           (ron ? '<span class="ro-btns"><button type="button" class="closer" data-act="romove" data-d="-1" data-k="roup-' + did + '-' + t.id + '" aria-label="Move up: ' + esc(nm) + '" title="Move up (Alt+Up)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + '</button>' +
             '<button type="button" class="closer" data-act="romove" data-d="1" data-k="rodn-' + did + '-' + t.id + '" aria-label="Move down: ' + esc(nm) + '" title="Move down (Alt+Down)"' + (i === ts.length - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + '</button></span>' : '') + '</li>';
       }).join('') + '</ol>';
@@ -8576,6 +8694,9 @@ var L = (function () {
       '<button class="btn s primary" data-act="lbbtag" data-k="lb-btag">' + L.icon('tag', 's') + 'Tag…</button>' +
       '<button class="btn s" data-act="lbbpl" data-k="lb-bpl">' + L.icon('playlist', 's') + 'Add to playlist…</button>' +
       '<button class="btn s" data-act="lbbnew" data-k="lb-bnew">' + L.icon('plus', 's') + 'New playlist from these</button>' +
+      // Round 10 fixes (R10-FIX §1): Remove from library for the selection, in words; Delete files from disk… in its ⋯.
+      '<button class="btn s" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '" data-k="lb-brm">' + L.icon('close', 's') + 'Remove from library</button>' +
+      '<button class="btn s icon" data-act="r10selmore" data-k="lb-bmore" aria-haspopup="menu" aria-expanded="false" aria-label="More for the selected tracks" title="More">' + L.icon('more', 's') + '</button>' +
       '<button class="btn s ghost" data-act="lbbclear" data-k="lb-bclear">Clear selection</button></div>';
     var allOn = list.length && shownSel === list.length;
     var cols = COLS.filter(function (c) { return st.cols.indexOf(c[0]) > -1; });
@@ -8703,7 +8824,9 @@ var L = (function () {
       (L.namesOfTrack(t).length ? '<dt>Names in scenes</dt><dd><ul class="lb-scnames">' + L.namesOfTrack(t).map(function (x) { return '<li><b>' + esc(x.name) + '</b> <span class="hint">in ' + esc(x.label) + '</span></li>'; }).join('') + '</ul></dd>' : '') + '</dl>';
     h += '<div class="lb-acts"><button class="btn s lb-pvbtn" data-act="lbprev" data-tid="' + t.id + '" data-k="lb-dprev" aria-pressed="' + !!prev + '">' + L.icon(prev ? 'stop' : 'headphones', 's') + (prev ? 'Stop preview' : 'Preview') + '</button>' +
       '<button class="btn s" data-act="lbonair" data-k="lb-onair">' + L.icon('broadcast', 's') + 'Play on air</button>' + (L.profileLink ? L.profileLink(t.id) : '')  +
-      '<button class="btn s" data-act="lbusein" data-k="lb-usein">' + L.icon('link', 's') + 'Use in…</button></div>' +
+      '<button class="btn s" data-act="lbusein" data-k="lb-usein">' + L.icon('link', 's') + 'Use in…</button>' +
+      // Round 10 fixes (R10-FIX §1): Remove from library in a track's details too (its file stays; Undo).
+      '<button class="btn s" data-act="r10rmask" data-how="remove" data-ids="' + t.id + '" data-k="lb-drm">' + L.icon('close', 's') + 'Remove from library</button></div>' +
       (profileSummary(t) ? '<p class="lb-prof">' + L.icon('fade', 's') + '<span>' + profileSummary(t) + '</span></p>' : '');
     h += '<section class="lb-sec" aria-labelledby="lb-h-tags"><h3 class="lb-h" id="lb-h-tags">Tags</h3>' + D.tagGroups.map(function (g) { return tagRow(t, g); }).join('') + '</section>';
     h += '<section class="lb-sec" aria-labelledby="lb-h-play"><h3 class="lb-h" id="lb-h-play">How it plays</h3>' +
@@ -8930,7 +9053,11 @@ var L = (function () {
       '<button role="menuitem" data-act="lbrmpl" data-tid="' + id + '">' + L.icon('playlist', 's') + 'Add to playlist…</button>' +
       '<button role="menuitem" data-act="addto" data-ids="' + (sel ? st.sel.join(',') : id) + '">' + L.icon('plus', 's') + 'Add to…</button>' +
       '<button role="menuitem" data-act="lbusein" data-tid="' + id + '">' + L.icon('link', 's') + 'Use in…</button>' +
-      (L.profileLink ? '<button role="menuitem" data-act="lbrmprof" data-tid="' + id + '">' + L.icon('fade', 's') + 'Audio profile</button>' : ''), 'More for ' + L.title(t));
+      (L.profileLink ? '<button role="menuitem" data-act="lbrmprof" data-tid="' + id + '">' + L.icon('fade', 's') + 'Audio profile</button>' : '') +
+      // Round 10 fixes (R10-FIX §1; 0.5.2 items 1 and 50): a ticked row takes the other ticked rows along, as Add to… does.
+      // Delete file from disk… is last, apart and plain, with a confirmation that names the files.
+      '<div class="sep"></div><button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + (sel ? st.sel.join(',') : id) + '">' + L.icon('close', 's') + 'Remove from library' + (sel && st.sel.length > 1 ? ' (' + st.sel.length + ')' : '') + '</button>' +
+      '<div class="sep"></div><button role="menuitem" class="r10-mi-quiet" data-act="r10rmask" data-how="delete" data-ids="' + (sel ? st.sel.join(',') : id) + '">' + L.icon('warn', 's') + 'Delete file from disk' + (sel && st.sel.length > 1 ? ' (' + st.sel.length + ')' : '') + '…</button>', 'More for ' + L.title(t));
   };
   L.acts.lbrmopen = function (el) { openTrack(el.dataset.tid, true); };
   L.acts.lbusein = function (el) { L.assignSheet('track', el.dataset.tid || cur().id); };
@@ -8958,8 +9085,68 @@ var L = (function () {
     if (k === ' ') { toggleSel(id, e.shiftKey); return true; }
     if ((k === 'p' || k === 'P') && !e.ctrlKey && !e.metaKey && !e.altKey) { L.preview(id); return true; }
     if ((k === 'a' || k === 'A') && !e.ctrlKey && !e.metaKey && !e.altKey) { onAir(L.track(id)); return true; }
+    // Round 10 fixes (R10-FIX §1): Delete asks to remove the track (the ticked tracks, when this row is ticked).
+    if (k === 'Delete' && !e.ctrlKey && !e.metaKey && !e.altKey) { askRemove('remove', st.sel.indexOf(id) > -1 ? st.sel.slice() : [id]); return true; }
     return false;
   }
+
+  /* ---------- Round 10 fixes (R10-FIX §1): taking tracks out of the Track library ----------
+     Nik, 18 Nov 13:00: "There's still no way to remove tracks". As 0.5.2 built it in the app (items 1 and 50,
+     src/lyre/screens/library/RemoveTracks.tsx), with the app's words:
+       Remove from library     the tracks leave Lyre, and every playlist, pad and scene; their files stay. It asks
+                               first and names where they are used; Undo puts them back.
+       Delete file from disk…  the files go to the Recycle Bin and their tracks leave Lyre. The confirmation names the
+                               files; Undo brings the tracks back (missing until the files are restored). */
+  var NAMED_FILES = 10, removal = null;
+  function usesOf(ids) {
+    var on = function (id) { return ids.indexOf(id) > -1; }, out = [];
+    D.playlists.forEach(function (p) { if (p.kind === 'manual' && p.items.some(on)) out.push('Playlist: ' + p.name); });
+    D.campaigns.forEach(function (c) {
+      if ((c.tracks || []).some(on)) out.push(c.name + ' (whole campaign)');
+      c.sessions.forEach(function (s) {
+        if ((s.tracks || []).some(on)) out.push(c.name + ' › Session ' + s.n);
+        s.scenes.forEach(function (sc) { if ((sc.music || []).some(on) || on(sc.amb)) out.push(c.name + ' › Session ' + s.n + ' › ' + sc.name); });
+      });
+    });
+    return out;
+  }
+  function askRemove(how, ids, shown) {
+    var list = ids.map(L.track).filter(Boolean), n = list.length; if (!n) return;
+    var one = n === 1 ? list[0] : null, deleting = how === 'delete', uses = usesOf(list.map(function (t) { return t.id; }));
+    var what = one ? '“' + L.title(one) + '”' : shown ? 'all ' + n + ' shown tracks' : plural(n, 'track');
+    removal = { how: how, ids: list.map(function (t) { return t.id; }) };
+    var files = list.map(function (t) { return t.file; });
+    var body = deleting
+      ? '<p>' + (one ? 'This file goes' : 'These files go') + ' to the Recycle Bin, and ' + (one ? 'its track leaves' : 'their tracks leave') + ' the library. <b>This can\'t be undone in Lyre</b>: to get ' + (one ? 'it' : 'them') + ' back, restore ' + (one ? 'it' : 'them') + ' from the Recycle Bin.</p>' +
+        '<ul class="r10-files">' + files.slice(0, NAMED_FILES).map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + (files.length > NAMED_FILES ? '<li class="hint">and ' + plural(files.length - NAMED_FILES, 'more file') + '</li>' : '') + '</ul>'
+      : '<p>' + (one ? 'It leaves' : 'They leave') + ' Lyre, and every playlist, pad and scene. ' + (one ? 'Its file stays' : 'Their files stay') + ' on your computer, and Undo puts ' + (one ? 'it' : 'them') + ' back.</p>';
+    if (uses.length) body += '<div class="r10-uses" role="note"><p>' + (one ? 'It is' : 'They are') + ' used in:</p><ul>' + uses.map(function (u) { return '<li>' + esc(u) + '</li>'; }).join('') + '</ul></div>';
+    L.sheet({ title: deleting ? 'Delete ' + (one ? 'its file' : plural(n, 'file')) + ' from disk?' : 'Remove ' + what + ' from the library?', body: body,
+      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn ' + (deleting ? 'danger' : 'primary') + '" data-act="r10rmdo">' + (deleting ? (one ? 'Delete file' : 'Delete ' + plural(n, 'file')) : one ? 'Remove' : 'Remove ' + plural(n, 'track')) + '</button>' });
+  }
+  L.acts.r10rmask = function (el) { if (el.disabled) return; askRemove(el.dataset.how, (el.dataset.ids || '').split(',').filter(Boolean), !!el.dataset.shown); };
+  L.acts.r10selmore = function (el) {
+    L.menu(el, '<button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '">' + L.icon('close', 's') + 'Remove from library</button>' +
+      '<div class="sep"></div><button role="menuitem" class="r10-mi-quiet" data-act="r10rmask" data-how="delete" data-ids="' + st.sel.join(',') + '">' + L.icon('warn', 's') + (st.sel.length === 1 ? 'Delete file from disk…' : 'Delete files from disk…') + '</button>', 'More for the selected tracks');
+  };
+  L.acts.r10rmdo = function () {
+    var r = removal; if (!r) return; removal = null;
+    var gone = r.ids, list = gone.map(L.track), one = gone.length === 1 ? list[0] : null, restore = L.snapshot(['tracks', 'playlists', 'campaigns']);
+    var out = function (a) { for (var i = a.length - 1; i >= 0; i--) if (gone.indexOf(a[i]) > -1) a.splice(i, 1); };
+    for (var i = D.tracks.length - 1; i >= 0; i--) if (gone.indexOf(D.tracks[i].id) > -1) D.tracks.splice(i, 1);
+    D.playlists.forEach(function (p) { if (p.items) out(p.items); });
+    D.campaigns.forEach(function (c) { out(c.tracks || []); c.sessions.forEach(function (s) { out(s.tracks || []); s.scenes.forEach(function (sc) { out(sc.music || []); if (gone.indexOf(sc.amb) > -1) sc.amb = ''; }); }); });
+    st.sel = st.sel.filter(function (x) { return gone.indexOf(x) < 0; }); if (gone.indexOf(st.cursor) > -1) st.cursor = null;
+    var text = r.how === 'delete'
+      ? plural(gone.length, 'file') + ' sent to the Recycle Bin, and ' + (one ? 'its track' : 'their tracks') + ' removed from the library. Undo brings ' + (one ? 'the track' : 'the tracks') + ' back; ' + (one ? 'the file stays' : 'the files stay') + ' in the Recycle Bin.'
+      : 'Removed ' + (one ? '“' + L.title(one) + '”' : plural(gone.length, 'track')) + ' from the library. ' + (one ? 'Its file is' : 'Their files are') + ' still on your computer.';
+    L.undoNote(text, function () { restore(); if (r.how === 'delete') gone.forEach(function (id) { var t = L.track(id); if (t) t.missing = true; }); });
+    L.closeSheet();
+    var open = L.current().name === 'library' && L.current().p.tid;
+    if (open && gone.indexOf(open) > -1) L.route('#/library'); else L.render();
+    L.say(text + ' Undo is at the bottom of the screen, or press Ctrl+Z.');
+    var q = document.querySelector('[data-k="lb-q"]'); if (q && L.current().name === 'library') q.focus();
+  };
 
   /* ---------- details actions ---------- */
   // Round 9 (r9nav.js): outside the Library the Track panel shows these same details, for L.panelTrack().
@@ -9159,7 +9346,9 @@ var L = (function () {
       // PLY-15: the library's normalisation setting (off until turned on), in a small dialog.
       '<div class="sep"></div><button role="menuitem" data-act="normopen">' + L.icon('volume', 's') + 'Normalise volume…</button>' +
       // Round 7 (DAT-10): the tag vocabulary has its own screen.
-      '<button role="menuitem" data-act="lbgo" data-href="#/tags">' + L.icon('tag', 's') + 'Tags and groups…</button>', 'More for the library');
+      '<button role="menuitem" data-act="lbgo" data-href="#/tags">' + L.icon('tag', 's') + 'Tags and groups…</button>' +
+      // Round 10 fixes (R10-FIX §1, item 50): with a search or a filter on, every track the list shows, counted.
+      (st.q || filtersOn() ? '<div class="sep"></div><button role="menuitem" data-act="r10rmask" data-how="remove" data-shown="1" data-ids="' + visible().map(function (t) { return t.id; }).join(',') + '"' + (visible().length ? '' : ' disabled') + '>' + L.icon('close', 's') + 'Remove all ' + visible().length + ' shown from library…</button>' : ''), 'More for the library');
   };
   L.acts.lbgo = function (el) { L.route(el.dataset.href); };
   L.acts.lbaddmenu = function (el) {
@@ -10815,12 +11004,13 @@ var L = (function () {
   document.addEventListener('focusin', function (e) {
     if (!onLive() || !S.findOpen) return;
     // Round 10: the Undo place beside Find does not close it (a re-render would take the button from under the click).
-    var t = e.target; if (!(t.closest && (t.closest('.lv-find') || t.closest('.menu') || t.closest('.r10-undo-slot')))) closeFind(false);
+    // Round 10 fixes: Find's results sit in a side panel (#r10-find, r10fix.js), which counts as part of Find.
+    var t = e.target; if (!(t.closest && (t.closest('.lv-find') || t.closest('#r10-find') || t.closest('.menu') || t.closest('.r10-undo-slot')))) closeFind(false);
   });
   document.addEventListener('pointerdown', function (e) {
     if (!onLive() || !e.target.closest) return;
     if (e.target.closest('[data-k="lv-q"]')) { setTimeout(openFind, 0); return; }
-    if (S.findOpen && !(e.target.closest('.lv-find') || e.target.closest('.menu') || e.target.closest('.r10-undo-slot'))) closeFind(false);
+    if (S.findOpen && !(e.target.closest('.lv-find') || e.target.closest('#r10-find') || e.target.closest('.menu') || e.target.closest('.r10-undo-slot'))) closeFind(false);
   });
 
   /* ---------- layout ---------- */
@@ -12374,7 +12564,7 @@ var L = (function () {
   function glyph(n) { return '<svg viewBox="0 0 11 11" aria-hidden="true" focusable="false">' + GLYPHS[n] + '</svg>'; }
   function zoom() { return parseFloat(document.documentElement.style.zoom || '1') || 1; }
   function buttons() {
-    var app = document.getElementById('app'), w = document.getElementById('lyre-winbtns');
+    var app = document.getElementById('work') || document.getElementById('app'), w = document.getElementById('lyre-winbtns'); // Round 10: the window is #work
     if (!w && app) {
       w = document.createElement('div');
       w.id = 'lyre-winbtns'; w.className = 'winbtns'; w.setAttribute('aria-hidden', 'true'); w.setAttribute('data-window-buttons', '');
@@ -12501,7 +12691,8 @@ var L = (function () {
      Live's row details) opens the Track panel at the right of the work area, beside what Nik is doing, instead of
      leaving for the Library. It shows the Library's own Details (L.trackDetailsHTML, the same words and controls), so
      editing is the same. Its header has Open in Library and Close (Esc). Focus goes into the panel and back to the
-     title that opened it. Below 1000 px of app it lies over the screen's right side, like Help.
+     title that opened it. Round 10: it sits beside the screen at every width from 760 px (the screen narrows); below
+     that it takes the whole window until closed.
      L.openTrackPanel(tid, backK)   open it (backK: the data-k to focus when it closes)
      L.panelTrack()                 the track it shows ('' when closed); the Library's actions use it (library.js cur())
    Used in
@@ -12534,8 +12725,9 @@ var L = (function () {
     var a = document.getElementById('r9-tp');
     if (!a) {
       a = document.createElement('aside'); a.id = 'r9-tp'; a.className = 'r9-tp'; a.hidden = true; a.setAttribute('aria-labelledby', 'r9-tp-title');
-      var app = document.getElementById('app'), view = document.getElementById('view');
-      app.insertBefore(a, view.nextSibling);
+      // Round 10 (R10-FIX §3): beside the screen in #work, so the screen narrows instead of being covered.
+      var work = document.getElementById('work'), app = document.getElementById('app');
+      if (work) work.insertBefore(a, app.nextSibling); else app.insertBefore(a, document.getElementById('view').nextSibling);
       a.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !e.defaultPrevented && !document.querySelector('.menu')) { e.preventDefault(); e.stopPropagation(); closePanel(); } });
     }
     return a;
@@ -13223,12 +13415,17 @@ var L = (function () {
   /* ---------- painting what lives outside the view ---------- */
   var render0 = L.render;
   L.render = function () {
+    // Round 10 (R10-FIX §3): the queue is a side panel beside the screen (r10fix.css), no longer over its lists; a
+    // redraw keeps focus on the queue's control that had it.
+    var was = document.getElementById('r9-queue'), ak = was && was.contains(document.activeElement) && document.activeElement.dataset ? document.activeElement.dataset.k : '';
     render0.apply(L, arguments);
     var r = L.current();
-    // The queue panel sits just above the Now playing bar.
-    var bar = document.querySelector('#view .onairbar'), old = document.getElementById('r9-queue');
+    var bar = document.querySelector('#view .onairbar'), old = document.getElementById('r9-queue'), work = document.getElementById('work');
     if (old) old.remove();
-    if (Q.open && bar) bar.insertAdjacentHTML('beforebegin', queueHTML()); else if (Q.open && !bar) Q.open = null;
+    if (Q.open && bar) {
+      if (work) work.insertAdjacentHTML('beforeend', queueHTML()); else bar.insertAdjacentHTML('beforebegin', queueHTML());
+      var back = ak && document.querySelector('#r9-queue [data-k="' + ak + '"]'); if (back) back.focus({ preventScroll: true });
+    } else if (Q.open && !bar) Q.open = null;
     if (L.placeToasts) L.placeToasts();
     // Round 10 (look D6, table D-S9): no mark on a pad's face for dipping; its name and hover say it (live.js, boards.js).
   };
@@ -13258,8 +13455,23 @@ var L = (function () {
   function saveGeo(g) { try { localStorage.setItem(GEO_KEY, JSON.stringify(g)); } catch (e) { /* storage unavailable */ } }
   // The work area under the screen's top strip (so the window's own buttons are never covered) and above the Now playing bar.
   function area() { var v = document.getElementById('view').getBoundingClientRect(), head = document.querySelector('#view .viewhead, #view .lv-top'), bar = document.querySelector('#view .onairbar'); return { left: v.left, top: head ? head.getBoundingClientRect().bottom : v.top, right: v.right, bottom: bar ? bar.getBoundingClientRect().top : v.bottom }; }
-  function docked(side) { var a = area(), w = Math.max(360, Math.round((a.right - a.left) * 0.45)); return { dock: side, left: side === 'left' ? a.left + 8 : a.right - w - 8, top: a.top + 8, width: w, height: a.bottom - a.top - 16 }; }
+  // Round 10 (R10-FIX §3): docked, the panel is a side panel beside the screen (r10fix.css), which narrows; its width
+  // is kept (null: the usual width, 36 % of the window between 360 and 560 px).
+  function docked(side, width) { var g = geo(); return { dock: side, width: width || (g && g.dock !== 'float' && g.width) || null }; }
+  function workEl() { return document.getElementById('work'); }
+  function dockIn(p, g) {
+    var s = p.closest('.sheet'), w = workEl(); if (!s || !w) return;
+    s.classList.add('r10-docked'); s.classList.toggle('r10-dock-left', g.dock === 'left'); s.classList.toggle('r10-dock-right', g.dock !== 'left');
+    var max = Math.max(320, w.getBoundingClientRect().width - 600);
+    if (g.width) { g.width = Math.max(320, Math.min(g.width, max)); s.style.setProperty('--r10-dock-w', g.width + 'px'); } else s.style.removeProperty('--r10-dock-w');
+    p.removeAttribute('style'); p.dataset.dock = g.dock;
+    if (s.parentElement !== w) { var a = document.activeElement, had = s.contains(a); w.appendChild(s); L.render(); if (had && document.contains(a)) a.focus(); }
+  }
   function apply(p, g) {
+    p.querySelectorAll('[data-act="r9dock"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === (g.dock || 'float'))); });
+    if (g.dock === 'left' || g.dock === 'right') { dockIn(p, g); return; }
+    var s = p.closest('.sheet');
+    if (s && s.classList.contains('r10-docked')) { var a0 = document.activeElement, had0 = s.contains(a0); s.classList.remove('r10-docked', 'r10-dock-left', 'r10-dock-right'); s.style.removeProperty('--r10-dock-w'); document.body.appendChild(s); L.render(); if (had0 && document.contains(a0)) a0.focus(); }
     var vw = window.innerWidth, vh = window.innerHeight;
     g.width = Math.max(320, Math.min(g.width, vw - 16)); g.height = Math.max(240, Math.min(g.height, vh - 16));
     g.left = Math.max(8, Math.min(g.left, vw - g.width - 8)); g.top = Math.max(8, Math.min(g.top, vh - g.height - 8));
@@ -13284,26 +13496,36 @@ var L = (function () {
       return '<button role="menuitemradio" aria-checked="' + (cur === x[0]) + '" data-act="r9dock" data-v="' + x[0] + '">' + (cur === x[0] ? L.icon('check', 's') : '<span style="width:14px"></span>') + x[1] + '</button>'; }).join(''), 'Dock');
   };
   L.acts.r9dock = function (el) {
-    var p = el.closest('.panel') || document.querySelector('#lyre-sheet .panel'), v = el.dataset.v, cur = { left: p.offsetLeft, top: p.offsetTop, width: p.offsetWidth, height: p.offsetHeight };
-    var g = v === 'float' ? { dock: 'float', left: cur.left - 40, top: cur.top + 40, width: Math.min(cur.width, 720), height: Math.min(cur.height, 560) } : docked(v);
+    var p = el.closest('.panel') || document.querySelector('#lyre-sheet .panel'), v = el.dataset.v, cur = cur0(p);
+    var g = v === 'float' ? { dock: 'float', left: cur.left - 40, top: cur.top + 40, width: Math.min(cur.width, 720), height: Math.min(cur.height, 560) } : docked(v, p.closest('.r10-docked') ? cur.width : null);
     apply(p, g); saveGeo(g); L.say(v === 'float' ? 'Floating: drag its title to move it' : 'Docked on the ' + v); var d = p.querySelector('[data-k="r10-dock"]'); if (d) d.focus();
   };
-  function cur(p) { return { dock: 'float', left: p.offsetLeft, top: p.offsetTop, width: p.offsetWidth, height: p.offsetHeight }; }
+  function cur(p) { var r = p.getBoundingClientRect(); return { dock: 'float', left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) }; }
+  function cur0(p) { return cur(p); }
   // Move by dragging the title bar; resize by the corner grip.
   document.addEventListener('pointerdown', function (e) {
     var head = e.target.closest && e.target.closest('.r9-float .r9-fl-head'), grip = e.target.closest && e.target.closest('.r9-fl-grip');
     if (!head && !grip) return; if (head && e.target.closest('button, input, a')) return;
     var p = (head || grip).closest('.panel'), g0 = cur(p), x0 = e.clientX, y0 = e.clientY; e.preventDefault();
+    // Round 10: docked, the edge changes its width only and the panel stays docked; dragging its title lets it float.
+    var side = p.closest('.r10-docked') ? p.dataset.dock : '';
     p.classList.add('r9-moving');
-    function move(ev) { var dx = ev.clientX - x0, dy = ev.clientY - y0, g = Object.assign({}, g0); if (head) { g.left += dx; g.top += dy; } else { g.width += dx; g.height += dy; } apply(p, g); }
-    function up() { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); p.classList.remove('r9-moving'); saveGeo(cur(p)); }
+    function move(ev) {
+      var dx = ev.clientX - x0, dy = ev.clientY - y0, g = Object.assign({}, g0);
+      if (side && grip) { apply(p, { dock: side, width: g0.width + (side === 'left' ? dx : -dx) }); return; }
+      if (head) { g.left += dx; g.top += dy; } else { g.width += dx; g.height += dy; } apply(p, g);
+    }
+    function up() { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); p.classList.remove('r9-moving'); var c = cur(p); if (side && grip) { c.dock = side; } saveGeo(c); }
     document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
   });
   document.addEventListener('keydown', function (e) {
     var b = e.target.closest && e.target.closest('[data-r9-move]'); if (!b || !/^Arrow/.test(e.key)) { if (b && e.key === 'Home') { e.preventDefault(); var pp = b.closest('.panel'), dg = docked('right'); apply(pp, dg); saveGeo(dg); } return; }
     e.preventDefault(); var p = b.closest('.panel'), g = cur(p), d = 20, dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0, dy = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
+    // Round 10: docked, Shift and the arrows change its width and it stays docked; the arrows alone let it float.
+    var side = p.closest('.r10-docked') ? p.dataset.dock : '';
+    if (side && e.shiftKey) { var dg = { dock: side, width: g.width + (side === 'left' ? dx : -dx) }; apply(p, dg); saveGeo(dg); b.focus(); return; }
     if (e.shiftKey) { g.width += dx; g.height += dy; } else { g.left += dx; g.top += dy; }
-    apply(p, g); saveGeo(cur(p));
+    apply(p, g); saveGeo(cur(p)); b.focus();
   });
 
   /* ---------- §4 the guide ---------- */
@@ -13432,9 +13654,9 @@ var L = (function () {
     var b = document.querySelector('#rail [data-k="rail-help"]'), p = L.setupProgress(); if (!b) return;
     var old = b.querySelector('.r9-help-ring'); if (old) old.remove();
     var running = L.current().name === 'live' && !!(L.pb.music || L.pb.amb);
-    // Round 10: the progress is drawn by CSS (data-progress), so the button's name and text stay "Help"; a quiet
+    // Round 10: the progress is drawn by CSS (data-count; round 10 fixes: data-progress was the playing bars' attribute), so the button's name and text stay "Help"; a quiet
     // outline chip, not the accent fill (look D12).
-    if (!p.hidden && p.n < p.of && !running) b.insertAdjacentHTML('beforeend', '<span class="r9-help-ring" aria-hidden="true" title="Set up Lyre: ' + p.n + ' of ' + p.of + ' done" data-progress="' + p.n + '/' + p.of + '"></span>');
+    if (!p.hidden && p.n < p.of && !running) b.insertAdjacentHTML('beforeend', '<span class="r9-help-ring" aria-hidden="true" title="Set up Lyre: ' + p.n + ' of ' + p.of + ' done" data-count="' + p.n + '/' + p.of + '"></span>');
   };
 })();
 
@@ -13526,9 +13748,7 @@ var L = (function () {
   L.render = function () {
     render0.apply(L, arguments);
     stripButton();
-    // The queue sits at the right, just above the Now playing bar, whatever the bar's height (one row or two).
-    var q = document.getElementById('r9-queue'), bar = document.querySelector('#view .onairbar');
-    if (q && bar && q.offsetParent) q.style.bottom = Math.max(8, Math.round(q.offsetParent.getBoundingClientRect().bottom - bar.getBoundingClientRect().top + 8)) + 'px';
+    // Round 10 fixes (r10fix.css): the queue is a side panel beside the screen, so it needs no place above the bar.
     // Pads with no sound are dashed and say so on their face; pressing one explains in the warning pop-up.
     document.querySelectorAll('.lv-pad[data-bid]').forEach(function (el) {
       var b = L.board(el.dataset.bid), p = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === el.dataset.pid; })[0];
@@ -13536,6 +13756,163 @@ var L = (function () {
       if (none && !el.querySelector('.r10-nosound-w')) el.insertAdjacentHTML('beforeend', '<span class="r10-nosound-w">No sound</span>');
     });
   };
+})();
+
+;
+/* Round 10 fixes (R10-FIX.md §3): nothing drawn on top of anything else (styles in r10fix.css).
+
+   Nik, 18 Nov 13:00: "there are a lot of overlapping features in the visual design" (panels, menus or buttons
+   covering or cutting off other parts of the screen).
+
+   Side panels sit beside the screen in #work (index.html): Help, the Track panel, the queue, Add music docked left or
+   right (r9guide.js) and, here, Find's results in Live. This file:
+     - moves Find's results out of Live's top strip into a side panel at the right, so they no longer lie over On air;
+     - draws the screen again when a panel changes its width, so Live's columns and the menu's labels follow the
+       width the screen really has (they are chosen from #app's width when the screen is drawn);
+     - keeps the screen at least 600 px wide: when a second panel would leave it less, the panel opened first closes
+       (below 760 px of window one panel takes the whole window, so a second one closes the first). */
+(function () {
+  var MIN_SCREEN = 600, NARROW = 760;
+  function work() { return document.getElementById('work'); }
+  function appWidth() { var a = document.getElementById('app'); return a ? a.getBoundingClientRect().width : 0; }
+
+  /* ---------- Find's results in a side panel ---------- */
+  function findPanel(results) {
+    var side = document.getElementById('r10-find'), w = work();
+    if (!results) { if (side) side.remove(); return; }
+    if (!w) return;
+    if (!side) { side = document.createElement('div'); side.id = 'r10-find'; side.className = 'r10-side'; w.appendChild(side); }
+    results.removeAttribute('style');
+    side.replaceChildren(results);
+  }
+
+  /* ---------- which side panels are open, in the order they opened ---------- */
+  var PANELS = [
+    { id: 'help', open: function () { var h = document.getElementById('lyre-help'); return !!h && !h.hidden; }, close: function () { if (L.acts.helpclose) L.acts.helpclose(); } },
+    { id: 'track', open: function () { var t = document.getElementById('r9-tp'); return !!t && !t.hidden; }, close: function () { if (L.acts.r9tpclose) L.acts.r9tpclose(); } },
+    { id: 'queue', open: function () { return !!document.getElementById('r9-queue'); }, close: function () { if (L.acts.r9qclose) L.acts.r9qclose(); } },
+    { id: 'find', open: function () { return !!document.getElementById('r10-find'); }, close: function () { if (L.acts.lvfindclose) L.acts.lvfindclose(); } },
+    { id: 'music', open: function () { return !!document.querySelector('#work > .sheet.r10-docked'); }, close: function () { L.closeSheet(); } }
+  ];
+  var opened = [];
+  function keepRoom() {
+    var now = PANELS.filter(function (p) { return p.open(); }).map(function (p) { return p.id; });
+    opened = opened.filter(function (id) { return now.indexOf(id) > -1; });
+    now.forEach(function (id) { if (opened.indexOf(id) < 0) opened.push(id); });
+    var w = work(), narrow = w && w.getBoundingClientRect().width < NARROW;
+    if (opened.length < 2 || (!narrow && appWidth() >= MIN_SCREEN)) return;
+    // The panel opened first gives way; focus stays where Nik is working.
+    var first = opened.shift(), a = document.activeElement;
+    PANELS.filter(function (p) { return p.id === first; })[0].close();
+    if (a && document.contains(a) && a !== document.body) a.focus({ preventScroll: true });
+  }
+
+  /* ---------- after every render ---------- */
+  var render0 = L.render, again = false;
+  L.render = function () {
+    var f = document.getElementById('r10-find'), ak = f && f.contains(document.activeElement) && document.activeElement.dataset ? document.activeElement.dataset.k : '';
+    var before = appWidth();
+    render0.apply(L, arguments);
+    findPanel(document.querySelector('#view .lv-found'));
+    if (ak) { var n = document.querySelector('#r10-find [data-k="' + ak + '"]'); if (n) n.focus({ preventScroll: true }); }
+    keepRoom();
+    // A panel that opened or closed in this render changed the screen's width: draw it again once for that width.
+    if (!again && Math.abs(appWidth() - before) > 1) { again = true; try { L.render(); } finally { again = false; } }
+  };
+
+  // Closing a docked Add music gives the screen its width back.
+  var close0 = L.closeSheet;
+  L.closeSheet = function () {
+    var docked = !!document.querySelector('#work > .sheet.r10-docked');
+    close0.apply(L, arguments);
+    if (docked) L.render();
+  };
+  window.addEventListener('resize', function () { keepRoom(); });
+})();
+
+;
+/* Round 10 fixes (R10-FIX.md §1 and §2): taking things out, and deleting in line, with Undo.
+
+   Nik, 18 Nov 13:00: "There's still no way to remove tracks, or to delete playlists in line".
+   The Track library's Remove from library and Delete file from disk… are in library.js; a playlist deleted from its
+   row is in playlists.js. This file:
+     - Remove from this playlist in the ⋯ of a manual playlist's track wherever the playlist is shown unfolded
+       (the Playlists page, a scene, the session and campaign lists: _shared.js draws the button);
+     - Undo for taking a track or playlist out of a scene, a session or a campaign (the ⋯ items were there; they had
+       no Undo);
+     - the Delete key on a focused row (a control in the row has focus): it does what the row's ⋯ does to take the
+       row out, or asks first where the row's ⋯ asks (a playlist, a pad board, a library track). "Remove from this
+       playlist / scene / session / campaign" keeps the track or playlist itself; only Delete … asks. */
+(function () {
+  var esc = L.esc, D = L.data;
+  function title(id) { var t = L.track(id); return t ? L.title(t) : ''; }
+
+  /* ---------- a manual playlist's track, wherever the playlist is shown unfolded ---------- */
+  L.acts.r10xpmore = function (el) {
+    var p = L.playlist(el.dataset.pid), id = el.dataset.tid; if (!p || !L.track(id)) return;
+    L.menu(el, '<button role="menuitem" data-act="r10xprm" data-pid="' + esc(p.id) + '" data-tid="' + esc(id) + '">' + L.icon('close', 's') + 'Remove from this playlist</button>' +
+      '<div class="sep"></div><button role="menuitem" data-act="r10xplib" data-tid="' + esc(id) + '">' + L.icon('library', 's') + 'Open in the Track library</button>', 'More for ' + title(id));
+  };
+  L.acts.r10xplib = function (el) { L.route('#/library/' + el.dataset.tid); };
+  L.acts.r10xprm = function (el) {
+    var p = L.playlist(el.dataset.pid), id = el.dataset.tid, i = p ? p.items.indexOf(id) : -1; if (i < 0) return;
+    var text = 'Removed “' + title(id) + '” from the playlist "' + p.name + '". It is still in the Track library.';
+    L.undoNote(text, L.snapshot(['playlists']));
+    p.items.splice(i, 1);
+    L.render(); L.say(text + ' Undo is at the bottom of the screen, or press Ctrl+Z.'); L.saved(p.name, { detail: 'removed ' + title(id), key: 'pl-' + p.id });
+    var next = p.items[i] || p.items[i - 1], row = next && document.querySelector('[data-act="r10xpmore"][data-pid="' + p.id + '"][data-tid="' + next + '"]');
+    if (row) row.focus(); else { var h = document.querySelector('#view h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus(); } }
+  };
+
+  /* ---------- Undo for taking things out of a scene, a session or a campaign ---------- */
+  function withUndo(act, text) {
+    var f0 = L.acts[act]; if (!f0) return;
+    L.acts[act] = function (el) {
+      var words = text(el); if (!words) return f0.apply(this, arguments);
+      var restore = L.snapshot(['campaigns']), r = f0.apply(this, arguments);
+      L.undoNote(words, restore); L.render();
+      return r;
+    };
+  }
+  function scene(id) { var out = null; D.campaigns.forEach(function (c) { c.sessions.forEach(function (s) { s.scenes.forEach(function (sc) { if (sc.id === id) out = sc; }); }); }); return out; }
+  function itemName(id) { var p = L.playlist(id) || L.board(id); return p ? p.name : title(id); }
+  withUndo('cpitem', function (el) {
+    if (el.dataset.op !== 'remove') return '';
+    var sc = scene(el.dataset.sc), arr = sc && (el.dataset.list === 'boards' ? L.sceneBoards(sc) : sc[el.dataset.list]), id = arr && arr[+el.dataset.idx];
+    return id ? 'Removed “' + itemName(id) + '” from this scene.' : '';
+  });
+  withUndo('cpclearamb', function (el) { var sc = scene(el.dataset.sc); return sc && sc.amb ? 'Removed “' + itemName(sc.amb) + '” from this scene.' : ''; });
+  withUndo('cprm', function (el) {
+    var where = el.dataset.scope === 'c' ? 'campaign' : 'session', kind = el.dataset.kind;
+    return 'Removed “' + itemName(el.dataset.id) + '” from this ' + where + '. ' + (kind === 'tr' ? 'It is still in the Track library.' : kind === 'pl' ? 'It is still on the Playlists page.' : 'It is still on the Pad boards page.');
+  });
+
+  /* ---------- the Delete key on a focused row ---------- */
+  // Each kind of row is known by the ⋯ (or ×) it has; Delete does what that row's taking-out item does.
+  function as(b, extra) { var d = Object.assign({}, b.dataset, extra || {}); return { dataset: d, getAttribute: function () { return null; } }; }
+  var RULES = [
+    ['[data-act="pltmore"][data-manual]', function (b) { L.acts.plrm(b); }],
+    ['[data-act="r10xpmore"]', function (b) { L.acts.r10xprm(b); }],
+    ['[data-act="plrowmore"]', function (b) { L.acts.r10pldelask(b); }],
+    ['[data-act="cprowmenu"][data-menu="item"]', function (b) { L.acts.cpitem(as(b, { op: 'remove' })); }],
+    ['[data-act="cprowmenu"][data-menu="amb"]', function (b) { L.acts.cpclearamb(b); }],
+    ['[data-act="cprowmenu"][data-menu="assigned"]', function (b) { L.acts.cprm(b); }],
+    ['[data-act="pbcardmenu"]', function (b) { L.acts.pbdelboard(b); }],
+    ['[data-act="lvupx"]', function (b) { b.click(); }],
+    ['[data-act="lbrowmenu"]', function (b) { L.acts.r10rmask(as(b, { how: 'remove', ids: b.dataset.tid })); }]
+  ];
+  // The row's own control: not one in a list folded open inside the row.
+  function own(row, sel) { var all = row.querySelectorAll(sel); for (var i = 0; i < all.length; i++) if (all[i].closest('li, tr') === row) return all[i]; return null; }
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Delete' || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    var a = document.activeElement; if (!a || L.typing(a) || document.getElementById('lyre-sheet') || document.querySelector('.menu')) return;
+    for (var row = a.closest && a.closest('li, tr'); row; row = row.parentElement && row.parentElement.closest('li, tr')) {
+      for (var i = 0; i < RULES.length; i++) {
+        var b = own(row, RULES[i][0]);
+        if (b && !b.disabled) { e.preventDefault(); RULES[i][1](b); return; }
+      }
+    }
+  });
 })();
 
 </script>

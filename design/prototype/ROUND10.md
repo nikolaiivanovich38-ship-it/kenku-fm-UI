@@ -225,3 +225,104 @@ to fail on the build without it.
 
 Shots (`shots/r10`): 11 (half a screen) and 12 (Parchment) retaken; 13 a room's menu in Live; 14 New board… in
 Add pad boards.
+
+## After Nik's first look (18 Nov 13:00): removing tracks, deleting in line, nothing drawn on top
+
+> "There's still no way to remove tracks, or to delete playlists in line, and there are a lot of overlapping features
+> in the visual design" (Nik, 18 Nov 13:00). Asked what overlapping means, he chose "drawn on top of each other":
+> panels, menus or buttons covering or cutting off other parts of the screen.
+
+Brief: `/root/kenku-wt/R10-FIX.md`. Code: `src/views/r10fix.js` and `r10fix.css` (§3), `r10remove.js` and
+`r10remove.css` (§1, §2), and changes marked "Round 10 fixes" in library.js, playlists.js, _shared.js, r9guide.js,
+r9live.js, r9nav.js, help.js, live.js, r8window.js and index.html. Try it: rows 30 to 39 of ROUND10-TRY.md.
+
+### 1. Removing tracks
+0.5.2 built items 1 and 50 in the app (`src/lyre/screens/library/RemoveTracks.tsx` on r052); the prototype now has
+them with the app's words.
+- Track library: **Remove from library** in a row's ⋯, in the selection bar (a button, and in its ⋯), in a track's
+  details, and **Remove all N shown from library…** in the ⋯ beside Add tracks while a search or filter is on. It
+  asks first, lists the playlists, sessions and scenes that use the tracks, and says the files stay; then Undo.
+  `Delete` on a focused row asks the same. **Delete file from disk…** is last in a row's ⋯ (and in the selection's ⋯),
+  plainer than the rest; its question names the files (up to ten, then a count) and the Recycle Bin, and says Lyre
+  can't undo it. Undo brings the tracks back, missing until the files are restored, as in the app.
+- A playlist's page: **Remove from this playlist** (it was in the ⋯) now has Undo, and `Delete` on a focused row does
+  the same.
+- A manual playlist shown unfolded (the Playlists page, a scene, the session and campaign lists): each track has a ⋯
+  with **Remove from this playlist** and Open in the Track library, with Undo. A dynamic playlist's tracks have none,
+  as its tags choose them.
+- A scene's music, ambience and pad boards, and the session's and campaign's lists: their ⋯ said "Remove from this
+  scene / session / campaign" already; they now have Undo, and `Delete` on a focused row does the same.
+- Up next keeps its × on each row; `Delete` on a focused row does the same, with Live's Undo.
+- Live's unfolded playlists have no ⋯ and no `Delete` on their rows: Live's rows keep their four buttons (Nik, 6 Nov:
+  little to read in Live). Open question below.
+
+### 2. Deleting in line
+- Playlists page: a row's ⋯ has **Delete playlist…**, the same question as on the playlist's page (it names the
+  scenes and sessions that use it); then the Playlists page stays, with Undo. The playlist's own page now gives Undo
+  too. `Delete` on a focused row asks the same.
+- In a scene or a session list, a playlist row's ⋯ has **Remove from this scene / session** (the playlist stays); it
+  was there, and now has Undo.
+- Pad boards: a card's ⋯ had **Delete board…** with Undo already; `Delete` on a focused card asks the same.
+
+### 3. Nothing drawn on top of anything else
+The new sweep (below) found, before the fixes, 40 failing checks in 127 across the three window sizes and five
+themes. The places, one line each:
+1. Add music docked right lay over the session page: Session name, Date, Status, Add scene, "Clear" and "Starts the
+   scene" under it (shot 06).
+2. Add music docked left lay over the scene list and the scene names.
+3. Add music floating: allowed to lie over the page, but its controls were counted with the page's (the check now
+   leaves Float out, and checks it moves).
+4. The Track panel lay over the screen below 1000 px (the planner's Prep | Live, Next, Date; a playlist's Play on air,
+   Use in…, Add tracks).
+5. With the Track panel and Help both open at half a screen, they lay over each other and over the playlist.
+6. The queue lay over the Playlists list (its Close over a row's Open).
+7. Find's results in Live lay over On air (Add a room, Mute, Volume and Leave under the tag filters; Close Find over
+   Add a room).
+8. Arrange: each box's grip and Move… lay over the box's title (On air's Move… over Add a room).
+9. The folded menu's Help progress chip ("8/9") stuck out over Live's "Whole campaign" heading.
+10. The playlist rows' buttons (143 px) were wider than their column (128 px): Preview lay over the length.
+11. Add music docked at half a screen: "4 chosen" ran under Make a playlist of these….
+12. Add music docked left at half a screen: a track's tags pushed its row wider than the panel, over its tick box.
+13. The menu's Help with its chip was 3 px wider than the menu.
+No menu ran past the window or was cut off (every ⋯ and menu button on every swept screen, three sizes, five themes),
+and no list's last row was under the Now playing bar.
+
+Fixes:
+- **Side panels beside the screen.** `#work` is now the window; the menu and the screen (`#app`) and the side
+  panels sit side by side in it: Add music docked left or right, Find's results, the queue, the Track panel, Help (in
+  that order from left to right). The screen narrows and reflows: its layouts (container queries on `app`, Live's
+  columns, the menu folding to icons) follow its new width, and it is drawn again when a panel opens or closes. Only
+  Add music set to Float lies over the screen; it moves by its title, its move button and the arrow keys. Docked,
+  its edge changes its width.
+- **The screen keeps at least 600 px.** When a second panel would leave it less (Help and the Track panel at half a
+  screen, or at 1280), the panel opened first closes. Below 760 px of window a panel takes the whole window until
+  closed.
+- The Track panel is 340 px below 1100 px of window (380 above), Find's results 360/400, Help 340, the queue 340, Add
+  music 36 % of the window (360 to 560 px).
+- Arrange's grip and Move… are a row above the box. The playlist rows' button column is 152 px. A panel's bottom row
+  of buttons wraps; a narrow picker hides a track's tags (they are in its hover text and the Track panel). The folded
+  menu shows Help's progress as a dot inside the button (its hover text gives the count). The Undo note at the bottom
+  of a Prep screen is in the flow, above the Now playing bar, so the list above it ends before it.
+
+### Specs and checks
+- `sweeps.spec.ts`, block "round 10: nothing drawn on top of anything else", written first and seen to fail (40 of
+  127, commit c8bdb7d): thirteen screens with a panel open, every menu on every swept screen, and five screens with
+  the Now playing bar, each at 1920×1080, 960×1000 and 1280×800, in all five themes (`target.showTheme`); plus Float
+  moving and docking giving the width back. Each word and control is sampled at three points; anything else on top
+  fails. A mark inside a field that lets the pointer through (Find's "/") counts as drawn over the field, not
+  under it. Marked `expectFailureUntilBuilt("r10")`.
+- New checks for §1 and §2, written before the code: library.spec.ts (5), playlists.spec.ts (4),
+  session-planner.spec.ts (3), pad-boards.spec.ts (1), live.spec.ts (1), all marked `r10`.
+- Results: the whole prototype project through `yarn heavy`: **954 passed, 0 failed, 13 skipped** (the `appOnly()`
+  checks of 0.5.1). The two exact-list checks of the selection bar and the Playlists row menu leave out the new items.
+- Found on the way: Help's progress chip in the menu used the attribute `data-progress`, which the playing bars use;
+  while anything played, the bars' clock set the chip to 0 px wide, so "8/9" ran out of it. It is `data-count` now.
+- Shots (`shots/r10`, scale 2): 04 (Arrange), 06 (Add music docked), 07 (Track panel) and 11 (half a screen) retaken;
+  new: 15 Remove from library, 16 a track's ⋯ with Delete file from disk… last, 17 Delete playlist… in a Playlists
+  row, 18 Find's results beside Live, 19 Add music docked at half a screen.
+
+### Open questions for Nik
+1. Live's unfolded playlists: a ⋯ on each row with Remove from this playlist (recommended: no, keep Live's four row
+   buttons; take tracks out of a playlist in Prep, where the ⋯ is), or add the ⋯ in Live too?
+2. Two side panels at half a screen: the first one closes (recommended, the screen keeps 600 px), or let both stay
+   with the screen narrower?

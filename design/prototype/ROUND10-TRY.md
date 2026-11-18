@@ -60,3 +60,22 @@ Q7). Rows 26 to 29 are your four answers to this round's questions (A1 to A4).
 | 27 | Strip › **Half of a 1920 screen**; Live. Start a scene, then point at the icons at the right of the top strip. | Fade all and Stop all are icons; hover names them (Fade all with Shift+Esc). Undo is an icon there too, no longer cut to "U". At 1000 px or wider Fade all and Stop all have their words again; Undo from 1100 px (A2). |
 | 28 | Live › click a room's name (**Table ▾**), then **+ Room**. | Move, copy, Leave and the bots; no Rooms… line. Rooms opens from the menu, under Settings (A3). |
 | 29 | Session 14 › open The abbey ruins › **Add pad boards…** › **New board…** › name it › **Make it and add it**. | The panel closes and the new board is last in the scene's pad boards; it is on the Pad boards page, empty, ready for pads. **Back** instead leaves your ticks as they were (A4). |
+
+## After your first look (18 Nov 13:00): removing tracks, deleting in line, nothing on top of anything
+
+Rows 30 to 39 are what changed after your first look: "There's still no way to remove tracks, or to delete playlists
+in line, and there are a lot of overlapping features in the visual design" (you meant things drawn on top of each
+other).
+
+| # | Try this | You should see |
+|---|---|---|
+| 30 | Track library › a track's **⋯** › **Remove from library**. | Lyre asks first and lists the scenes and playlists that use it, and says its file stays on your computer. **Remove**, then **Undo** at the bottom of the screen brings it back. |
+| 31 | Tick two tracks; the selection bar's **Remove from library**. Then search "battle" and open the **⋯** beside Add tracks. | "Remove 2 tracks from the library?". With the search on, the ⋯ has **Remove all … shown from library…**, with the number of tracks the list shows. |
+| 32 | A track's **⋯** › **Delete file from disk…** (last in the menu). | The question names the file and says it goes to the Recycle Bin and that Lyre can't undo that. Undo brings the track back, marked missing until you restore the file. |
+| 33 | Open a track: its details have **Remove from library**. In the list, move to a row with the arrow keys and press `Delete`. | Both ask the same question as row 30. |
+| 34 | Playlists › The Abbess › a track's **⋯**; then `Tab` to another track's ⋯ and press `Delete`. | **Remove from this playlist** takes it out; `Delete` with focus on a row does the same; **Undo** puts it back in its place. The track stays in the Track library. |
+| 35 | Playlists page: a playlist's **⋯** › **Delete playlist…**; or press `Tab` until its row's ⋯ is outlined, then `Delete`. | The same question as on its own page, naming the scenes that use it; you stay on the Playlists page, with **Undo**. Pad boards: `Delete` on a board's ⋯ asks the same as its **Delete board…**. |
+| 36 | Session 14 › The abbey ruins: a music row's ⋯ (it says **Remove from this scene**); `Tab` to another row's ⋯ and press `Delete`. Show the contents of **The Abbess** there. | Each comes out of the scene, with **Undo**. A track inside The Abbess has its own ⋯ with **Remove from this playlist**. The session's own playlists have **Remove from this session**, with Undo. |
+| 37 | Session 14 › **Add tracks or playlists…**; then its **Dock** menu: Dock left, Dock right, Float. | Docked, the panel sits beside the scenes and the page gets narrower; nothing is under it ("Clear" and "Starts the scene" show whole). **Float** lets it lie over the page; drag its title, or use its move button and the arrow keys. |
+| 38 | Open the **Track panel** (a track title in a scene), **Help** (F1) and, in Live, type in **Find**; on Playlists, preview a playlist and open **Queue**. Try **Half of a 1920 screen**. | Each opens at the right, beside the screen, which gets narrower; Find's results are a panel too, not over On air. At half a screen, opening a second panel closes the first, so the screen keeps room. |
+| 39 | Live › **Arrange**. Strip › try all five themes, the three window sizes, and the menus. | Each box's grip and **Move…** sit on a row above the box, not over its title. No menu runs off the window, and the Help progress in the folded menu is a dot inside it, not "8/9" over Live's names. |
