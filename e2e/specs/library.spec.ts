@@ -408,6 +408,24 @@ test.describe("round 6: the key legend", () => {
     await row(page, /^Select (?!all )/).first().focus();
     await expect(legend).toBeVisible();
   });
+
+  test("a mouse click on a row leaves the legend hidden, so a row at the foot of the list opens (it moved away under the pointer); a key shows it", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const legend = page.getByText(/^Keys:/);
+    // The last row wholly in sight, just above where the legend shows.
+    const lastInSight = await grid(page).evaluate((table) => {
+      const box = table.closest(".lb-scroll") as HTMLElement;
+      const bottom = box.getBoundingClientRect().bottom;
+      const rows = Array.from(table.querySelectorAll<HTMLElement>("tbody tr[data-tid]")).filter((r) => r.getBoundingClientRect().bottom <= bottom);
+      return rows[rows.length - 1].dataset.tid as string;
+    });
+    await grid(page).locator(`tr[data-tid="${lastInSight}"] td.lb-c-title`).click();
+    await expect(page).toHaveURL(new RegExp(`#/library/${lastInSight}$`));
+    await expect(legend).toBeHidden();
+    await page.keyboard.press("ArrowUp");
+    await expect(legend).toBeVisible();
+  });
 });
 
 /* Round 5, volume normalisation (design/prototype/ROUND5.md "Volume normalisation (PLY-15, DAT-15)"): built in wave 4. */

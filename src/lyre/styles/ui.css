@@ -416,8 +416,10 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 .tray.tray-campaign { border: 2px dashed var(--line-strong); }
 .tray-h { margin: 0; padding: 0 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
 
-/* Round 6 rule 5 (UX-R3): a key legend or reorder how-to shows only while the keyboard is in its box. */
-.pane:not(:focus-within) .keys-on-focus { display: none !important; }
+/* Round 6 rule 5 (UX-R3): a key legend or reorder how-to shows only while the keyboard is in its box: focus that shows a
+   ring (:focus-visible), so a mouse click does not open the legend. It used to, and the list then shrank under the
+   pointer between press and release, so a click on a row at the foot of the Library opened nothing (0.5.2). */
+.pane:not(:has(:focus-visible)) .keys-on-focus { display: none !important; }
 
 /* kit/reorder (useDragReorder): a row's drag handle, the row being dragged, and the line where it lands. */
 .cp-handle { display: grid; place-items: center; width: 14px; height: 24px; color: var(--ink-3); cursor: grab; flex: none; }
