@@ -84,6 +84,8 @@ test.describe("scenes and undo", () => {
   test("the Undo button puts back the previous scene", async ({ page }) => {
     await openRoute(page, "live");
     await startFirstScene(page);
+    // 0.5.2 (round 9 review M2): the button has its key's guard, which ignores a second Next scene within a second.
+    await page.waitForTimeout(1100);
     await page.getByRole("button", { name: "Next scene: Greyhollow inn" }).click();
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(page.getByRole("button", { name: "Next scene: Greyhollow inn" })).toBeVisible();
