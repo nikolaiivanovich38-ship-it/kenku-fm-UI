@@ -186,6 +186,8 @@ export type TrackPatch = Partial<{
 export interface FolderRoot {
   path: string;
   watched: boolean;
+  /** 0.5.2 item 40: the kind new tracks in it get; null guesses from the folder names (Ambience, Effects…). */
+  newKind: TrackKind | null;
 }
 
 export interface SearchRequest {
@@ -973,6 +975,16 @@ export interface LyreApi {
     start(source: ImportSource): Promise<WriteResult<ImportSummary>>;
     /** Watches a folder: new audio files there become New tracks; null when the chooser was closed. library.js L.acts.lbwatch. */
     watchFolder(source: { from: "choose-folder" } | { from: "path"; path: string }): Promise<WriteResult<FolderRoot | null>>;
+    /**
+     * 0.5.2 item 40: the kind new tracks in this library folder get (null: guessed from the folder names, as before).
+     * One undo step. The Library's Folders filter › ⋯ › New tracks here.
+     */
+    setFolderKind(path: string, kind: TrackKind | null): Promise<WriteResult<FolderRoot>>;
+    /**
+     * 0.5.2 item 20: Lyre stops watching the folder and forgets it. Its tracks stay, at their full paths, unless
+     * `removeTracks`, which takes them out of the library too; their files are never touched. One undo step.
+     */
+    removeFolder(path: string, options: { removeTracks: boolean }): Promise<WriteResult<{ removedTracks: string[] }>>;
     /** Tracks whose files are gone (DAT-8; the lead's wave 3 brief, no prototype screen yet). */
     findMissing(): Promise<MissingTrack[]>;
     /** Looks for missing files in a folder; nothing changes until applyRelink (DAT-8). */
@@ -1036,7 +1048,7 @@ export const LYRE_API_METHODS = {
   campaigns: ["list", "get", "create", "update", "move", "setOnHand", "usesOf", "setUses"],
   sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName", "setRepeatOne", "setSceneSteps"],
   profiles: ["overrides", "set", "clear"],
-  import: ["start", "watchFolder", "findMissing", "planRelink", "applyRelink", "previewFound", "endRelinkPreview"],
+  import: ["start", "watchFolder", "setFolderKind", "removeFolder", "findMissing", "planRelink", "applyRelink", "previewFound", "endRelinkPreview"],
   transfer: ["estimate", "save", "open", "bringIn", "movedReport"],
   settings: ["get", "setCrossfade", "setShortcut", "resetShortcuts", "setNextSceneGuard", "setComputer"],
   history: ["state", "undo", "redo"],

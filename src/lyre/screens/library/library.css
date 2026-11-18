@@ -245,6 +245,15 @@ body .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
 .view .lb-fhrow { display: flex; align-items: center; gap: 6px; }
 .view .lb-fhrow .lb-fh { flex: 1; min-width: 0; }
 
+/* 0.5.2 items 20 and 40: a library folder's ⋯ beside its row in the Folders filter. */
+.view .lb-folders li { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.view .lb-folders li > button[aria-pressed] { flex: 1; min-width: 0; }
+.view .lb-folders .lb-fmore { flex: none; width: 24px; height: var(--ctl-s); padding: 0; justify-content: center; }
+.lb-check { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 4px; cursor: pointer; }
+.lb-check input { margin-top: 3px; }
+.lb-uses { margin-top: 8px; padding: 8px 10px; border-radius: var(--r-s); background: var(--surface-2); }
+.lb-uses ul { margin: 4px 0 0; padding-left: 18px; }
+
 /* 0.5.2 item 7: the file's length, and under it the length its Audio profile plays. */
 .view .lb-len { display: flex; flex-direction: column; line-height: 1.1; }
 .view .lb-played { font-size: var(--fs-xs); color: var(--ink-3); }

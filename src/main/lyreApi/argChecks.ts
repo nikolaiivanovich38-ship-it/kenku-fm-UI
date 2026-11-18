@@ -291,6 +291,9 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
   import: {
     start: write(branch("from", { "choose-files": object(), "choose-folder": object(), paths: object({ paths: list(fullPath) }) })),
     watchFolder: write(folderSource),
+    // 0.5.2 items 40 and 20: a library folder by its full path.
+    setFolderKind: write(fullPath, nullable(literal("music", "amb", "fx"))),
+    removeFolder: write(fullPath, object({ removeTracks: bool })),
     findMissing: read(),
     planRelink: write(folderSource),
     previewFound: write(id),

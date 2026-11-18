@@ -743,10 +743,50 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
       });
 
       it("watches a folder once", async () => {
-        expect(valueOf(await api.import.watchFolder({ from: "path", path: fx.folderToWatch }))).toEqual({ path: fx.folderToWatch, watched: true });
-        expect(await api.library.listFolders()).toContainEqual({ path: fx.folderToWatch, watched: true });
+        expect(valueOf(await api.import.watchFolder({ from: "path", path: fx.folderToWatch }))).toEqual({ path: fx.folderToWatch, watched: true, newKind: null });
+        expect(await api.library.listFolders()).toContainEqual({ path: fx.folderToWatch, watched: true, newKind: null });
         await changedEvent("folders");
         expectRefused(await api.import.watchFolder({ from: "path", path: fx.folderToWatch }), "already-watched");
+      });
+
+      it("0.5.2 item 40: a library folder says what kind its new tracks are, in one undo step; null guesses again", async () => {
+        const scores = "H:\\Audio\\Scores";
+        const kindOf = async () => (await api.library.listFolders()).find((f) => f.path === scores)?.newKind;
+        expect(await kindOf()).toBeNull();
+        expect(valueOf(await api.import.setFolderKind(scores, "amb"))).toMatchObject({ path: scores, newKind: "amb" });
+        expect(await kindOf()).toBe("amb");
+        await changedEvent("folders", "history");
+        valueOf(await api.history.undo());
+        expect(await kindOf()).toBeNull();
+        valueOf(await api.import.setFolderKind(scores, "fx"));
+        valueOf(await api.import.setFolderKind(scores, null));
+        expect(await kindOf()).toBeNull();
+        expectRefused(await api.import.setFolderKind("Z:\\Nowhere", "fx"), "not-found");
+      });
+
+      it("0.5.2 item 20: removes a library folder; its tracks stay unless asked, and undo puts everything back", async () => {
+        const ambience = "H:\\Audio\\Ambience";
+        const before = await api.library.listTracks();
+        const under = before.filter((t) => t.folder === ambience).map((t) => t.id).sort();
+        expect(under.length).toBeGreaterThan(0);
+        expect(valueOf(await api.import.removeFolder(ambience, { removeTracks: false }))).toEqual({ removedTracks: [] });
+        expect((await api.library.listFolders()).map((f) => f.path)).not.toContain(ambience);
+        const kept = await api.library.listTracks();
+        expect(kept).toHaveLength(before.length);
+        expect(kept.find((t) => t.id === under[0])?.folder).toBe(ambience);
+        valueOf(await api.history.undo());
+        expect((await api.library.listFolders()).map((f) => f.path)).toContain(ambience);
+        const scenesUsing = async () => (await api.campaigns.list()).flatMap((c) => c.sessions.flatMap((ss) => ss.scenes)).filter((sc) => sc.ambience?.kind === "track" && under.includes(sc.ambience.id)).length;
+        const used = await scenesUsing();
+        expect(used).toBeGreaterThan(0);
+        expect(valueOf(await api.import.removeFolder(ambience, { removeTracks: true })).removedTracks).toEqual(under);
+        expect(await api.library.listTracks()).toHaveLength(before.length - under.length);
+        expect(await scenesUsing()).toBe(0);
+        await changedEvent("folders", "tracks", "campaigns", "history");
+        valueOf(await api.history.undo());
+        expect(await api.library.listTracks()).toHaveLength(before.length);
+        expect(await scenesUsing()).toBe(used);
+        expectRefused(await api.import.removeFolder("Z:\\Nowhere", { removeTracks: false }), "not-found");
       });
 
       it("finds missing files, plans where they went, and relinks the confirmed ones in one undo step", async () => {

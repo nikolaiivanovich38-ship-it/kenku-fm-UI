@@ -145,6 +145,8 @@ import {
   updatePad,
   updatePlaylist,
   updateRoot,
+  removeRoot,
+  removeRootWithTracks,
   updateScene,
   updateSession,
   updateTrack,
@@ -480,6 +482,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     });
   }
   const requireTrack = (id: string) => libraryTracks(id)[0] ?? refuse("not-found", ENTITY_WORDS.track);
+  /** A library folder by its path, in any letter case (0.5.2 items 20 and 40). */
+  const requireRoot = (folder: string) => listRoots(store).find((r) => r.path.toLowerCase() === String(folder).toLowerCase()) ?? refuse("not-found", `Lyre has no library folder at ${folder}.`);
 
   function tagGroups(): ApiTagGroup[] {
     const tags = listTags(store);
@@ -802,7 +806,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         });
       },
       async listFolders() {
-        return listRoots(store).map((r): FolderRoot => ({ path: r.path, watched: r.watched }));
+        return listRoots(store).map((r): FolderRoot => ({ path: r.path, watched: r.watched, newKind: r.newKind }));
       },
       async showInFolder(trackId) {
         return writeOutside([], async () => {
@@ -1473,7 +1477,24 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
             { bookkeeping: true },
           );
           const root = listRoots(store).find((r) => r.path.toLowerCase() === path.toLowerCase());
-          return { path: root.path, watched: true };
+          return { path: root.path, watched: true, newKind: root.newKind };
+        });
+      },
+      async setFolderKind(path, kind) {
+        return write(["folders"], () => {
+          const root = requireRoot(path);
+          const done = updateRoot(store, root.id, { newKind: kind });
+          return { path: done.path, watched: done.watched, newKind: done.newKind };
+        });
+      },
+      async removeFolder(path, { removeTracks }) {
+        // Removing its tracks takes them out of every playlist, pad and scene too (ON DELETE CASCADE).
+        const areas: LyreArea[] = removeTracks ? ["folders", "tracks", "playlists", "boards", "campaigns", "profiles"] : ["folders", "tracks"];
+        return write(areas, async () => {
+          const root = requireRoot(path);
+          if (removeTracks) return { removedTracks: await removeRootWithTracks(store, root.id) };
+          await removeRoot(store, root.id);
+          return { removedTracks: [] };
         });
       },
       async findMissing() {

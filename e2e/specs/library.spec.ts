@@ -695,4 +695,36 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await details(page).getByRole("combobox", { name: "Add a mood tag" }).press("Enter");
     await expect(ashes.getByText("New", { exact: true })).toHaveCount(0);
   });
+
+  test("item 40: a library folder's ⋯ says what kind its new tracks are", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const f = filters(page);
+    const toggle = page.getByRole("button", { name: "Filters", exact: true });
+    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+    await f.getByRole("button", { name: "More for the folder H:\\Audio\\Scores" }).click();
+    await expect(page.getByRole("menuitemradio", { name: "Guessed from the folder name" })).toHaveAttribute("aria-checked", "true");
+    await page.getByRole("menuitemradio", { name: "Always Ambience" }).click();
+    await expect(f.getByRole("button", { name: /^H:\\Audio\\Scores/ }).getByText("Ambience", { exact: true })).toBeVisible();
+    await f.getByRole("button", { name: "More for the folder H:\\Audio\\Scores" }).click();
+    await expect(page.getByRole("menuitemradio", { name: "Always Ambience" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  test("item 20: Remove folder… forgets a watched folder, its tracks stay unless ticked, and Undo brings it back", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const f = filters(page);
+    const toggle = page.getByRole("button", { name: "Filters", exact: true });
+    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+    const count = (await shownTitles(page)).length;
+    await f.getByRole("button", { name: "More for the folder H:\\Audio\\Effects" }).click();
+    await page.getByRole("menuitem", { name: "Remove folder…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Remove Effects?" });
+    await expect(dialog.getByRole("checkbox", { name: /^Also remove its \d+ tracks? from the library$/ })).not.toBeChecked();
+    await dialog.getByRole("button", { name: "Remove folder" }).click();
+    await expect(f.getByRole("button", { name: "More for the folder H:\\Audio\\Effects" })).toHaveCount(0);
+    expect((await shownTitles(page)).length).toBe(count);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(f.getByRole("button", { name: "More for the folder H:\\Audio\\Effects" })).toBeVisible();
+  });
 });

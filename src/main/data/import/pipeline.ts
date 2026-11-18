@@ -22,9 +22,9 @@
  */
 import path from "path";
 import type { Store } from "../store";
-import type { TrackInput } from "../types";
+import type { LibraryRoot, TrackInput } from "../types";
 import { createTracks } from "../repo/tracks";
-import { listRoots } from "../repo/roots";
+import { kindForNewFile, listRoots } from "../repo/roots";
 import { joinRoot } from "../paths";
 import { NOT_AUDIO, collectAudioFiles, fileKey, type FoundFile, type ImportProblem } from "./audioFiles";
 import { cancelled, mapLimit, throwIfCancelled } from "./cancel";
@@ -173,6 +173,8 @@ export async function importAudio(store: Store, request: { paths: string[] }, op
     result.problems.push(...found.problems);
     total = found.files.length;
     const known = locationsInLibrary(store);
+    // Version 8 (item 40): a library folder may say what kind its new tracks are.
+    const roots = listRoots(store);
 
     for (let start = 0; start < found.files.length; start += batchSize) {
       throwIfCancelled(options.signal);
@@ -184,7 +186,7 @@ export async function importAudio(store: Store, request: { paths: string[] }, op
         if (existing !== undefined) {
           entry = { file, existing, tags: NO_TAGS };
         } else {
-          entry = await describeFile(file, tagReader, result.problems, options.lengthProbe);
+          entry = await describeFile(file, tagReader, result.problems, options.lengthProbe, roots);
         }
         done++;
         report({ phase: "reading", done, total, message: `Reading ${baseName(file.path)}` });
@@ -233,6 +235,7 @@ async function describeFile(
   tagReader: TagReader,
   problems: ImportProblem[],
   lengthProbe?: (filePath: string) => Promise<number | null>,
+  roots: readonly LibraryRoot[] = [],
 ): Promise<{ file: FoundFile; input: TrackInput; tags: CleanTags } | null> {
   let facts;
   try {
@@ -263,7 +266,7 @@ async function describeFile(
     tags = { ...tags, durationMs: Math.round(length) };
   }
   if (tagsUnreadable) problems.push({ path: file.path, reason: TAGS_UNREADABLE });
-  const kind = guessKind(file.path, file.chosenFolder);
+  const kind = kindForNewFile(roots, file.path) ?? guessKind(file.path, file.chosenFolder);
   const input: TrackInput = {
     kind,
     ...(kind === "fx" ? { role: "effect" as const } : {}),

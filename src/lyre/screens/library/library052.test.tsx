@@ -163,3 +163,53 @@ describe("item 10: a track with a tag the game master added is no longer New", (
     expect(within(details).queryByText("New")).toBeNull();
   });
 });
+
+describe("items 20 and 40: a library folder's ⋯ in the Filters box", () => {
+  it("item 40: says what kind its new tracks are; a new file there gets that kind, with Undo", async () => {
+    const { api } = openAt("library", { folderFiles: { "H:\\Audio\\Scores\\New": ["drums.flac"] } });
+    await loaded();
+    const user = userEvent.setup();
+    const f = within(filters());
+    await user.click(f.getByRole("button", { name: "More for the folder H:\\Audio\\Scores" }));
+    expect(screen.getByRole("menuitemradio", { name: "Guessed from the folder name" })).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("menuitemradio", { name: "Always FX" }));
+    await waitFor(async () => expect((await api.library.listFolders()).find((x) => x.path === "H:\\Audio\\Scores")?.newKind).toBe("fx"));
+    expect(await screen.findAllByText("New tracks in Scores are FX.")).not.toHaveLength(0);
+    const added = await api.import.start({ from: "paths", paths: ["H:\\Audio\\Scores\\New"] });
+    const id = added.ok ? added.value.added[0] : "";
+    expect((await api.library.listTracks()).find((t) => t.id === id)?.kind).toBe("fx");
+  });
+
+  it("item 20: Remove folder… keeps its tracks unless ticked; ticked, it names where they are used, and Undo puts them back", async () => {
+    const { api } = openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    const f = within(filters());
+    const before = (await api.library.listTracks()).length;
+    await user.click(f.getByRole("button", { name: "More for the folder H:\\Audio\\Ambience" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove folder…" }));
+    const dialog = screen.getByRole("dialog", { name: "Remove Ambience?" });
+    expect(dialog).toHaveTextContent("Nothing is deleted from your computer.");
+    const tick = within(dialog).getByRole("checkbox", { name: /^Also remove its \d+ tracks from the library$/ });
+    expect(tick).not.toBeChecked();
+    await user.click(tick);
+    expect(within(dialog).getByRole("note")).toHaveTextContent(/Scenes: /);
+    await user.click(within(dialog).getByRole("button", { name: "Remove folder" }));
+    await waitFor(async () => expect((await api.library.listTracks()).length).toBeLessThan(before));
+    expect(f.queryByRole("button", { name: "More for the folder H:\\Audio\\Ambience" })).toBeNull();
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+    await waitFor(async () => expect((await api.library.listTracks()).length).toBe(before));
+  });
+
+  it("item 20: without the tick the folder goes and its tracks stay", async () => {
+    const { api } = openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    const before = (await api.library.listTracks()).length;
+    await user.click(within(filters()).getByRole("button", { name: "More for the folder H:\\Audio\\Effects" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove folder…" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Remove folder" }));
+    await waitFor(async () => expect((await api.library.listFolders()).map((x) => x.path)).not.toContain("H:\\Audio\\Effects"));
+    expect((await api.library.listTracks()).length).toBe(before);
+  });
+});

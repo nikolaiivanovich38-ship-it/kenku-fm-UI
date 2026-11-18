@@ -140,7 +140,7 @@ type Fixture = Awaited<ReturnType<typeof fixture>>;
 /** Every write command of the repository, run against the fixture. */
 const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["addRoot", (s) => roots.addRoot(s, { name: "Fx", path: "/fx" })],
-  ["updateRoot", (s, f) => roots.updateRoot(s, f.root.id, { name: "Songs", path: "/songs", watched: true })],
+  ["updateRoot", (s, f) => roots.updateRoot(s, f.root.id, { name: "Songs", path: "/songs", watched: true, newKind: "fx" })],
   ["setHotkeyActions", (s, f) => cueActions.setHotkeyActions(s, "f1", [{ type: "playTrack", trackId: f.a.id, target: "all", from: { scene: f.inScene, at: 0 } }, { type: "firePad", boardId: f.board.id, padId: f.pads[0].id, target: "all" }])],
   [
     "setHotkeyActions (then the track is deleted)",
@@ -151,6 +151,7 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
       }),
   ],
   ["removeRoot", (s, f) => roots.removeRoot(s, f.root.id)],
+  ["removeRootWithTracks", (s, f) => roots.removeRootWithTracks(s, f.root.id)],
   ["createTrack", (s) => tracks.createTrack(s, { title: "Delta", url: "https://example.com/d.mp3" })],
   ["createTracks", (s) => tracks.createTracks(s, [{ title: "D", file: { path: "/d.mp3" } }, { title: "E", file: { path: "/e.mp3" } }])],
   ["updateTrack", (s, f) => tracks.updateTrack(s, f.a.id, { title: "Alpha 2", energy: 3 })],
@@ -294,7 +295,7 @@ describe("undo and redo of every command (EDT-2)", () => {
 
   it("covers every exported write function", async () => {
     const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles, cueActions, playOrders, sceneNames, normalise, round6, round7 };
-    const readers = /^(get|list|find|track|own|scene|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|boardDividers|all[A-Z]|tagsWithInside|ITEM_TABLES|[A-Z_]+$)/;
+    const readers = /^(get|list|find|track|own|scene|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|kindFor|boardDividers|all[A-Z]|tagsWithInside|ITEM_TABLES|[A-Z_]+$)/;
     const writers = Object.values(modules)
       .flatMap((m) => Object.keys(m))
       .filter((name) => !readers.test(name) && name !== "markTracksUsed");

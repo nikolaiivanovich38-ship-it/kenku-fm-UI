@@ -10,7 +10,8 @@ import { shapeOf } from "../../../common/domain";
 import { ShapeGlyph } from "../../kit/ShapeGlyph";
 import { tagTreeOf } from "../../../common/lyre/lookup";
 import { trackHasTag } from "../../../common/domain/round7";
-import { folderRows, isNewish, kindOk, SHAPES, visibleTracks, type KindFilter, type LibraryFilter } from "./model";
+import { folderRows, isNewish, KIND_NAMES, kindOk, SHAPES, visibleTracks, type KindFilter, type LibraryFilter } from "./model";
+import { FolderActions } from "./FolderActions";
 
 const KINDS: [KindFilter, string][] = [
   ["all", "All"],
@@ -221,8 +222,10 @@ export function FiltersBody({
                 <Icon name={f.watched ? "eye" : "folder"} size="s" />
                 <span className="ellipsis grow">{f.label}</span>
                 {f.watched && <span className="hint">watched</span>}
+                {f.root?.newKind && <span className="hint">{KIND_NAMES[f.root.newKind]}</span>}
                 <span className="num lb-n">{f.count}</span>
               </button>
+              {f.root && <FolderActions root={f.root} tracks={tracks} />}
             </li>
           ))}
         </ul>

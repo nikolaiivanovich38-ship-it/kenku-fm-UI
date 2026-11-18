@@ -63,6 +63,8 @@ export type LibraryRoot = {
   path: string;
   /** New files in it are added by themselves (DB review 9). */
   watched: boolean;
+  /** Version 8 (item 40): the kind its new tracks get; null guesses from the folder names (import/kindGuess.ts). */
+  newKind: TrackKind | null;
   createdAt: number;
 };
 

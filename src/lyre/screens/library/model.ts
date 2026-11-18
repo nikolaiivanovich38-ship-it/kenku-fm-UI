@@ -227,6 +227,8 @@ export interface FolderRow {
   watched: boolean;
   /** A subfolder of the chosen library folder, shown under it. */
   sub: boolean;
+  /** 0.5.2 items 20 and 40: the library folder this row is (its ⋯), or null for any other row. */
+  root: FolderRoot | null;
 }
 
 /**
@@ -235,18 +237,18 @@ export interface FolderRow {
  */
 export function folderRows(tracks: readonly LibraryTrack[], roots: readonly FolderRoot[], chosen: string, kind: KindFilter): FolderRow[] {
   const base = tracks.filter((t) => kindOk(t, kind));
-  const all = roots.map((r) => ({ path: r.path, watched: r.watched }));
+  const all: { path: string; watched: boolean; root: FolderRoot | null }[] = roots.map((r) => ({ path: r.path, watched: r.watched, root: r }));
   for (const t of tracks) {
-    if (!all.some((r) => inFolder(t, r.path))) all.push({ path: t.folder.split("\\").slice(0, 3).join("\\"), watched: false });
+    if (!all.some((r) => inFolder(t, r.path))) all.push({ path: t.folder.split("\\").slice(0, 3).join("\\"), watched: false, root: null });
   }
   const count = (f: string) => base.filter((t) => inFolder(t, f)).length;
-  const rows: FolderRow[] = [{ path: "", label: "All folders", count: base.length, watched: false, sub: false }];
+  const rows: FolderRow[] = [{ path: "", label: "All folders", count: base.length, watched: false, sub: false, root: null }];
   for (const r of all) {
-    rows.push({ path: r.path, label: r.path, count: count(r.path), watched: r.watched, sub: false });
+    rows.push({ path: r.path, label: r.path, count: count(r.path), watched: r.watched, sub: false, root: r.root });
     if (chosen && inFolder({ folder: chosen }, r.path)) {
       const subs = new Set<string>();
       for (const t of base) if (t.folder.startsWith(`${r.path}\\`)) subs.add(`${r.path}\\${t.folder.slice(r.path.length + 1).split("\\")[0]}`);
-      for (const s of [...subs].sort()) rows.push({ path: s, label: shortPath(s), count: count(s), watched: false, sub: true });
+      for (const s of [...subs].sort()) rows.push({ path: s, label: shortPath(s), count: count(s), watched: false, sub: true, root: null });
     }
   }
   return rows;

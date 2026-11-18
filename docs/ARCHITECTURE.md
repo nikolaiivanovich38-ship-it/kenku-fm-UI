@@ -878,3 +878,32 @@ and did not repeat.
   itself.
 - The Live, Library and other screens redraw on every Now playing tick (`useNowPlaying`). No long task was seen on Live
   or Rooms on the build machine, and redraws no longer touch the sound; worth a look for battery and processor use.
+
+## 0.5.2: w52-lib (the Library, from Nik's play test of 14 November)
+
+Built straight in the app, as 0.5.1's changes were. Each item's unit or component test is in
+`src/lyre/screens/library/library052.test.tsx` unless named, and its on-screen check in `e2e/specs/library.spec.ts`
+(block "0.5.2", `appOnly()`).
+
+- **Lengths (items 7, 51).** One helper writes every length and time: `clockTime` / `lengthText` in
+  `src/common/lyre/text.ts` (whole seconds, rounded; h:mm:ss from an hour). The screens' own `fmt`, `fmtLong`,
+  `formatLength` and the Now playing bar's `clockTime` are that helper (`src/lyre/lengths.test.ts`). Now playing and
+  Live show the library's length when the playing file is less than a second off it (`agreedLength` in
+  `src/lyre/audio/lyreAudio.ts`), the file's when it is further off (BUG-22). The track list shows under the file's
+  length the length its own Audio profile plays, Start to End, when the two differ (`playedMs` in `model.ts`).
+- **Rows (items 6, 35).** Preview or Play on air on a row also opens the track (`onPlayed`; on a narrow window it only
+  moves the keyboard there). The list's scroll is kept in `libraryState.ts` (`getListScroll`, outside the reactive
+  state so scrolling redraws nothing) and put back when the screen is drawn afresh for the opened track.
+- **Filters and sorting (items 21, 25).** Each filter with something chosen has Clear beside its heading
+  (`FilterHeading` in `FiltersBody.tsx`); the box's header has Clear all filters, which leaves the search. The Title,
+  Tag, Energy and Length headers sort ascending, then descending (`COLUMN_SORTS`, `columnSort`), with `aria-sort`;
+  their buttons are out of the Tab order, since the Sort box has the same sorts for the keys.
+- **Names (item 23).** "Track library" in the menu, the heading, Back, the trail, the tour and the help; the route is
+  still `library`.
+- **New (item 10).** Schema version 8 (docs/data-model.md): a track loses New with its first tag.
+- **Library folders (items 20, 40).** A library folder's ⋯ in the Folders filter (`FolderActions.tsx`): New tracks here
+  are guessed from the folder name or always Music, Ambience or FX (`import.setFolderKind`; `library_roots.new_kind`,
+  used by the import, `kindForNewFile`), and Remove folder… (`import.removeFolder`), which keeps the tracks unless the
+  game master ticks to remove them too (`removeRootWithTracks`, one undo step; the files are not touched). The real
+  library has no folder watcher yet: "watched" is a mark, and new files arrive by Add files, Add a folder or a drop;
+  the kind applies to every new file under the folder, however it arrives.
