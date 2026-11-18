@@ -133,7 +133,8 @@
   };
   var G = null, guideEl = null;
   function box() { if (!guideEl) { guideEl = document.createElement('div'); guideEl.id = 'r9-guide'; document.body.appendChild(guideEl); guideEl.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endGuide(); } }); } return guideEl; }
-  function find(sel) { return sel.split(',').map(function (x) { return document.querySelector(x.trim()); }).filter(function (n) { return n && n.offsetParent; })[0]; }
+  // Round 10: the first match on screen (a selector's first match may be in a folded box).
+  function find(sel) { var out = null; sel.split(',').some(function (x) { out = [].slice.call(document.querySelectorAll(x.trim())).filter(function (n) { return n.offsetParent && n.getBoundingClientRect().height > 0; })[0] || null; return !!out; }); return out; }
   function paint() {
     var el = box(); if (!G) { el.innerHTML = ''; return; }
     var steps = G.steps.filter(function (s) { return find(s[0]); }); if (!steps.length) { endGuide(); L.toast('Nothing to point at on this screen yet'); return; }
@@ -194,6 +195,8 @@
     var b = document.querySelector('#rail [data-k="rail-help"]'), p = L.setupProgress(); if (!b) return;
     var old = b.querySelector('.r9-help-ring'); if (old) old.remove();
     var running = L.current().name === 'live' && !!(L.pb.music || L.pb.amb);
-    if (!p.hidden && p.n < p.of && !running) b.insertAdjacentHTML('beforeend', '<span class="r9-help-ring" aria-hidden="true" title="Set up Lyre: ' + p.n + ' of ' + p.of + ' done">' + p.n + '/' + p.of + '</span>');
+    // Round 10: the progress is drawn by CSS (data-progress), so the button's name and text stay "Help"; a quiet
+    // outline chip, not the accent fill (look D12).
+    if (!p.hidden && p.n < p.of && !running) b.insertAdjacentHTML('beforeend', '<span class="r9-help-ring" aria-hidden="true" title="Set up Lyre: ' + p.n + ' of ' + p.of + ' done" data-progress="' + p.n + '/' + p.of + '"></span>');
   };
 })();

@@ -24,7 +24,7 @@
   };
 
   /* ---------- Rooms, under Settings ---------- */
-  if (L.views.outputs) L.views.outputs.crumbs = function () { return [{ href: '#/settings', label: 'Settings' }]; };
+  if (L.views.outputs) L.views.outputs.crumbs = function () { return [{ href: '#/settings', label: 'Settings' }, { label: 'Rooms' }]; };
 
   /* ---------- Connection lost ---------- */
   L.acts.r10retry = function (el) {

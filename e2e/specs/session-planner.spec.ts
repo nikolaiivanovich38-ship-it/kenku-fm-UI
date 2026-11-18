@@ -304,7 +304,8 @@ test.describe("a scene's pad boards", () => {
 test.describe("scenes", () => {
   test("a scene opens to its name, Starts when line and notes", async ({ page }) => {
     await openAbbey(page);
-    await expect(abbey(page).getByRole("textbox", { name: "Starts when" })).toHaveValue("They crest the cliff path");
+    // Round 10 (prep review S2): the field is the Story cue in the design; the app calls it Starts when until built.
+    await expect(abbey(page).getByRole("textbox", { name: /^(Starts when|Story cue)$/ })).toHaveValue("They crest the cliff path");
     await expect(abbey(page).getByRole("textbox", { name: "Notes" })).toHaveValue(/Rain all the way/);
     await abbey(page).getByRole("textbox", { name: "Name" }).fill("The abbey in the rain");
     await expect(page.getByRole("listitem", { name: /Scene 3: The abbey in the rain/ })).toBeVisible();
@@ -447,7 +448,8 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
 
   test("PLY-14: a track in a scene opens its waveform, end and fades for that scene, and Back returns to the scene", async ({ page }) => {
     await openAbbey(page);
-    await musicOf(abbey(page)).getByRole("link", { name: /^Waveform, end and fades in this scene: Eerie dread/ }).click();
+    // Round 10 (prep review S1): one name for it everywhere, Audio profile; the app's words until built read either.
+    await musicOf(abbey(page)).getByRole("link", { name: /^(Waveform, end and fades|Audio profile) in this scene: Eerie dread/ }).click();
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Eerie dread, low cello and choir");
     await expect(page.getByRole("combobox", { name: "Settings for" })).toHaveValue("sc:crown:s14:sc3");
     await expect(page.getByText(/Editing own settings for the scene The abbey ruins/)).toBeVisible();
@@ -681,5 +683,47 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await page.getByRole("button", { name: "Add scene" }).click();
     await expect(scenes(page)).toHaveCount(8);
     await expect(scenes(page).nth(2)).toHaveAccessibleName("Scene 3: Scene 3");
+  });
+});
+
+/* Round 10 (design/prototype/ROUND10.md). Not built yet. */
+test.describe("round 10: the planner", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+
+  test("no Open all: each scene stays open until it is closed (Nik, 18 Nov, answer 2b)", async ({ page }) => {
+    await openAbbey(page);
+    await expect(page.getByRole("button", { name: /^(Open|Fold) all scenes$/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "Scene 2: Greyhollow inn" }).click();
+    await expect(page.getByRole("button", { name: "Scene 3: The abbey ruins" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("an open scene says what it does when it starts, under its Story cue, with Change… (prep review S2)", async ({ page }) => {
+    await openAbbey(page);
+    const start = abbey(page).getByRole("group", { name: "When it starts" });
+    await expect(start).toContainText("then it waits for Next scene");
+    await start.getByRole("button", { name: "Change what The abbey ruins does when it starts" }).click();
+    await expect(dialog(page)).toHaveAccessibleName("When The abbey ruins starts");
+  });
+
+  test("a track inside an open playlist opens the Track panel from its title (prep review D1)", async ({ page }) => {
+    await openAbbey(page);
+    await musicOf(abbey(page)).getByRole("button", { name: "Show contents of Abbey: eerie, low energy" }).click();
+    const nested = abbey(page).getByRole("list", { name: /^Tracks in Abbey: eerie, low energy/ }).getByRole("link").first();
+    const title = (await nested.innerText()).trim();
+    await nested.click();
+    await expect(page.getByRole("complementary").getByRole("heading", { level: 2 })).toContainText(title.slice(0, 12));
+  });
+
+  test("Add music: Make a playlist of these… makes a playlist of the ticked tracks and puts it in the scene (Nik, 18 Nov, answer 1a)", async ({ page }) => {
+    await openAbbey(page);
+    await abbey(page).getByRole("button", { name: "Add tracks or playlists…" }).click();
+    const panel = dialog(page);
+    await panel.getByRole("searchbox", { name: "Search the list" }).fill("Brutal battle");
+    await panel.getByRole("checkbox", { name: /Brutal battle/ }).first().check();
+    await panel.getByRole("button", { name: "Make a playlist of these…" }).click();
+    await panel.getByRole("textbox", { name: "New playlist" }).fill("Abbey fight");
+    await panel.getByRole("button", { name: "Make it and add it" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    expect(await linkNames(musicOf(abbey(page)))).toContain("Abbey fight");
   });
 });

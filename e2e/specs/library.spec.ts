@@ -228,10 +228,11 @@ test.describe("a track's details", () => {
     const d = details(page);
     await d.getByRole("group", { name: "Energy, 1 calm to 5 intense" }).getByRole("button", { name: "4" }).click();
     await expect(d.getByRole("group", { name: "Energy, 1 calm to 5 intense" }).getByRole("button", { name: "4" })).toHaveAttribute("aria-pressed", "true");
-    await d.getByRole("group", { name: "Role" }).getByRole("button", { name: "Loop bed" }).click();
-    await expect(d.getByRole("group", { name: "Role" }).getByRole("button", { name: "Loop bed" })).toHaveAttribute("aria-pressed", "true");
-    await d.getByRole("group", { name: "Loop advice" }).getByRole("button", { name: "Crossfade the loop" }).click();
-    await expect(d.getByRole("group", { name: "Loop advice" }).getByRole("button", { name: "Crossfade the loop" })).toHaveAttribute("aria-pressed", "true");
+    // Round 9 (item 18): Role and Loop advice became Use it for and At its end; choosing a use picks its usual end.
+    expectFailureUntilBuilt("r10");
+    await d.getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Background/ }).click();
+    await expect(d.getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Background/ })).toHaveAttribute("aria-pressed", "true");
+    await expect(d.getByRole("group", { name: "At its end" }).getByRole("button", { name: "Loop with a crossfade" })).toHaveAttribute("aria-pressed", "true");
   });
 
   test("show which playlists the track is in and which scenes use it", async ({ page }) => {
@@ -463,31 +464,35 @@ test.describe("round 7: how a track behaves", () => {
   test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("a sting never loops: its loop choices are off, and say why", async ({ page }) => {
+    // Round 9 (item 18): a sting is a Short cue; At its end offers no loop for it.
+    expectFailureUntilBuilt("r10");
     await openRoute(page, "library");
     await openTrack(page, "Dread rising, choir stabs");
-    const loop = details(page).getByRole("group", { name: "Loop advice" });
-    await expect(details(page).getByRole("group", { name: "Role" }).getByRole("button", { name: "Sting" })).toHaveAttribute("aria-pressed", "true");
-    await expect(loop.getByRole("button", { name: "Loops well" })).toBeDisabled();
-    await expect(loop).toHaveAccessibleDescription(/A sting plays once/);
+    await expect(details(page).getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Short cue/ })).toHaveAttribute("aria-pressed", "true");
+    await expect(details(page).getByRole("group", { name: "At its end" }).getByRole("button", { name: /^Loop/ })).toHaveCount(0);
   });
 
   test("Follow with… hands over to a playlist or track when it ends", async ({ page }) => {
     await openRoute(page, "library");
     await openTrack(page, "Dread rising, choir stabs");
-    await details(page).getByRole("button", { name: "Follow with…" }).click();
-    await page.getByRole("dialog").getByRole("combobox", { name: "When it ends, play" }).selectOption({ label: "Crypt ambush (playlist)" });
+    // Round 9 (item 5): At its end › Play… opens a picker with search and Playlists, Music, Ambience and FX.
+    expectFailureUntilBuilt("r10");
+    await details(page).getByRole("group", { name: "At its end" }).getByRole("button", { name: "Play…" }).click();
+    await page.getByRole("dialog").getByRole("radio", { name: /^Crypt ambush/ }).check();
     await page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
-    await expect(details(page).getByRole("group", { name: "Then" })).toContainText("Crypt ambush");
-    await expect(page.getByRole("status").filter({ hasText: /follows with Crypt ambush$/ })).toBeVisible();
+    await expect(details(page).getByRole("group", { name: "At its end" })).toContainText("Play: Crypt ambush");
+    await expect(page.getByRole("status").filter({ hasText: /then plays Crypt ambush$/ })).toBeVisible();
   });
 
   test("Ending: Fades out, and Pick up where it stopped, are saved with the track", async ({ page }) => {
     await openRoute(page, "library");
     // An underscore: it can fade out at its end, and pick up where it stopped.
     await openTrack(page, "Storm and dark romance");
-    await details(page).getByRole("group", { name: "Ending" }).getByRole("button", { name: "Fades out" }).click();
-    await expect(page.getByRole("status").filter({ hasText: /ending: fades out$/ })).toBeVisible();
-    await details(page).getByRole("switch", { name: "Pick up where it stopped" }).check();
+    // Round 9 (item 18): Ending is one of At its end's choices; Pick up is "Next time, start where it stopped".
+    expectFailureUntilBuilt("r10");
+    await details(page).getByRole("group", { name: "At its end" }).getByRole("button", { name: "Fade out" }).click();
+    await expect(page.getByRole("status").filter({ hasText: /at its end: fades out$/ })).toBeVisible();
+    await details(page).getByLabel("Next time, start where it stopped").check();
     await expect(page.getByRole("status").filter({ hasText: /picks up where it stopped$/ })).toBeVisible();
   });
 });
@@ -560,11 +565,12 @@ test.describe("0.5.1: Pick up where it stopped for every music track", () => {
     await openRoute(page, "library");
     for (const title of ["Ashes", "Haunted sea shanty"]) {
       await openTrack(page, title);
-      await expect(details(page).getByRole("switch", { name: "Pick up where it stopped" })).toBeVisible();
+      // Round 9: the words are "Next time, start where it stopped" in the design; either is read.
+      await expect(details(page).getByLabel(/^(Pick up where it stopped|Next time, start where it stopped)$/)).toBeVisible();
     }
     await openTrack(page, "Very short heroic moment");
     await expect(details(page).getByRole("textbox", { name: "Your title" })).toBeVisible();
-    await expect(details(page).getByRole("switch", { name: "Pick up where it stopped" })).toHaveCount(0);
+    await expect(details(page).getByLabel(/^(Pick up where it stopped|Next time, start where it stopped)$/)).toHaveCount(0);
   });
 });
 

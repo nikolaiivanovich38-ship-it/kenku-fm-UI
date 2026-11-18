@@ -16,13 +16,12 @@
 .lv-dock .pane.k-onair > header { background: var(--surface-2); border-bottom-color: var(--line); box-shadow: inset 4px 0 0 var(--onair); }
 .pane.k-onair > header .pane-title::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%;
   border: 2px solid var(--onair); vertical-align: 0; background: var(--onair); box-shadow: 0 0 8px var(--onair); }
-.pane.k-onair.is-silent > header .pane-title::before { background: transparent; box-shadow: none; }
+.pane.k-onair:not(:has(.lv-rm:not(.is-silent))) > header .pane-title::before { background: transparent; box-shadow: none; }
 .lv-rm:not(.is-silent) { box-shadow: inset 4px 0 0 var(--onair); background: color-mix(in srgb, var(--onair) 5%, transparent); }
 
 /* ---------- On air keeps its height (table M1) ---------- */
-.lv-lane { min-height: 92px; }
 .lv-lane.r10-lane-empty { border-bottom: 1px solid var(--line); }
-.lv-line.lv-fx { min-height: 34px; }
+.lv-line.lv-fx { min-height: 32px; }
 .lv-line.r10-fx-empty { border-bottom: 1px solid transparent; }
 .lv-lane-t.r10-clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; overflow-wrap: anywhere; min-height: 40px; }
 .r10-keepplace { visibility: hidden; }
@@ -44,9 +43,9 @@
 .r10-lost-line svg { color: var(--warn); }
 
 /* ---------- One Undo place in the strip (table M1, T1) ---------- */
-.r10-undo-slot { flex: 0 1 260px; min-width: 0; display: flex; align-items: center; }
-.r10-undo-slot:empty { flex-basis: 0; }
-.r10-undo-slot .lv-undo { margin: 0; flex: 1; min-width: 0; padding: 2px 4px 2px 8px; position: relative; display: flex; align-items: center; gap: 6px; border: 1px solid var(--accent); border-radius: var(--r-m); background: var(--accent-soft); font-size: var(--fs-s); }
+.r10-undo-slot { flex: 0 1 260px; min-width: 0; display: flex; align-items: center; height: 28px; }
+.r10-undo-slot:empty { flex: 0 1 200px; } /* the place is kept, so nothing in the strip moves when Undo shows */
+.r10-undo-slot .lv-undo { margin: 0; flex: 1; min-width: 0; height: 28px; box-sizing: border-box; padding: 0 2px 0 8px; position: relative; display: flex; align-items: center; gap: 6px; border: 1px solid var(--accent); border-radius: var(--r-m); background: var(--accent-soft); font-size: var(--fs-s); }
 .r10-undo-slot .lv-undo-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; }
 /* Fade all and Stop all keep their words down to 720 px of app (table S2): Find shrinks first. */
 @container app (min-width: 720px) {
@@ -110,3 +109,12 @@
 /* ---------- Row buttons greyed at rest on every list (look K6; Nik's Live rule of 6 Nov) ---------- */
 .pl-row .btn.icon:not(:hover):not(:focus-visible):not([aria-pressed="true"]), .lb-row .btn.icon:not(:hover):not(:focus-visible):not([aria-pressed="true"]) { opacity: .62; }
 .pl-row:hover .btn.icon, .pl-row:focus-within .btn.icon, .lb-row:hover .btn.icon, .lb-row:focus-within .btn.icon { opacity: 1; }
+
+/* Help's setup progress: an outline chip, drawn by CSS so Help's name stays Help (look D12). */
+.r9-help-ring { background: transparent; border-color: var(--line-strong); }
+.r9-help-ring::after { content: attr(data-progress); }
+.r10-esc { font-size: var(--fs-s); color: var(--warn); font-weight: 700; }
+.r9-tp-bar a.btn { text-decoration: none; }
+/* Music and ambience lanes keep one height, playing or not, so starting a scene moves nothing. */
+.lv-lane.lv-m { min-height: 110px; }
+.lv-lane.lv-a { min-height: 92px; }

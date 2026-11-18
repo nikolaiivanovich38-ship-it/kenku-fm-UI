@@ -1,7 +1,7 @@
 ---
 title: Rooms and bots
 group: Get started
-words: room rooms bot bots discord voice channel join leave move token start volume add kick
+words: room rooms bot bots discord voice channel join leave move token start volume add kick connection lost
 ---
 A **room** is a Discord voice channel Lyre plays into. A **bot** is the Discord account that carries the sound there. Each bot can be in one room at a time.
 
@@ -13,5 +13,8 @@ A **room** is a Discord voice channel Lyre plays into. A **bot** is the Discord 
 
 **In Settings › Discord bots** (setting bots up):
 - **Add a bot** walks you through making one in Discord and pasting its token.
-- **Joins when Lyre starts**: the bot goes to that channel by itself whenever Lyre starts.
-- **Starting volume**, **Replace…** for a new token, and ⋯ to rename or remove a bot.
+- **Starting volume**: the volume a bot has when you join it to a room.
+- **Replace…** for a new token, and ⋯ to rename or remove a bot.
+- **Rooms** shows which bot is in which voice channel, on one page (also in the menu, under Settings).
+
+Bots join a room only when you join them. The one time a bot joins by itself is after a dropped connection: it goes back to the room it was in.

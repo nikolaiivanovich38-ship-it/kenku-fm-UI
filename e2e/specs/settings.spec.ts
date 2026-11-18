@@ -350,3 +350,22 @@ test.describe("0.5.1: a split headset only while On air plays too", () => {
     await expect(box).toContainText("Only while something plays on air; a preview on its own plays in both ears.");
   });
 });
+
+/* Round 10 (design/prototype/ROUND10.md; Nik, 18 Nov 03:14, answers 2 and 3). Not built yet. */
+test.describe("round 10: bots join only when Nik joins them; Rooms under Settings", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+
+  test("a bot has a Starting volume and no Joins when Lyre starts", async ({ page }) => {
+    await openRoute(page, "settings");
+    await expect(bots(page).getByText("Joins when Lyre starts")).toHaveCount(0);
+    await expect(bots(page).getByRole("slider", { name: "Starting volume" }).first()).toBeVisible();
+  });
+
+  test("Rooms opens the Rooms screen as it was, with Settings in its trail and Back to Settings", async ({ page }) => {
+    await openRoute(page, "settings");
+    await bots(page).getByRole("link", { name: "Rooms" }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Rooms");
+    await expect(page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Settings" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Back to Settings" })).toBeVisible();
+  });
+});

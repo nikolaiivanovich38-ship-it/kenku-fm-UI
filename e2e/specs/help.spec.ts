@@ -213,7 +213,8 @@ test.describe("FND-8 the first-run tour", () => {
       titles.push(await box.getByRole("heading").innerText());
       await box.getByRole("button", { name: step === 5 ? "Done" : "Next" }).click();
     }
-    expect(titles).toEqual(["Lyre's places", "Library", "Scenes", "Live", "Now playing"]);
+    // 0.5.2 item 23: the app's step is "Track library"; the prototype's "Library".
+    expect(titles.map((t) => t.replace(/^Track library$/, "Library"))).toEqual(["Lyre's places", "Library", "Scenes", "Live", "Now playing"]);
     await expect(tour(page)).toHaveCount(0);
   });
 
@@ -221,7 +222,7 @@ test.describe("FND-8 the first-run tour", () => {
     await openFirstStart(page);
     await expect(tour(page).getByRole("button", { name: "Next" })).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("dialog", { name: "Library 2 of 5" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: /^(Track l|L)ibrary 2 of 5$/ })).toBeVisible();
     await tour(page).getByRole("button", { name: "Back" }).click();
     await expect(page.getByRole("dialog", { name: "Lyre's places 1 of 5" })).toBeVisible();
   });
@@ -357,4 +358,34 @@ test("0.5.1: Run a session in Live says Fade all takes 5 seconds; Preview or pla
   await helpPanel(page).getByRole("button", { name: "Back", exact: true }).click();
   await helpPanel(page).getByRole("button", { name: "Preview or play on air", exact: true }).click();
   await expect(helpPanel(page).getByRole("article")).toContainText("a preview on its own plays in both ears");
+});
+
+/* Round 10 (design/prototype/ROUND10.md; Nik, 18 Nov 03:14, answer 5b: the tour, then the checklist). Not built yet. */
+test.describe("round 10: the first start, and the Live tour", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+
+  test("on the first start, Done on the tour's last step opens Help at Set up Lyre", async ({ page }) => {
+    await openFirstStart(page);
+    for (let step = 1; step <= 5; step++) await tour(page).getByRole("button", { name: step === 5 ? "Done" : "Next" }).click();
+    await expect(helpPanel(page).getByRole("heading", { name: "Set up Lyre" })).toBeVisible();
+  });
+
+  test("the Live tour shows what the players hear, only you, pads, Undo, Fade all and Stop all", async ({ page }) => {
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: "Start scene 3: The abbey ruins" }).click();
+    await helpButton(page).click();
+    await helpPanel(page).getByRole("button", { name: "Tour of this screen" }).click();
+    await expect(page.getByRole("dialog", { name: /Live · 1 of \d$/ })).toBeVisible();
+    const titles: string[] = [];
+    for (let i = 0; i < 8; i++) {
+      const box = page.getByRole("dialog", { name: /Live · \d of \d$/ });
+      if (!(await box.count())) break;
+      titles.push((await box.getByRole("heading").innerText()).trim());
+      const next = box.getByRole("button", { name: /^(Next|Done)$/ });
+      const done = (await next.innerText()).trim() === "Done";
+      await next.click();
+      if (done) break;
+    }
+    expect(titles).toEqual(["Next scene", "On air: what the players hear", "Preview: only you", "Pads and their keys", "Undo", "Fade all and Stop all"]);
+  });
 });

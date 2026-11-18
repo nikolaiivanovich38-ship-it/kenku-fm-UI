@@ -7,7 +7,8 @@ import type { Page } from "@playwright/test";
 import { appOnly, expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute, reopen } from "./support/target";
 
-const wave = (page: Page) => page.getByRole("region", { name: "Waveform and listening", exact: true });
+// Round 10 (prep review S1): the first box is "Audio profile" in the design; the app's name until built: Waveform and listening.
+const wave = (page: Page) => page.getByRole("region", { name: /^(Waveform and listening|Audio profile)$/ });
 const handle = (page: Page, name: string) => wave(page).getByRole("slider", { name, exact: true });
 const atEnd = (page: Page) => page.getByRole("region", { name: "At the end", exact: true });
 const fades = (page: Page) => page.getByRole("region", { name: "Fades", exact: true });
@@ -61,18 +62,21 @@ test.describe("the handles", () => {
 test.describe("what happens at the end", () => {
   // Round 6 (design/prototype/ROUND6.md): Stop no longer says "Then silence"; the check takes either name.
   test("offers Loop back, Move to the next track and Stop, with a plain explanation where one is needed", async ({ page }) => {
+    // Round 10 (prep review D5, look D8): the same six ends, in the same words, as At its end in the track's details.
+    expectFailureUntilBuilt("r10");
     await openRoute(page, "profile/t13");
-    const choice = atEnd(page).getByRole("group", { name: "At the end" });
-    await expect(choice.getByRole("radio", { name: /^Loop back to loop start/ })).toBeChecked();
-    await expect(choice.getByRole("radio", { name: /^Move to the next track The scene or playlist moves on; played on its own, it stops/ })).toBeVisible();
-    await expect(choice.getByRole("radio", { name: /^Stop\b/ })).toBeVisible();
+    const choice = atEnd(page).getByRole("group", { name: "At its end" });
+    await expect(choice.getByRole("radio")).toHaveCount(6);
+    await expect(choice.getByRole("radio", { name: /^Loop with a crossfade/ })).toBeChecked();
+    await expect(choice.getByRole("radio", { name: /^Next track The scene or playlist moves on; played on its own, it stops/ })).toBeVisible();
+    for (const name of [/^Loop Back to the loop start/, /^Fade out/, /^Stop\b/, /^Play…/]) await expect(choice.getByRole("radio", { name })).toBeVisible();
     await expect(atEnd(page)).toContainText("Loops from 1:04");
   });
 
   test("choosing Move to the next track changes the summary and no longer needs a loop start", async ({ page }) => {
     await openRoute(page, "profile/t13");
-    await atEnd(page).getByRole("radio", { name: /^Move to the next track/ }).check();
-    await expect(atEnd(page).getByRole("radio", { name: /^Move to the next track/ })).toBeChecked();
+    await atEnd(page).getByRole("radio", { name: /^(Move to the next track|Next track)/ }).check();
+    await expect(atEnd(page).getByRole("radio", { name: /^(Move to the next track|Next track)/ })).toBeChecked();
     await expect(atEnd(page)).not.toContainText("Loops from 1:04");
     await expect(handle(page, "Loop start")).toHaveCount(0);
   });

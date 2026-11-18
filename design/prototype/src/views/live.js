@@ -699,7 +699,7 @@
             '<button class="lv-sc-name" data-act="lvscopen" data-i="' + i + '" data-k="lv-scn-' + i + '" aria-expanded="' + !!S.scOpen[i] + '"' + (S.scOpen[i] ? ' aria-controls="lv-scb-' + i + '"' : '') + ' title="' + esc(sc.name) + ': ' + (S.scOpen[i] ? 'fold' : 'see what it plays') + '">' + L.icon('chevdown', 's lv-sc-chev') + '<span class="sr-only">Scene ' + (i + 1) + ': </span><span class="ellipsis">' + esc(sc.name) + '</span></button>' +
             '<button class="btn s icon lv-sc-go" data-act="lvstart" data-i="' + i + '" data-k="lv-start-' + i + '" title="' + (isNow ? 'Restart' : 'Start') + ' this scene" aria-label="' + (isNow ? 'Restart' : 'Start') + ' scene ' + (i + 1) + ': ' + esc(sc.name) + '">' + L.icon(isNow ? 'restart' : 'play', 's') + '</button></div>' +
           // The cue for the next change of scene; the running scene's details are in Current scene.
-          (isNext && sc.when && !S.scOpen[i] ? '<div class="lv-sc-when ellipsis" title="Starts when: ' + esc(sc.when) + '"><span class="faint">Starts when:</span> ' + esc(sc.when) + '</div>' : '') +
+          (isNext && sc.when && !S.scOpen[i] ? '<div class="lv-sc-when ellipsis" title="Story cue: ' + esc(sc.when) + '"><span class="faint">Story cue:</span> ' + esc(sc.when) + '</div>' : '') + // Round 10 (prep S2)
           (S.scOpen[i] ? sceneInside(sc, i) : '') + '</li>';
       }).join('') + '</ol>' +
       (compact && s.scenes.length > 2 ? '<button class="lv-more lv-allsc" data-act="lvallsc" data-k="lv-allsc" aria-expanded="' + !!S.allScenes + '">' + (S.allScenes ? 'Show only Now and Next' : 'Show all ' + s.scenes.length + ' scenes') + '</button>' : '');
@@ -720,7 +720,7 @@
   function sceneInside(sc, i) {
     var amb = sc.amb && ambName(sc.amb), bds = sceneBoards(sc), running = !S.notStarted && i === live().scene;
     return '<div class="lv-sc-in" id="lv-scb-' + i + '">' +
-      (sc.when ? '<div class="lv-sc-when"><span class="faint">Starts when:</span> ' + esc(sc.when) + '</div>' : '') +
+      (sc.when ? '<div class="lv-sc-when"><span class="faint">Story cue:</span> ' + esc(sc.when) + '</div>' : '') +
       (sc.notes ? '<div class="lv-sc-notes"><span class="lv-sc-notes-t">' + esc(sc.notes) + '</span></div>' : '') +
       (L.sceneItems(sc).length ? sceneList(sc, i, { src: 'in' + i, label: sc.name + ': music in play order', loose: !running }) : '<p class="lv-in-none">No music</p>') +
       ambLine(sc, 'lv-in' + i) +
@@ -920,12 +920,13 @@
   // when focus or a click goes elsewhere.
   document.addEventListener('focusin', function (e) {
     if (!onLive() || !S.findOpen) return;
-    var t = e.target; if (!(t.closest && (t.closest('.lv-find') || t.closest('.menu')))) closeFind(false);
+    // Round 10: the Undo place beside Find does not close it (a re-render would take the button from under the click).
+    var t = e.target; if (!(t.closest && (t.closest('.lv-find') || t.closest('.menu') || t.closest('.r10-undo-slot')))) closeFind(false);
   });
   document.addEventListener('pointerdown', function (e) {
     if (!onLive() || !e.target.closest) return;
     if (e.target.closest('[data-k="lv-q"]')) { setTimeout(openFind, 0); return; }
-    if (S.findOpen && !(e.target.closest('.lv-find') || e.target.closest('.menu'))) closeFind(false);
+    if (S.findOpen && !(e.target.closest('.lv-find') || e.target.closest('.menu') || e.target.closest('.r10-undo-slot'))) closeFind(false);
   });
 
   /* ---------- layout ---------- */
