@@ -117,7 +117,7 @@
     var rows = '<li><label class="r9-fp-row r9-fp-none' + (!sel ? ' on' : '') + '"><input type="radio" name="r9fp" value="" data-input="r9fppick" data-k="r9fp-none"' + (!sel ? ' checked' : '') + '><span class="grow"><b>Nothing</b><span class="hint"> · it ends as set</span></span></label></li>';
     groups.forEach(function (gr) {
       var list = shown.filter(function (y) { return y.g === gr[0]; }); if (!list.length) return;
-      rows += '<li class="r9-fp-h" role="presentation">' + gr[1] + ' <span class="faint num">' + list.length + '</span></li>' + list.slice(0, 40).map(function (y) {
+      rows += '<li class="r9-fp-h">' + gr[1] + ' <span class="faint num">' + list.length + '</span></li>' + list.slice(0, 40).map(function (y) {
         return '<li class="r9-fp-li"><label class="r9-fp-row' + (sel === y.id ? ' on' : '') + '"><input type="radio" name="r9fp" value="' + y.id + '" data-input="r9fppick" data-k="r9fp-' + y.id + '"' + (sel === y.id ? ' checked' : '') + '>' +
           '<span class="lane-dot ' + (y.g === 'pl' ? (y.lane === 'fx' ? 'fx' : y.lane) : y.lane) + '" aria-hidden="true"></span>' +
           '<span class="grow r9-fp-t"><span class="ellipsis">' + esc(y.name) + '</span><span class="hint ellipsis">' + esc(y.sub) + '</span></span></label>' +

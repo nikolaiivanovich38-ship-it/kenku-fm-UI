@@ -265,15 +265,21 @@
     L.say('Sorted by ' + el.textContent.trim().toLowerCase() + (st.sort === asc ? ', A to Z' : ', Z to A'));
   };
   L.acts.r9cols = function (el) {
-    L.menu(el, '<div class="group">Columns</div><label class="r9-colrow"><input type="checkbox" checked disabled>Title (always)</label>' + COLS.map(function (c) {
-      return '<label class="r9-colrow"><input type="checkbox" data-input="r9col" data-c="' + c[0] + '"' + (st.cols.indexOf(c[0]) > -1 ? ' checked' : '') + '>' + c[1] + (c[0] === 'plays' ? '<span class="hint"> after the Audio profile</span>' : '') + '</label>';
-    }).join('') + '<div class="sep"></div><button role="menuitem" data-act="r9colsreset">' + L.icon('restart', 's') + 'Put back the usual columns</button>', 'Columns');
+    L.menu(el, colsMenu(), 'Columns');
   };
+  function colsMenu() {
+    return '<div class="group">Columns</div><button role="menuitemcheckbox" aria-checked="true" aria-disabled="true" class="r9-colrow">' + L.icon('check', 's') + 'Title (always)</button>' + COLS.map(function (c) {
+      var on = st.cols.indexOf(c[0]) > -1;
+      return '<button role="menuitemcheckbox" aria-checked="' + on + '" class="r9-colrow" data-act="r9col" data-keep-menu="1" data-c="' + c[0] + '">' + (on ? L.icon('check', 's') : '<span style="width:14px"></span>') + c[1] + (c[0] === 'plays' ? '<span class="hint">&nbsp;after the Audio profile</span>' : '') + '</button>';
+    }).join('') + '<div class="sep"></div><button role="menuitem" data-act="r9colsreset">' + L.icon('restart', 's') + 'Put back the usual columns</button>';
+  }
   function saveCols() { try { localStorage.setItem('lyre-r9-cols', JSON.stringify(st.cols)); } catch (e) { /* storage unavailable */ } }
-  L.inputs.r9col = function (el) {
-    var c = el.dataset.c, i = st.cols.indexOf(c); if (el.checked && i < 0) st.cols.push(c); if (!el.checked && i > -1) st.cols.splice(i, 1);
-    saveCols(); var open = document.querySelector('.menu'); L.render(); if (open && !document.querySelector('.menu')) { /* the menu stays open: core keeps it outside the view */ }
-    L.say(el.parentNode.textContent.trim() + (el.checked ? ' shown' : ' hidden'));
+  // The menu stays open while columns are ticked, so several can be changed at once.
+  L.acts.r9col = function (el) {
+    var c = el.dataset.c, i = st.cols.indexOf(c), on = i < 0; if (on) st.cols.push(c); else st.cols.splice(i, 1);
+    saveCols(); L.render();
+    var m = document.querySelector('.menu'); if (m) { m.innerHTML = colsMenu(); var b = m.querySelector('[data-c="' + c + '"]'); if (b) b.focus(); }
+    L.say(COLS.filter(function (x) { return x[0] === c; })[0][1] + (on ? ' shown' : ' hidden'));
   };
   L.acts.r9colsreset = function () { st.cols = USUAL_COLS.slice(); saveCols(); L.closeMenu(); L.render(); var b = document.querySelector('[data-k="lb-cols"]'); if (b) b.focus(); L.say('The usual columns are back'); };
 
