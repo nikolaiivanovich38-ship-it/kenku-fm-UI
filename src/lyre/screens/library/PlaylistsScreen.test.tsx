@@ -571,6 +571,19 @@ describe("round 7: dividers inside a playlist (ORG-4)", () => {
  * in the list."): The Abbess with a divider above its fourth track; a track or the divider dropped lands on the side of
  * the row (and of the divider) the line is on, and the divider moves by drag, from its ⋯ and with Alt+Up / Alt+Down.
  */
+describe("0.5.2 (round 8 finding 7): Add a divider takes Enter", () => {
+  it("Enter in the Name field adds the divider, as in every other dialog", async () => {
+    const { api } = openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    const user = userEvent.setup();
+    await user.click(within(screen.getByRole("list", { name: "Tracks in order" })).getByRole("button", { name: /^More for Lullaby, sad/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Add a divider above" }));
+    await user.type(within(screen.getByRole("dialog")).getByRole("textbox", { name: "Name" }), "After the font{Enter}");
+    await waitFor(async () => expect((await api.playlists.list()).find((p) => p.id === "p-abbess")?.dividers).toEqual([expect.objectContaining({ name: "After the font", at: 3 })]));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+});
+
 describe("0.5.2: dragging in a playlist with a divider", () => {
   const ordered = () => within(screen.getByRole("list", { name: "Tracks in order" }));
   const rows = () => ordered().getAllByRole("listitem");

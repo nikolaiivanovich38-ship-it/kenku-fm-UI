@@ -594,6 +594,20 @@ describe("BUG-20: the scene's pads in Current scene", () => {
     expect(padsSounding(sound)).toEqual([]);
   });
 
+  it("0.5.2 (round 8 finding 15): with two rooms a sounding pad's room letter says on hover, and to screen readers, where it sounds", async () => {
+    const { sound, outputs } = await openLive();
+    await addSideRoom(outputs);
+    await startAbbey();
+    const grid = within(current().getByRole("group", { name: "Pads on Drowned Abbey" }));
+    await userEvent.click(grid.getByRole("button", { name: /^Stone door grinds/ }));
+    await playOn(sound, 0.5);
+    const door = grid.getByRole("button", { name: /^Stone door grinds/ });
+    expect(door).toHaveAccessibleName(/sounding in Table/);
+    const letter = door.querySelector(".lv-pad-rm")!;
+    expect(letter).toHaveTextContent("T");
+    expect(letter).toHaveAttribute("title", "Sounding in Table");
+  });
+
   it("Stop pads shows while a pad sounds, stops every pad and leaves the music and ambience; focus goes to the first pad", async () => {
     const { sound } = await openLive();
     await startAbbey();

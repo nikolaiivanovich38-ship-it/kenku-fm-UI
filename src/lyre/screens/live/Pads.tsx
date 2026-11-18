@@ -190,7 +190,8 @@ function PadTile({ board, pad, box, rooms, now, keys, inWhere, mine, press, hold
       <span className="lv-pad-l ellipsis">{pad.label}</span>
       {inRooms.length > 0 && (
         <>
-          <span className="lv-pad-rm" aria-hidden="true">
+          {/* 0.5.2 (round 8 finding 15): the letters are the rooms' first letters; their hover says so in words. */}
+          <span className="lv-pad-rm" aria-hidden="true" title={`Sounding in ${inRooms.join(" and ")}`}>
             {inRooms.map((n) => n.charAt(0)).join("")}
           </span>
           <span className="sr-only">, sounding in {inRooms.join(" and ")}</span>

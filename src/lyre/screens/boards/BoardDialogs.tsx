@@ -335,7 +335,21 @@ export function BoardDividerDialog({ board, onClose }: { board: PadBoard; onClos
     >
       <div className="field">
         <label htmlFor="pb-divname">Name</label>
-        <input className="input" id="pb-divname" autoComplete="off" placeholder="For example Spells" value={name} onChange={(e) => setName(e.target.value)} />
+        <input
+          className="input"
+          id="pb-divname"
+          autoComplete="off"
+          placeholder="For example Spells"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          // 0.5.2 (round 8 finding 7): Enter adds it, as in every other dialog.
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              void add();
+            }
+          }}
+        />
       </div>
       <div className="field">
         <label htmlFor="pb-divrow">Above row</label>

@@ -1368,7 +1368,21 @@ function DividerDialog({ title, okLabel, initial, onClose, onDone }: { title: st
     >
       <div className="field">
         <label htmlFor="pl-divname">Name</label>
-        <input className="input" id="pl-divname" autoComplete="off" placeholder="For example After the font" value={name} onChange={(e) => setName(e.target.value)} />
+        <input
+          className="input"
+          id="pl-divname"
+          autoComplete="off"
+          placeholder="For example After the font"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          // 0.5.2 (round 8 finding 7): Enter adds it, as in every other dialog.
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              done();
+            }
+          }}
+        />
       </div>
     </Dialog>
   );
