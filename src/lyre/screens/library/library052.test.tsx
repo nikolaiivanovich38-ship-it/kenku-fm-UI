@@ -407,4 +407,42 @@ describe("round 8 click-through findings for the Library (lead, 18 Nov)", () => 
       for (const spy of spies) spy.mockRestore();
     }
   });
+  it("#5: the open row is in view when rows are taller than the list's first guess (the app's rows are not 30 px)", async () => {
+    const tops = new WeakMap<Element, number>();
+    const ROW = 48;
+    const HEAD = 26;
+    const BOX = 600;
+    const spies = [
+      vi.spyOn(HTMLElement.prototype, "scrollTop", "get").mockImplementation(function (this: HTMLElement) {
+        return tops.get(this) ?? 0;
+      }),
+      vi.spyOn(HTMLElement.prototype, "scrollTop", "set").mockImplementation(function (this: HTMLElement, top: number) {
+        tops.set(this, Math.max(0, top));
+      }),
+      vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+        return this.tagName === "TR" ? ROW : this.tagName === "THEAD" ? HEAD : 0;
+      }),
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("lb-scroll") ? BOX : 0;
+      }),
+    ];
+    try {
+      const { api } = openAt("playlists");
+      const titles = (await api.library.listTracks()).map((t) => ({ id: t.id, title: t.title || t.metaTitle || t.fileName }));
+      const sorted = titles.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base", numeric: true }));
+      // Far enough down that a 30 px guess lands well above it.
+      const target = sorted[Math.floor(sorted.length * 0.8)];
+      window.location.hash = `#/library/${target.id}`;
+      await loaded();
+      const box = () => grid().closest(".lb-scroll") as HTMLElement;
+      await waitFor(() => expect(box().scrollTop).toBeGreaterThan(0));
+      const index = Array.from(grid().querySelectorAll("tbody tr[data-tid]")).findIndex((r) => (r as HTMLElement).dataset.tid === target.id);
+      expect(index).toBeGreaterThan(0);
+      const top = index * ROW;
+      expect(top).toBeGreaterThanOrEqual(box().scrollTop);
+      expect(top + ROW).toBeLessThanOrEqual(box().scrollTop + BOX - HEAD);
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
 });

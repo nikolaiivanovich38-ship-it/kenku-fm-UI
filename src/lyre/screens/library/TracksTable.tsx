@@ -90,11 +90,15 @@ export function TracksTable(props: TracksTableProps) {
     revealed.current = true;
     const index = list.findIndex((t) => t.id === props.openId);
     if (index < 0) return;
-    const top = index * rowHeight;
-    const visible = (box.clientHeight || UNMEASURED_HEIGHT) - headHeight;
-    if (top >= box.scrollTop && top + rowHeight <= box.scrollTop + visible) return;
+    // The rows as the theme draws them, measured here: this runs before the measuring below has updated rowHeight,
+    // and a row is taller than the 30 px first guess (round 8 #5 landed far above the row).
+    const drawnRow = box.querySelector<HTMLElement>("tbody tr[data-tid]")?.offsetHeight || rowHeight;
+    const head = box.querySelector<HTMLElement>("thead")?.offsetHeight || headHeight;
+    const top = index * drawnRow;
+    const visible = (box.clientHeight || UNMEASURED_HEIGHT) - head;
+    if (top >= box.scrollTop && top + drawnRow <= box.scrollTop + visible) return;
     // In the middle of the list's height, so the rows around it show too.
-    const next = Math.max(0, top - Math.max(0, (visible - rowHeight) / 2));
+    const next = Math.max(0, top - Math.max(0, (visible - drawnRow) / 2));
     box.scrollTop = next;
     setScrollTop(next);
   }, [props.openId, list, rowHeight, headHeight]);
