@@ -82,3 +82,30 @@ export function savePeaks(store: Store, source: PeakSource, levels: Uint8Array |
     { bookkeeping: true },
   );
 }
+
+/** A stored length this far from the decoded one is put right (0.5.2): tags and decoders differ by less. */
+export const LENGTH_TOLERANCE_MS = 500;
+
+/**
+ * 0.5.2 (w52-play item 52, the lead's rule: one length everywhere, the library's, and it must be right): an MP3
+ * whose Xing header counts fewer frames than it holds (a cut or joined file) has tags that say 3 s for a 20 s file.
+ * The peaks job decodes the whole file, so when the decoded length is more than LENGTH_TOLERANCE_MS from the stored
+ * one, the decoded one is stored, and a saved End at the old length (within the same tolerance) goes back to the
+ * file's end (NULL); an End the game master moved elsewhere stays. Only while the track still has that file;
+ * bookkeeping outside undo, as the peaks are. Answers whether the length changed.
+ */
+export function correctTrackLength(store: Store, source: PeakSource, durationMs: number): boolean {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return false;
+  const row = store.get<{ duration_ms: number | null }>("SELECT duration_ms FROM tracks WHERE id = ? AND file_size IS ? AND file_mtime_ms IS ?", source.trackId, source.fileSize, source.fileMtimeMs);
+  if (!row) return false;
+  const old = row.duration_ms;
+  const length = Math.round(durationMs);
+  if (old !== null && Math.abs(old - length) <= LENGTH_TOLERANCE_MS) return false;
+  return store.changeWithoutHistory(
+    () => {
+      if (old !== null) store.run("UPDATE audio_profiles SET end_ms = NULL WHERE track_id = ? AND end_ms IS NOT NULL AND abs(end_ms - ?) <= ?", source.trackId, old, LENGTH_TOLERANCE_MS);
+      return store.run("UPDATE tracks SET duration_ms = ? WHERE id = ?", length, source.trackId) > 0;
+    },
+    { bookkeeping: true },
+  );
+}

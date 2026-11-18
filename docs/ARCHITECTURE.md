@@ -887,9 +887,14 @@ Built straight in the app, as 0.5.1's changes were. Each item's unit or componen
 
 - **Lengths (items 7, 51).** One helper writes every length and time: `clockTime` / `lengthText` in
   `src/common/lyre/text.ts` (whole seconds, rounded; h:mm:ss from an hour). The screens' own `fmt`, `fmtLong`,
-  `formatLength` and the Now playing bar's `clockTime` are that helper (`src/lyre/lengths.test.ts`). Now playing and
-  Live show the library's length when the playing file is less than a second off it (`agreedLength` in
-  `src/lyre/audio/lyreAudio.ts`), the file's when it is further off (BUG-22). The track list shows under the file's
+  `formatLength` and the Now playing bar's `clockTime` are that helper (`src/lyre/lengths.test.ts`). The lead's rule
+  (18 Nov): one length everywhere, the library's, and the library's length must be right. Now playing and previews
+  show the library's length (w52-play, `lyreAudio.ts`); the peaks job, which decodes the whole file, stores the
+  decoded length when the stored one is more than half a second off (a joined MP3 whose Xing header counts only its
+  first part), and a saved End at the old length goes back to the file's end (`correctTrackLength` in
+  `src/main/data/repo/peaks.ts`; `PeakReader.readWithLength`; tests in `peaks.test.ts`, `ffmpegPeaks.test.ts` with a
+  real joined MP3, `libraryApi.test.ts`). A track whose peaks are already worked out is put right when they are worked
+  out again (its file changes). The track list shows under the file's
   length the length its own Audio profile plays, Start to End, when the two differ (`playedMs` in `model.ts`).
 - **Rows (items 6, 35).** Preview or Play on air on a row also opens the track (`onPlayed`; on a narrow window it only
   moves the keyboard there). The list's scroll is kept in `libraryState.ts` (`getListScroll`, outside the reactive

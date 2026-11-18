@@ -115,6 +115,24 @@ describe("main-process LyreApi only", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  it("0.5.2: a length the decoded file puts right reaches the screens (a tracks change) and listTracks", async () => {
+    const { dir, library, write } = await seededLibrary();
+    const file = write("new/Joined.mp3");
+    const api = createLibraryApi(library, testHost(), {
+      peakReader: { read: async () => new Uint8Array(1000).fill(9), readWithLength: async () => ({ levels: new Uint8Array(1000).fill(9), durationMs: 20_016 }) },
+      peakNotifyEveryMs: 0,
+    });
+    const id = valueOf(await api.import.start({ from: "paths", paths: [file] })).added[0];
+    const events: string[][] = [];
+    api.subscribe((e) => e.type === "changed" && events.push(e.areas));
+    await api.library.peaksOf(id);
+    await vi.waitFor(() => expect(events.some((a) => a.includes("tracks") && a.includes("profiles"))).toBe(true));
+    expect((await api.library.listTracks()).find((t) => t.id === id)?.durationMs).toBe(20_016);
+    api.stopBackgroundWork();
+    library.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   it("DAT-15: measures every track not measured yet in the background, a while after it starts, and says so", async () => {
     const { dir, library, write } = await seededLibrary();
     const file = write("new/Bells.wav");

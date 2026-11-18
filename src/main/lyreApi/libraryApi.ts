@@ -346,6 +346,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   const peakJobs = options.peakReader
     ? new PeakJobs(store, options.peakReader, {
         onReady: () => emit({ type: "changed", areas: ["peaks"] }),
+        // 0.5.2: a length put right from the decoded file (and an End that sat at the old length) shows everywhere.
+        onLengths: () => emit({ type: "changed", areas: ["tracks", "profiles"] }),
         notifyEveryMs: options.peakNotifyEveryMs ?? 250,
         log: options.log,
         loudness: options.loudnessReader,

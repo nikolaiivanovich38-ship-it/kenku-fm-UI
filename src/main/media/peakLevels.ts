@@ -37,6 +37,9 @@ export class PeakLevels {
     this.blockSamples = options.blockSamples ?? 8;
   }
 
+  /** 0.5.2: every sample read, for the decoded length. */
+  samples = 0;
+
   /** More 16-bit little-endian samples (mono). */
   add(chunk: Uint8Array): void {
     let i = 0;
@@ -66,6 +69,7 @@ export class PeakLevels {
   }
 
   private sample(unsigned: number): void {
+    this.samples++;
     const value = unsigned >= 0x8000 ? unsigned - 0x10000 : unsigned;
     const peak = Math.abs(value) / 32768;
     if (peak > this.blockPeak) this.blockPeak = peak;

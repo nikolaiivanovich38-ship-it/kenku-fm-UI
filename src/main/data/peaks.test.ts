@@ -292,3 +292,37 @@ describe("PeakJobs measuring loudness too (DAT-15)", () => {
     expect(tracksNeedingLoudness(library.store)).toEqual([ids[0], ids[2]]);
   });
 });
+
+describe("PeakJobs puts right a stored length the decoded file contradicts (0.5.2, w52-play item 52)", () => {
+  const lengthOf = (library: Library, id: string) => (library.store.get<{ duration_ms: number }>("SELECT duration_ms FROM tracks WHERE id = ?", id) as { duration_ms: number }).duration_ms;
+
+  it("stores the decoded length when it is more than half a second off; an End at the old length moves to the new end, one moved elsewhere stays", async () => {
+    const { library, ids } = await libraryWith(3);
+    const [joined, close, other] = ids;
+    library.store.changeWithoutHistory(() => {
+      library.store.run("UPDATE tracks SET duration_ms = 3030 WHERE id IN (?, ?)", joined, other);
+      library.store.run("UPDATE tracks SET duration_ms = 20000 WHERE id = ?", close);
+      library.store.run("INSERT INTO audio_profiles (id, track_id, end_ms) VALUES ('own', ?, 3030)", joined);
+      library.store.run("INSERT INTO audio_profiles (id, track_id, start_ms, end_ms) VALUES ('moved', ?, 0, 2000)", other);
+    });
+    const decoded: Record<string, number> = { "tone 1.wav": 20_016, "tone 2.wav": 20_400, "tone 3.wav": 20_016 };
+    const corrected: string[][] = [];
+    const reader: PeakReader = {
+      read: async () => levels(),
+      readWithLength: async (file) => ({ levels: levels(), durationMs: decoded[path.basename(file)] }),
+    };
+    const jobs = new PeakJobs(library.store, reader, { onReady: () => undefined, onLengths: (trackIds) => corrected.push(trackIds), notifyEveryMs: 0 });
+    jobs.inBackground(ids);
+    await jobs.idle();
+    jobs.close();
+    expect(lengthOf(library, joined)).toBe(20_016);
+    // Within half a second: as it was.
+    expect(lengthOf(library, close)).toBe(20_000);
+    expect(lengthOf(library, other)).toBe(20_016);
+    expect(library.store.all("SELECT id, end_ms FROM audio_profiles ORDER BY id")).toEqual([
+      { id: "moved", end_ms: 2000 },
+      { id: "own", end_ms: null },
+    ]);
+    expect(corrected.flat().sort()).toEqual([joined, other].sort());
+  });
+});

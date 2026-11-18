@@ -96,6 +96,11 @@ export class FfmpegPeakReader implements PeakReader {
   }
 
   read(file: string, signal: AbortSignal): Promise<Uint8Array> {
+    return this.readWithLength(file, signal).then((r) => r.levels);
+  }
+
+  /** 0.5.2: the levels and the file's decoded length (its samples at PEAK_SAMPLE_RATE), from one decode. */
+  readWithLength(file: string, signal: AbortSignal): Promise<{ levels: Uint8Array; durationMs: number | null }> {
     const failure = (detail: string) => new Error(`Could not work out the loudness of ${baseName(file)}${detail ? ` (${detail})` : ""}`);
     return new Promise((resolve, reject) => {
       if (signal.aborted) {
@@ -137,7 +142,7 @@ export class FfmpegPeakReader implements PeakReader {
         if (reason) return reject(failure(reason));
         if (code !== 0) return reject(failure(stderr.trim().split(/\r?\n/).pop() ?? ""));
         try {
-          resolve(levels.finish());
+          resolve({ levels: levels.finish(), durationMs: Math.round((levels.samples / PEAK_SAMPLE_RATE) * 1000) });
         } catch (error) {
           reject(failure((error as Error).message));
         }
