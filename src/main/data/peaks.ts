@@ -6,7 +6,8 @@
  *
  * - `inBackground(ids)`: after an import, at the back of the queue.
  * - `soon(id)`: a screen asked (LyreApi library.peaksOf); next in line, ahead of the background ones.
- * - Tracks whose levels are ready, or whose file was found unreadable, are skipped; a file that is not there now
+ * - Tracks whose levels are ready, or whose file was found unreadable, are skipped (but a waveform saved before 0.5.2,
+ *   whose length was not checked, is read once more for it: schema version 10); a file that is not there now
  *   (an unplugged drive) is left for a later request, not marked unreadable. So is a file whose check does not
  *   answer within `fileCheckMs` (a network share that is gone): the check is asynchronous and time-limited, so the
  *   library's process never waits on it (security review 9).
@@ -155,7 +156,9 @@ export class PeakJobs {
   private async workOut(trackId: string): Promise<void> {
     const peaks = trackPeaks(this.store, trackId);
     const loudness = this.options.loudness ? trackLoudness(this.store, trackId) : null;
-    const peaksNeeded = peaks.state === "needed" ? peaks.source : null;
+    // Schema version 10: a waveform saved before 0.5.2 is read once more, for the track's length, when the reader can tell it.
+    const lengthUnchecked = peaks.state === "ready" && !peaks.lengthChecked && this.reader.readWithLength !== undefined;
+    const peaksNeeded = peaks.state === "needed" ? peaks.source : lengthUnchecked && peaks.state === "ready" ? peaks.source : null;
     const loudnessNeeded = loudness?.state === "needed" ? loudness.source : null;
     const file = (peaksNeeded ?? loudnessNeeded)?.file;
     if (file === undefined) return;
@@ -183,7 +186,7 @@ export class PeakJobs {
       this.current = null;
     }
     if (this.closed) return false;
-    const saved = (await this.save(() => savePeaks(this.store, source, levels))) && levels !== null;
+    const saved = (await this.save(() => savePeaks(this.store, source, levels, { lengthChecked: durationMs !== null }))) && levels !== null;
     // 0.5.2: the decoded length puts right a length the file's tags got wrong (a joined MP3).
     if (saved && durationMs !== null && (await this.save(() => correctTrackLength(this.store, source, durationMs as number)))) this.options.onLengths?.([source.trackId]);
     return saved;

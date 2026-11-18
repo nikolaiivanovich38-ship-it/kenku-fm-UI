@@ -12,7 +12,7 @@ import { wavBytes, writeFile } from "../media/testing/wavFiles";
 import { importAudio } from "./import";
 import { openLibrary, type Library } from "./library";
 import { PeakJobs, fileThereWithin, type PeakReader } from "./peaks";
-import { PEAK_POINTS, savePeaks, trackPeaks, type PeakSource } from "./repo/peaks";
+import { PEAK_POINTS, savePeaks, trackPeaks, tracksNeedingLengthCheck, type PeakSource } from "./repo/peaks";
 import { deleteTracks } from "./repo/tracks";
 import { saveLoudness, trackLoudness, tracksNeedingLoudness } from "./repo/loudness";
 import { makeTempFolder } from "./test/helpers";
@@ -324,5 +324,52 @@ describe("PeakJobs puts right a stored length the decoded file contradicts (0.5.
       { id: "own", end_ms: null },
     ]);
     expect(corrected.flat().sort()).toEqual([joined, other].sort());
+  });
+});
+
+describe("PeakJobs checks the length of a waveform saved before 0.5.2 (schema version 10, review of 0.5.2)", () => {
+  const lengthOf = (library: Library, id: string) => (library.store.get<{ duration_ms: number }>("SELECT duration_ms FROM tracks WHERE id = ?", id) as { duration_ms: number }).duration_ms;
+
+  it("a waveform kept without its length checked shows at once, and the job reads the file once more to put the length right", async () => {
+    const { library, ids } = await libraryWith(2);
+    const [old, checked] = ids;
+    // As 0.5.1 left them: waveforms saved, the joined MP3's length wrong.
+    savePeaks(library.store, sourceOf(library, old), levels());
+    savePeaks(library.store, sourceOf(library, checked), levels(), { lengthChecked: true });
+    library.store.changeWithoutHistory(() => library.store.run("UPDATE tracks SET duration_ms = 3030"));
+    expect(trackPeaks(library.store, old)).toMatchObject({ state: "ready", lengthChecked: false });
+    expect(trackPeaks(library.store, checked)).toMatchObject({ state: "ready", lengthChecked: true });
+    expect(tracksNeedingLengthCheck(library.store)).toEqual([old]);
+    const reads: string[] = [];
+    const corrected: string[][] = [];
+    const reader: PeakReader = {
+      read: async () => levels(),
+      readWithLength: async (file) => (reads.push(path.basename(file)), { levels: levels(), durationMs: 20_016 }),
+    };
+    const jobs = new PeakJobs(library.store, reader, { onReady: () => undefined, onLengths: (trackIds) => corrected.push(trackIds), notifyEveryMs: 0 });
+    jobs.inBackground(ids);
+    await jobs.idle();
+    expect(reads).toEqual(["tone 1.wav"]);
+    expect(lengthOf(library, old)).toBe(20_016);
+    expect(lengthOf(library, checked)).toBe(3030);
+    expect(corrected.flat()).toEqual([old]);
+    expect(trackPeaks(library.store, old)).toMatchObject({ state: "ready", lengthChecked: true });
+    expect(tracksNeedingLengthCheck(library.store)).toEqual([]);
+    // Once checked, it is not read again.
+    jobs.inBackground(ids);
+    await jobs.idle();
+    jobs.close();
+    expect(reads).toEqual(["tone 1.wav"]);
+  });
+
+  it("a reader that cannot tell the length leaves such a waveform as it is (nothing read again and again)", async () => {
+    const { library, ids } = await libraryWith(1);
+    savePeaks(library.store, sourceOf(library, ids[0]), levels());
+    let reads = 0;
+    const jobs = new PeakJobs(library.store, { read: async () => (reads++, levels()) }, { onReady: () => undefined, notifyEveryMs: 0 });
+    jobs.inBackground(ids);
+    await jobs.idle();
+    jobs.close();
+    expect(reads).toBe(0);
   });
 });

@@ -15,8 +15,11 @@ export const MAX_PEAK_POINTS = 4096;
 export type PeakSource = { trackId: string; file: string; fileSize: number | null; fileMtimeMs: number | null };
 
 export type PeaksState =
-  /** Worked out from the track's current file. */
-  | { state: "ready"; levels: Uint8Array }
+  /**
+   * Worked out from the track's current file. `lengthChecked` false (schema version 10): saved before 0.5.2 checked
+   * the track's length from the whole file; the peaks job reads `source` once more for it.
+   */
+  | { state: "ready"; levels: Uint8Array; lengthChecked: boolean; source: PeakSource }
   /** Tried, and this file could not be read: not tried again until the file changes. */
   | { state: "unreadable" }
   /** None yet, or the file changed since: work them out from `source`. */
@@ -33,13 +36,14 @@ type Row = {
   has_peaks: number;
   peak_size: number | null;
   peak_mtime_ms: number | null;
+  length_checked: number | null;
   levels: Uint8Array | null;
 };
 
 /** One read by the track's key and the peaks' key (both primary keys). */
 export const PEAKS_STATE_SQL = `
   SELECT r.path AS root_path, t.path, t.url, t.file_size, t.file_mtime_ms,
-         p.track_id IS NOT NULL AS has_peaks, p.file_size AS peak_size, p.file_mtime_ms AS peak_mtime_ms, p.levels
+         p.track_id IS NOT NULL AS has_peaks, p.file_size AS peak_size, p.file_mtime_ms AS peak_mtime_ms, p.length_checked, p.levels
   FROM tracks t
   LEFT JOIN library_roots r ON r.id = t.root_id
   LEFT JOIN track_peaks p ON p.track_id = t.id
@@ -49,9 +53,21 @@ export function trackPeaks(store: Store, trackId: string): PeaksState {
   const row = store.get<Row>(PEAKS_STATE_SQL, trackId);
   if (!row || row.url !== null || row.path === null) return { state: "none" };
   const sameFile = row.has_peaks === 1 && row.peak_size === row.file_size && row.peak_mtime_ms === row.file_mtime_ms;
-  if (sameFile) return row.levels ? { state: "ready", levels: new Uint8Array(row.levels) } : { state: "unreadable" };
   const file = row.root_path === null ? row.path : joinRoot(row.root_path, row.path);
-  return { state: "needed", source: { trackId, file, fileSize: row.file_size, fileMtimeMs: row.file_mtime_ms } };
+  const source = { trackId, file, fileSize: row.file_size, fileMtimeMs: row.file_mtime_ms };
+  if (sameFile) return row.levels ? { state: "ready", levels: new Uint8Array(row.levels), lengthChecked: row.length_checked !== 0, source } : { state: "unreadable" };
+  return { state: "needed", source };
+}
+
+/** Schema version 10: tracks whose waveform is kept but whose length was not checked from the whole file yet. */
+export function tracksNeedingLengthCheck(store: Store): string[] {
+  return store
+    .all<{ id: string }>(
+      `SELECT t.id FROM tracks t JOIN track_peaks p ON p.track_id = t.id
+       WHERE p.length_checked = 0 AND p.levels IS NOT NULL AND p.file_size IS t.file_size AND p.file_mtime_ms IS t.file_mtime_ms
+       ORDER BY t.added_seq`,
+    )
+    .map((row) => row.id);
 }
 
 /**
@@ -59,22 +75,25 @@ export function trackPeaks(store: Store, trackId: string): PeaksState {
  * them (DAT-13, shapeFromPeaks; schema v3), so filters read the shape without the levels. Saved only while the track still
  * has that file; answers false when it was deleted or its file changed meanwhile (the levels would be wrong).
  * Bookkeeping outside undo, so it keeps the undo history; throws LibraryBusyError during bulk work.
+ * `lengthChecked` (schema version 10): the same read also checked the track's length (correctTrackLength).
  */
-export function savePeaks(store: Store, source: PeakSource, levels: Uint8Array | null): boolean {
+export function savePeaks(store: Store, source: PeakSource, levels: Uint8Array | null, options: { lengthChecked?: boolean } = {}): boolean {
   if (levels !== null && (levels.length === 0 || levels.length > MAX_PEAK_POINTS)) {
     throw new RangeError(`Peaks need 1 to ${MAX_PEAK_POINTS} levels, not ${levels.length}.`);
   }
   return store.changeWithoutHistory(
     () =>
       store.run(
-        `INSERT INTO track_peaks (track_id, file_size, file_mtime_ms, suggested_shape, levels, worked_out_at)
-         SELECT id, file_size, file_mtime_ms, ?, ?, ? FROM tracks WHERE id = ? AND file_size IS ? AND file_mtime_ms IS ?
+        `INSERT INTO track_peaks (track_id, file_size, file_mtime_ms, suggested_shape, levels, worked_out_at, length_checked)
+         SELECT id, file_size, file_mtime_ms, ?, ?, ?, ? FROM tracks WHERE id = ? AND file_size IS ? AND file_mtime_ms IS ?
          ON CONFLICT (track_id) DO UPDATE SET
            file_size = excluded.file_size, file_mtime_ms = excluded.file_mtime_ms, suggested_shape = excluded.suggested_shape,
-           levels = excluded.levels, worked_out_at = excluded.worked_out_at`,
+           levels = excluded.levels, worked_out_at = excluded.worked_out_at, length_checked = excluded.length_checked`,
         levels === null ? null : shapeFromPeaks(Array.from(levels, (b) => b / 255)),
         levels,
         store.now(),
+        // An unreadable file is not read again for its length either.
+        levels === null || options.lengthChecked ? 1 : 0,
         source.trackId,
         source.fileSize,
         source.fileMtimeMs,

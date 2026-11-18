@@ -165,6 +165,7 @@ import {
   setTrackPlay,
   PeakJobs,
   tracksNeedingLoudness,
+  tracksNeedingLengthCheck,
   type LoudnessReader,
   trackPeaks,
   type Library,
@@ -358,16 +359,17 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         loudness: options.loudnessReader,
       })
     : null;
-  const loudnessSweep =
-    peakJobs && options.loudnessReader
-      ? setTimeout(() => {
-          try {
-            peakJobs.inBackground(tracksNeedingLoudness(store));
-          } catch (error) {
-            options.log?.("Could not list the tracks to measure", error);
-          }
-        }, options.loudnessSweepAfterMs ?? 20_000)
-      : null;
+  // A while after it starts: tracks not measured yet (DAT-15), and waveforms saved before 0.5.2 whose track's length
+  // was not checked from the whole file (schema version 10).
+  const loudnessSweep = peakJobs
+    ? setTimeout(() => {
+        try {
+          peakJobs.inBackground([...(options.loudnessReader ? tracksNeedingLoudness(store) : []), ...(options.peakReader?.readWithLength ? tracksNeedingLengthCheck(store) : [])]);
+        } catch (error) {
+          options.log?.("Could not list the tracks to measure", error);
+        }
+      }, options.loudnessSweepAfterMs ?? 20_000)
+    : null;
   loudnessSweep?.unref?.();
 
   /**
@@ -927,7 +929,11 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       },
       async peaksOf(trackId) {
         const state = trackPeaks(store, trackId);
-        if (state.state === "ready") return Array.from(state.levels, levelOut);
+        if (state.state === "ready") {
+          // Schema version 10: the saved waveform shows; its track's length is checked from the file next.
+          if (!state.lengthChecked && options.peakReader?.readWithLength) peakJobs?.soon(trackId);
+          return Array.from(state.levels, levelOut);
+        }
         if (state.state === "needed") peakJobs?.soon(trackId);
         return null;
       },

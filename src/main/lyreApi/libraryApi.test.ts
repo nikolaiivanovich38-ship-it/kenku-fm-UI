@@ -14,7 +14,7 @@ import { lyreApiContract, valueOf, type ContractFixture } from "../../common/lyr
 import { lyreApiOverPort, serveLyreApi, type PortLike } from "../../common/lyre/rpc";
 import { isRefused } from "../../common/lyre/api";
 import { prototypeSeed } from "../../common/lyre/seed";
-import { LEGACY_CATCH_UP_JOB, LibraryBusyError, NotFoundError, ValidationError, catchUpLegacyLibrary, importLegacyLibrary, openLibrary, type PeakReader } from "../data";
+import { LEGACY_CATCH_UP_JOB, LibraryBusyError, NotFoundError, ValidationError, catchUpLegacyLibrary, importLegacyLibrary, openLibrary, savePeaks, trackPeaks, type PeakReader } from "../data";
 import { createLibraryApi, refusalFor, type LibraryHost } from "./libraryApi";
 import { seedLibrary } from "./seedLibrary";
 
@@ -131,6 +131,35 @@ describe("main-process LyreApi only", () => {
     api.stopBackgroundWork();
     library.close();
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("0.5.2 review: a waveform saved before 0.5.2 shows at once, and its length is checked from the file in the background, with or without a screen asking", async () => {
+    const { dir, library, write } = await seededLibrary();
+    const file = write("new/Joined.mp3");
+    const api = createLibraryApi(library, testHost(), { peakNotifyEveryMs: 0 });
+    const id = valueOf(await api.import.start({ from: "paths", paths: [file] })).added[0];
+    api.stopBackgroundWork();
+    // As 0.5.1 left it: its waveform saved, its length the 3 s its tags say.
+    const source = trackPeaks(library.store, id);
+    if (source.state !== "needed") throw new Error(source.state);
+    savePeaks(library.store, source.source, new Uint8Array(1000).fill(9));
+    library.store.changeWithoutHistory(() => library.store.run("UPDATE tracks SET duration_ms = 3030 WHERE id = ?", id));
+    const reads: string[] = [];
+    const later = createLibraryApi(library, testHost(), {
+      peakReader: { read: async () => new Uint8Array(1000).fill(9), readWithLength: async (f) => (reads.push(f), { levels: new Uint8Array(1000).fill(9), durationMs: 20_016 }) },
+      peakNotifyEveryMs: 0,
+      loudnessSweepAfterMs: 10,
+    });
+    try {
+      // The screen gets the saved waveform straight away.
+      expect(await later.library.peaksOf(id)).toHaveLength(1000);
+      await vi.waitFor(async () => expect((await later.library.listTracks()).find((t) => t.id === id)?.durationMs).toBe(20_016), { timeout: 3000 });
+      expect(reads).toEqual([file]);
+    } finally {
+      later.stopBackgroundWork();
+      library.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("DAT-15: measures every track not measured yet in the background, a while after it starts, and says so", async () => {

@@ -22,7 +22,7 @@ The library database (backlog DAT-6, DAT-1, DAT-2, DAT-10, DAT-11, ORG-4, ORG-7,
 - **Campaigns, sessions and scenes.** A campaign has a look (theme), a game system, a description and (for later) its Obsidian notes, and the playlists and boards you use all campaign long. A session has a number (counted from the campaign's first session number in session order, so moving a session renumbers them all, as the prototype does; or, from 0.5.2, typed by hand for each session when the campaign's details say so), a name, a date, a status (played, next, draft; only one "next" per campaign) and its own playlists and boards. A scene has a name, a "starts when" line, notes, a music list (tracks and playlists in any mix, in playing order), one ambience track or playlist, and its pad boards.
 - **Folders** for playlists, boards and sessions, inside each other as deep as you like.
 - **Keys** (hotkeys) and what each runs: play a track or playlist, start a scene, next, previous, fade a lane, fade or stop everything, press a pad, undo a scene start, in order. Deleting a track, playlist, scene or pad takes it off every key.
-- **A track's length** (0.5.2) comes from the file's tags when it is added; when Lyre works out the wave it decodes the whole file, and a length more than half a second off is put right (a cut or joined MP3 whose tags count only its first part). A saved End at the old length moves to the new end.
+- **A track's length** (0.5.2) comes from the file's tags when it is added; when Lyre works out the wave it decodes the whole file, and a length more than half a second off is put right (a cut or joined MP3 whose tags count only its first part). A saved End at the old length moves to the new end. An MP3 whose wave was worked out before 0.5.2 is read once more in the background for its length (version 10); its wave shows meanwhile.
 - **How loud each track is across its length** (its wave): about 1,000 loudness levels per track, worked out by Lyre from the file in the background after you add it (or when a screen first shows the track), and worked out again if the file changes. It goes when the track goes; undo brings the track back and Lyre works its wave out again. If a file cannot be read, Lyre remembers that and does not keep trying until the file changes.
 
 The audio files themselves are not copied: they stay where they are, and each track remembers where its file is. A file is in the library once: the same file cannot become two tracks, whatever the letter case or slash direction. You can name a library folder (for example "Soundtracks" = `H:\Audio\Soundtracks`); tracks inside it, including tracks added before the folder was named, are remembered relative to it, so moving it to another drive needs one change. A folder can be watched, so new files in it are added by themselves.
@@ -516,6 +516,24 @@ pad boards stay. One undo step brings it all back.
 | --- | --- |
 | `schema/v009.test.ts` | The columns and their CHECKs; the upgrades from version 7 (through 8) and from 8 count on as before |
 | `../../common/lyre/contract.ts` (sessions and scenes) | Counting on from a first number, typed numbers kept through new sessions, moves and deletes; deleting a campaign or a session with Undo |
+
+### Version 10: a waveform's length checked (0.5.2, review)
+
+`schema/v010-length-checked.ts` adds `track_peaks.length_checked` (0 or 1, default 1). 0.5.2's peaks job puts right a
+length the file's tags got wrong when it decodes the whole file for the waveform (`correctTrackLength`, more than
+`LENGTH_TOLERANCE_MS` off); a waveform saved before 0.5.2 was never checked that way and is not worked out again while
+its file stays the same, so a joined MP3 kept its 0:03. The upgrade marks 0 the saved waveforms of MP3 files (other
+formats' headers count every sample; an unreadable file stays 1). `trackPeaks` then answers `ready` with
+`lengthChecked: false`: the waveform shows, and the peaks job reads the file once more (when its reader can tell the
+length, `readWithLength`), saving the waveform with `length_checked = 1` and the length put right. Such tracks are
+queued by the background sweep a while after Lyre starts (`tracksNeedingLengthCheck`, with the loudness sweep) and
+when a screen asks for the waveform (`peaksOf`). The correction is bookkeeping outside undo, as the peaks are.
+
+| Test | Covers |
+| --- | --- |
+| `schema/v010.test.ts` | The column and its CHECK; the upgrade from version 9 marks an MP3's saved waveform, not a FLAC's or an unreadable file's |
+| `peaks.test.ts` (version 10) | A waveform kept unchecked shows at once and is read once more, the length put right; once checked, not read again; a reader that cannot tell the length leaves it |
+| `../lyreApi/libraryApi.test.ts` (0.5.2 review) | A library with a waveform saved before 0.5.2: `peaksOf` returns it at once and the length is put right in the background |
 
 ### Import (EDT-6, DAT-5, DAT-8, DAT-4)
 
