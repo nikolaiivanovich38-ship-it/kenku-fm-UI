@@ -75,6 +75,25 @@ export function writeAudioFile(filePath: string): string {
   return filePath;
 }
 
+/**
+ * 52: an MP3 like a file that was cut or joined: a 3 s VBR MP3 whose Xing header counts its own frames, followed by
+ * 17 s more without a header, so the header says 3 s and the file plays 20 s. music-metadata reads 3 s from it;
+ * Chromium guesses about 18 s from the bit rate and plays all 20 s. Made with the ffmpeg the app ships.
+ */
+export function writeJoinedMp3(folder: string, fileName: string, title: string): string {
+  fs.mkdirSync(folder, { recursive: true });
+  const part = (name: string, args: string[]) => {
+    const out = path.join(audioCache(), name);
+    execFileSync(ffmpegPath(), ["-v", "error", "-y", "-f", "lavfi", ...args, "-ac", "2", "-ar", "44100", "-c:a", "libmp3lame", "-q:a", "4", out]);
+    return out;
+  };
+  const head = part("head.mp3", ["-i", "sine=f=440:d=3", "-metadata", `title=${title}`]);
+  const tail = part("tail.mp3", ["-i", "sine=f=660:d=17", "-write_xing", "0", "-id3v2_version", "0"]);
+  const filePath = path.join(folder, fileName);
+  fs.writeFileSync(filePath, Buffer.concat([fs.readFileSync(head), fs.readFileSync(tail)]));
+  return filePath;
+}
+
 let cacheFolder: string | null = null;
 function audioCache(): string {
   cacheFolder ??= fs.mkdtempSync(path.join(os.tmpdir(), "lyre-test-audio-"));

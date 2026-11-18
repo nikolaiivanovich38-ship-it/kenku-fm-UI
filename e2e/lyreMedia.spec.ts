@@ -9,6 +9,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures/app";
 import { openLyreTab } from "./fixtures/lyre";
 import { aiffBytes, wavBytes, writeFile } from "../src/main/media/testing/wavFiles";
+import { writeJoinedMp3 } from "./fixtures/audio";
 
 /** A LyreApi call from the Lyre page, exactly as its screens make them. */
 function lyreCall<T = unknown>(lyre: Page, area: string, method: string, ...args: unknown[]): Promise<T> {
@@ -72,4 +73,27 @@ test("new tracks get their file-tag title, artist, album and length, then their 
   expect(levels).toHaveLength(1000);
   expect(Math.max(...(levels as number[]).slice(0, 450))).toBeLessThan(0.1);
   expect(Math.min(...(levels as number[]).slice(550))).toBeGreaterThan(0.9);
+});
+
+test("52: an MP3 whose header counts too few frames is read as 3 s long, yet plays all 20 s, and the log says why", async ({ mainWindow, userDataDir, errors }) => {
+  test.setTimeout(90_000);
+  // Nik's play test (14 Nov): "12 - Monster Books / Boggarts! only plays a few seconds".
+  const file = writeJoinedMp3(path.join(userDataDir, "sounds"), "12 - Monster Books.mp3", "Monster Books");
+  const lyre = await openLyreTab(mainWindow);
+  const [track] = await importFiles(lyre, [file]);
+  // The cause: the tag reader trusts the header, so the library has about 3 s for it.
+  expect(track.durationMs).toBeLessThan(3500);
+  await lyre.evaluate(() => {
+    window.location.hash = "#/library";
+  });
+  const row = lyre.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /Monster Books/ });
+  await row.getByRole("button", { name: /^Preview/ }).click();
+  const you = lyre.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ });
+  await expect(you).toBeVisible();
+  const started = Date.now();
+  // It plays on past the 3 s the library has, to the end of the file.
+  await expect(you).toBeHidden({ timeout: 30_000 });
+  expect(Date.now() - started).toBeGreaterThan(15_000);
+  // Save diagnostics' log says the library's length is wrong (the page's warnings go into log.txt).
+  expect(errors.console.map((entry) => entry.text)).toContainEqual(expect.stringMatching(/^Lyre playback: "Monster Books" \(12 - Monster Books\.mp3, streamed\) in preview played to the end of its file at 0:(19|20)\.\d; .*the library has 0:03\.\d, so the library's length is wrong\.$/));
 });

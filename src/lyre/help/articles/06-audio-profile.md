@@ -5,12 +5,12 @@ words: audio profile waveform start end loop fade fades markers start at setting
 ---
 The Audio profile says where a track starts and ends, what happens at its end, and how it fades. Open it from a track's **Audio profile** link in the Library's Details, or from the wave button by a track in a scene. From a scene it opens on that scene's settings, and **Back to** the scene takes you there again.
 
-- **Start** and **End**: drag them on the waveform, move them with the arrow keys, or type a time.
+- **Start** and **End**: drag them on the waveform, move them with the arrow keys (a tenth of a second; with `Shift`, a second), or type a time such as 5:12.4. **Zoom in** widens the waveform to place them finely.
 - **At the end**: loop back to the loop start, move to the next track, or stop.
 - **Fades**: a fade in and a fade out, each with its length.
 - **Markers**: notes on the waveform, such as where it peaks.
 - **Start at**: where the track starts wherever it plays (a scene, Live, Play on air): the Beginning, or one of its markers.
 - **Pick up where it stopped**: the track starts again where it was last stopped, wherever it plays. It is the same switch as in the Library's How it plays.
-- `Space` plays from the playhead in your headphones only, as the profile says.
+- `Space` plays from the playhead in your headphones only, as the profile says. What you change is heard at once, and **Back** keeps it playing.
 
 **Settings for** chooses whose settings you change: the track everywhere, or only in one playlist or scene. A place uses the track's settings until you press **Give this place its own settings**; **Back to the track's settings** undoes that.
