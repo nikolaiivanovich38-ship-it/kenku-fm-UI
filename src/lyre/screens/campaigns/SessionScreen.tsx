@@ -53,7 +53,7 @@ import { NameInSceneDialog, TrackUseInDialog } from "./trackDialogs";
 import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
 import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { DeleteSessionDialog } from "./deleting";
-import { useDragReorder } from "./reorder";
+import { useDragReorder } from "../../kit/reorder";
 
 import "./campaigns.css";
 import { takeBackOpen, TopLead } from "../../shell/TopBar";

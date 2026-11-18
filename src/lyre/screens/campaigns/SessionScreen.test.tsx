@@ -8,6 +8,7 @@ import { createFakeLyreApi, type FakeLyreApi } from "../../../common/lyre/fake";
 import { getLiveSession, loadInLive } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
 import { dragFirstOntoLowerHalfOfLast, go, main, openAt, region } from "./testing";
+import { dragRow, dropPlaces, orderAfterDrop } from "../../test/drag";
 
 beforeEach(() => {
   localStorage.clear();
@@ -754,3 +755,18 @@ describe("round 6, part 4: Reorder in a scene's playlist (Must 3, ORG-13)", () =
     expect(screen.queryByRole("spinbutton", { name: "Session number" })).toBeNull();
   });
 });
+
+/* 0.5.2 (Nik's item 36): a scene dropped lands exactly where the line shows, and no line shows where it would stay. */
+describe("dragging a scene", () => {
+  const lines = () => sceneCards().filter((li) => /cp-drop-(before|after)/.test(li.className)).length;
+  it.each(dropPlaces(6))("the fourth scene dropped on scene %i, %s half", async (onto, half) => {
+    const { api } = openAt("session/crown/s14");
+    await waitFor(() => expect(sceneCards()).toHaveLength(6));
+    const before = (await s14(api)).scenes.map((s) => s.id);
+    const want = orderAfterDrop(before, 3, onto, half);
+    const moves = want.join() !== before.join();
+    dragRow(sceneCards(), 3, onto, half, { between: () => expect(lines()).toBe(moves ? 1 : 0) });
+    await waitFor(async () => expect((await s14(api)).scenes.map((s) => s.id)).toEqual(want));
+  });
+});
+

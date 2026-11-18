@@ -20,7 +20,7 @@ import type { ScreenProps } from "..";
 import { CAMPAIGN_THEME_IDS, DEFAULT_CAMPAIGN_THEME, formatDate, nextSession, plural, sessionLabel, shownTheme, SYSTEMS, themeName, themeNote } from "./model";
 import { DeleteCampaignDialog } from "./deleting";
 import { ObsidianFields, Opening, RowMenu, useHeadingFocusWhenReady, useWrite, type ObsidianValues } from "./parts";
-import { useDragReorder, type DragReorder } from "./reorder";
+import { useDragReorder, type DragReorder } from "../../kit/reorder";
 
 import "./campaigns.css";
 import { TopLead } from "../../shell/TopBar";

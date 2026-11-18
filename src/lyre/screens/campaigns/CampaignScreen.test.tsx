@@ -7,6 +7,7 @@ import { getLiveSession, loadInLive } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
 import { saveShellSettings } from "../../shell/settings";
 import { dragFirstOntoLowerHalfOfLast, main, openAt, region } from "./testing";
+import { dragRow, dropPlaces, orderAfterDrop } from "../../test/drag";
 
 beforeEach(() => {
   localStorage.clear();
@@ -389,3 +390,19 @@ describe("round 6: the campaign's own order (ORG-13)", () => {
     expect(screen.getByText("Type each session's number in its details. New sessions follow the last one.")).toBeInTheDocument();
   });
 });
+
+/* 0.5.2 (Nik's item 36): a session dropped lands exactly where the line shows, and no line shows where it would stay. */
+describe("dragging a session", () => {
+  const names = () => sessions().getAllByRole("listitem").map((li) => (li.querySelector(".cp-sname")?.textContent ?? "").replace(/^\s*Session \d+:\s*/, "").trim());
+  const lines = () => sessions().getAllByRole("listitem").filter((li) => /cp-drop-(before|after)/.test(li.className)).length;
+  it.each(dropPlaces(4))("Session 14 dropped on row %i, %s half", async (onto, half) => {
+    openAt("campaign/crown");
+    await screen.findByRole("list", { name: "Sessions in order" });
+    const before = names();
+    const want = orderAfterDrop(before, 2, onto, half);
+    const moves = want.join() !== before.join();
+    dragRow(sessions().getAllByRole("listitem"), 2, onto, half, { between: () => expect(lines()).toBe(moves ? 1 : 0) });
+    await waitFor(() => expect(names()).toEqual(want));
+  });
+});
+

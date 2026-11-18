@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getLiveSession } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
 import { main, openAt } from "./testing";
+import { dragRow, dropPlaces, orderAfterDrop } from "../../test/drag";
 
 beforeEach(() => {
   localStorage.clear();
@@ -135,3 +136,18 @@ describe("0.5.1: the campaigns' order (Nik, 11 Nov: \"drag and drop to rearrange
     expect(main().getAllByRole("article")[0]).toHaveAccessibleName("The Sunken Crown");
   });
 });
+
+/* 0.5.2 (Nik's item 36): a campaign card dropped lands exactly where the mark shows (left half: before it, right: after). */
+describe("dragging a campaign card", () => {
+  it.each(dropPlaces(3))("the last card dropped on card %i, %s half (upper: left, lower: right)", async (onto, half) => {
+    const { api } = openAt("campaigns");
+    await screen.findByRole("article", { name: "The Sunken Crown" });
+    const before = (await api.campaigns.list()).map((c) => c.id);
+    const want = orderAfterDrop(before, 2, onto, half);
+    const moves = want.join() !== before.join();
+    const marks = () => main().getAllByRole("article").filter((a) => /cp-drop-(before|after)/.test(a.className)).length;
+    dragRow(main().getAllByRole("article"), 2, onto, half, { grid: true, between: () => expect(marks()).toBe(moves ? 1 : 0) });
+    await waitFor(async () => expect((await api.campaigns.list()).map((c) => c.id)).toEqual(want));
+  });
+});
+

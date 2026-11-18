@@ -19,7 +19,7 @@ import { CAMPAIGN_THEME_IDS, formatDate, nextSession, plural, sessionLabel, them
 import { OnHandPane } from "./OnHand";
 import { DraftField, ModeSwitch, NotFound, Opening, useHeadingFocusWhenReady, ObsidianFields, RowMenu, StatusBadge, useFocusLater, useLibraryIndex, useWrite } from "./parts";
 import { DeleteCampaignDialog, DeleteSessionDialog } from "./deleting";
-import { useDragReorder } from "./reorder";
+import { useDragReorder } from "../../kit/reorder";
 
 import "./campaigns.css";
 import { TopLead } from "../../shell/TopBar";
