@@ -920,6 +920,17 @@ const OPENED: Opened[] = [
   { name: "Live while arranging", route: "live", owner: "live", open: async (page) => { await page.getByRole("button", { name: /^(Arrange|Move and size the boxes)/ }).click(); } },
   { name: "Live with a scene playing", route: "live", owner: "live", open: async (page) => { await page.getByRole("button", { name: /^Start: / }).first().click(); } },
   {
+    // Nik, 18 Nov (open question 1): a manual playlist unfolded in Live, its tracks with four buttons and a ⋯.
+    name: "Live with a manual playlist unfolded",
+    route: "live",
+    owner: "live",
+    open: async (page) => {
+      const box = page.getByRole("region", { name: "Campaign playlists", exact: true });
+      await box.getByRole("button", { name: "Campaign Playlists", exact: true }).click();
+      await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
+    },
+  },
+  {
     name: "Playlists with the queue open",
     route: "playlists",
     owner: "playlists",

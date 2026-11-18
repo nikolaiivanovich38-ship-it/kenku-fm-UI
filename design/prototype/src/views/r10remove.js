@@ -66,6 +66,7 @@
     ['[data-act="cprowmenu"][data-menu="assigned"]', function (b) { L.acts.cprm(b); }],
     ['[data-act="pbcardmenu"]', function (b) { L.acts.pbdelboard(b); }],
     ['[data-act="lvupx"]', function (b) { b.click(); }],
+    ['[data-act="r10lvmore"]', function (b) { L.acts.r10lvplrm(b); }],
     ['[data-act="lbrowmenu"]', function (b) { L.acts.r10rmask(as(b, { how: 'remove', ids: b.dataset.tid })); }]
   ];
   // The row's own control: not one in a list folded open inside the row.

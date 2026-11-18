@@ -253,8 +253,8 @@ them with the app's words.
 - A scene's music, ambience and pad boards, and the session's and campaign's lists: their ⋯ said "Remove from this
   scene / session / campaign" already; they now have Undo, and `Delete` on a focused row does the same.
 - Up next keeps its × on each row; `Delete` on a focused row does the same, with Live's Undo.
-- Live's unfolded playlists have no ⋯ and no `Delete` on their rows: Live's rows keep their four buttons (Nik, 6 Nov:
-  little to read in Live). Open question below.
+- Live: a track of a manual playlist unfolded in a Live box has a ⋯ after its four buttons with **Remove from this
+  playlist**, with Live's Undo in the top strip and `Delete` on a focused row (Nik, 18 Nov, answer 1 below).
 
 ### 2. Deleting in line
 - Playlists page: a row's ⋯ has **Delete playlist…**, the same question as on the playlist's page (it names the
@@ -313,7 +313,7 @@ Fixes:
   under it. Marked `expectFailureUntilBuilt("r10")`.
 - New checks for §1 and §2, written before the code: library.spec.ts (5), playlists.spec.ts (4),
   session-planner.spec.ts (3), pad-boards.spec.ts (1), live.spec.ts (1), all marked `r10`.
-- Results: the whole prototype project through `yarn heavy`: **954 passed, 0 failed, 13 skipped** (the `appOnly()`
+- Results: the whole prototype project through `yarn heavy`: **954 passed, 0 failed, 13 skipped**; after Nik's answers below, **958 passed, 0 failed, 13 skipped** (the `appOnly()`
   checks of 0.5.1). The two exact-list checks of the selection bar and the Playlists row menu leave out the new items.
 - Found on the way: Help's progress chip in the menu used the attribute `data-progress`, which the playing bars use;
   while anything played, the bars' clock set the chip to 0 px wide, so "8/9" ran out of it. It is `data-count` now.
@@ -321,8 +321,12 @@ Fixes:
   new: 15 Remove from library, 16 a track's ⋯ with Delete file from disk… last, 17 Delete playlist… in a Playlists
   row, 18 Find's results beside Live, 19 Add music docked at half a screen.
 
-### Open questions for Nik
-1. Live's unfolded playlists: a ⋯ on each row with Remove from this playlist (recommended: no, keep Live's four row
-   buttons; take tracks out of a playlist in Prep, where the ⋯ is), or add the ⋯ in Live too?
-2. Two side panels at half a screen: the first one closes (recommended, the screen keeps 600 px), or let both stay
-   with the screen narrower?
+### Nik's answers to the two questions (18 Nov), closed
+1. Live's unfolded playlists: **add the ⋯ in Live too**, keeping the four row buttons. Built: Remove from this playlist,
+   with Undo and the Delete key, as in Prep. Checked test first (`live.spec.ts`, "a track in a playlist unfolded in
+   Live has a ⋯…", failed before the change) and in the overlap sweeps ("Live with a manual playlist unfolded" at the
+   three window sizes and five themes: the row fits at half a 1920 screen). Found on the way: in Live a row's name grew
+   to its full length whenever any control in the row took focus, so the row's buttons moved between press and release
+   and the click on the new ⋯ was lost at half a screen. The name now keeps its two lines unless the row is opened for
+   its details; the full name is in the hover text, which keyboard focus shows.
+2. Two side panels at half a screen: **the first one closes**, as built.

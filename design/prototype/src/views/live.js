@@ -655,6 +655,9 @@
         // Decision 4 (Nik, 6 Nov 12:30): Repeat one on a scene's track is saved with the scene (L.repeatOneButton).
         (o.rep && !isAmb && !isFx ? L.repeatOneButton(o.rep, t.id, k + '-r', nm, onAirNow) : '') +
         (o.noPlay ? '' : playBtn(box, data, k, nm, isFx ? ', over the music' : ', crossfading from what is playing')) +
+        // Round 10 fixes (Nik, 18 Nov, open question 1): a track of a manual playlist unfolded here has a ⋯ with Remove
+        // from this playlist, as in Prep; the four row buttons stay as they were.
+        (o.inPl ? '<button class="closer lv-hov r10-lvmore" data-act="r10lvmore" data-pid="' + esc(o.inPl) + '" data-tid="' + t.id + '" data-k="' + k + '-m" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for ' + esc(nm) + '">' + L.icon('more') + '</button>' : '') +
       '</span></div>' + details + '</li>';
   }
   // A playlist row: unfolds to its tracks in this place's order; Play on air plays it from its first track.
@@ -676,7 +679,7 @@
         (o.noPlay ? '' : playBtn(box, 'data-id="' + (o.firstId || (ts[0] ? ts[0].id : '')) + '" data-pl="' + p.id + '" data-place="' + esc(o.place) + '"' + seqAttrs(o.firstSeq), k, p.name, ', from its first track')) +
       '</span></div>' +
       // Round 9 (item 42): the playlist's dividers are headings here too, each with Play from here.
-      (open ? '<ol class="lv-list lv-sub" aria-label="Tracks in ' + esc(p.name) + '">' + (function () { var divs = L.dividersBefore ? L.dividersBefore(p) : {}; return ts.map(function (t) { return (divs[t.id] ? divs[t.id].map(function (d) { return L.dividerHeading(d, { tid: t.id, pid: p.id, place: o.place, box: box }); }).join('') : '') + trackRow(t, o.src, o.trackOpts(t)); }).join(''); })() + '</ol>' : '') + '</li>';
+      (open ? '<ol class="lv-list lv-sub" aria-label="Tracks in ' + esc(p.name) + '">' + (function () { var divs = L.dividersBefore ? L.dividersBefore(p) : {}; return ts.map(function (t) { return (divs[t.id] ? divs[t.id].map(function (d) { return L.dividerHeading(d, { tid: t.id, pid: p.id, place: o.place, box: box }); }).join('') : '') + trackRow(t, o.src, p.kind === 'manual' ? Object.assign({}, o.trackOpts(t), { inPl: p.id }) : o.trackOpts(t)); }).join(''); })() + '</ol>' : '') + '</li>';
   }
 
   /* ---------- Scenes ---------- */
@@ -1042,6 +1045,19 @@
   L.acts.lvstart = function (el) { changeScene(+el.dataset.i); };
   L.acts.lvundo = function () { undo(); };
   L.acts.lvundo2 = function () { undo2(); };
+  // Round 10 fixes: Remove from this playlist in Live, with Live's Undo (the track stays in the Track library).
+  L.acts.r10lvmore = function (el) {
+    L.menu(el, '<button role="menuitem" data-act="r10lvplrm" data-pid="' + esc(el.dataset.pid) + '" data-tid="' + esc(el.dataset.tid) + '">' + L.icon('close', 's') + 'Remove from this playlist</button>', 'More for ' + L.title(L.track(el.dataset.tid)));
+  };
+  L.acts.r10lvplrm = function (el) {
+    var p = L.playlist(el.dataset.pid), id = el.dataset.tid, i = p ? p.items.indexOf(id) : -1; if (i < 0) return;
+    var was = p.items.slice(), text = 'Removed from ' + p.name + ': ' + L.title(L.track(id));
+    p.items.splice(i, 1);
+    softUndo(text, function () { p.items.splice.apply(p.items, [0, p.items.length].concat(was)); }, 'pl:' + p.id, '');
+    L.render(); var next = p.items[i] || p.items[i - 1], b = next && document.querySelector('[data-act="r10lvmore"][data-pid="' + p.id + '"][data-tid="' + next + '"]');
+    if (b) b.focus(); else focusK('lv-undo2');
+    L.say(text + '. It is still in the Track library. Undo is available for 8 seconds, or press Ctrl+Z.');
+  };
   L.acts.lvallsc = function () { S.allScenes = !S.allScenes; L.render(); };
   L.acts.lvsel = function (el) { S.sel = S.sel === el.dataset.sel ? null : el.dataset.sel; L.render(); };
   L.acts.lvnotes = function () { S.notesOpen = !S.notesOpen; L.render(); };

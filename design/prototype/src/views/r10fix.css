@@ -87,3 +87,9 @@
 /* The open menu's Help with its "8/9" chip was 3 px wider than the menu: a little less space around the chip. */
 .rail:not(.min) button.nav:has(.r9-help-ring) { gap: 6px; padding-right: 4px; }
 .rail:not(.min) .r9-help-ring { flex: none; padding: 0 4px; }
+
+/* Live's rows keep their height when a control in them takes focus: the name used to grow to its full length then,
+   moving the row's buttons between press and release, so the click was lost (seen at half a 1920 screen on the ⋯ of a
+   playlist's track). The full name is in the hover text, which keyboard focus shows as well (UX-6); a row opened for
+   its details keeps its whole name, as before. */
+.lv-trk-r:focus-within .lv-trk-t:not([aria-expanded="true"]) > span, .lv-trk-r:focus-within .lv-pli-n > b.ellipsis { display: -webkit-box; -webkit-line-clamp: 2; }

@@ -1736,3 +1736,25 @@ test("round 10: Delete on a focused Up next row takes it out, as its × does", a
   await expect(upNext.getByRole("listitem").filter({ hasText: `Added: ${track}` })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeVisible();
 });
+
+/* Round 10 fixes, Nik's answer of 18 Nov to open question 1: a track in a manual playlist unfolded in Live has a ⋯ with
+   Remove from this playlist, as in Prep (Undo, and Delete on a focused row); Live's four row buttons stay. */
+test("round 10: a track in a playlist unfolded in Live has a ⋯ with Remove from this playlist, with Undo and the Delete key", async ({ page }) => {
+  expectFailureUntilBuilt("r10");
+  await openRoute(page, "live");
+  const box = region(page, "Campaign playlists");
+  await box.getByRole("button", { name: "Campaign Playlists", exact: true }).click();
+  await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
+  const tracks = box.getByRole("list", { name: "Tracks in The Company themes" });
+  const n = await tracks.getByRole("listitem").count();
+  const first = tracks.getByRole("listitem").first();
+  await expect(first.getByRole("button", { name: /^(Preview|Play next|Add to queue|Play on air)/ })).toHaveCount(4);
+  await first.getByRole("button", { name: /^More for / }).click();
+  await page.getByRole("menuitem", { name: "Remove from this playlist" }).click();
+  await expect(tracks.getByRole("listitem")).toHaveCount(n - 1);
+  await page.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(tracks.getByRole("listitem")).toHaveCount(n);
+  await tracks.getByRole("listitem").nth(1).getByRole("button", { name: /^More for / }).focus();
+  await page.keyboard.press("Delete");
+  await expect(tracks.getByRole("listitem")).toHaveCount(n - 1);
+});

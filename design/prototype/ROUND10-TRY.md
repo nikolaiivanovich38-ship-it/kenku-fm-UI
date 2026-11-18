@@ -63,7 +63,7 @@ Q7). Rows 26 to 29 are your four answers to this round's questions (A1 to A4).
 
 ## After your first look (18 Nov 13:00): removing tracks, deleting in line, nothing on top of anything
 
-Rows 30 to 39 are what changed after your first look: "There's still no way to remove tracks, or to delete playlists
+Rows 30 to 40 are what changed after your first look: "There's still no way to remove tracks, or to delete playlists
 in line, and there are a lot of overlapping features in the visual design" (you meant things drawn on top of each
 other).
 
@@ -79,3 +79,4 @@ other).
 | 37 | Session 14 › **Add tracks or playlists…**; then its **Dock** menu: Dock left, Dock right, Float. | Docked, the panel sits beside the scenes and the page gets narrower; nothing is under it ("Clear" and "Starts the scene" show whole). **Float** lets it lie over the page; drag its title, or use its move button and the arrow keys. |
 | 38 | Open the **Track panel** (a track title in a scene), **Help** (F1) and, in Live, type in **Find**; on Playlists, preview a playlist and open **Queue**. Try **Half of a 1920 screen**. | Each opens at the right, beside the screen, which gets narrower; Find's results are a panel too, not over On air. At half a screen, opening a second panel closes the first, so the screen keeps room. |
 | 39 | Live › **Arrange**. Strip › try all five themes, the three window sizes, and the menus. | Each box's grip and **Move…** sit on a row above the box, not over its title. No menu runs off the window, and the Help progress in the folded menu is a dot inside it, not "8/9" over Live's names. |
+| 40 | Live › open **Campaign playlists** › show the contents of **The Company themes**; a track's **⋯**, then `Tab` to another track's ⋯ and press `Delete`. | Each track keeps its four buttons, with a ⋯ after them. **Remove from this playlist** takes it out; **Undo** in the top strip puts it back. At half a 1920 screen the row still fits (your answer 1 of 18 Nov). |
