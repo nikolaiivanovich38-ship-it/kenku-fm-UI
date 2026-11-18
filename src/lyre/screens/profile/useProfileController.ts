@@ -62,7 +62,7 @@ function dragWith(onMove: (e: PointerEvent) => void, onEnd: () => void): void {
 /** How long keys or a handle rest before the playing preview starts again from the playhead. */
 const RESTART_AFTER_MS = 200;
 
-const READ_ONLY_NOTE = "These are the track's settings. Give this place its own settings to change them here.";
+const READ_ONLY_NOTE = "These are the track's settings. To change them only here, press Use separate settings here.";
 
 export type ProfileController = ReturnType<typeof useProfileController>;
 
@@ -560,8 +560,8 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
     async giveOwn() {
       if (!(await editor.giveOwn())) return;
       setFocusK("ap-clear");
-      say("This place now has its own settings, copied from the track's");
-      toast(`Own settings for ${placeName(key, view)}, copied from the track's`);
+      say("Separate settings are now used here, copied from the track's");
+      toast(`${placeName(key, view)} now has its own settings, copied from the track's`);
     },
     useTracks() {
       say("Using the track's settings here");

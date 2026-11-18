@@ -227,7 +227,7 @@ export function setSteps(store: Store, owner: StepOwner, steps: CueStep[] | null
   // What the steps read back as once saved, so saving the same steps again makes no undo step.
   const saved = rows === null ? null : rows.map((cols) => toStep(rowFor(store, cols)));
   if (JSON.stringify(getSteps(store, owner)) === JSON.stringify(saved)) return;
-  const label = o.kind === "scene" ? `What ${o.name} does when it starts` : `What ${o.name} does`;
+  const label = o.kind === "scene" ? `Start of ${o.name}` : `What ${o.name} does`;
   store.change(label, () => {
     store.run(`DELETE FROM cue_lists WHERE ${o.column} = ?`, o.id);
     if (rows === null) return;

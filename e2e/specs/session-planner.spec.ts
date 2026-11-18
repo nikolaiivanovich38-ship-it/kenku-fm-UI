@@ -215,7 +215,7 @@ test.describe("a scene's music: tracks and playlists mixed, in order", () => {
     expect(names.indexOf("New theme") + 1).toBe(names.indexOf("Second"));
     expect(names).toHaveLength(6);
     // The note is shown, and read out a moment later from a hidden region (UX-R6): check the one on screen.
-    await expect(page.getByText(/2 new tracks added to the Library/).filter({ visible: true })).toBeVisible();
+    await expect(page.getByText(/2 new tracks added to the Track library/).filter({ visible: true })).toBeVisible();
   });
 
   test("something that is not a file dragged over the music is ignored", async ({ page }) => {
@@ -232,7 +232,7 @@ test.describe("a scene's music: tracks and playlists mixed, in order", () => {
       }
     });
     await expect(musicOf(abbey(page)).getByRole("listitem")).toHaveCount(before);
-    await expect(page.getByText(/added to the Library/)).toHaveCount(0);
+    await expect(page.getByText(/added to the Track library/)).toHaveCount(0);
   });
 });
 
@@ -304,7 +304,7 @@ test.describe("a scene's pad boards", () => {
 test.describe("scenes", () => {
   test("a scene opens to its name, Starts when line and notes", async ({ page }) => {
     await openAbbey(page);
-    await expect(abbey(page).getByRole("textbox", { name: "Starts when" })).toHaveValue("They crest the cliff path");
+    await expect(abbey(page).getByRole("textbox", { name: "Story cue" })).toHaveValue("They crest the cliff path");
     await expect(abbey(page).getByRole("textbox", { name: "Notes" })).toHaveValue(/Rain all the way/);
     await abbey(page).getByRole("textbox", { name: "Name" }).fill("The abbey in the rain");
     await expect(page.getByRole("listitem", { name: /Scene 3: The abbey in the rain/ })).toBeVisible();
@@ -373,7 +373,7 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
     await expect(menu.getByRole("menuitemcheckbox", { name: "Shuffle" })).toHaveAttribute("aria-checked", "true");
     await menu.getByRole("menuitemradio", { name: /^Repeat one/ }).click();
     await expect(order).toHaveAccessibleName("Play order of Abbey: eerie, low energy: Shuffle, repeat one");
-    await expect(menu.getByText(/Only in the scene The abbey ruins\. Elsewhere: In order, repeat all\./)).toBeVisible();
+    await expect(menu.getByText(/This order is used only in the scene The abbey ruins\. Elsewhere the order is: In order, repeat all\./)).toBeVisible();
     await page.keyboard.press("Escape");
     // Elsewhere the playlist keeps its own order.
     await page.getByRole("link", { name: "Playlists" }).first().click();
@@ -569,8 +569,8 @@ test.describe("round 7: what a scene does when it starts", () => {
   test("the usual start is three steps: its music, its ambience and its first pad board", async ({ page }) => {
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "More for The abbey ruins" }).click();
-    await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
-    await expect(dialog(page)).toHaveAccessibleName("When The abbey ruins starts");
+    await page.getByRole("menuitem", { name: "Start…" }).click();
+    await expect(dialog(page)).toHaveAccessibleName("Start of The abbey ruins");
     await expect(steps(page)).toHaveCount(3);
     await expect(steps(page).nth(0)).toContainText("Play the music: Eerie dread");
     await expect(steps(page).nth(1)).toContainText("Play the ambience: Abbey ambience");
@@ -582,9 +582,9 @@ test.describe("round 7: what a scene does when it starts", () => {
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "More for The abbey ruins" }).focus();
     await page.keyboard.press("Enter");
-    await page.getByRole("menuitem", { name: "What it does when it starts…" }).focus();
+    await page.getByRole("menuitem", { name: "Start…" }).focus();
     await page.keyboard.press("Enter");
-    await expect(dialog(page)).toHaveAccessibleName("When The abbey ruins starts");
+    await expect(dialog(page)).toHaveAccessibleName("Start of The abbey ruins");
     const inDialog = () => dialog(page).evaluate((d) => d.contains(document.activeElement));
     expect(await inDialog()).toBe(true);
     for (let i = 0; i < 30; i++) {
@@ -599,7 +599,7 @@ test.describe("round 7: what a scene does when it starts", () => {
   test("a step can be added, changed and moved; a play step has its transition and what it does to Up next", async ({ page }) => {
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "More for The abbey ruins" }).click();
-    await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
+    await page.getByRole("menuitem", { name: "Start…" }).click();
     await dialog(page).getByRole("button", { name: "Add a step" }).click();
     await page.getByRole("menuitem", { name: "Fire a pad…" }).click();
     await expect(steps(page)).toHaveCount(4);
@@ -609,13 +609,13 @@ test.describe("round 7: what a scene does when it starts", () => {
     await steps(page).nth(3).getByRole("button", { name: "Move up" }).click();
     await expect(steps(page).nth(2)).toContainText("Abbey bell");
     await dialog(page).getByRole("button", { name: "Done" }).click();
-    await expect(page.getByRole("status").filter({ hasText: "Saved: what The abbey ruins does when it starts" })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: "Saved: the start of The abbey ruins" })).toBeVisible();
   });
 
   test("Then: the scene can move on by itself when its music ends, and is marked", async ({ page }) => {
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "More for The abbey ruins" }).click();
-    await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
+    await page.getByRole("menuitem", { name: "Start…" }).click();
     await dialog(page).getByRole("combobox", { name: "Then" }).selectOption({ label: "Start the next scene when its music ends" });
     await dialog(page).getByRole("button", { name: "Done" }).click();
     await expect(abbey(page)).toContainText("Moves on by itself");
@@ -624,7 +624,7 @@ test.describe("round 7: what a scene does when it starts", () => {
   test("Try in headphones plays the first step's music as a preview", async ({ page }) => {
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "More for The abbey ruins" }).click();
-    await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
+    await page.getByRole("menuitem", { name: "Start…" }).click();
     await dialog(page).getByRole("button", { name: "Try in headphones" }).click();
     await dialog(page).getByRole("button", { name: "Done" }).click();
     await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ })).toBeVisible();

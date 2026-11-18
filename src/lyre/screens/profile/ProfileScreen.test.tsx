@@ -99,7 +99,7 @@ describe("the Audio profile screen", () => {
       </LyreApiProvider>,
     );
     expect(await screen.findByText(/That track is not in the library/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back to the Library" })).toHaveAttribute("href", "#/library");
+    expect(screen.getByRole("link", { name: "Back to Track library" })).toHaveAttribute("href", "#/library");
   });
 
   it("has no accessibility failures", async () => {
@@ -692,7 +692,7 @@ describe("different settings for different places", () => {
 
   it("giving a place its own settings copies them, and a change there leaves the track's own alone", async () => {
     const { api, user } = await open("profile/t13/pl:p-gothic");
-    await user.click(screen.getByRole("button", { name: "Give this place its own settings" }));
+    await user.click(screen.getByRole("button", { name: "Use separate settings here" }));
     const end = atEnd().getByRole("textbox", { name: "End" });
     await waitFor(() => expect(end).toBeEnabled());
     await waitFor(() => expect(screen.getByRole("button", { name: "Back to the track's settings" })).toHaveFocus());
@@ -718,7 +718,7 @@ describe("different settings for different places", () => {
     slider("End").focus();
     await user.keyboard("{ArrowLeft}");
     expect(value("End")).toBe(318);
-    expect(document.getElementById("lyre-toast")).toHaveTextContent("These are the track's settings. Give this place its own settings to change them here.");
+    expect(document.getElementById("lyre-toast")).toHaveTextContent("These are the track's settings. To change them only here, press Use separate settings here.");
   });
 });
 
@@ -745,7 +745,7 @@ describe("round 5: opened from a scene or a session list (PLY-14), the name ther
   it("opened from a scene, it shows that scene's settings read-only, the name in the scene, and Back to the scene", async () => {
     const { api, user } = await open("profile/t07/sc:crown:s14:sc6");
     expect(screen.getByRole("combobox", { name: "Settings for" })).toHaveValue("sc:crown:s14:sc6");
-    expect(within(screen.getByRole("group", { name: "Settings in the scene Aftermath" })).getByRole("button", { name: "Give this place its own settings" })).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Settings in the scene Aftermath" })).getByRole("button", { name: "Use separate settings here" })).toBeInTheDocument();
     const name = screen.getByRole("textbox", { name: "Name in this scene" });
     expect(name).toHaveValue("Dawn over the abbey");
     await user.clear(name);

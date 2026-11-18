@@ -90,14 +90,14 @@ async function addToPlaylist(actions: DropActions, pl: PlaylistInfo, ids: string
   flashSoon([...added, pl.id]);
   if (!added.length) return [{ t: `Those tracks are already in ${pl.name}.` }];
   const atText = index !== null && index >= 0 && index < before ? `, at position ${index + 1}` : "";
-  const parts: NoticePart[] = [{ b: tracksWord(added.length) }, { t: ` added to ${pl.name} and your Library${atText}. Give them titles and tags in the Library.` }];
+  const parts: NoticePart[] = [{ b: tracksWord(added.length) }, { t: ` added to ${pl.name} and the Track library${atText}. Give them titles and tags there.` }];
   if (alreadyIn.length) parts.push({ t: ` ${alreadyIn.length === 1 ? "1 was" : `${alreadyIn.length} were`} already in it.` });
   return parts;
 }
 
 function libraryOnly(ids: string[], pl: PlaylistInfo | null): NoticePart[] {
   flashSoon(ids);
-  return [{ b: tracksWord(ids.length) }, { t: ` added to your Library.${pl ? ` They appear in ${pl.name} once their tags match its rules.` : ""} Give them titles and tags in the Library.` }];
+  return [{ b: tracksWord(ids.length) }, { t: ` added to the Track library.${pl ? ` They appear in ${pl.name} once their tags match its rules.` : ""} Give them titles and tags in the Track library.` }];
 }
 
 /** Where on the screen files were dropped. */
@@ -156,7 +156,7 @@ export function DropNotice({ where, actions, playlists }: { where: DropWhere; ac
             {lead} dropped. &quot;{pl.name}&quot; is a Dynamic playlist: tracks appear in it only when their tags match its rules, and new files have no tags yet.
           </span>
           <button type="button" className="btn s primary" data-focus="pldropdo" onClick={() => void libraryOnlyNow()}>
-            Add to the Library anyway
+            Add to Track library anyway
           </button>
           <button type="button" className="btn s" onClick={cancel}>
             Cancel
@@ -191,7 +191,7 @@ export function DropNotice({ where, actions, playlists }: { where: DropWhere; ac
         }}
       >
         <Icon name="library" size="s" />
-        Open new tracks in the Library
+        Open new tracks in Track library
       </button>
       <button type="button" className="closer" title="Dismiss" aria-label="Dismiss this message" onClick={() => set({ notice: null })}>
         <Icon name="close" />
@@ -232,7 +232,7 @@ function AskWhich({ lead, manual, actions, onLibraryOnly, onCancel }: { lead: Re
       return;
     }
     flashSoon([...ids, made.value.id]);
-    const parts: NoticePart[] = [{ b: tracksWord(ids.length) }, { t: ` added to ${made.value.name} and your Library. Give them titles and tags in the Library.` }];
+    const parts: NoticePart[] = [{ b: tracksWord(ids.length) }, { t: ` added to ${made.value.name} and the Track library. Give them titles and tags there.` }];
     set({ notice: { where: `page:${made.value.id}`, parts, open: null } });
     window.location.hash = hashOf(`playlist/${made.value.id}`);
     actions.say(`${plainText(parts)} Give the playlist a name.`);

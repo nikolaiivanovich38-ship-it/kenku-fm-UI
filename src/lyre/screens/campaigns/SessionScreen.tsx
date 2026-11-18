@@ -1,5 +1,5 @@
 /**
- * The session planner (round 4): a session's scenes in order, each with its Starts when line, its music (tracks and
+ * The session planner (round 4): a session's scenes in order, each with its Story cue line, its music (tracks and
  * playlists in any mix, played in order and then looped; the first starts the scene), its ambience (a track or an
  * ambience playlist), its pad boards (the first shows when the scene starts) and notes; the playlists and pad boards
  * on hand for the evening; and a reminder of the campaign's. Playlists and boards are only assigned here, never made.
@@ -143,7 +143,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
   const [picking, setPicking] = useState<Picking>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deletingSession, setDeletingSession] = useState(false);
-  /** PLY-8: the scene whose steps are open (What it does when it starts…). */
+  /** PLY-8: the scene whose steps are open (Start…). */
   const [stepsOf, setStepsOf] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   // BUG-21: the title renames the session in place (click or F2); only the name, never the number.
@@ -265,7 +265,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
     if (isRefused(result)) return toast(result.refusal.message);
     const { trackIds, added } = result.value;
     if (trackIds.length === 0) return toast(result.value.summary);
-    const lib = added.length ? `${plural(added.length, "new track")} added to the Library. ` : "";
+    const lib = added.length ? `${plural(added.length, "new track")} added to the Track library. ` : "";
     const name = scene.name || "this scene";
     if (where === "ambience") {
       // Dropped on Ambience: the new files are ambience beds.
@@ -273,7 +273,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
       if (!(await ctx.saveScene(scene, { ambience: { kind: "track", id: trackIds[0] } }))) return;
       const title = (await api.library.listTracks()).find((t) => t.id === trackIds[0]);
       focus(`pa-${scene.id}`);
-      toast(`${lib}Ambience of "${name}": ${title ? shownTitle(title) : ""}${trackIds.length > 1 ? " (one ambience per scene; the others are in the Library)" : ""}`);
+      toast(`${lib}Ambience of "${name}": ${title ? shownTitle(title) : ""}${trackIds.length > 1 ? " (a scene has one ambience, and the others are in the Track library)" : ""}`);
       return;
     }
     const placed: SoundRef[] = trackIds.map((id) => ({ kind: "track", id }));
@@ -453,7 +453,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
                         ...(i < s.scenes.length - 1 ? [{ label: "Move down", icon: "chevdown" as const, onSelect: () => { void moveScene(i, i + 1); } }] : []),
                         { label: "Add a scene after this one", icon: "plus", onSelect: () => void addScene(scene.id) },
                         // Round 7 (PLY-8, SHW-3): what the scene does when it starts, as steps, and whether it moves on by itself.
-                        { label: "What it does when it starts…", icon: "list", onSelect: () => setStepsOf(scene.id) },
+                        { label: "Start…", icon: "list", onSelect: () => setStepsOf(scene.id) },
                         { label: "Duplicate", icon: "queue", onSelect: () => void duplicate(scene) },
                         { separator: true },
                         { label: "Delete…", icon: "trash", danger: true, onSelect: () => setDeleting(scene.id) },
@@ -604,13 +604,13 @@ interface SceneCardProps {
   menu: MenuEntry[];
 }
 
-/** What a folded scene's tooltip says: its Starts when, music, ambience and pad boards. */
+/** What a folded scene's tooltip says: its Story cue, music, ambience and pad boards. */
 function sceneTip(scene: SceneInfo, index: LibraryIndex, names: TrackNames, place: UsePlace): string {
   const music = scene.music.map((r) => nameInScene(r, index, names, place)).filter(Boolean);
   const ambience = scene.ambience && soundInfo(scene.ambience, index);
   const boards = scene.boardIds.map((id) => index.board(id)?.name).filter(Boolean);
   return [
-    scene.startsWhen ? `Starts when: ${scene.startsWhen}` : "No Starts when line yet",
+    scene.startsWhen ? `Story cue: ${scene.startsWhen}` : "No story cue yet",
     `Music: ${music.length ? music.join(", ") : "none"}`,
     `Ambience: ${ambience ? ambience.name : "none"}`,
     `Pad boards: ${boards.length ? boards.join(", ") : "none"}`,
@@ -766,8 +766,8 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
             />
           </div>
           <div className="field">
-            <label htmlFor={`${f}w`}>Starts when</label>
-            <DraftField className="input" id={`${f}w`} placeholder="The moment in the story" autoComplete="off" value={scene.startsWhen} onSave={(value) => save({ startsWhen: value }, `when ${scene.name || "the scene"} starts`)} />
+            <label htmlFor={`${f}w`}>Story cue</label>
+            <DraftField className="input" id={`${f}w`} placeholder="The moment in the story" autoComplete="off" value={scene.startsWhen} onSave={(value) => save({ startsWhen: value }, `story cue of ${scene.name || "the scene"}`)} />
           </div>
           <div className="field cp-span" role="group" aria-labelledby={`${f}m`}>
             <span className="label" id={`${f}m`}>
@@ -799,7 +799,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
               className="input"
               id={`${f}o`}
               placeholder="Optional: an Obsidian note"
-              title="Kept for later; Lyre does not open Obsidian notes yet"
+              title="Kept for later. Lyre cannot open Obsidian notes yet."
               autoComplete="off"
               value={scene.noteLink}
               onSave={(value) => save({ noteLink: value }, `${scene.name || "scene"} note link`)}
@@ -1034,11 +1034,11 @@ function MusicList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
           ))}
         </ol>
       ) : (
-        <p className="faint cp-mnone">No music yet. The first item you add starts the scene.</p>
+        <p className="faint cp-mnone">No music yet. The first item you add plays when the scene starts.</p>
       )}
       <div className="cp-boxbtns">
         {/* Round 6 (UX-R3): how it plays and that files can be dropped are the button's hover text. */}
-        <Button size="s" icon="plus" data-k={`am-${scene.id}`} title="Plays in order; drop audio files on the box to add them" onClick={() => ctx.pick({ kind: "music", sceneId: scene.id })}>
+        <Button size="s" icon="plus" data-k={`am-${scene.id}`} title="The music plays in order. Drop audio files on the box to add them." onClick={() => ctx.pick({ kind: "music", sceneId: scene.id })}>
           Add tracks or playlists…
         </Button>
       </div>

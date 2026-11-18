@@ -45,7 +45,7 @@ export type SceneStartedBy = "press" | "step" | "moved-on";
 
 /** PLY-8: a scene's start may start another scene; one starting itself stops after this many rounds. */
 const MAX_STEP_DEPTH = 4;
-const STARTS_ITSELF = "This scene's start starts scenes over and over; Lyre stopped after a few rounds. Change what it does when it starts.";
+const STARTS_ITSELF = "The steps in this scene's Start begin scenes over and over, so Lyre stopped after a few rounds. Change the scene's Start.";
 
 const OK: CueOutcome = { ok: true };
 const NO_ROOM = "No room is open, so nobody would hear it. Join a voice channel first.";

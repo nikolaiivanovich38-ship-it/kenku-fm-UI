@@ -112,8 +112,8 @@ export function ScenesPane({ compact, actions }: { compact: boolean; actions: Sc
               </div>
               {/* Could 21: the cue for the next change of scene; the running scene's details are in Current scene. */}
               {isNext && sc.startsWhen && !open && (
-                <div className="lv-sc-when ellipsis" title={`Starts when: ${sc.startsWhen}`}>
-                  <span className="faint">Starts when:</span> {sc.startsWhen}
+                <div className="lv-sc-when ellipsis" title={`Story cue: ${sc.startsWhen}`}>
+                  <span className="faint">Story cue:</span> {sc.startsWhen}
                 </div>
               )}
               {open && <SceneInside scene={sc} index={i} id={bodyId} />}
@@ -140,7 +140,7 @@ function SceneInside({ scene, index: i, id }: { scene: SceneInfo; index: number;
     <div className="lv-sc-in" id={id}>
       {scene.startsWhen && (
         <div className="lv-sc-when">
-          <span className="faint">Starts when:</span> {scene.startsWhen}
+          <span className="faint">Story cue:</span> {scene.startsWhen}
         </div>
       )}
       {scene.notes && (

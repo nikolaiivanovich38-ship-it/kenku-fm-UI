@@ -102,7 +102,7 @@ function useActions(view: OutputsView | null, client: OutputsClient | null): Act
       const lost = back !== undefined && moveLosesSound(of, roomOf(of), channelId);
       client.move(of.bot.id, channelId);
       say(text);
-      if (lost) offerUndo(`${of.bot.name} moved from ${of.channel!.name}: the players there hear nothing now.`, () => client.move(of.bot.id, back));
+      if (lost) offerUndo(`${of.bot.name} moved from ${of.channel!.name}, so the players there hear nothing now.`, () => client.move(of.bot.id, back));
       else toast(text);
     },
     leave: (of) => {
@@ -111,12 +111,12 @@ function useActions(view: OutputsView | null, client: OutputsClient | null): Act
       const restore = kickLosesSound(of, roomOf(of)) ? roomToRestore(of, roomOf(of)) : null;
       client.leave(of.bot.id);
       if (restore) {
-        offerUndo(`${of.bot.name} left ${of.channel.name}: the players there hear nothing now.`, () => {
+        offerUndo(`${of.bot.name} left ${of.channel.name}, so the players there hear nothing now.`, () => {
           void restoreRoom(restore, { client, audio }).then((back) => {
             if (!back) toast(`${of.bot.name} could not go back to ${of.channel!.name}. Add it there again from the list.`);
           });
         });
-        say(`${of.bot.name} left ${of.channel.name}. Undo is at the bottom right, or press Ctrl+Z.`);
+        say(`${of.bot.name} left ${of.channel.name}. To undo this, press Undo, at the bottom right, or Ctrl+Z.`);
       } else toast(`${of.bot.name} left ${of.channel.name}`);
     },
   };
@@ -285,7 +285,7 @@ function RoomRow({ view, of, actions }: { view: OutputsView; of: BotView; action
       ),
     ]);
     if (of.inRoom) {
-      entries.push({ separator: true }, { key: "leave", content: <><OpIcon name="off" />Kick from {of.channel!.name}</>, onSelect: () => actions.leave(of) });
+      entries.push({ separator: true }, { key: "leave", content: <><OpIcon name="off" />Leave {of.channel!.name}</>, onSelect: () => actions.leave(of) });
     }
     return entries;
   };
@@ -453,7 +453,7 @@ function LevelMeter({ roomId, live }: { roomId: string; live: boolean }) {
 
 /** OUT-7: Kick (×), the same in the bot's box and in the channel list. */
 function KickButton({ of, actions, className, dataK }: { of: BotView; actions: Actions; className?: string; dataK?: string }) {
-  const name = `Kick ${of.bot.name} from ${of.channel!.name}`;
+  const name = `Make ${of.bot.name} leave ${of.channel!.name}`;
   const kick = () => {
     const channelId = of.bot.room?.channelId;
     actions.leave(of);
@@ -481,10 +481,10 @@ function Warnings({ view, of, client, actions }: { view: OutputsView; of: BotVie
         <p className="op-warn">
           <OpIcon name="alert" />
           <span className="grow">
-            {names(twice)} is in {of.channel!.name} too: the players hear both.
+            {names(twice)} is in {of.channel!.name} too, so the players hear both.
           </span>
-          <button type="button" className="btn s" aria-label={`Kick ${of.bot.name} from ${of.channel!.name}`} onClick={() => actions.leave(of)}>
-            Kick
+          <button type="button" className="btn s" aria-label={`Make ${of.bot.name} leave ${of.channel!.name}`} onClick={() => actions.leave(of)}>
+            Leave
           </button>
         </p>
       )}

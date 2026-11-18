@@ -109,11 +109,11 @@ describe("Outputs: moving a bot between rooms", () => {
     const { outputs } = open();
     await userEvent.click((await findRoom("Lyre Side")).getByRole("button", { name: "Room Choose a room…" }));
     const menu = within(screen.getByRole("menu", { name: "Room for Lyre Side" }));
-    expect(menu.getByRole("menuitemradio", { name: /^Table 5 people Lyre Table is here: players would hear it twice/ })).toHaveAttribute("aria-checked", "false");
+    expect(menu.getByRole("menuitemradio", { name: /^Table 5 people Lyre Table is here too, so the players would hear it twice/ })).toHaveAttribute("aria-checked", "false");
     expect(menu.getByRole("menuitemradio", { name: /^Whispers Empty: nobody would hear it/ })).toBeInTheDocument();
     await userEvent.click(menu.getByRole("menuitemradio", { name: /^Side room/ }));
     expect(outputs.calls).toContainEqual(["move", SIDE_BOT, "1012"]);
-    expect(toast()).toBe("Lyre Side is joining Side room: nobody there.");
+    expect(toast()).toBe("Lyre Side is joining Side room, but nobody is there.");
     await act(() => outputs.settle());
     const side = room("Side room");
     expect(side.getByText("via Lyre Side")).toBeInTheDocument();
@@ -146,7 +146,7 @@ describe("Outputs: moving a bot between rooms", () => {
     open();
     await findRoom("Table");
     expect(channels().queryByRole("button", { name: /^Bring/ })).toBeNull();
-    expect(channels().getByRole("button", { name: "Kick Lyre Table from Table" })).toBeInTheDocument();
+    expect(channels().getByRole("button", { name: "Make Lyre Table leave Table" })).toBeInTheDocument();
     expect(channels().queryByRole("button", { name: "Add bot to Table" })).toBeNull();
     expect(channels().getByRole("button", { name: "Add bot to Side room" })).not.toHaveAttribute("aria-haspopup");
   });
@@ -178,8 +178,8 @@ describe("Outputs: moving a bot between rooms", () => {
     await findRoom("Table");
     await userEvent.click(channels().getByRole("button", { name: "Add bot to Whispers" }));
     await act(() => outputs.settle());
-    await waitFor(() => expect(channels().getByRole("button", { name: "Kick Lyre Side from Whispers" })).toHaveFocus());
-    await userEvent.click(room("Table").getByRole("button", { name: "Kick Lyre Table from Table" }));
+    await waitFor(() => expect(channels().getByRole("button", { name: "Make Lyre Side leave Whispers" })).toHaveFocus());
+    await userEvent.click(room("Table").getByRole("button", { name: "Make Lyre Table leave Table" }));
     await act(() => outputs.settle());
     await waitFor(() => expect(channels().getByRole("button", { name: "Add bot to Table" })).toHaveFocus());
   });
@@ -199,7 +199,7 @@ describe("Outputs: moving a bot between rooms", () => {
 
   it("Kick takes a bot out of its room at once and gives it a Not in a room box again", async () => {
     open();
-    await userEvent.click((await findRoom("Table")).getByRole("button", { name: "Kick Lyre Table from Table" }));
+    await userEvent.click((await findRoom("Table")).getByRole("button", { name: "Make Lyre Table leave Table" }));
     expect(screen.queryByRole("region", { name: "Table" })).toBeNull();
     expect(room("Lyre Table").getByText("Not in a room")).toBeInTheDocument();
     expect(toast()).toBe("Lyre Table left Table");
@@ -211,11 +211,11 @@ describe("Outputs: moving a bot between rooms", () => {
     const { outputs, audio } = open();
     await findRoom("Table");
     act(() => audio.setNowPlaying({ rooms: [{ roomId: TABLE_BOT, name: "Table", music: { trackId: "t-anthem", title: "Epic choir hero anthem", origin: { kind: "playlist", playlistId: "p-company", at: 0 } as never, playlistId: "p-company", position: 12, length: 120, paused: false, loading: false }, ambience: null, upNext: null, queued: [], effects: [] }], broadcasting: true }));
-    await userEvent.click(channels().getByRole("button", { name: "Kick Lyre Table from Table" }));
+    await userEvent.click(channels().getByRole("button", { name: "Make Lyre Table leave Table" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(outputs.calls).toContainEqual(["leave", TABLE_BOT]);
     const undo = within(screen.getByRole("group", { name: "Undo" }));
-    expect(screen.getByRole("group", { name: "Undo" })).toHaveTextContent("Lyre Table left Table: the players there hear nothing now.");
+    expect(screen.getByRole("group", { name: "Undo" })).toHaveTextContent("Lyre Table left Table, so the players there hear nothing now.");
     // The room goes with its bot (another bot is still in a room, so its music stops), and comes back empty.
     act(() => audio.setNowPlaying({ rooms: [], broadcasting: true }));
     await userEvent.click(undo.getByRole("button", { name: "Undo" }));
@@ -230,7 +230,7 @@ describe("Outputs: moving a bot between rooms", () => {
     act(() => audio.setNowPlaying({ rooms: [{ roomId: TABLE_BOT, name: "Table", music: { trackId: "t13", title: "Bridge of Death", origin: { kind: "single" } as never, playlistId: null, position: 1, length: 9, paused: false, loading: false }, ambience: null, upNext: null, queued: [], effects: [] }], broadcasting: true }));
     await userEvent.click(room("Table").getByRole("button", { name: /^Room / }));
     await userEvent.click(screen.getByRole("menuitemradio", { name: /^Side room/ }));
-    expect(screen.getByRole("group", { name: "Undo" })).toHaveTextContent("Lyre Table moved from Table: the players there hear nothing now.");
+    expect(screen.getByRole("group", { name: "Undo" })).toHaveTextContent("Lyre Table moved from Table, so the players there hear nothing now.");
     await act(() => outputs.settle());
     await userEvent.click(within(screen.getByRole("group", { name: "Undo" })).getByRole("button", { name: "Undo" }));
     expect(outputs.calls[outputs.calls.length - 1]).toEqual(["move", TABLE_BOT, "1011"]);
@@ -250,8 +250,8 @@ describe("Outputs: moving a bot between rooms", () => {
   it("warns when two bots share a room, with Kick", async () => {
     open({ start: sideIn("1011") });
     const both = await screen.findAllByRole("region", { name: "Table" });
-    expect(both[0]).toHaveTextContent("Lyre Side is in Table too: the players hear both.");
-    expect(within(both[0]).getAllByRole("button", { name: "Kick Lyre Table from Table" }).length).toBeGreaterThan(0);
+    expect(both[0]).toHaveTextContent("Lyre Side is in Table too, so the players hear both.");
+    expect(within(both[0]).getAllByRole("button", { name: "Make Lyre Table leave Table" }).length).toBeGreaterThan(0);
     expect(channels().getAllByText("Lyre Table")).toHaveLength(1);
     expect(channels().queryByRole("button", { name: "Add bot to Table" })).toBeNull();
   });

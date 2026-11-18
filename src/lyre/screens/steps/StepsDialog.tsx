@@ -1,6 +1,6 @@
 /**
- * PLY-8 (design round 7, r7play.js stepsopen): the steps dialog, "When The abbey ruins starts" (a scene's ⋯ › What
- * it does when it starts…) or "When Thunder crack is pressed" (a pad's ⋯ › What it does…). The usual steps are shown
+ * PLY-8 (design round 7, r7play.js stepsopen): the steps dialog, "Start of The abbey ruins" (a scene's ⋯ ›
+ * Start…) or "When Thunder crack is pressed" (a pad's ⋯ › What it does…). The usual steps are shown
  * when nothing else was chosen; each step is a sentence with Move up, Move down and Remove, and a play step has How it
  * comes in, Up next and From. Add a step, Put back the usual, Try in headphones (the first step that plays, as a
  * preview), and for a scene Then (it can move on by itself). Done saves (the usual steps keep none), with the Saved
@@ -105,7 +105,7 @@ export function StepsDialog({ owner, onClose }: { owner: StepsOwner; onClose: ()
   const markersOf = (ref: SoundRef | null) => (ref?.kind === "track" ? (tracks.find((t) => t.id === ref.id)?.profile.markers ?? []) : []);
 
   const change = (i: number, next: DraftStep) => setSteps((all) => all.map((s, j) => (j === i ? next : s)));
-  const title = owner.kind === "scene" ? `When ${owner.scene.name || "this scene"} starts` : `When ${owner.label} is pressed`;
+  const title = owner.kind === "scene" ? `Start of ${owner.scene.name || "this scene"}` : `When ${owner.label} is pressed`;
 
   const tryIt = () => {
     const first = steps.find((s): s is Extract<DraftStep, { do: "music" | "play" }> => (s.do === "music" || s.do === "play") && !!s.what);
@@ -130,7 +130,7 @@ export function StepsDialog({ owner, onClose }: { owner: StepsOwner; onClose: ()
     if (owner.kind === "scene") {
       const address = { campaignId: owner.campaignId, sessionId: owner.sessionId, sceneId: owner.scene.id };
       write = () => api.sessions.setSceneSteps(address, keep, movesOnOf(then));
-      what = `what ${owner.scene.name || "the scene"} does when it starts`;
+      what = `the start of ${owner.scene.name || "the scene"}`;
     } else {
       write = () => api.boards.setPadSteps(owner.board.id, owner.padId, keep);
       what = `what ${owner.label} does`;

@@ -121,7 +121,7 @@ describe("the session page", () => {
     const scene = screen.getByRole("listitem", { name: /^Scene \d+: The abbey ruins$/ });
     expect(scene).not.toHaveTextContent("Plays in order, then loops");
     expect(scene).not.toHaveTextContent("The first is shown when the scene starts");
-    expect(within(scene).getByRole("button", { name: "Add tracks or playlists…" })).toHaveAttribute("title", "Plays in order; drop audio files on the box to add them");
+    expect(within(scene).getByRole("button", { name: "Add tracks or playlists…" })).toHaveAttribute("title", "The music plays in order. Drop audio files on the box to add them.");
     expect(within(scene).getByRole("button", { name: /^Add pad boards… to / })).toHaveAttribute("title", "The first board shows when the scene starts");
   });
 });
@@ -235,7 +235,7 @@ describe("a scene's music", () => {
     fireEvent.drop(box, { dataTransfer, clientY: 99999 });
     await waitFor(() => expect(musicNames()).toHaveLength(6));
     expect(musicNames().slice(-2)).toEqual(["New theme", "Second"]);
-    expect(await screen.findByText(/^2 new tracks added to the Library\. 2 tracks placed in the music of "The abbey ruins" at position 5\.$/)).toBeInTheDocument();
+    expect(await screen.findByText(/^2 new tracks added to the Track library\. 2 tracks placed in the music of "The abbey ruins" at position 5\.$/)).toBeInTheDocument();
     expect((await api.library.listTracks()).filter((t) => /New theme|Second/.test(t.metaTitle))).toHaveLength(2);
   });
 
@@ -299,7 +299,7 @@ describe("a scene's ambience and pad boards", () => {
 describe("scenes", () => {
   it("an open scene shows its name, Starts when and notes; a new name renames the card", async () => {
     await openAbbey();
-    expect(abbey().getByRole("textbox", { name: "Starts when" })).toHaveValue("They crest the cliff path");
+    expect(abbey().getByRole("textbox", { name: "Story cue" })).toHaveValue("They crest the cliff path");
     expect(abbey().getByRole("textbox", { name: "Notes" })).toHaveValue("Rain all the way. Bells ring if anyone touches the altar.");
     const name = abbey().getByRole("textbox", { name: "Name" });
     await userEvent.clear(name);
@@ -648,17 +648,17 @@ describe("round 7: what a scene does when it starts (PLY-8, r7play.js)", () => {
   const stepItems = () => within(within(screen.getByRole("dialog")).getByRole("list", { name: "Steps" })).getAllByRole("listitem");
   async function openSteps(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByRole("button", { name: "More for The abbey ruins" }));
-    await user.click(screen.getByRole("menuitem", { name: "What it does when it starts…" }));
-    return screen.getByRole("dialog", { name: "When The abbey ruins starts" });
+    await user.click(screen.getByRole("menuitem", { name: "Start…" }));
+    return screen.getByRole("dialog", { name: "Start of The abbey ruins" });
   }
 
   it("UX-R1: focus moves into the dialog when it opens from the menu, Tab stays inside and Esc closes it", async () => {
     const user = userEvent.setup();
     openAt("session/crown/s14");
     await user.click(await screen.findByRole("button", { name: "More for The abbey ruins" }));
-    screen.getByRole("menuitem", { name: "What it does when it starts…" }).focus();
+    screen.getByRole("menuitem", { name: "Start…" }).focus();
     await user.keyboard("{Enter}");
-    const dialog = screen.getByRole("dialog", { name: "When The abbey ruins starts" });
+    const dialog = screen.getByRole("dialog", { name: "Start of The abbey ruins" });
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
     for (let i = 0; i < 40; i++) {
       await user.tab();
@@ -693,7 +693,7 @@ describe("round 7: what a scene does when it starts (PLY-8, r7play.js)", () => {
     await user.click(within(stepItems()[3]).getByRole("button", { name: "Move up" }));
     expect(stepItems()[2]).toHaveTextContent("Abbey bell");
     await user.click(d.getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent("Saved: what The abbey ruins does when it starts"));
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent("Saved: the start of The abbey ruins"));
     const sc3 = (await s14(api)).scenes.find((x) => x.id === "sc3")!;
     expect(sc3.steps?.map((x) => x.do)).toEqual(["music", "ambience", "pad", "board"]);
     expect(sc3.steps?.[0]).toMatchObject({ how: "mixOut", upNext: "playNext" });

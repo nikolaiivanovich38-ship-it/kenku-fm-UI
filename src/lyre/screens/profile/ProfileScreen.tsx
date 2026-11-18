@@ -47,7 +47,7 @@ export function ProfileScreen({ route }: ScreenProps) {
       <div className="viewbody ap-body" data-scroll="body">
         {state.status === "missing" ? (
           <div className="empty">
-            That track is not in the library. <a href="#/library">Back to the Library</a>
+            That track is not in the library. <a href="#/library">Back to Track library</a>
           </div>
         ) : (
           <p className="empty">Opening the track…</p>

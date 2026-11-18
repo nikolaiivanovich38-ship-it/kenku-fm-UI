@@ -223,7 +223,7 @@ export function EndBox({ c }: C) {
       <fieldset className="ap-opts" disabled={!editable}>
         <legend className="sr-only">At the end</legend>
         {radio("loop", "loop", "Loop back to loop start", `Repeats ${fmt(p.loopStart)} to ${fmt(p.end)}`)}
-        {radio("next", "next", "Move to the next track", "The scene or playlist moves on; played on its own, it stops")}
+        {radio("next", "next", "Move to the next track", "The scene or playlist moves on. Played on its own, the track stops.")}
         {radio("stop", "stop", "Stop", "Then silence")}
       </fieldset>
       {p.after === "next" && ctx && next && (
@@ -251,7 +251,7 @@ export function EndBox({ c }: C) {
             </span>
             <ProfileLink trackId={next.id} title={shownTitle(next)} place={ctx.place} placeName={placeName(ctx.place, view)} iconOnly />
           </div>
-          {ctx.lib && <p className="hint">Not in a scene or playlist yet: the preview uses the next Library track.</p>}
+          {ctx.lib && <p className="hint">This track is not in a scene or playlist yet, so the preview uses the next track in the Track library.</p>}
         </div>
       )}
       <div className="ap-fields">
@@ -479,7 +479,7 @@ export function PlaceBar({ c }: C) {
     // Round 6 (UX-R3): "This track everywhere (its own)" in the list already says whose settings these are.
     status = (
       <>
-        {others.length > 0 && <span className="hint ap-place-h">Not used in {others.map((k) => placeName(k, view)).join(", ")} (own settings)</span>}
+        {others.length > 0 && <span className="hint ap-place-h">Not used in {others.map((k) => placeName(k, view)).join(", ")} (each has its own settings)</span>}
       </>
     );
   } else if (editable) {
@@ -504,7 +504,7 @@ export function PlaceBar({ c }: C) {
           </button>
           <button type="button" data-k="ap-own" aria-pressed="false" onClick={() => void actions.giveOwn()}>
             <Icon name="edit" size="s" />
-            Give this place its own settings
+            Use separate settings here
           </button>
         </div>
         {c.editor.canUndoClear && (

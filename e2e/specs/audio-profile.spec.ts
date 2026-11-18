@@ -68,7 +68,7 @@ test.describe("what happens at the end", () => {
     await openRoute(page, "profile/t13");
     const choice = atEnd(page).getByRole("group", { name: "At the end" });
     await expect(choice.getByRole("radio", { name: /^Loop back to loop start/ })).toBeChecked();
-    await expect(choice.getByRole("radio", { name: /^Move to the next track The scene or playlist moves on; played on its own, it stops/ })).toBeVisible();
+    await expect(choice.getByRole("radio", { name: /^Move to the next track The scene or playlist moves on\. Played on its own, the track stops/ })).toBeVisible();
     await expect(choice.getByRole("radio", { name: /^Stop\b/ })).toBeVisible();
     await expect(atEnd(page)).toContainText("Loops from 1:04");
   });
@@ -221,7 +221,7 @@ test.describe("different settings for different places", () => {
     await openRoute(page, "profile/t13");
     const place = page.getByRole("combobox", { name: "Settings for" });
     await place.selectOption({ label: "Playlist: Gothic dread · uses the track's" });
-    await page.getByRole("button", { name: "Give this place its own settings" }).click();
+    await page.getByRole("button", { name: "Use separate settings here" }).click();
     const end = atEnd(page).getByRole("textbox", { name: "End" });
     await expect(end).toBeEnabled();
     await end.fill("4:30");
@@ -258,9 +258,9 @@ test.describe("round 5: settings for the scene or session it was opened from, th
   test("PLY-14: opened from a scene, it stays on that scene's settings, offers the name in the scene, and Back returns there", async ({ page }) => {
     await openRoute(page, "profile/t07/sc:crown:s14:sc6");
     await expect(page.getByRole("combobox", { name: "Settings for" })).toHaveValue("sc:crown:s14:sc6");
-    await expect(page.getByRole("group", { name: "Settings in the scene Aftermath" }).getByRole("button", { name: "Give this place its own settings" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "Settings in the scene Aftermath" }).getByRole("button", { name: "Use separate settings here" })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Name in this scene" })).toHaveValue("Dawn over the abbey");
-    await page.getByRole("button", { name: "Give this place its own settings" }).click();
+    await page.getByRole("button", { name: "Use separate settings here" }).click();
     await expect(page.getByText(/Editing own settings for the scene Aftermath/)).toBeVisible();
     await page.getByRole("button", { name: "Back to Aftermath" }).click();
     await expect(page.getByRole("button", { name: "Scene 6: Aftermath" })).toHaveAttribute("aria-expanded", "true");

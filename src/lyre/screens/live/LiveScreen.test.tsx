@@ -289,7 +289,7 @@ describe("scenes and undo", () => {
 
   it("Could 21: the next scene's cue reads Starts when: and its words", async () => {
     await openLive();
-    expect(screen.getByRole("region", { name: "Scenes" })).toHaveTextContent("Starts when: As the recap starts");
+    expect(screen.getByRole("region", { name: "Scenes" })).toHaveTextContent("Story cue: As the recap starts");
   });
 });
 
@@ -573,7 +573,7 @@ describe("0.5.1: rooms from Live, without going to Rooms (Nik, 11 Nov)", () => {
     // Kick from the menu, with Undo.
     await userEvent.click(screen.getByRole("button", { name: "Lyre Table in Table: change" }));
     menu = within(screen.getByRole("menu", { name: "Room Table" }));
-    await userEvent.click(menu.getByRole("menuitem", { name: "Kick Lyre Table from Table" }));
+    await userEvent.click(menu.getByRole("menuitem", { name: "Make Lyre Table leave Table" }));
     await act(async () => outputs.settle());
     const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("group", { name: "Undo" }).find((st) => st.textContent?.includes("Lyre Table left Table"))!;
     expect(strip).toBeTruthy();
@@ -1162,7 +1162,7 @@ describe("rooms", () => {
     expect(menu.getByRole("menuitem", { name: /Copy what Side room is playing/ })).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     // Nobody is in Side room: Kick takes it out at once, asking nothing, and still offers Undo (w51-fix2: Nik's 0.5.0 test).
-    await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Side from Side room" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make Lyre Side leave Side room" }));
     await act(async () => outputs.settle());
     expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => expect(within(screen.getByRole("region", { name: "On air" })).queryByRole("group", { name: "Side room" })).toBeNull());
@@ -1176,7 +1176,7 @@ describe("rooms", () => {
   it("w51-fix2: Ctrl+Z undoes a Kick of a room nobody is in, as its Undo does (Nik's 0.5.0: \"Ctrl+z does not work\")", async () => {
     const { outputs } = await openLive();
     await addSideRoom(outputs);
-    await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Side from Side room" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make Lyre Side leave Side room" }));
     await act(async () => outputs.settle());
     await waitFor(() => expect(within(screen.getByRole("region", { name: "On air" })).queryByRole("group", { name: "Side room" })).toBeNull());
     blur();
@@ -1190,7 +1190,7 @@ describe("rooms", () => {
     await startAbbey();
     await playOn(sound, 3);
     const title = sound.audio.getNowPlaying().rooms[0].music!.title;
-    await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Table from Table" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make Lyre Table leave Table" }));
     await act(async () => outputs.settle());
     await playOn(sound);
     // No room still shows what plays (unheard), instead of clearing.
@@ -1209,7 +1209,7 @@ describe("rooms", () => {
     const { outputs, sound } = await openLive();
     await userEvent.click(screen.getByRole("button", { name: "Start: Recap and the coast road" }));
     await playOn(sound);
-    await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Table from Table" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make Lyre Table leave Table" }));
     await act(async () => outputs.settle());
     const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("group", { name: "Undo" }).find((st) => st.textContent?.includes("Lyre Table left Table"))!;
     await userEvent.click(within(strip).getByRole("button", { name: "Undo" }));
@@ -1304,7 +1304,7 @@ describe("UX-R4: focus after the control in use goes", () => {
     const { outputs, sound } = await openLive();
     await userEvent.click(screen.getByRole("button", { name: "Start: Recap and the coast road" }));
     await playOn(sound);
-    await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Table from Table" }));
+    await userEvent.click(screen.getByRole("button", { name: "Make Lyre Table leave Table" }));
     await act(async () => outputs.settle());
     await userEvent.click(within(screen.getByRole("region", { name: "On air" })).getByRole("button", { name: "Undo" }));
     await act(async () => outputs.settle());

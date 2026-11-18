@@ -369,7 +369,7 @@ export function libraryApiRound7(cx: Round7Context): Methods {
       return write(["campaigns"], () => {
         const { scene } = cx.requireScene(address);
         const keep = steps === null || !Array.isArray(steps) ? (steps as null) : stepsToKeep(steps, usualSceneSteps(scene));
-        store.change(`What ${scene.name || "the scene"} does when it starts`, () => {
+        store.change(`Start of ${scene.name || "the scene"}`, () => {
           setMovesOn(store, scene.id, movesOn);
           setSteps(store, { sceneId: scene.id }, keep);
         });

@@ -24,7 +24,7 @@ test.describe("all pad boards", () => {
     await expect(page.getByText("5 boards")).toBeVisible();
     await expect(boards(page).getByRole("link", { name: "Combat 4 × 3, 11 pads, 1 empty" })).toBeVisible();
     await expect(boards(page).getByRole("link", { name: "Weather and places 4 × 2, 8 pads, 1 spare" })).toBeVisible();
-    await expect(boards(page).getByRole("listitem").filter({ hasText: "Weather and places" })).toContainText("Used in 8 places");
+    await expect(boards(page).getByRole("listitem").filter({ hasText: "Weather and places" })).toContainText("Used 8 times");
   });
 
   test("a search finds boards by the board's name or by the label of a pad on it", async ({ page }) => {
@@ -209,7 +209,7 @@ test.describe("pads on a board", () => {
     await box.getByRole("button", { name: /^Hotkey/ }).click();
     await page.keyboard.press("q");
     await expect(box).toContainText('Q is also the key for "Fireball" on this board.');
-    await box.getByRole("button", { name: "Take it from that pad" }).click();
+    await box.getByRole("button", { name: "Remove it from that pad" }).click();
     await expect(padGrid(page).getByRole("button", { name: /^Fireball/ })).not.toHaveAccessibleName(/key Q/);
   });
 

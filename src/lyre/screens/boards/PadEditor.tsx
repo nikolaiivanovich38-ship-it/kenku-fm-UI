@@ -308,7 +308,7 @@ function SoundEditor({ board, at, tracks, tagGroups, sound, update, focusLater }
       <PickerDialog
         open={picking}
         title={`Sounds for "${pad.label}"`}
-        intro="Tick one effect, or several to play them as variants. Preview lets you hear each one first; the players hear nothing."
+        intro="Tick one effect, or several to play them as variants. Use Preview to hear each one first. The players hear nothing."
         items={fx.map((t) => ({
           id: t.id,
           label: trackTitle(t),
@@ -385,7 +385,7 @@ function TagSound({ at, tracks, tagGroups, update }: Pick<PadEditorProps, "board
           ))}
         </datalist>
       </div>
-      <p className="hint">Each press picks one of these {plural(matches.length, "effect")}.</p>
+      <p className="hint">Each press plays one of these {plural(matches.length, "effect")}.</p>
       {matches.length ? (
         <ul className="pb-files">
           {matches.map((t) => (
@@ -502,7 +502,7 @@ function Hotkey({ board, at, update, focusLater }: PadEditorProps) {
               })
             }
           >
-            Take it from that pad
+            Remove it from that pad
           </Button>
         </p>
       )}

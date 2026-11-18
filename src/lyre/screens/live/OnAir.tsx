@@ -279,7 +279,7 @@ function useMoveBot(): (r: LiveRoom, channelId: string) => void {
     client.move(view.bot.id, channelId);
     if (lost && back) {
       offerSoftUndo({ text: `${view.bot.name} moved from ${r.name} to ${to}`, where: `room:${r.roomId}`, focus: `room-${lk(r.roomId)}`, restore: () => client.move(view.bot.id, back) }, UNDO_MS);
-      say(`${view.bot.name} is joining ${to}. Undo is available for 8 seconds, or press Ctrl+Z.`);
+      say(`${view.bot.name} is joining ${to}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
     } else toast(`${view.bot.name} is joining ${to}`);
   };
 }
@@ -314,7 +314,7 @@ function useKick(): (r: LiveRoom) => void {
         },
         UNDO_MS,
       );
-      say(`${view.bot.name} left ${r.name}. Undo is available for 8 seconds, or press Ctrl+Z.`);
+      say(`${view.bot.name} left ${r.name}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
       focusLive("undo2");
     } else {
       say(`${view.bot.name} left ${r.name}`);
@@ -351,9 +351,9 @@ function RoomControls({ r }: { r: LiveRoom }) {
       <RoomVolume name={r.name} saved={volume.volume} onChange={volume.change} />
       {bot && client && <BotButton r={r} />}
       {bot && client && r.view?.channel && (
-        <button type="button" className="btn s lv-kick" data-lv={`kick-${lk(r.roomId)}`} aria-label={`Kick ${bot.name} from ${r.name}`} title={`Kick ${bot.name} from ${r.name}`} onClick={() => kick(r)}>
+        <button type="button" className="btn s lv-kick" data-lv={`kick-${lk(r.roomId)}`} aria-label={`Make ${bot.name} leave ${r.name}`} title={`Make ${bot.name} leave ${r.name}`} onClick={() => kick(r)}>
           <Icon name="leave" size="s" />
-          <span className="lv-kick-t">Kick</span>
+          <span className="lv-kick-t">Leave</span>
         </button>
       )}
     </>
@@ -455,7 +455,7 @@ function BotButton({ r }: { r: LiveRoom }) {
           content: (
             <>
               <Icon name="leave" size="s" />
-              Kick {bot.name} from {r.name}
+              Make {bot.name} leave {r.name}
             </>
           ),
           onSelect: () => kick(r),
@@ -498,7 +498,7 @@ function BotButton({ r }: { r: LiveRoom }) {
       label={`Room ${r.name}`}
       className="btn s lv-botpick"
       ariaLabel={`${bot.name} in ${r.name}: change`}
-      title={`Choose a channel for ${bot.name} (in ${r.name} now), add a room, another bot, or Kick`}
+      title={`Choose a channel for ${bot.name} (in ${r.name} now), put another bot in this room, add a room, or make ${bot.name} leave`}
       dataK={`room-${lk(r.roomId)}`}
       items={items}
     >
@@ -861,7 +861,7 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
               const before = d.state.aq;
               updateLive((s) => ({ aq: { ...s.aq, [roomId]: (s.aq[roomId] ?? []).filter((_, j) => j !== row.at) } }));
               offerSoftUndo({ text: `Taken out of Up next: ${a.name}`, where: `room:${roomId}`, focus: "undo2", restore: () => updateLive({ aq: before }) }, UNDO_MS);
-              say(`Taken out of Up next: ${a.name}. Undo is available for 8 seconds, or press Ctrl+Z.`);
+              say(`Taken out of Up next: ${a.name}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
               focusLiveSoon(nextX(row.at, true));
             }}
           >
@@ -1068,7 +1068,7 @@ function useAddRoom(): (bot: { id: string; name: string }, c: { channelId: strin
     // UX-R4: focus goes to the new room's bot button once it is drawn.
     focusLiveSoon([`room-${lk(bot.id)}`], { move: true });
     // UX-R9: a channel nobody is in says so in the room's own words.
-    const words = c.empty ? `${c.name} is joining: nobody there.` : `${c.name} is joining. It starts silent: choose To: ${c.name} in a box to play there.`;
+    const words = c.empty ? `${c.name} is joining, but nobody is there.` : `${c.name} is joining. It starts silent. To play there, choose To: ${c.name} in a box.`;
     say(words);
     toast(words);
   };

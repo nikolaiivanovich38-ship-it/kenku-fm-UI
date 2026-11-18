@@ -522,7 +522,7 @@ export function fakeRound7(
   };
   const sessions: Methods["sessions"] = {
     async setSceneSteps(address, steps, movesOn) {
-      return write((sc: SceneInfo) => `What ${sc.name || "the scene"} does when it starts`, ["campaigns"], () => {
+      return write((sc: SceneInfo) => `Start of ${sc.name || "the scene"}`, ["campaigns"], () => {
         const { scene: sc } = cx.scene(address);
         sc.movesOn = checkMovesOn(movesOn);
         sc.steps = steps === null ? null : stepsToKeep(checkStepRefs(steps, "scene"), usualSceneSteps(sc));

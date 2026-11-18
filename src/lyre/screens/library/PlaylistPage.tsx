@@ -169,10 +169,10 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
     },
     (t) =>
       t.kind !== "page" || pl.kind !== "manual"
-        ? `Drop to add to your Library. They appear in ${pl.name} only when their tags match its rules.`
+        ? `Drop to add them to the Track library. They appear in ${pl.name} only when their tags match its rules.`
         : t.index !== null && t.index >= 0
-          ? `Drop to add to ${pl.name} at position ${t.index + 1}. They also go into your Library.`
-          : `Drop to add to ${pl.name} (at the end). They also go into your Library.`,
+          ? `Drop to add to ${pl.name} at position ${t.index + 1}. They are added to the Track library too.`
+          : `Drop to add to ${pl.name} (at the end). They are added to the Track library too.`,
     (t, paths) => void dropFiles(actions, t, paths),
   );
 
@@ -492,7 +492,7 @@ function TrackRow({
         content: (
           <>
             <Icon name="library" size="s" />
-            Open in the Library
+            Open in Track library
           </>
         ),
         onSelect: () => (window.location.hash = hashOf(`library/${t.id}`)),

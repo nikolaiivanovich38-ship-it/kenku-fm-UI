@@ -83,7 +83,7 @@ describe("a pad board: the grid and its size (boards.js board editor)", () => {
     expect(spare()).toHaveAccessibleDescription("Pads that are not on the grid wait here; their keys do nothing until you put them back.");
     await user.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(pads()).toHaveLength(8));
-    expect(await spoken()).toBe("Undone. Grid is 4 × 2 again.");
+    expect(await spoken()).toBe("Undone. The grid is 4 × 2 again.");
     expect(screen.getByRole("textbox", { name: "Board name" })).toHaveFocus();
     expect((await api.boards.list()).find((b) => b.id === "weather")!.spare).toHaveLength(1);
   });
@@ -391,7 +391,7 @@ describe("the selected pad's own box", () => {
     expect((await api.boards.list()).find((b) => b.id === "weather")!.slots[0]!.mode).toBe("toggle");
   });
 
-  it("a key another pad has warns, and Take it from that pad clears the other pad's key", async () => {
+  it("a key another pad has warns, and Remove it from that pad clears the other pad's key", async () => {
     const user = userEvent.setup();
     const { api } = await open("board/combat");
     await user.click(within(padBox()).getByRole("button", { name: /^Hotkey/ }));
@@ -399,7 +399,7 @@ describe("the selected pad's own box", () => {
     await user.keyboard("q");
     expect(await within(padBox()).findByText('Q is also the key for "Fireball" on this board.')).toBeInTheDocument();
     expect(await spoken()).toBe("Hotkey Q. Warning: Fireball uses it too");
-    await user.click(within(padBox()).getByRole("button", { name: "Take it from that pad" }));
+    await user.click(within(padBox()).getByRole("button", { name: "Remove it from that pad" }));
     await waitFor(() => expect(pad("Fireball")).toHaveAccessibleName(/^Fireball: /));
     expect(await spoken()).toBe("Q now belongs to Sword clash only. Fireball has no key.");
     expect((await api.boards.list()).find((b) => b.id === "combat")!.slots[0]!.key).toBe("q");
@@ -470,7 +470,7 @@ describe("the selected pad's own box", () => {
     const tag = await within(padBox()).findByRole("combobox", { name: "Tag" });
     await user.clear(tag);
     await user.type(tag, "Eerie");
-    expect(await within(padBox()).findByText("Each press picks one of these 3 effects.")).toBeInTheDocument();
+    expect(await within(padBox()).findByText("Each press plays one of these 3 effects.")).toBeInTheDocument();
     await waitFor(async () => expect((await api.boards.list()).find((b) => b.id === "abbey")!.slots[0]!.sound).toMatchObject({ kind: "tag", tag: { group: "mood", value: "Eerie" } }));
   });
 
@@ -572,7 +572,7 @@ describe("the selected pad's own box", () => {
     await open("board/weather");
     const used = screen.getByRole("region", { name: "Used in" });
     expect(within(used).getByRole("link", { name: "The Sunken Crown (whole campaign)" })).toHaveAttribute("href", "#/campaign/crown");
-    expect(used.querySelector("header")).not.toHaveTextContent("8 places");
+    expect(used.querySelector("header")).not.toHaveTextContent("8 uses");
     await user.click(screen.getAllByRole("button", { name: "Use in…" })[0]);
     expect(screen.getByRole("dialog", { name: 'Use "Weather and places" in…' })).toBeInTheDocument();
   });

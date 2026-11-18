@@ -550,7 +550,7 @@ test.describe("rooms", () => {
     expectFailureUntilBuilt("live", "rooms-settings"); // OUT-7: Kick (×) in the room's header instead of Leave in its ⋯ menu
     await openRoute(page, "live");
     await addSideRoom(page);
-    await page.getByRole("button", { name: "Kick Lyre Side from Side room" }).click();
+    await page.getByRole("button", { name: "Make Lyre Side leave Side room" }).click();
     await expect(room(page, "Side room")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /choose a room/i })).toHaveCount(0);
   });
@@ -743,7 +743,7 @@ test.describe("round 6: see a scene before it starts, Add to queue, Repeat, and 
     expectFailureUntilBuilt("live", "rooms-settings");
     await openRoute(page, "live");
     await startFirstScene(page);
-    await page.getByRole("button", { name: "Kick Lyre Table from Table" }).click();
+    await page.getByRole("button", { name: "Make Lyre Table leave Table" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(room(page, "Table")).toHaveCount(0);
     await page.getByRole("group", { name: "Undo" }).filter({ hasText: "Lyre Table left Table" }).getByRole("button", { name: "Undo" }).click();
@@ -903,7 +903,7 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
     await expect(open).toHaveAttribute("aria-expanded", "false");
     await expect(room(page, "Table").getByRole("button", { name: "Pause music" })).toBeVisible();
     await open.click();
-    await expect(room(page, "Table").getByRole("button", { name: /^Kick / })).toBeVisible();
+    await expect(room(page, "Table").getByRole("button", { name: /^Make .+ leave / })).toBeVisible();
   });
 
   test("Should 6: the session's and the campaign's boxes sit under This session and Whole campaign", async ({ page }) => {
@@ -942,7 +942,7 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
     expectFailureUntilBuilt("live", "rooms-settings");
     await page.setViewportSize({ width: 1280, height: 800 });
     await openRoute(page, "live");
-    await expect(page.getByRole("button", { name: "Kick Lyre Table from Table" })).toHaveText("Kick");
+    await expect(page.getByRole("button", { name: "Make Lyre Table leave Table" })).toHaveText("Leave");
   });
 
   test("Should 10: with no bot in a voice channel, the row on air says On air · no room", async ({ page }) => {
@@ -1009,7 +1009,7 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
   test("Could 21: the next scene's cue reads Starts when: and its words", async ({ page }) => {
     expectFailureUntilBuilt("live");
     await openRoute(page, "live");
-    await expect(scenes(page)).toContainText("Starts when: As the recap starts");
+    await expect(scenes(page)).toContainText("Story cue: As the recap starts");
   });
 });
 
@@ -1236,7 +1236,7 @@ test.describe("round 7, part 2: Live", () => {
   async function sceneSteps(page: Page, scene: string) {
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: `More for ${scene}`, exact: true }).click();
-    await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
+    await page.getByRole("menuitem", { name: "Start…" }).click();
     return page.getByRole("dialog");
   }
 
@@ -1475,14 +1475,14 @@ test.describe("0.5.1: fades of 5 seconds, and Rooms' actions in On air", () => {
   test("Kick is beside the bot's button and in its menu; Undo shows after every Kick, even with nothing playing, and puts the bot back", async ({ page }) => {
     await openRoute(page, "live");
     const onAir = region(page, "On air");
-    await room(page, "Table").getByRole("button", { name: "Kick Lyre Table from Table" }).click();
+    await room(page, "Table").getByRole("button", { name: "Make Lyre Table leave Table" }).click();
     const undo = onAir.getByRole("group", { name: "Undo" });
     await expect(undo).toContainText("Lyre Table left Table");
     await expect(undo.getByRole("button", { name: "Undo" })).toBeFocused();
     await undo.getByRole("button", { name: "Undo" }).click();
     await expect(room(page, "Table")).toBeVisible();
     await room(page, "Table").getByRole("button", { name: /^Lyre Table in Table: change/ }).click();
-    await page.getByRole("menu").getByRole("menuitem", { name: "Kick Lyre Table from Table" }).click();
+    await page.getByRole("menu").getByRole("menuitem", { name: "Make Lyre Table leave Table" }).click();
     await expect(onAir.getByRole("group", { name: "Undo" })).toContainText("Lyre Table left Table");
   });
 
@@ -1490,7 +1490,7 @@ test.describe("0.5.1: fades of 5 seconds, and Rooms' actions in On air", () => {
     metByTheAppAlready("0.5.0's Kick with Undo already brings the music back when the players were hearing it");
     await openRoute(page, "live");
     await startAbbey(page);
-    await room(page, "Table").getByRole("button", { name: "Kick Lyre Table from Table" }).click();
+    await room(page, "Table").getByRole("button", { name: "Make Lyre Table leave Table" }).click();
     await region(page, "On air").getByRole("group", { name: "Undo" }).getByRole("button", { name: "Undo" }).click();
     await expect(room(page, "Table").getByRole("group", { name: "Music in Table", exact: true }).locator("xpath=..")).toContainText("Eerie dread");
   });
@@ -1526,7 +1526,7 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     const menu = page.getByRole("menu", { name: "Room Table" });
     await expect(menu).toContainText("Lyre Table plays in");
     await expect(menu).toContainText("Add a room: Lyre Side joins…");
-    await expect(menu.getByRole("menuitem", { name: "Kick Lyre Table from Table" })).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Make Lyre Table leave Table" })).toBeVisible();
     await menu.getByRole("menuitem", { name: /^Side room.*Lyre Side joins$/ }).click();
     await expect(room(page, "Side room")).toBeVisible();
     await page.getByRole("button", { name: "Add a room" }).click();
