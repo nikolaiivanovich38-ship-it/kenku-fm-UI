@@ -189,8 +189,9 @@ sideways scroll, no overlap or cut-off text, axe WCAG 2.2 A and AA, keyboard, th
   article lists without Set up Lyre's buttons.
 - `tools/check-contrast.js`: all five themes pass (Hearth's teal: accent text 10.0:1, accent ink 4.5:1 or better).
   New controls are 24 px or more; the box's foot edge (drag only) has Move… as its keyboard and pointer alternative.
-- Written after the design, not before: the new checks were written while building, and each was seen to fail on a
-  first run before the fix that made it pass (Undo beside Find, the strip at half a screen, the Live tour).
+- Not test-first: the new checks were written alongside the code, not before it. Their first run failed five and found
+  real faults (Undo under Find lost its click, the strip shifted 3 px when Undo appeared, the Live tour skipped a step),
+  which were then fixed.
 
 ## Questions for Nik (recommended first)
 1. **Parchment's oxblood buttons** sit in the same red as On air, as Hearth's orange did: (a) ink blue, as you chose
