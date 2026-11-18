@@ -323,10 +323,10 @@
     return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade all: everything fades out over ' + L.FADE + ' seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
       '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
-      // Round 9 (item 44): Arrange moves and sizes the boxes (r9live.js).
-      (L.arrangeButton ? L.arrangeButton() : '') +
       '<span class="lv-keyswrap"><button class="btn s" data-act="lvkeys" data-k="lv-keys" aria-expanded="' + S.keysOpen + '" aria-controls="lv-keys-pop" title="Keyboard keys for the live screen">Keys' + L.icon(S.keysOpen ? 'chevup' : 'chevdown', 's') + '</button>' +
-      (S.keysOpen ? keysPop() : '') + '</span></div>';
+      (S.keysOpen ? keysPop() : '') + '</span>' +
+      // Round 9 (item 44): Arrange moves and sizes the boxes (r9live.js); last in the strip, so Tab order stays as before.
+      (L.arrangeButton ? L.arrangeButton() : '') + '</div>';
   }
   function keysPop() {
     var b = keysBoard(), pk = keysOf(b).join(' ') || 'none', off = S.keys1 ? '' : ' class="lv-off"';
@@ -543,7 +543,7 @@
     var rs = rooms(), idle = L.freeBots ? L.freeBots() : L.bots().filter(function (b) { return b.status === 'idle'; });
     var parts = rs.length ? rs.map(function (r) { return roomPart(roomTg(r.bots[0]), r.bots[0], r.name); }) : [roomPart('table', null, 'No room')];
     // Round 8: always there; with no free bot its menu offers Add a bot… (the Settings sheet, opened in place).
-    var add = '<button class="btn s" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false" title="' + (idle.length ? 'Play into another voice channel (' + idle.length + ' bot' + (idle.length === 1 ? '' : 's') + ' free)' : 'Every bot is in a room') + '">' + L.icon('plus', 's') + 'Room</button>';
+    var add = '<button class="btn s" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false" aria-label="Add a room" title="' + (idle.length ? 'Play into another voice channel (' + idle.length + ' bot' + (idle.length === 1 ? '' : 's') + ' free)' : 'Every bot is in a room') + '">' + L.icon('plus', 's') + 'Room</button>';
     var sum = collapsed('lv-onair') ? (rs.length ? rs : [{ name: 'No room', mix: pb }]).map(function (r) { var c = r.mix.music; return esc(r.name) + ': ' + (c ? esc(L.title(L.track(c.id))) : 'silent'); }).join(' · ') : '';
     return '<div class="lv-dock">' + L.pane({ id: 'lv-onair', title: 'On air', icon: 'broadcast', kind: 'onair', size: 'auto', flush: true, noMax: true, keys: 'Alt+1', actions: add, summary: sum,
       body: undoStrip('onair') + '<div class="lv-rooms' + (parts.length > 1 ? ' many' : '') + '">' + parts.join('') + '</div>' }) + '</div>';
@@ -883,7 +883,7 @@
   // The boxes in the order of Alt+1 to Alt+7 and of F6: top to bottom, left to right, the same in every layout.
   var BOXES = ['lv-onair', 'lv-scenes', 'lv-current', 'lv-ssp', 'lv-ssd', 'lv-cpp', 'lv-cpd'];
   // Round 9 (item 44): the boxes in the order they are on screen (top to bottom, left to right), wherever Arrange put them.
-  function boxesOnScreen() { return BOXES.map(function (id) { return document.querySelector('[data-k="pane-' + id + '"]'); }).filter(Boolean).sort(function (a, b) { var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return Math.round(ra.left / 40) - Math.round(rb.left / 40) || ra.top - rb.top; }); }
+  function boxesOnScreen() { var found = BOXES.map(function (id) { return document.querySelector('[data-k="pane-' + id + '"]'); }).filter(Boolean); if (!(L.liveArranged && L.liveArranged())) return found; return found.sort(function (a, b) { var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return Math.round(ra.left / 40) - Math.round(rb.left / 40) || ra.top - rb.top; }); }
   L.f6Order = function () { return onLive() ? boxesOnScreen() : null; };
   function groups(ids) {
     var out = [];

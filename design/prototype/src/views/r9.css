@@ -61,11 +61,8 @@
 .r9-fhint { margin: 0 0 6px; font-size: var(--fs-xs); }
 .r9-c3.is-hide { border-style: dashed; border-color: var(--warn); color: var(--ink-2); }
 .r9-c3.is-hide .r9-c3-w { text-decoration: line-through; text-decoration-thickness: 1.5px; }
-.r9-fo { display: flex; align-items: center; }
-.r9-fo > button:first-child { flex: 1; min-width: 0; }
-.r9-fohide { opacity: 0; }
-.r9-fo:hover .r9-fohide, .r9-fohide:focus-visible, .r9-fo.is-hide .r9-fohide { opacity: 1; }
-.r9-fo.is-hide > button:first-child { text-decoration: line-through; color: var(--ink-2); }
+.r9-fo.is-hide > button { color: var(--ink-2); }
+.r9-fo.is-hide > button .ellipsis { text-decoration: line-through; }
 
 /* §8 dividers everywhere, the Playlists list's order */
 .r9-divh { display: flex; align-items: center; gap: 8px; padding: 6px 8px 2px; list-style: none; color: var(--ink-2); font-size: var(--fs-s); }

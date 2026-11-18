@@ -89,14 +89,14 @@ board, Live and Look and feel.
 
 **Seen.** Fixed layouts by width; On air grows by a line when a pad fires and everything under it jumps; at half a
 screen an unfolded Up next takes 39 % of the height.
-**What.** **Arrange** in Live's strip. In Arrange mode each box has a bar: a **grip** to drag it (a line shows exactly
+**What.** **Arrange** at the end of Live's strip. In Arrange mode each box has a bar: a **grip** to drag it (a line shows exactly
 where it lands, above or below a box, or into an empty column), **Move up / Move down / column left / column right**
 buttons, and **Height − / +** (a fixed height scrolls inside, with a fade at its foot) with **Fit** to go back. Between
 columns a **splitter** to drag, with narrower/wider buttons. A spare empty column takes a box to make a new column (up
 to four). The boxes' contents cannot be clicked while arranging. **Done** keeps the layout for this window size (whole
 window, half a screen and narrow are kept apart); **Put back the usual layout** returns 0.5.1's. **On air** stays at the
 top, the whole width (Nik, 6 Nov), and can be given a fixed height here. Alt+1…7 and F6 follow the boxes in their new
-order.
+order once Nik has arranged that width (until then, the usual order).
 **WCAG 2.5.7.** Every drag has buttons that do the same.
 **For the app.** Layout per width in `this-computer.json`; boxes render from it.
 
@@ -122,7 +122,8 @@ you. In Live, each room's Up next rows have **Play now**.
 (the length after the Audio profile, item 7), Added, Folder; Put back the usual columns. **Headers sort** (A to Z, then Z
 to A, with aria-sort; item 25). The Filters box's **order** button: Tag list order, A to Z, Z to A, Most tracks first.
 Every filter chip has three states: off → **Show** (✓) → **Hide** (✕, struck out, dashed warning edge, "hidden" read
-out) → off; one short line at the top says so. A folder's ✕ hides its tracks. The box's summary reads "Tense · not
+out) → off; one short line at the top says so. A folder works the same way: once shows only it, again hides its
+tracks, again clears it. The box's summary reads "Tense · not
 Combat". Clear all clears both.
 **For the app.** The filter model gains `hide` per group, shapes and folders; columns and order are kept on this
 computer.
@@ -171,8 +172,8 @@ stays. A part's details say "Part of … (2:30–6:01)"; the whole track's list 
 
 > "Let's definitely build dip music for sound effects (pad effects)" (47)
 
-**What.** **Settings › Sound to Discord › Dip the music under effects**: how far (*Off · A little · A lot*), *Comes back*
-(*Quickly · Gently · Slowly*), *Ambience dips too*. Each pad: **While it plays**: *The usual* (one-shot and restart
+**What.** **Settings › Sound to Discord › Dip the music under effects**: *How far* (Off, A little, A lot) and *Comes
+back* (Quickly, Gently, Slowly), two menus like the crossfade's beside them, and *Ambience dips too*. Each pad: **While it plays**: *The usual* (one-shot and restart
 pads dip, loops and hold-to-play don't) · *Dip the music* · *Don't dip*; pads that dip have a small mark and say so in
 their name. While a dipping effect sounds, the room's music line says **Dipped**.
 **For the app.** PLY-7 (now decided): −6 dB / −12 dB, 0.1 s down, 0.5 / 1.5 / 3 s back; the dip lasts until the last

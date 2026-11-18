@@ -185,10 +185,9 @@
   }
   function folderBtn(f, label, n, sub) {
     var watched = D.watched.indexOf(f) > -1, hidden = st.hideFolders.indexOf(f) > -1, fk = f.replace(/\W/g, '_');
-    return '<li class="r9-fo' + (sub ? ' sub' : '') + (hidden ? ' is-hide' : '') + '"><button data-act="lbfolder" data-f="' + esc(f) + '" data-k="lb-fo-' + fk + '" aria-pressed="' + (st.folder === f) + '" title="' + esc(f || 'Every folder') + '">' +
-      L.icon(watched ? 'eye' : 'folder', 's') + '<span class="ellipsis grow">' + esc(label) + (hidden ? '<span class="sr-only">, hidden</span>' : '') + '</span>' + (watched ? '<span class="hint">watched</span>' : '') + '<span class="num lb-n">' + n + '</span></button>' +
-      // Round 9 (item 34): a folder can be hidden (its tracks left out), with one click.
-      (f ? '<button class="closer r9-fohide" data-act="r9fohide" data-f="' + esc(f) + '" data-k="lb-foh-' + fk + '" aria-pressed="' + hidden + '" title="' + (hidden ? 'Show this folder again' : 'Hide this folder: leave out its tracks') + '" aria-label="Hide ' + esc(label) + '">' + L.icon(hidden ? 'eye' : 'close', 's') + '</button>' : '') + '</li>';
+    return '<li class="r9-fo' + (sub ? ' sub' : '') + (hidden ? ' is-hide' : '') + '"><button data-act="lbfolder" data-f="' + esc(f) + '" data-k="lb-fo-' + fk + '" aria-pressed="' + (st.folder === f) + '" title="' + esc(f || 'Every folder') + (f ? (st.folder === f ? ': click again to hide its tracks' : hidden ? ': hidden; click to show it again' : '') : '') + '">' +
+      (hidden ? L.icon('close', 's') : L.icon(watched ? 'eye' : 'folder', 's')) + '<span class="ellipsis grow">' + esc(label) + (hidden ? '<span class="sr-only">, hidden</span>' : '') + '</span>' + (watched ? '<span class="hint">watched</span>' : '') + '<span class="num lb-n">' + n + '</span></button>' +
+      '</li>';
   }
 
   /* ---------- Tracks pane ---------- */
@@ -508,14 +507,21 @@
   // Round 9 (item 34): off → Show → Hide → off.
   function cycle(show, hide, v) { var i = show.indexOf(v), j = hide.indexOf(v); if (i > -1) { show.splice(i, 1); hide.push(v); return 'hidden'; } if (j > -1) { hide.splice(j, 1); return 'cleared'; } show.push(v); return 'shown'; }
   L.acts.lbfshape = function (el) { var w = cycle(st.shapes, st.hideShapes, el.dataset.v); L.render(); L.say(L.shapeName[el.dataset.v] + ' ' + w); };
-  L.acts.r9fohide = function (el) { var f = el.dataset.f, i = st.hideFolders.indexOf(f); if (i > -1) st.hideFolders.splice(i, 1); else { st.hideFolders.push(f); if (st.folder === f) st.folder = ''; } L.render(); L.say(shortPath(f) + (i > -1 ? ' shown again' : ' hidden')); };
   L.acts.r9forder = function (el) {
     L.menu(el, '<div class="group">Order the filters</div>' + FORDERS.map(function (x) { return '<button role="menuitemradio" aria-checked="' + (st.forder === x[0]) + '" data-act="r9fordset" data-v="' + x[0] + '">' + (st.forder === x[0] ? L.icon('check', 's') : '<span style="width:14px"></span>') + x[1] + '</button>'; }).join(''), 'Order the filters');
   };
   L.acts.r9fordset = function (el) { st.forder = el.dataset.v; try { localStorage.setItem('lyre-r9-forder', st.forder); } catch (e) { /* storage unavailable */ } L.closeMenu(); L.render(); var b = document.querySelector('[data-k="lb-forder"]'); if (b) b.focus(); L.say('Filters ordered ' + FORDERS.filter(function (x) { return x[0] === st.forder; })[0][1]); };
   L.acts.lbnew = function () { st.newOnly = !st.newOnly; L.render(); L.say(st.newOnly ? 'Showing new tracks not tagged yet' : 'Showing all tracks'); };
   L.acts.lbftag = function (el) { var w = cycle(want(el.dataset.g), hid(el.dataset.g), el.dataset.v); L.render(); L.say(el.dataset.v + ' ' + w); };
-  L.acts.lbfolder = function (el) { st.folder = el.dataset.f; L.render(); };
+  // Round 9 (item 34): a folder works like a filter chip: once shows only it, again hides it, again clears it.
+  L.acts.lbfolder = function (el) {
+    var f = el.dataset.f, i = st.hideFolders.indexOf(f);
+    if (!f) { st.folder = ''; st.hideFolders = []; }
+    else if (st.folder === f) { st.folder = ''; st.hideFolders.push(f); L.say(shortPath(f) + ' hidden'); }
+    else if (i > -1) { st.hideFolders.splice(i, 1); L.say(shortPath(f) + ' shown again'); }
+    else st.folder = f;
+    L.render();
+  };
   L.inputs.lbemin = function (el) { st.emin = +el.value; if (st.emax < st.emin) st.emax = st.emin; L.render(); };
   L.inputs.lbemax = function (el) { st.emax = +el.value; if (st.emin > st.emax) st.emin = st.emax; L.render(); };
   L.acts.lbclearall = function () { clearFilters(); st.q = ''; L.render(); L.say('Filters cleared'); };

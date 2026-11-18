@@ -55,18 +55,17 @@
     if (D.dip.amount === 'off' || (ln === 'amb' && !D.dip.amb)) return false;
     return L.fxFor(tg).some(function (f) { if (f.fadeOut) return false; var p = padOf(f.ref); if (p) return L.padDips(p); var t = f.ref && f.ref.indexOf('track/') === 0 && L.track(f.ref.slice(6)); return !!(t && t.role === 'Sting'); });
   };
-  function seg(name, list, cur, act) {
-    return '<div class="seg s" role="radiogroup" aria-label="' + esc(name) + '">' + list.map(function (x) { return '<button role="radio" aria-checked="' + (cur === x[0]) + '" data-act="' + act + '" data-v="' + x[0] + '" data-k="' + act + '-' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
+  function pick(id, label, list, cur, input) {
+    return '<div class="field"><label for="' + id + '">' + label + '</label><select class="input" id="' + id + '" data-input="' + input + '" data-k="' + id + '">' + list.map(function (x) { return '<option value="' + x[0] + '"' + (cur === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div>';
   }
   L.dipSettingsHTML = function () {
-    return '<fieldset class="r9-dip"><legend>Dip the music under effects</legend>' +
-      '<div class="r9-dip-row"><span class="r9-dip-l" id="r9-dip-a">How far</span>' + seg('How far the music dips', AMOUNTS, D.dip.amount, 'r9dipamt') + '</div>' +
-      '<div class="r9-dip-row"><span class="r9-dip-l">Comes back</span>' + seg('How fast the music comes back', BACKS, D.dip.back, 'r9dipback') + '</div>' +
+    return '<fieldset class="r9-dip"><legend>Dip the music under effects</legend><div class="st-xf">' +
+      pick('r9-dipamt', 'How far', AMOUNTS, D.dip.amount, 'r9dipamt') + pick('r9-dipback', 'Comes back', BACKS, D.dip.back, 'r9dipback') + '</div>' +
       '<label class="r9-dip-row"><input type="checkbox" data-input="r9dipamb" data-k="r9-dipamb"' + (D.dip.amb ? ' checked' : '') + '>Ambience dips too</label>' +
       '<p class="hint">Effects with Dip the music on make the music quieter while they play.</p></fieldset>';
   };
-  L.acts.r9dipamt = function (el) { D.dip.amount = el.dataset.v; L.render(); L.saved('dip the music: ' + el.textContent.toLowerCase(), { key: 'r9dip' }); var b = document.querySelector('[data-k="r9dipamt-' + el.dataset.v + '"]'); if (b) b.focus(); };
-  L.acts.r9dipback = function (el) { D.dip.back = el.dataset.v; L.render(); L.saved('the music comes back ' + el.textContent.toLowerCase(), { key: 'r9dipb' }); var b = document.querySelector('[data-k="r9dipback-' + el.dataset.v + '"]'); if (b) b.focus(); };
+  L.inputs.r9dipamt = function (el) { D.dip.amount = el.value; L.saved('dip the music: ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dip' }); };
+  L.inputs.r9dipback = function (el) { D.dip.back = el.value; L.saved('the music comes back ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dipb' }); };
   L.inputs.r9dipamb = function (el) { D.dip.amb = el.checked; L.saved(el.checked ? 'ambience dips too' : 'ambience keeps its level', { key: 'r9dipamb' }); };
   L.padDipHTML = function (p) {
     var usual = USUAL_DIP[p.mode], cur = p.dip == null ? 'usual' : p.dip ? 'dip' : 'no';
@@ -141,6 +140,8 @@
   function current(mode) { var c = lay(mode, DEFAULT[mode]); return c; }
   var DEFAULT = { 1: [ALL.slice()], 2: [['scenes', 'ssp', 'ssd', 'cpp', 'cpd'], ['current']], 3: [['scenes'], ['current'], ['ssp', 'ssd', 'cpp', 'cpd']] };
   L.arranging = function () { return A.on && L.current().name === 'live'; };
+  // Whether Nik made his own layout for the window's width (then the keyboard follows the boxes on screen).
+  L.liveArranged = function () { return !!A.saved[MODES[mode()]]; };
   L.liveLayout = function (mode, def) {
     DEFAULT[mode] = def;
     var c = lay(mode, def), out = c.cols;

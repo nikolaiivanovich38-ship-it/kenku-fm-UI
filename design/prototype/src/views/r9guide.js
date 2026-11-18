@@ -171,7 +171,7 @@
       (hidden ? '' : '<div class="r9-setup-bar" role="progressbar" aria-label="Set up Lyre" aria-valuemin="0" aria-valuemax="' + p.of + '" aria-valuenow="' + p.n + '"><span style="width:' + Math.round(p.n / p.of * 100) + '%"></span></div><ol class="r9-setup-list">' + TASKS.map(function (t, i) {
         var d = t.done();
         return '<li class="' + (d ? 'done' : '') + '"><span class="r9-setup-mark" aria-hidden="true">' + (d ? L.icon('check', 's') : (i + 1)) + '</span><span class="grow">' + esc(t.title) + '<span class="sr-only">' + (d ? ', done' : ', to do') + '</span></span>' +
-          '<button class="btn s ' + (d ? 'ghost' : '') + '" data-act="r9showme" data-tour="' + t.tour + '" data-k="r9-show-' + t.id + '">' + (d ? 'Show me again' : 'Show me') + '</button></li>';
+          '<button class="btn s ' + (d ? 'ghost' : '') + '" data-act="r9showme" data-tour="' + t.tour + '" data-k="r9-show-' + t.id + '" aria-label="' + (d ? 'Show me again' : 'Show me') + ': ' + esc(t.title) + '">' + (d ? 'Show me again' : 'Show me') + '</button></li>';
       }).join('') + '</ol>') + '</section>';
     return h;
   };
