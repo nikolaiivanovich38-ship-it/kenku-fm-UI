@@ -605,3 +605,13 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Live" })).toBeAttached();
   });
 });
+
+test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
+  test("item 7: a track's row shows its file's length and, under it, the length its Audio profile plays", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const length = row(page, /^Select Eerie dread/).locator("td.lb-c-dur");
+    await expect(length).toContainText("7:21");
+    await expect(length.getByTitle("Plays 5:18 with its Audio profile (file 7:21)")).toBeVisible();
+  });
+});

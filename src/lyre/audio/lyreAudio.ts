@@ -1281,7 +1281,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const preview: PreviewNowPlaying | null = current && {
       ...current,
       position: at && at.key === current.key ? at.seconds : null,
-      length: this.parts.preview.length(),
+      length: current.trackId ? agreedLength((this.library.track(current.trackId)?.durationMs ?? 0) / 1000, this.parts.preview.length()) : this.parts.preview.length(),
       volume: this.parts.preview.volume(),
     };
     const rooms = this.disposed ? [] : this.director.report().map((room) => this.roomState(room));
@@ -1337,10 +1337,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   private laneState(roomId: string, lane: MusicOrAmbience, playing: PlayingReport): LaneNowPlaying {
     const voice = this.laneVoice(roomId, lane);
-    // The library's length, as every list shows it, so the Now playing bar agrees with them; the playing file's
-    // length only for a track the library has no length for.
-    const known = (this.library.track(playing.trackId)?.durationMs ?? 0) / 1000;
-    const length = Number.isFinite(known) && known > 0 ? known : voice && Number.isFinite(voice.duration) ? voice.duration : null;
+    const length = agreedLength((this.library.track(playing.trackId)?.durationMs ?? 0) / 1000, voice ? voice.duration : null);
     return {
       trackId: playing.trackId,
       title: playing.title,
@@ -1370,3 +1367,16 @@ export const DEFAULT_FADES_MS = {
   fadeLane: DEFAULT_FADES.fadeLane * 1000,
   fadeAll: DEFAULT_FADES.fadeAll * 1000,
 } as const;
+
+/**
+ * The length Now playing and Live show for a track (item 51): the library's, as every list shows it, so the times
+ * agree (10:00 in the list is 10:00 here); the playing file's when the library has none, or when the file is a second
+ * or more away from it (BUG-22: the file was replaced). Seconds; null until either is known.
+ */
+export function agreedLength(librarySeconds: number, fileSeconds: number | null): number | null {
+  const lib = Number.isFinite(librarySeconds) && librarySeconds > 0 ? librarySeconds : null;
+  const file = fileSeconds !== null && Number.isFinite(fileSeconds) && fileSeconds > 0 ? fileSeconds : null;
+  if (lib === null) return file;
+  if (file === null) return lib;
+  return Math.abs(file - lib) < 1 ? lib : file;
+}

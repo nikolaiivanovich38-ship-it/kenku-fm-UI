@@ -11,15 +11,10 @@
 import React, { useRef, useState } from "react";
 
 import { cx } from "./cx";
+import { clockTime } from "../../common/lyre/text";
 
-/** "1:23", "1:02:03", rounded as the time beside the bar is (clockTime). */
-function clock(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const ss = String(s % 60).padStart(2, "0");
-  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
-}
+/** "1:23", "1:02:03", as the time beside the bar (item 51: the one helper). */
+const clock = clockTime;
 
 /** Seconds the arrow keys and Page keys move. */
 export const SEEK_STEP_S = 5;

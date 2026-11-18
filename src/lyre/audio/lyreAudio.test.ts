@@ -680,11 +680,21 @@ describe("now-playing state and its events", () => {
     expect(calls).toBe(stopped);
   });
 
-  it("says the preview's length once its file is known, without anything else changing (UX-16)", async () => {
+  it("says the preview's length at once, from the library, and keeps it once the file is known (UX-16, item 51)", async () => {
     rig.audio.previewTrack("m2");
-    expect(state().preview?.length).toBeNull();
+    expect(state().preview?.length).toBe(20);
     await rig.advance(0.5);
     expect(state().preview?.length).toBe(20);
+  });
+
+  it("item 51: Now playing shows the library's length when the file is less than a second off it, on air and in a preview", async () => {
+    // The tags say 20.4 s (0:20 in every list); the decoded file is 20 s. Both rows say 0:20, as the list does.
+    rig.data.tracks.find((t) => t.id === "m2")!.durationMs = 20_400;
+    rig.audio.previewTrack("m2", { quiet: true });
+    rig.audio.playTrack("m2");
+    await rig.advance(0.5);
+    expect(state().preview!.length).toBe(20.4);
+    expect(first().music!.length).toBe(20.4);
   });
 
   it("keeps the playing track and the next one read ahead", async () => {

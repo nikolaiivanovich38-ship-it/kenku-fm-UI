@@ -21,7 +21,7 @@ import { ShapeTag } from "../../kit/ShapeGlyph";
 import { EnergyMeter } from "../../kit/Pills";
 import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
-import { fmt, kindMark, shownTitle } from "./model";
+import { fmt, kindMark, playedMs, shownTitle } from "./model";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 
@@ -348,7 +348,9 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
           </span>
         )}
       </td>
-      <td className="lb-c-dur num">{fmt(t.durationMs)}</td>
+      <td className="lb-c-dur num">
+        <LengthCell t={t} />
+      </td>
       <td className="lb-c-pv">
         <div className="lb-rowbtns">
           <PreviewButton target={{ kind: "track", id: t.id }} name={shown} tabIndex={-1} />
@@ -361,3 +363,22 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
     </tr>
   );
 });
+
+/**
+ * Item 7: the file's length, and under it the length its own Audio profile plays (Start to End) when the two differ
+ * as the list writes them. Item 51: both by the one helper (fmt).
+ */
+function LengthCell({ t }: { t: LibraryTrack }) {
+  const file = fmt(t.durationMs);
+  const played = fmt(playedMs(t));
+  if (played === file) return <>{file}</>;
+  return (
+    <span className="lb-len">
+      <span>{file}</span>
+      <span className="lb-played" title={`Plays ${played} with its Audio profile (file ${file})`}>
+        <span className="sr-only">, plays </span>
+        {played}
+      </span>
+    </span>
+  );
+}

@@ -8,7 +8,7 @@
  */
 import { isFx, resolveProfile, shapeOf, SHAPE_WORDS, type DomainTrack, type PlaylistRule, type ProfileOverrides, type TrackShape } from "../../../common/domain";
 import type { FolderRoot, LibraryTrack, TagGroup } from "../../../common/lyre/api";
-import { plural, shownTitle } from "../../../common/lyre/text";
+import { lengthText, plural, shownTitle } from "../../../common/lyre/text";
 import { trackHasTag, type TagTree } from "../../../common/domain/round7";
 import { inVocabularyOrder } from "../../../common/lyre/lookup";
 
@@ -74,17 +74,15 @@ export const inFolder = (t: { folder: string }, f: string): boolean => !f || t.f
 export const kindOk = (t: DomainTrack, k: KindFilter): boolean => k === "all" || (k === "fx" ? isFx(t) : t.kind === k);
 const energyOff = (f: LibraryFilter) => f.emin <= 1 && f.emax >= 5;
 
-/** "1:35" from milliseconds. */
-export function fmt(ms: number): string {
-  const s = Math.max(0, Math.round(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-/** A playlist's length: "19:26", or "1:02:05" from an hour. */
-export function fmtLong(ms: number): string {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 3600) return fmt(s * 1000);
-  const h = Math.floor(s / 3600);
-  return `${h}:${fmt((s - h * 3600) * 1000).padStart(5, "0")}`;
+/** "1:35" from milliseconds (item 51: the one helper, common/lyre/text.ts lengthText). */
+export const fmt = lengthText;
+/** A playlist's length: "19:26", or "1:02:05" from an hour (the same helper). */
+export const fmtLong = lengthText;
+
+/** Item 7: how long a track plays with its own Audio profile, Start to End (the file's length when it has none). */
+export function playedMs(t: DomainTrack): number {
+  const p = resolveProfile(t, [], {}).profile;
+  return Math.max(0, p.endMs - p.startMs);
 }
 
 /** When a track was added, as the Details pane says it: "Today", "12 Sep", or "12 Sep 2025" in another year. */

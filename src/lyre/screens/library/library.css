@@ -233,3 +233,7 @@ body .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
 /* PLY-15: Normalise volume in a track's How it plays, lined up with the rows around it. */
 .view .lb-tg.lb-normrow { display: block; }
 .view .lb-normrow .norm { grid-template-columns: 74px minmax(0, 1fr); gap: 6px; }
+
+/* 0.5.2 item 7: the file's length, and under it the length its Audio profile plays. */
+.view .lb-len { display: flex; flex-direction: column; line-height: 1.1; }
+.view .lb-played { font-size: var(--fs-xs); color: var(--ink-3); }

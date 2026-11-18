@@ -5,7 +5,7 @@
 import { isFx, playlistTracks, type DomainLookup, type SoundRef, type TrackRole } from "../../../common/domain";
 import type { CampaignInfo, LibraryTrack, PadBoard, Pad, PlaylistInfo, SessionInfo, SessionStatus } from "../../../common/lyre/api";
 import { lookupFrom } from "../../../common/lyre/lookup";
-import { plural, shownTitle } from "../../../common/lyre/text";
+import { lengthText, plural, shownTitle } from "../../../common/lyre/text";
 import { DEFAULT_THEME, THEME_CHOICES, THEMES, type ThemeChoice, type ThemeId } from "../../shell/themes";
 
 export { plural };
@@ -84,10 +84,7 @@ const ROLE_WORDS: Record<TrackRole, string> = {
 const LANE_WORDS = { music: "Music", amb: "Ambience", fx: "FX" } as const;
 
 /** m:ss */
-export function formatLength(ms: number): string {
-  const s = Math.max(0, Math.round(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
+export const formatLength = lengthText;
 
 /** Everything the screens show about the library, loaded once and looked up by id. */
 export interface LibraryIndex {
