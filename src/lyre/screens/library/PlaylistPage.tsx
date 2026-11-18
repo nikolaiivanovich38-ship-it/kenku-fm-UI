@@ -39,7 +39,8 @@ import { TagStrip } from "../../kit/TagStrip";
 import "./library.css";
 import "./playlists.css";
 import { TopLead } from "../../shell/TopBar";
-import { withDividers } from "../../../common/lyre/lookup";
+import { layoutOf, withDividers } from "../../../common/lyre/lookup";
+import { useDragReorder, type DragReorder } from "../../kit/reorder";
 import { AddToDialog, DropTray } from "../drop/DropTray";
 import { useSave } from "../../shell/useSave";
 import { SAVE_AFTER_MS } from "../../kit/SavedField";
@@ -64,7 +65,7 @@ function trackTip(t: LibraryTrack): string {
     `\nFile: ${t.fileName}` +
     (tags.length ? `\nTags: ${tags.join(", ")}` : "") +
     (t.energy ? `\nEnergy ${t.energy} of 5` : "") +
-    "\nClick to open in the Library"
+    "\nClick to open in the Track library"
   );
 }
 
@@ -160,7 +161,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
   useFileDrops(
     (el, clientY): DropTarget | null => {
       if (pl.kind !== "manual") return { kind: "page", playlist: pl, index: null };
-      const row = el?.closest<HTMLElement>('[data-pane="pl-tracks"] .pl-tr[draggable]');
+      const row = el?.closest<HTMLElement>('[data-pane="pl-tracks"] .pl-tr[data-tid]');
       if (!row) return { kind: "page", playlist: pl, index: -1 };
       const r = row.getBoundingClientRect();
       const after = clientY > r.top + r.height / 2;
@@ -373,7 +374,7 @@ function TrackRow({
   manual,
   add,
   flash,
-  dropMark,
+  drag,
   onUseIn,
 }: {
   t: LibraryTrack;
@@ -382,13 +383,16 @@ function TrackRow({
   data: PlaylistData;
   onAir: boolean;
   previewing: string | null;
-  /** Its place in a manual playlist (1-based): drawn with a grip and number, draggable, with Move and Remove. */
-  manual?: { pos: number; count: number; onMove: (to: number) => void; onRemove: () => void; onDividerAbove?: () => void; onAddTo?: () => void };
+  /**
+   * Its place in a manual playlist (1-based): drawn with a grip and number, draggable, with Move and Remove. Move up and
+   * Move down go a row at a time, past a divider too (0.5.2).
+   */
+  manual?: { pos: number; canUp: boolean; canDown: boolean; onMove: (by: -1 | 1) => void; onRemove: () => void; onDividerAbove?: () => void; onAddTo?: () => void };
   /** In the Add tracks box: an Add button, or a tick when it is in the playlist already. */
   add?: { inList: boolean; onAdd: () => void };
   flash?: boolean;
-  /** A row being dragged would land above or below this one. */
-  dropMark?: "before" | "after" | null;
+  /** 0.5.2: its row in the list's drag and drop (kit/reorder): the props to spread and its class names. */
+  drag?: { props: ReturnType<DragReorder["rowProps"]>; className: string };
   /** ORG-12: Use in… from the row's menu. */
   onUseIn?: (t: LibraryTrack) => void;
 }) {
@@ -400,7 +404,6 @@ function TrackRow({
   const menu = (): PopMenuEntry[] => {
     const entries: PopMenuEntry[] = [];
     if (manual) {
-      const at = manual.pos - 1;
       entries.push(
         {
           content: (
@@ -409,8 +412,8 @@ function TrackRow({
               Move up<span className="kbd pl-mk">Alt+↑</span>
             </>
           ),
-          disabled: at === 0,
-          onSelect: () => manual.onMove(at - 1),
+          disabled: !manual.canUp,
+          onSelect: () => manual.onMove(-1),
         },
         {
           content: (
@@ -419,8 +422,8 @@ function TrackRow({
               Move down<span className="kbd pl-mk">Alt+↓</span>
             </>
           ),
-          disabled: at === manual.count - 1,
-          onSelect: () => manual.onMove(at + 1),
+          disabled: !manual.canDown,
+          onSelect: () => manual.onMove(1),
         },
         {
           content: (
@@ -498,7 +501,7 @@ function TrackRow({
     return entries;
   };
   return (
-    <li className={cx("pl-tr", pv && "pl-is-pv", flash && "pl-flash", dropMark && `pl-drop-${dropMark}`)} data-tid={t.id} draggable={manual ? true : undefined}>
+    <li className={cx("pl-tr", pv && "pl-is-pv", flash && "pl-flash", drag?.className)} data-tid={t.id} draggable={manual ? true : undefined} {...drag?.props}>
       {manual && (
         <>
           <span className="pl-grip" title="Drag to change the order" aria-hidden="true">
@@ -596,24 +599,6 @@ function TracksPane({
   const api = useLyreApi();
   const { say } = useAnnounce();
   const ok = useWriteOk();
-  const drag = useRef<string | null>(null);
-  const [mark, setMark] = useState<{ id: string; after: boolean } | null>(null);
-
-  const moveTo = async (tid: string, to: number) => {
-    const from = pl.trackIds.indexOf(tid);
-    const target = Math.max(0, Math.min(pl.trackIds.length - 1, to));
-    if (from < 0 || target === from) return;
-    const order = pl.trackIds.filter((x) => x !== tid);
-    order.splice(target, 0, tid);
-    edit({ ...pl, trackIds: order });
-    if (!ok(await api.playlists.moveTrack(pl.id, tid, target))) {
-      edit(null);
-      return;
-    }
-    const t = data.byId.get(tid);
-    say(`Moved ${t ? shownTitle(t) : "the track"} to position ${target + 1} of ${pl.trackIds.length}`);
-    focusSoon(`m-more-${tid}`);
-  };
   const remove = async (tid: string) => {
     const i = pl.trackIds.indexOf(tid);
     const rest = pl.trackIds.filter((x) => x !== tid);
@@ -627,20 +612,50 @@ function TracksPane({
     say(`Removed ${t ? shownTitle(t) : "the track"}. ${plural(rest.length, "track")} left.`);
     focusSoon(next ? `m-more-${next}` : "pladdopen");
   };
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
-    const row = (e.target as HTMLElement).closest<HTMLElement>(".pl-tr[draggable]");
-    if (!row) return;
-    e.preventDefault();
-    const tid = row.dataset.tid as string;
-    void moveTo(tid, pl.trackIds.indexOf(tid) + (e.key === "ArrowUp" ? -1 : 1));
-  };
   const total = tracks.reduce((s, t) => s + t.durationMs, 0);
   /** ORG-4: dividers among the tracks, and the one being named (above the track at `at`, or an existing one). */
   const entries = withDividers(
     tracks.map((t) => t.id),
     pl.dividers ?? [],
   );
+  /**
+   * 0.5.2 (Nik's item 36): a track or a divider moves to row `to` of the list as shown, dividers included, so it lands
+   * on the side of a divider it was dropped on (or moved past with Move up, Move down, Alt+Up or Alt+Down).
+   */
+  const moveEntry = async (from: number, to: number) => {
+    const entry = entries[from];
+    if (!entry || to < 0 || to >= entries.length || to === from) return;
+    const order = entries.filter((_, i) => i !== from);
+    order.splice(to, 0, entry);
+    const layout = layoutOf(order);
+    edit({ ...pl, ...layout });
+    if (!ok(await api.playlists.moveItem(pl.id, entry.kind === "track" ? { trackId: entry.trackId } : { dividerId: entry.id }, to))) {
+      edit(null);
+      return;
+    }
+    const above = order.slice(0, to).reverse().find((e) => e.kind === "divider");
+    const under = above?.kind === "divider" ? `, under the divider ${above.name}` : "";
+    if (entry.kind === "track") {
+      const t = data.byId.get(entry.trackId);
+      say(`Moved ${t ? shownTitle(t) : "the track"} to position ${layout.trackIds.indexOf(entry.trackId) + 1} of ${layout.trackIds.length}${under}`);
+      focusSoon(`m-more-${entry.trackId}`);
+    } else {
+      const next = order.slice(to + 1).find((e) => e.kind === "track");
+      const t = next?.kind === "track" ? data.byId.get(next.trackId) : undefined;
+      say(`Moved the divider ${entry.name} ${t ? `above ${shownTitle(t)}` : "to the end"}`);
+      focusSoon(`div-more-${entry.id}`);
+    }
+  };
+  const drag = useDragReorder(`pl-${pl.id}`, (from, to) => void moveEntry(from, to), { rowsDraggable: true });
+  // Alt+Up or Alt+Down on a row (a track or a divider) moves it a row at a time.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    const row = (e.target as HTMLElement).closest<HTMLElement>(".pl-tr[data-idx]");
+    if (!row) return;
+    e.preventDefault();
+    const at = Number(row.dataset.idx);
+    void moveEntry(at, at + (e.key === "ArrowUp" ? -1 : 1));
+  };
   const [naming, setNaming] = useState<{ at: number } | { divider: { id: string; name: string } } | null>(null);
   /** ORG-5: the track whose Add to… is open. */
   const [addingTo, setAddingTo] = useState<string | null>(null);
@@ -676,57 +691,28 @@ function TracksPane({
               className="pl-tracks"
               aria-label="Tracks in order"
               onKeyDown={onKeyDown}
-              onDragStart={(e) => {
-                const li = (e.target as HTMLElement).closest<HTMLElement>(".pl-tr[draggable]");
-                if (!li) return;
-                drag.current = li.dataset.tid as string;
-                e.dataTransfer.effectAllowed = "move";
-                try {
-                  e.dataTransfer.setData("text/plain", drag.current);
-                } catch {
-                  /* older engines */
-                }
-                li.classList.add("pl-dragging");
-              }}
-              onDragEnd={(e) => {
-                drag.current = null;
-                (e.target as HTMLElement).closest(".pl-tr")?.classList.remove("pl-dragging");
-                setMark(null);
-              }}
-              onDragOver={(e) => {
-                const li = (e.target as HTMLElement).closest<HTMLElement>(".pl-tr[draggable]");
-                if (!drag.current || !li) return;
-                // Handled here: the page's drop guard (SEC-7) would otherwise refuse the drop.
-                e.preventDefault();
-                e.stopPropagation();
-                e.dataTransfer.dropEffect = "move";
-                const r = li.getBoundingClientRect();
-                const after = e.clientY > r.top + r.height / 2;
-                if (mark?.id !== li.dataset.tid || mark.after !== after) setMark({ id: li.dataset.tid as string, after });
-              }}
-              onDrop={(e) => {
-                const li = (e.target as HTMLElement).closest<HTMLElement>(".pl-tr[draggable]");
-                const id = drag.current;
-                if (!id || !li) return;
-                e.preventDefault();
-                e.stopPropagation();
-                drag.current = null;
-                setMark(null);
-                if (li.dataset.tid === id) return;
-                const r = li.getBoundingClientRect();
-                const after = e.clientY > r.top + r.height / 2;
-                const others = pl.trackIds.filter((x) => x !== id);
-                void moveTo(id, others.indexOf(li.dataset.tid as string) + (after ? 1 : 0));
-              }}
             >
-              {entries.map((entry) => {
-                if (entry.kind === "divider") return <DividerRow key={`div-${entry.id}`} name={entry.name} onRename={() => setNaming({ divider: entry })} onRemove={() => void removeDivider(entry)} />;
+              {entries.map((entry, row) => {
+                const rowDrag = { props: drag.rowProps(row), className: drag.rowClass(row) };
+                const moves = { canUp: row > 0, canDown: row < entries.length - 1, onMove: (by: -1 | 1): void => void moveEntry(row, row + by) };
+                if (entry.kind === "divider")
+                  return (
+                    <DividerRow
+                      key={`div-${entry.id}`}
+                      id={entry.id}
+                      name={entry.name}
+                      drag={rowDrag}
+                      {...moves}
+                      onRename={() => setNaming({ divider: entry })}
+                      onRemove={() => void removeDivider(entry)}
+                    />
+                  );
                 const i = position++;
                 const t = tracks[i];
                 return (
                   <TrackRow
                     key={t.id}
-                    dropMark={mark?.id === t.id ? (mark.after ? "after" : "before") : null}
+                    drag={rowDrag}
                     t={t}
                     pl={pl}
                     prefix="m-"
@@ -737,8 +723,7 @@ function TracksPane({
                     onUseIn={onUseIn}
                     manual={{
                       pos: i + 1,
-                      count: tracks.length,
-                      onMove: (to) => void moveTo(t.id, to),
+                      ...moves,
                       onRemove: () => void remove(t.id),
                       onDividerAbove: () => setNaming({ at: i }),
                       onAddTo: () => setAddingTo(t.id),
@@ -1284,10 +1269,34 @@ function DetailsBody({
   );
 }
 
-/** ORG-4 (r7org.js dividerRow): a named line between tracks; it is not a track, so counts and playback skip it. */
-function DividerRow({ name, onRename, onRemove }: { name: string; onRename: () => void; onRemove: () => void }) {
+/**
+ * ORG-4 (r7org.js dividerRow): a named line between tracks; it is not a track, so counts and playback skip it. 0.5.2
+ * (Nik's item 36): it is dragged like a track, and moves a row at a time from its ⋯ or with Alt+Up and Alt+Down.
+ */
+function DividerRow({
+  id,
+  name,
+  drag,
+  canUp,
+  canDown,
+  onMove,
+  onRename,
+  onRemove,
+}: {
+  id: string;
+  name: string;
+  drag: { props: ReturnType<DragReorder["rowProps"]>; className: string };
+  canUp: boolean;
+  canDown: boolean;
+  onMove: (by: -1 | 1) => void;
+  onRename: () => void;
+  onRemove: () => void;
+}) {
   return (
-    <li className="pl-tr pl-div" aria-label={`Divider: ${name}`}>
+    <li className={cx("pl-tr pl-div", drag.className)} aria-label={`Divider: ${name}`} draggable {...drag.props}>
+      <span className="pl-grip" title="Drag to move the divider (or Alt+Up / Alt+Down)" aria-hidden="true">
+        <Icon name="drag" />
+      </span>
       <span className="pl-div-line" aria-hidden="true" />
       <b className="ellipsis pl-div-name" title={name}>
         {name}
@@ -1298,7 +1307,28 @@ function DividerRow({ name, onRename, onRemove }: { name: string; onRename: () =
         ariaLabel={`More for the divider ${name}`}
         title="More"
         className="btn s icon ghost"
+        focusKey={`div-more-${id}`}
         items={() => [
+          {
+            content: (
+              <>
+                <Icon name="chevup" size="s" />
+                Move up<span className="kbd pl-mk">Alt+↑</span>
+              </>
+            ),
+            disabled: !canUp,
+            onSelect: () => onMove(-1),
+          },
+          {
+            content: (
+              <>
+                <Icon name="chevdown" size="s" />
+                Move down<span className="kbd pl-mk">Alt+↓</span>
+              </>
+            ),
+            disabled: !canDown,
+            onSelect: () => onMove(1),
+          },
           {
             content: (
               <>
@@ -1349,7 +1379,21 @@ function DividerDialog({ title, okLabel, initial, onClose, onDone }: { title: st
     >
       <div className="field">
         <label htmlFor="pl-divname">Name</label>
-        <input className="input" id="pl-divname" autoComplete="off" placeholder="For example After the font" value={name} onChange={(e) => setName(e.target.value)} />
+        <input
+          className="input"
+          id="pl-divname"
+          autoComplete="off"
+          placeholder="For example After the font"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          // 0.5.2 (round 8 finding 7): Enter adds it, as in every other dialog.
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              done();
+            }
+          }}
+        />
       </div>
     </Dialog>
   );

@@ -8,7 +8,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import type { SoundRef, TrackNames, UsePlace } from "../../../common/domain";
-import { isRefused, type CampaignInfo, type SceneAddress, type SceneInfo, type SessionInfo, type SessionStatus } from "../../../common/lyre/api";
+import { isRefused, MAX_SESSION_NUMBER, type CampaignInfo, type SceneAddress, type SceneInfo, type SessionInfo, type SessionStatus } from "../../../common/lyre/api";
 import { shownTitle } from "../../../common/lyre/text";
 import { useCampaign, useLyreApi, useTagGroups } from "../../api";
 import { Button, IconButton } from "../../kit/Button";
@@ -52,7 +52,8 @@ import type { TagGroup } from "../../../common/lyre/api";
 import { NameInSceneDialog, TrackUseInDialog } from "./trackDialogs";
 import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
 import { useOptimisticScenes, type ScenePlay } from "./optimistic";
-import { useDragReorder } from "./reorder";
+import { DeleteSessionDialog } from "./deleting";
+import { useDragReorder, type DragReorder } from "../../kit/reorder";
 
 import "./campaigns.css";
 import { takeBackOpen, TopLead } from "../../shell/TopBar";
@@ -141,6 +142,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
   const focusedScene = useFocusedScene();
   const [picking, setPicking] = useState<Picking>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [deletingSession, setDeletingSession] = useState(false);
   /** PLY-8: the scene whose steps are open (What it does when it starts…). */
   const [stepsOf, setStepsOf] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
@@ -339,6 +341,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
           )}
         </h1>
         <StatusBadge status={s.status} />
+        <RowMenu label={`More for ${sessionLabel(s)}`} k="ss-more" items={[{ label: "Delete session…", icon: "trash", danger: true, onSelect: () => setDeletingSession(true) }]} />
         <span className="grow" />
         <ModeSwitch campaign={c} sessionId={s.id} />
         <Button variant={s.status === "next" ? "primary" : undefined} icon="broadcast" onClick={() => runInLive({ campaignId: c.id, sessionId: s.id })}>
@@ -359,6 +362,25 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
               onSave={(name) => void saveSession({ name }, `session name “${name.trim()}”`)}
             />
           </div>
+          {/* 0.5.2 (Nik's item 13): a campaign whose numbers are typed has each session's number here. */}
+          {c.numbering === "typed" && (
+            <div className="field cp-f-number">
+              <label htmlFor="cp-s-number">Session number</label>
+              <DraftField
+                className="input"
+                id="cp-s-number"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={MAX_SESSION_NUMBER}
+                value={String(s.number)}
+                onSave={(text) => {
+                  const number = Number(text);
+                  if (text.trim() !== "" && number !== s.number) void saveSession({ number }, `session number ${text.trim()}`);
+                }}
+              />
+            </div>
+          )}
           <div className="field cp-f-date">
             <label htmlFor="cp-s-date">Date</label>
             <input className="input" type="date" id="cp-s-date" value={s.date ?? ""} onChange={(event) => void saveSession({ date: event.target.value || null }, `Session ${s.number} date`)} />
@@ -544,6 +566,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
         />
       )}
       {usingIn && index.track(usingIn) && <TrackUseInDialog track={index.track(usingIn)!} index={index} onClose={() => setUsingIn(null)} />}
+      <DeleteSessionDialog session={deletingSession ? s : null} onClose={() => setDeletingSession(false)} onDeleted={() => (window.location.hash = `#/campaign/${c.id}`)} />
       {stepsScene && <StepsDialog owner={{ kind: "scene", campaignId: c.id, sessionId: s.id, scene: stepsScene }} onClose={() => setStepsOf(null)} />}
       <Dialog
         open={!!deletingScene}
@@ -807,6 +830,7 @@ function ItemRow({
   count,
   ctx,
   dropBefore,
+  drag,
   onChange,
 }: {
   scene: SceneInfo;
@@ -817,6 +841,8 @@ function ItemRow({
   ctx: SceneContext;
   /** Files dropped now would land before this row (an insertion line). */
   dropBefore?: boolean;
+  /** 0.5.2 (Nik's item 41): the list's drag and drop (kit/reorder): the row is dragged by its handle. */
+  drag: DragReorder;
   onChange: (op: "first" | "up" | "down" | "remove") => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -846,8 +872,13 @@ function ItemRow({
     { label: "Remove from this scene", icon: "close", onSelect: () => onChange("remove") },
   ];
   return (
-    <li className={`cp-it${position === 0 ? " first" : ""}${dropBefore ? " cp-ins-before" : ""}`}>
+    <li className={`cp-it${position === 0 ? " first" : ""}${dropBefore ? " cp-ins-before" : ""} ${drag.rowClass(position)}`} {...drag.rowProps(position)}>
       <div className="cp-it-row">
+        {count > 1 && (
+          <span className="cp-handle" title="Drag to change the order (or use ⋯ Move up and Move down)" aria-hidden="true" {...drag.handleProps}>
+            <Icon name="drag" size="s" />
+          </span>
+        )}
         {playlist || board ? <ExpanderButton label={info.name} expanded={open} onToggle={() => setOpen(!open)} /> : <span className="cp-xpgap" aria-hidden="true" />}
         <span className="num cp-it-n" aria-hidden="true">
           {position + 1}
@@ -929,7 +960,7 @@ function ItemRow({
 function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
   const { say } = useAnnounce();
   const nameOf = (id: string) => (list === "boards" ? ctx.index.board(id)?.name : soundInfo(scene.music.find((r) => r.id === id) ?? { kind: "track", id }, ctx.index)?.name) ?? "item";
-  return async (at: number, op: "first" | "up" | "down" | "remove") => {
+  return async (at: number, op: "first" | "up" | "down" | "remove" | { to: number }) => {
     ctx.workedOn(scene.id);
     const items: (SoundRef | string)[] = list === "music" ? [...scene.music] : [...scene.boardIds];
     const idOf = (x: SoundRef | string) => (typeof x === "string" ? x : x.id);
@@ -944,7 +975,7 @@ function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
       say(`Removed ${name} from this scene${at === 0 && items.length ? `. ${nameOf(idOf(items[0]))}${lead}` : ""}`);
       return;
     }
-    const to = op === "first" ? 0 : op === "up" ? at - 1 : at + 1;
+    const to = typeof op === "object" ? op.to : op === "first" ? 0 : op === "up" ? at - 1 : at + 1;
     if (to < 0 || to >= items.length) return;
     const [moved] = items.splice(at, 1);
     items.splice(to, 0, moved);
@@ -959,6 +990,8 @@ function MusicList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
   const change = useListChange(scene, "music", ctx);
   const [over, setOver] = useState<{ index: number } | null>(null);
   const rows = scene.music.map((ref, at) => ({ at, info: soundInfo(ref, ctx.index) })).filter((r): r is { at: number; info: ItemInfo } => !!r.info);
+  // 0.5.2 (Nik's item 41): drag a row by its handle; it lands exactly where the line shows.
+  const drag = useDragReorder(`music-${scene.id}`, (from, to) => void change(rows[from].at, { to: rows[to].at }), { zone: "list" });
   return (
     <div
       className={`cp-box${over ? " cp-fdrop" : ""}${over && over.index >= rows.length ? " cp-ins-end" : ""}`}
@@ -995,6 +1028,7 @@ function MusicList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
               count={rows.length}
               ctx={ctx}
               dropBefore={over?.index === i}
+              drag={drag}
               onChange={(op) => void change(row.at, op)}
             />
           ))}
@@ -1016,6 +1050,7 @@ function MusicList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
 function BoardList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
   const change = useListChange(scene, "boards", ctx);
   const rows = scene.boardIds.map((id, at) => ({ at, board: ctx.index.board(id) })).filter((r) => !!r.board);
+  const drag = useDragReorder(`boards-${scene.id}`, (from, to) => void change(rows[from].at, { to: rows[to].at }), { zone: "list" });
   return (
     <div className="cp-box">
       {rows.length ? (
@@ -1029,6 +1064,7 @@ function BoardList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
               position={i}
               count={rows.length}
               ctx={ctx}
+              drag={drag}
               onChange={(op) => void change(row.at, op)}
             />
           ))}

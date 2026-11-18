@@ -7,6 +7,7 @@ import { getLiveSession, loadInLive } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
 import { saveShellSettings } from "../../shell/settings";
 import { dragFirstOntoLowerHalfOfLast, main, openAt, region } from "./testing";
+import { dragRow, dropPlaces, orderAfterDrop } from "../../test/drag";
 
 beforeEach(() => {
   localStorage.clear();
@@ -334,6 +335,40 @@ describe("round 6: the campaign's own order (ORG-13)", () => {
     await waitFor(() => expect(box().queryByRole("button", { name: "Back to the playlist's order" })).toBeNull());
   });
 
+  // 0.5.2 (Nik's item 36): a playlist's track dropped in this campaign's order lands exactly where the line shows.
+  it.each([
+    [0, "upper"],
+    [0, "lower"],
+    [2, "upper"],
+    [2, "lower"],
+    [-1, "upper"],
+    [-1, "lower"],
+  ] as const)("the second track of The Company themes dropped on track %i (from the end when below 0), %s half", async (at, half) => {
+    const user = userEvent.setup();
+    const { api } = openAt("campaign/crown");
+    await screen.findByRole("region", { name: "Campaign playlists" });
+    await user.click(await box().findByRole("button", { name: "Show contents of The Company themes" }));
+    const rows = () => within(box().getByRole("list", { name: /^Tracks in The Company themes/ })).getAllByRole("listitem");
+    const before = await api.playlists.tracks("p-company");
+    const onto = at < 0 ? before.length + at : at;
+    const want = orderAfterDrop(before, 1, onto, half);
+    const moves = want.join() !== before.join();
+    const lines = () => rows().filter((li) => /cp-drop-(before|after)/.test(li.className)).length;
+    dragRow(rows(), 1, onto, half, { between: () => expect(lines()).toBe(moves ? 1 : 0) });
+    if (moves) await waitFor(async () => expect((await api.playlists.trackOrders())["cp:crown"]?.["p-company"]).toEqual(want));
+    else expect((await api.playlists.trackOrders())["cp:crown"]?.["p-company"]).toBeUndefined();
+  });
+
+  it("0.5.2 (Nik's items 3 and 11): each track's name in a playlist on hand leads to its details in the Library", async () => {
+    const user = userEvent.setup();
+    openAt("campaign/crown");
+    await screen.findByRole("region", { name: "Campaign playlists" });
+    await user.click(await box().findByRole("button", { name: "Show contents of The Company themes" }));
+    const rows = within(box().getByRole("list", { name: /^Tracks in The Company themes/ })).getAllByRole("listitem");
+    const link = within(rows[0]).getByRole("link", { name: /^Epic choir hero anthem/ });
+    expect(link.getAttribute("href")).toMatch(/^#\/library\/[\w-]+$/);
+  });
+
   it("the campaign's playlists themselves move with Alt+Down on their name", async () => {
     const user = userEvent.setup();
     openAt("campaign/crown");
@@ -342,4 +377,66 @@ describe("round 6: the campaign's own order (ORG-13)", () => {
     await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
     await waitFor(() => expect(box().getAllByRole("listitem")[1]).toHaveTextContent("The Company themes"));
   });
+
+  it("0.5.2 (Nik's items 15 and 48): a session's ⋯ deletes it with its scenes; the others count on; Undo brings it back", async () => {
+    openAt("campaign/crown");
+    await screen.findByRole("list", { name: "Sessions in order" });
+    await userEvent.click(sessions().getByRole("button", { name: "More for Session 13: The coast road" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete…" }));
+    const sheet = screen.getByRole("dialog", { name: "Delete this session?" });
+    expect(sheet).toHaveTextContent("Delete Session 13, The coast road, with its 1 scene and notes, and the session's playlists and pads? Tracks, playlists and pad boards stay in your library.");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Delete session" }));
+    await waitFor(() => expect(sessions().getAllByRole("listitem")).toHaveLength(3));
+    expect(sessions().getByRole("link", { name: "Session 13: The Drowned Abbey" })).toBeInTheDocument();
+    expect(await screen.findByText("Deleted Session 13, The coast road.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(sessions().getAllByRole("listitem")).toHaveLength(4));
+    expect(sessions().getByRole("link", { name: "Session 14: The Drowned Abbey" })).toBeInTheDocument();
+  });
+
+  it("0.5.2: the campaign's own ⋯ beside its heading deletes it and goes back to Campaigns", async () => {
+    openAt("campaign/sixth");
+    await userEvent.click(await screen.findByRole("button", { name: "More for The Sixth Year" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete campaign…" }));
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Delete this campaign?" })).getByRole("button", { name: "Delete campaign" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/campaigns"));
+    expect(await screen.findByText('Deleted the campaign "The Sixth Year".')).toBeInTheDocument();
+  });
+
+  it("0.5.2 (Nik's item 13): sessions count on from the first session number in the campaign's details, which can be changed", async () => {
+    const { api } = openAt("campaign/crown");
+    expect(await screen.findByRole("combobox", { name: "Session numbers" })).toHaveValue("auto");
+    const first = screen.getByRole("spinbutton", { name: "First session number" });
+    expect(first).toHaveValue(12);
+    await userEvent.clear(first);
+    await userEvent.type(first, "1{Enter}");
+    await waitFor(() => expect(sessions().getByRole("link", { name: "Session 1: Smugglers of Greyhollow" })).toBeInTheDocument());
+    expect(sessions().getByRole("link", { name: "Session 4: Black sails" })).toBeInTheDocument();
+    expect((await api.campaigns.get("crown"))!.firstSessionNumber).toBe(1);
+  });
+
+  it("0.5.2 (Nik's item 13): Type each number keeps every session's number as it is, and the first number goes", async () => {
+    const { api } = openAt("campaign/crown");
+    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Session numbers" }), "Type each number");
+    await waitFor(async () => expect((await api.campaigns.get("crown"))!.numbering).toBe("typed"));
+    expect(screen.queryByRole("spinbutton", { name: "First session number" })).toBeNull();
+    expect(sessions().getByRole("link", { name: "Session 12: Smugglers of Greyhollow" })).toBeInTheDocument();
+    expect(screen.getByText("Type each session's number in its details. New sessions follow the last one.")).toBeInTheDocument();
+  });
 });
+
+/* 0.5.2 (Nik's item 36): a session dropped lands exactly where the line shows, and no line shows where it would stay. */
+describe("dragging a session", () => {
+  const names = () => sessions().getAllByRole("listitem").map((li) => (li.querySelector(".cp-sname")?.textContent ?? "").replace(/^\s*Session \d+:\s*/, "").trim());
+  const lines = () => sessions().getAllByRole("listitem").filter((li) => /cp-drop-(before|after)/.test(li.className)).length;
+  it.each(dropPlaces(4))("Session 14 dropped on row %i, %s half", async (onto, half) => {
+    openAt("campaign/crown");
+    await screen.findByRole("list", { name: "Sessions in order" });
+    const before = names();
+    const want = orderAfterDrop(before, 2, onto, half);
+    const moves = want.join() !== before.join();
+    dragRow(sessions().getAllByRole("listitem"), 2, onto, half, { between: () => expect(lines()).toBe(moves ? 1 : 0) });
+    await waitFor(() => expect(names()).toEqual(want));
+  });
+});
+

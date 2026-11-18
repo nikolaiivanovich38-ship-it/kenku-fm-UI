@@ -476,11 +476,30 @@ export interface CampaignInfo extends DomainCampaign {
   /** ORG-12: single tracks kept on hand all campaign long, in order. */
   trackIds: string[];
   sessions: SessionInfo[];
+  /**
+   * 0.5.2 (Nik's list, item 13): how its sessions are numbered. "auto": counting on in session order from
+   * `firstSessionNumber` ("we began using Lyre at session 12"), so a move or a delete renumbers them. "typed": each
+   * session keeps the number typed for it (SessionPatch.number); a new one gets the last one's number plus one, and
+   * nothing renumbers them.
+   */
+  numbering: SessionNumbering;
+  /** The first session's number while `numbering` is "auto". */
+  firstSessionNumber: number;
 }
 
+export const SESSION_NUMBERINGS = ["auto", "typed"] as const;
+/** The highest session number (the library's CHECK). */
+export const MAX_SESSION_NUMBER = 100_000;
+export type SessionNumbering = (typeof SESSION_NUMBERINGS)[number];
+
 export type NewCampaign = { name: string } & Partial<Pick<CampaignInfo, "system" | "theme" | "description" | "obsidian">>;
-export type CampaignPatch = Partial<Pick<CampaignInfo, "name" | "system" | "theme" | "description" | "notes" | "obsidian">>;
-export type SessionPatch = Partial<Pick<SessionInfo, "name" | "date" | "status" | "noteLink">>;
+/**
+ * `numbering` "typed" keeps every session's number as it is now; "auto" counts on from the first session's number (or
+ * `firstSessionNumber` when given with it).
+ */
+export type CampaignPatch = Partial<Pick<CampaignInfo, "name" | "system" | "theme" | "description" | "notes" | "obsidian" | "numbering" | "firstSessionNumber">>;
+/** `number` only when the campaign's numbering is "typed" (0 to 100000). */
+export type SessionPatch = Partial<Pick<SessionInfo, "name" | "date" | "status" | "noteLink" | "number">>;
 export type ScenePatch = Partial<Pick<SceneInfo, "name" | "startsWhen" | "notes" | "noteLink">>;
 
 /** A campaign, or one of its sessions: the owners of playlists and boards kept "on hand". */
@@ -945,6 +964,11 @@ export interface LyreApi {
     update(id: string, patch: CampaignPatch): Promise<WriteResult<CampaignInfo>>;
     /** 0.5.1: the campaign's place in the Campaigns screen's order (drag, or Move up and Move down). */
     move(id: string, toIndex: number): Promise<WriteResult>;
+    /**
+     * 0.5.2 (Nik's list, items 15 and 48): deletes it with its sessions, scenes and notes, and its playlists and pads on
+     * hand; the tracks, playlists and pad boards stay in the library. One undo step.
+     */
+    delete(id: string): Promise<WriteResult>;
     /** The playlists, boards or (ORG-12) single tracks a campaign or session keeps on hand, in order. campaigns.js L.acts.cpadd, cprm. */
     setOnHand(owner: Owner, kind: "playlists" | "boards" | "tracks", ids: string[]): Promise<WriteResult>;
     /** Where something is used. playlists.js usesPane, pldel; boards.js usedPane, card, pbdelboard; library.js "Used in". */
@@ -957,8 +981,14 @@ export interface LyreApi {
     create(campaignId: string): Promise<WriteResult<SessionInfo>>;
     /** Making one "next" makes the old next played (earlier) or draft (later). campaigns.js L.inputs.cpsess. */
     update(campaignId: string, sessionId: string, patch: SessionPatch): Promise<WriteResult<SessionInfo>>;
-    /** Sessions are renumbered in their new order. campaigns.js L.acts.cpmove (sessions), drag. */
+    /** Sessions are renumbered in their new order (unless their numbers are typed). campaigns.js L.acts.cpmove (sessions), drag. */
     move(campaignId: string, sessionId: string, toIndex: number): Promise<WriteResult>;
+    /**
+     * 0.5.2 (Nik's list, items 15 and 48): deletes it with its scenes and notes, and its playlists and pads on hand; the
+     * tracks, playlists and pad boards stay in the library. The others are renumbered (unless their numbers are typed).
+     * One undo step.
+     */
+    delete(campaignId: string, sessionId: string): Promise<WriteResult>;
     /** A blank scene after another (default: at the end). campaigns.js L.acts.cpaddscene. */
     createScene(campaignId: string, sessionId: string, after?: string): Promise<WriteResult<SceneInfo>>;
     /** campaigns.js L.inputs.cpscf. */
@@ -1072,8 +1102,8 @@ export const LYRE_API_METHODS = {
   folders: ["list", "create", "update", "delete", "moveInto"],
   playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise", "trackOrders", "setTrackOrder", "clearTrackOrder", "addDivider", "renameDivider", "removeDivider", "moveItem"],
   boards: ["list", "create", "rename", "resize", "duplicate", "delete", "addPad", "updatePad", "duplicatePad", "movePad", "putAllBack", "deletePad", "setDivider", "setPadSteps"],
-  campaigns: ["list", "get", "create", "update", "move", "setOnHand", "usesOf", "setUses"],
-  sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName", "setRepeatOne", "setSceneSteps"],
+  campaigns: ["list", "get", "create", "update", "move", "delete", "setOnHand", "usesOf", "setUses"],
+  sessions: ["create", "update", "move", "delete", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName", "setRepeatOne", "setSceneSteps"],
   profiles: ["overrides", "set", "clear"],
   import: ["start", "watchFolder", "setFolderKind", "removeFolder", "findMissing", "planRelink", "applyRelink", "previewFound", "endRelinkPreview"],
   transfer: ["estimate", "save", "open", "bringIn", "movedReport"],

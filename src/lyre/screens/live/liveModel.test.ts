@@ -24,6 +24,7 @@ import {
   LIVE_KEYS,
   liveKey,
   liveRooms,
+  loopSettingAt,
   moodsByUse,
   offScriptSearch,
   padForKey,
@@ -31,6 +32,7 @@ import {
   roomStatus,
   sceneBoards,
   trayContents,
+  trayShown,
   upNextRows,
   type KeyInput,
   type OffScriptQuery,
@@ -186,6 +188,44 @@ describe("the trays: Session playlists and Campaign playlists", () => {
   });
 });
 
+describe("0.5.2 (Nik's item 49): a tray box shows only when it has something in it", () => {
+  const s15 = crown.sessions.find((s) => s.id === "s15")!;
+  it("Session 14 and its campaign have playlists and pads: every box shows", () => {
+    for (const box of ["ssp", "ssd", "cpp", "cpd"] as const) expect(trayShown(box, s14, crown, index), box).toBe(true);
+  });
+  it("Session 15 keeps none: its two boxes go, the campaign's stay", () => {
+    expect(trayShown("ssp", s15, crown, index)).toBe(false);
+    expect(trayShown("ssd", s15, crown, index)).toBe(false);
+    expect(trayShown("cpp", s15, crown, index)).toBe(true);
+  });
+  it("a single track alone keeps Playlists; an ambience playlist alone does not (it is not listed there); a board that is gone does not count", () => {
+    const amb = seed.playlists.find((p) => p.lane === "amb")!.id;
+    expect(trayShown("ssp", { ...s15, trackIds: ["t13"] }, crown, index)).toBe(true);
+    expect(trayShown("ssp", { ...s15, playlistIds: [amb] }, crown, index)).toBe(false);
+    expect(trayShown("cpd", s15, { ...crown, boardIds: ["gone"] }, index)).toBe(false);
+  });
+});
+
+describe("0.5.2 (Nik's item 53): a track's loop setting where it plays", () => {
+  const t = (loop: "yes" | "crossfade" | "no" | null, profile?: object) => ({ ...index.track("t13")!, loop, profile: (profile ?? null) as never });
+  const scene = { kind: "scene" as const, campaignId: "crown", sessionId: "s14", sceneId: "sc3" };
+  it("follows the track's own choice while no audio profile says otherwise", () => {
+    expect(loopSettingAt(t("yes"), null, null, {})).toBe("loop");
+    expect(loopSettingAt(t("crossfade"), null, null, {})).toBe("crossfade");
+    expect(loopSettingAt(t("no"), null, null, {})).toBe("none");
+    expect(loopSettingAt(t(null), null, null, {})).toBe("none");
+  });
+  it("an audio profile's After and loop crossfade win, the place's own before the track's", () => {
+    expect(loopSettingAt(t("no", { after: "loop" }), null, null, {})).toBe("loop");
+    expect(loopSettingAt(t("no", { after: "loop", loopCrossfadeMs: 2000 }), null, null, {})).toBe("crossfade");
+    expect(loopSettingAt(t("crossfade", { after: "loop", loopCrossfadeMs: 0 }), null, null, {})).toBe("loop");
+    expect(loopSettingAt(t("yes", { after: "stop" }), null, null, {})).toBe("none");
+    const overrides = { "sc:crown:s14:sc3": { t13: { after: "next" as const } } };
+    expect(loopSettingAt(t("yes"), scene, null, overrides)).toBe("none");
+    expect(loopSettingAt(t("yes"), null, null, overrides)).toBe("loop");
+  });
+});
+
 describe("Find a track or playlist (ORG-14)", () => {
   const all: OffScriptQuery = { q: "", tags: [], lane: "all" };
   it("finds playlists by name as well as tracks; nothing until there are words or tags", () => {
@@ -322,6 +362,11 @@ describe("keys on the live screen", () => {
   it("Ctrl+Z undoes the last change, except in a text box", () => {
     expect(key({ key: "z", name: "Ctrl+Z", ctrl: true })).toEqual({ kind: "undo" });
     expect(key({ key: "z", name: "Ctrl+Z", ctrl: true, typing: true })).toEqual({ kind: "none" });
+  });
+
+  it("0.5.2 (round 9 review M4): in a text box, Ctrl+Z is the box's own only while it holds typing since the last change on air", () => {
+    expect(key({ key: "z", name: "Ctrl+Z", ctrl: true, typing: true, unsavedTyping: true })).toEqual({ kind: "none" });
+    expect(key({ key: "z", name: "Ctrl+Z", ctrl: true, typing: true, inSearch: true, searchValue: "brutal", unsavedTyping: false })).toEqual({ kind: "undo" });
   });
 
   it("/ and pad keys; nothing while typing or with single-key shortcuts off", () => {

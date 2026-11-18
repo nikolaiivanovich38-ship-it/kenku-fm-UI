@@ -33,13 +33,41 @@ export function ownNameTitle(n: { name: string; own: string }): string {
  * A track's name in a place, with its own name on hover (and read out) where the scene calls it something else.
  * `hover`: more words for the hover, after the name (the Now playing bar's normalising, PLY-15).
  */
-export function TrackName({ track, place, names, className, hover }: { track: NamedTrack; place: UsePlace | null; names: TrackNames; className?: string; hover?: string }) {
+export function TrackName({ track, place, names, className, hover, link }: { track: NamedTrack; place: UsePlace | null; names: TrackNames; className?: string; hover?: string; link?: boolean }) {
   const n = trackNameAt(track, place, names);
-  return (
-    <span className={className} title={hover ? `${ownNameTitle(n)} · ${hover}` : ownNameTitle(n)}>
+  const inside = (
+    <>
       {n.name}
       {n.name !== n.own && <span className="sr-only"> (its own name: {n.own})</span>}
       {hover && <span className="sr-only"> · {hover}</span>}
+    </>
+  );
+  const title = hover ? `${ownNameTitle(n)} · ${hover}` : ownNameTitle(n);
+  // 0.5.2 (Nik's items 3 and 11): `link`: the name leads to the track's details in the Library.
+  if (link)
+    return (
+      <TrackNameLink trackId={track.id} className={className} title={title}>
+        {inside}
+      </TrackNameLink>
+    );
+  return (
+    <span className={className} title={title}>
+      {inside}
     </span>
+  );
+}
+
+/** 0.5.2 (Nik's items 3 and 11): where a track's name leads: the Library with the track's details shown. */
+export const trackDetailsHref = (trackId: string): string => `#/library/${trackId}`;
+
+/**
+ * 0.5.2 (Nik's items 3 and 11): a track's name as a link to its details in the Library (LibraryScreen opens Details on
+ * arrival). Only where the name is not itself a play or unfold button: in Live a name never takes a play action's place.
+ */
+export function TrackNameLink({ trackId, className, title, children }: { trackId: string; className?: string; title?: string; children: React.ReactNode }) {
+  return (
+    <a className={className ? `track-link ${className}` : "track-link"} href={trackDetailsHref(trackId)} title={title ?? "Open its details in the Track library"}>
+      {children}
+    </a>
   );
 }

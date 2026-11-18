@@ -8,6 +8,7 @@ import type { DomainTrack } from "../../../common/domain";
 import { isRefused, type TagGroup, type WriteResult } from "../../../common/lyre/api";
 import { TagStrip } from "../../kit/TagStrip";
 import { ProfileLink } from "../../kit/ProfileLink";
+import { TrackNameLink } from "../../kit/trackName";
 import { PreviewButton } from "../../kit/SoundButtons";
 import type { NowPlaying } from "../../audio";
 import { useAnnounce } from "../../shell/Announcer";
@@ -96,9 +97,9 @@ export function PlaylistContents({ playlistId, name, dynamic, tracks, groups }: 
       {tracks.map((t, i) => (
         <li key={t.id} className="xp-row">
           <span className="faint num">{i + 1}</span>
-          <span className="grow ellipsis" title={t.title}>
+          <TrackNameLink trackId={t.id} className="grow ellipsis" title={t.title}>
             {t.title}
-          </span>
+          </TrackNameLink>
           <TagStrip track={t} groups={groups} />
           <span className="num faint">{fmt(t.durationMs)}</span>
           <ProfileLink trackId={t.id} title={t.title} place={`pl:${playlistId}`} placeName={`the playlist ${name}`} iconOnly />

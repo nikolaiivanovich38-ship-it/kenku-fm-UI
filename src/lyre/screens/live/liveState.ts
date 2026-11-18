@@ -132,7 +132,18 @@ export function updateLive(change: Partial<LiveState> | ((s: LiveState) => Parti
  * so Ctrl+Z never reaches past it to an older change.
  */
 export function touched(): void {
+  lastActedAt = Date.now();
   if (state.undo || state.undo2) updateLive({ undo: null, undo2: null });
+}
+
+/**
+ * 0.5.2 (round 9 review M4): when what a room plays last changed. Typing in a text box after it keeps that box's own
+ * Ctrl+Z; otherwise Ctrl+Z is Live's Undo. (Pads, previews, volume and mute are not changes to what a room plays, M5:
+ * they call neither this nor touched, so they never end an Undo.)
+ */
+let lastActedAt = 0;
+export function lastActed(): number {
+  return lastActedAt;
 }
 
 /** A new soft Undo replaces the scene's and any other (one Undo at a time). */

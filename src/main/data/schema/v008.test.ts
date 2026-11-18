@@ -31,7 +31,7 @@ describe("schema version 8 (New after a tag, a folder's kind of new tracks)", ()
 
     it("is in place and leaves no broken link", () => {
       expect(schemaVersion(db)).toBe(MIGRATIONS.length);
-      expect(MIGRATIONS.length).toBe(8);
+      expect(MIGRATIONS[7].version).toBe(8);
       expect(all(db, "PRAGMA foreign_key_check")).toEqual([]);
     });
 
@@ -63,7 +63,7 @@ describe("schema version 8 (New after a tag, a folder's kind of new tracks)", ()
     // Version 7 kept a tagged track with no title New.
     db.exec("INSERT INTO track_tags (track_id, tag_id) VALUES ('untitled', 'eerie')");
     expect(all(db, "SELECT is_new FROM tracks WHERE id = 'untitled'")).toEqual([{ is_new: 1 }]);
-    migrate(db, MIGRATIONS);
+    migrate(db, MIGRATIONS.slice(0, 8));
     expect(schemaVersion(db)).toBe(8);
     expect(all(db, "SELECT id, is_new FROM tracks ORDER BY id")).toEqual([
       { id: "plain", is_new: 1 },

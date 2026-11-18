@@ -14,6 +14,7 @@ import { SavedField } from "../../kit/SavedField";
 import { Icon, ICON_NAMES, type IconName } from "../../kit/Icon";
 import { useLiveSession, runInLive } from "../../kit/liveSession";
 import { ProfileLink } from "../../kit/ProfileLink";
+import { TrackNameLink } from "../../kit/trackName";
 import { PreviewButton } from "../../kit/SoundButtons";
 import { Menu, type MenuEntry } from "../../kit/Menu";
 import { useAnnounce } from "../../shell/Announcer";
@@ -134,9 +135,9 @@ export function Contents({
           return (
             <li key={t.id} className="xp-row">
               <span className="faint num">{i + 1}</span>
-              <span className="grow" title={title}>
+              <TrackNameLink trackId={t.id} className="grow" title={title}>
                 {title}
-              </span>
+              </TrackNameLink>
               <span className="num faint">{formatLength(t.durationMs)}</span>
               {key !== null && <ProfileLink trackId={t.id} title={title} place={key} placeName={placeName ?? `the playlist ${p.name}`} iconOnly />}
               <PreviewButton target={{ kind: "track", id: t.id }} name={title} />

@@ -91,6 +91,8 @@ describe("a room's row: what the players hear", () => {
     const row = within(bar()).getByRole("group", { name: "On air" });
     expect(within(row).getByTitle("The players hear this")).toHaveTextContent(/^On air$/);
     expect(row).toHaveTextContent("Epic choir hero anthem - the Company's big moment");
+    // 0.5.2 (Nik's items 3 and 11): its name leads to its details in the Library.
+    expect(within(row).getByRole("link", { name: /^Epic choir hero anthem/ })).toHaveAttribute("href", expect.stringMatching(/^#\/library\/t\d+$/));
     await waitFor(() => expect(row).toHaveTextContent("Playlist: The Company themes · The Sunken Crown"));
     expect(row).toHaveTextContent("0:12 / 3:57");
     expect(within(row).getByRole("slider", { name: "Volume in Table" })).toHaveValue("85");

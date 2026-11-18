@@ -6,6 +6,7 @@ import { expectNoAxeViolations } from "../../test/axe";
 vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
 
 import { dropNames, go, openAt } from "./testHarness";
+import { dragRow, orderAfterDrop, type Half } from "../../test/drag";
 import { expectPlayAirIcons } from "../../test/playAirIcon";
 
 const list = () => screen.getByRole("list", { name: "Playlists" });
@@ -576,6 +577,106 @@ describe("round 7: dividers inside a playlist (ORG-4)", () => {
     expect(ordered().getAllByRole("listitem")[4]).toHaveTextContent("Lullaby, sad");
     expect(screen.getByRole("region", { name: "Tracks" })).toHaveAccessibleDescription(/5 tracks/);
     expect((await api.playlists.list()).find((p) => p.id === "p-abbess")?.dividers).toEqual([expect.objectContaining({ name: "After the font", at: 3 })]);
+  });
+});
+
+/*
+ * 0.5.2 (Nik's item 36: "Often dragging a thing puts it one too far down or one too far up in the order. It needs to be
+ * exact. This is particularly the case with dividers. Also, I need the ability to drag dividers to different positions
+ * in the list."): The Abbess with a divider above its fourth track; a track or the divider dropped lands on the side of
+ * the row (and of the divider) the line is on, and the divider moves by drag, from its ⋯ and with Alt+Up / Alt+Down.
+ */
+describe("0.5.2 (round 8 finding 7): Add a divider takes Enter", () => {
+  it("Enter in the Name field adds the divider, as in every other dialog", async () => {
+    const { api } = openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    const user = userEvent.setup();
+    await user.click(within(screen.getByRole("list", { name: "Tracks in order" })).getByRole("button", { name: /^More for Lullaby, sad/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Add a divider above" }));
+    await user.type(within(screen.getByRole("dialog")).getByRole("textbox", { name: "Name" }), "After the font{Enter}");
+    await waitFor(async () => expect((await api.playlists.list()).find((p) => p.id === "p-abbess")?.dividers).toEqual([expect.objectContaining({ name: "After the font", at: 3 })]));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+});
+
+describe("0.5.2: dragging in a playlist with a divider", () => {
+  const ordered = () => within(screen.getByRole("list", { name: "Tracks in order" }));
+  const rows = () => ordered().getAllByRole("listitem");
+  const labels = () => rows().map((li) => li.getAttribute("aria-label") ?? li.querySelector("a")?.textContent?.trim() ?? "");
+  const lines = () => rows().filter((li) => /cp-drop-(before|after)/.test(li.className)).length;
+  async function withDivider() {
+    const { api } = openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    await api.playlists.addDivider("p-abbess", "After the font", 3);
+    await waitFor(() => expect(rows()).toHaveLength(6));
+    expect(labels()[3]).toBe("Divider: After the font");
+    return api;
+  }
+  async function saved(api: Awaited<ReturnType<typeof withDivider>>) {
+    const pl = (await api.playlists.list()).find((p) => p.id === "p-abbess") as { trackIds: string[]; dividers: { at: number }[] };
+    return { trackIds: pl.trackIds, at: pl.dividers[0]?.at };
+  }
+
+  const places: [number, number, Half][] = [
+    // The track just below the divider, onto the first, a middle (the track above the divider), the divider and the last row.
+    [4, 0, "upper"],
+    [4, 0, "lower"],
+    [4, 2, "upper"],
+    [4, 2, "lower"],
+    [4, 3, "upper"],
+    [4, 3, "lower"],
+    [4, 5, "upper"],
+    [4, 5, "lower"],
+    // The first track onto the divider's two halves, and the last row.
+    [0, 3, "upper"],
+    [0, 3, "lower"],
+    [0, 5, "lower"],
+    // The divider itself, to the top and to the end.
+    [3, 0, "upper"],
+    [3, 5, "lower"],
+    [3, 1, "lower"],
+  ];
+  it.each(places)("row %i dropped on row %i, %s half, lands where the line shows", async (from, onto, half) => {
+    const api = await withDivider();
+    const before = labels();
+    const want = orderAfterDrop(before, from, onto, half);
+    const moves = want.join() !== before.join();
+    dragRow(rows(), from, onto, half, { between: () => expect(lines()).toBe(moves ? 1 : 0) });
+    await waitFor(() => expect(labels()).toEqual(want));
+    // What the library saved is the same list (the screen shows its answer once the edit is saved).
+    const { trackIds, at } = await saved(api);
+    const names = new Map((await api.library.listTracks()).map((t) => [t.id, t.title || t.metaTitle]));
+    expect(trackIds.map((id) => names.get(id))).toEqual(want.filter((l) => !l.startsWith("Divider")));
+    expect(at).toBe(want.indexOf("Divider: After the font"));
+  });
+
+  it("the divider moves from its ⋯ (Move up, Move down) and with Alt+Up / Alt+Down, a row at a time", async () => {
+    const api = await withDivider();
+    const user = userEvent.setup();
+    await user.click(ordered().getByRole("button", { name: "More for the divider After the font" }));
+    await user.click(screen.getByRole("menuitem", { name: /^Move up/ }));
+    await waitFor(() => expect(labels()[2]).toBe("Divider: After the font"));
+    expect((await saved(api)).at).toBe(2);
+    ordered().getByRole("button", { name: "More for the divider After the font" }).focus();
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    await waitFor(() => expect(labels()[3]).toBe("Divider: After the font"));
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    await waitFor(() => expect(labels()[4]).toBe("Divider: After the font"));
+    expect((await saved(api)).at).toBe(4);
+  });
+
+  it("a track moved down from just above the divider goes just below it: Move down and Alt+Down move a row at a time", async () => {
+    const api = await withDivider();
+    const third = labels()[2];
+    const user = userEvent.setup();
+    await user.click(ordered().getByRole("button", { name: new RegExp(`^More for ${third.split(",")[0]}`) }));
+    await user.click(screen.getByRole("menuitem", { name: /^Move down/ }));
+    await waitFor(() => expect(labels().slice(2, 4)).toEqual(["Divider: After the font", third]));
+    // Its place among the tracks is the same; it is in the divider's part now.
+    expect((await saved(api)).at).toBe(2);
+    ordered().getByRole("button", { name: new RegExp(`^More for ${third.split(",")[0]}`) }).focus();
+    await user.keyboard("{Alt>}{ArrowUp}{/Alt}");
+    await waitFor(() => expect(labels().slice(2, 4)).toEqual([third, "Divider: After the font"]));
   });
 });
 

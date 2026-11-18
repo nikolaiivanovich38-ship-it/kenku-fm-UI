@@ -418,6 +418,8 @@ function campaigns(soundRef: (id: string) => { kind: "track" | "playlist"; id: s
         movesOn: { when: "stay" } as MovesOn,
       })),
     })),
+    numbering: "auto" as const,
+    firstSessionNumber: c.sessions[0]?.n ?? 1,
   }));
 }
 

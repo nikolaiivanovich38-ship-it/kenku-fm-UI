@@ -227,6 +227,21 @@ describe("DAT-7 Save to a file, then Bring in on another computer", () => {
     expect(now?.loudness).toBeNull();
   });
 
+  it("0.5.2: keeps a campaign's typed session numbers", async () => {
+    const dir = folder();
+    const from = await libraryAt(path.join(dir, "here"), true);
+    valueOf(await from.api.campaigns.update("crown", { numbering: "typed" }));
+    valueOf(await from.api.sessions.update("crown", "s14", { number: 30 }));
+    const target = path.join(dir, "file.lyre");
+    valueOf(await from.api.transfer.save({ scope: { kind: "library" }, includeAudio: false, path: target }));
+    const to = await libraryAt(path.join(dir, "there"), false);
+    const opened = valueOf(await to.api.transfer.open({ from: "path", path: target })) as OpenedFile;
+    valueOf(await to.api.transfer.bringIn(opened.id, { all: "skip" }));
+    const crown = (await to.api.campaigns.list()).find((c) => c.name === "The Sunken Crown");
+    expect(crown).toMatchObject({ numbering: "typed" });
+    expect(crown?.sessions.map((s) => s.number)).toEqual([12, 13, 30, 15]);
+  });
+
   it("takes the audio files along when asked, unpacks them next to the library and plays them from there", async () => {
     const dir = folder();
     const from = await libraryAt(path.join(dir, "here"), false);

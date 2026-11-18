@@ -217,6 +217,52 @@ describe("scenes and undo", () => {
     expect(screen.getByRole("button", { name: "Next scene: Crypt ambush" })).toHaveFocus();
   });
 
+  it("0.5.2 (round 9 review M2): a double-click on Next scene starts one scene, as the guard does for its key", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound, 1.2);
+    await userEvent.dblClick(screen.getByRole("button", { name: "Next scene: Crypt ambush" }));
+    await playOn(sound);
+    expect(screen.getByRole("button", { name: "Restart scene 4: Crypt ambush" })).toBeInTheDocument();
+    expect(sound.audio.getNowPlaying().rooms[0].music?.origin).toMatchObject({ kind: "scene", scene: { sceneId: "sc4" } });
+  });
+
+  it("0.5.2 (round 9 review M5): a pad pressed after a scene starts leaves the scene's Undo; Ctrl+Z still goes back", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await userEvent.click(screen.getByRole("button", { name: "Next scene: Crypt ambush" }));
+    await playOn(sound);
+    const pad = current().getAllByRole("button").find((b) => b.classList.contains("lv-pad"))!;
+    await userEvent.click(pad);
+    await playOn(sound, 0.3);
+    expect(region("Scenes").getByRole("group", { name: "Undo" })).toHaveTextContent("Started Crypt ambush");
+    blur();
+    press("z", { ctrlKey: true });
+    await playOn(sound);
+    expect(screen.getByRole("button", { name: "Restart scene 3: The abbey ruins" })).toBeInTheDocument();
+  });
+
+  it("0.5.2 (round 9 review M4): after Play on air from Find, Ctrl+Z in its field is Live's Undo and leaves the words alone", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    const field = screen.getByRole("searchbox", { name: /^Find a track or playlist/ });
+    await userEvent.click(field);
+    await userEvent.type(field, "abbess");
+    const pl = within(region("Find a track or playlist").getByRole("list", { name: "Playlists" })).getAllByRole("listitem")[0];
+    await userEvent.click(within(pl).getByRole("button", { name: /^Play on air/ }));
+    await playOn(sound);
+    field.focus();
+    const event = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+    field.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(field).toHaveValue("abbess");
+    // Typing again gives the field its own Ctrl+Z back.
+    await userEvent.type(field, "x");
+    const again = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+    field.dispatchEvent(again);
+    expect(again.defaultPrevented).toBe(false);
+  });
+
   it("Must 1: after a pause, Ctrl+Z leaves the scene change alone", async () => {
     const { sound } = await openLive();
     await startAbbey();
@@ -594,6 +640,20 @@ describe("BUG-20: the scene's pads in Current scene", () => {
     expect(padsSounding(sound)).toEqual([]);
   });
 
+  it("0.5.2 (round 8 finding 15): with two rooms a sounding pad's room letter says on hover, and to screen readers, where it sounds", async () => {
+    const { sound, outputs } = await openLive();
+    await addSideRoom(outputs);
+    await startAbbey();
+    const grid = within(current().getByRole("group", { name: "Pads on Drowned Abbey" }));
+    await userEvent.click(grid.getByRole("button", { name: /^Stone door grinds/ }));
+    await playOn(sound, 0.5);
+    const door = grid.getByRole("button", { name: /^Stone door grinds/ });
+    expect(door).toHaveAccessibleName(/sounding in Table/);
+    const letter = door.querySelector(".lv-pad-rm")!;
+    expect(letter).toHaveTextContent("T");
+    expect(letter).toHaveAttribute("title", "Sounding in Table");
+  });
+
   it("Stop pads shows while a pad sounds, stops every pad and leaves the music and ambience; focus goes to the first pad", async () => {
     const { sound } = await openLive();
     await startAbbey();
@@ -943,6 +1003,89 @@ describe("the trays", () => {
   });
 });
 
+describe("0.5.2 (Nik's item 49): tray boxes with nothing in them", () => {
+  it("Session 15 keeps no playlists or pads: This session and its two boxes are not there; the campaign's are", async () => {
+    await openLive();
+    await userEvent.click(screen.getByRole("button", { name: /The Sunken Crown Session 14/ }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: /Session 15: Black sails/ }));
+    await screen.findByRole("button", { name: /The Sunken Crown Session 15/ });
+    expect(screen.queryByRole("region", { name: "Session playlists" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Session pads" })).toBeNull();
+    expect(screen.queryByText("This session")).toBeNull();
+    expect(screen.getByRole("region", { name: "Campaign playlists" })).toBeInTheDocument();
+    expect(screen.getByText("Whole campaign")).toBeInTheDocument();
+    // Its key says why nothing takes the focus.
+    blur();
+    press("5", { altKey: true, code: "Digit5" });
+    expect(await screen.findByText("Session pads: nothing in it, so it is not shown")).toBeInTheDocument();
+  });
+
+  it("a box comes back as soon as something is put in it", async () => {
+    const { api } = await openLive();
+    await userEvent.click(screen.getByRole("button", { name: /The Sunken Crown Session 14/ }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: /Session 15: Black sails/ }));
+    await screen.findByRole("button", { name: /The Sunken Crown Session 15/ });
+    await act(async () => {
+      await api.campaigns.setOnHand({ campaignId: "crown", sessionId: "s15" }, "boards", ["abbey"]);
+    });
+    expect(await screen.findByRole("region", { name: "Session pads" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Session playlists" })).toBeNull();
+    expect(screen.getByText("This session")).toBeInTheDocument();
+  });
+});
+
+/*
+ * 0.5.2 (Nik's item 53: "On the live screen I need to be able to see what loop setting has been set for a track (Loop,
+ * Crossfade Loop, Do Not Loop)"): a small icon beside the track on air and on a scene's tracks, named for screen readers.
+ */
+describe("a track's loop setting in Live", () => {
+  it("the music on air shows its loop setting, and so does each of the running scene's tracks", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    // The abbey ruins gives Eerie dread its own audio profile, which goes on to the next track (the track itself
+    // crossfades its loop elsewhere).
+    const expected = "Don't loop";
+    const lane = roomEl("Table").querySelector(".lv-m")!;
+    expect(within(lane as HTMLElement).getByRole("img", { name: expected })).toHaveAttribute("title", expected);
+    const row = within(current().getByRole("list", { name: /music in the order it plays$/ })).getAllByRole("listitem")[0];
+    expect(within(row).getByRole("img", { name: expected })).toBeInTheDocument();
+  });
+
+  it("a track whose scene profile loops with a crossfade says Crossfade loop there", async () => {
+    const { api } = await openLive();
+    await act(async () => {
+      await api.profiles.set("t13", { kind: "scene", campaignId: "crown", sessionId: "s14", sceneId: "sc3" }, { after: "loop", loopCrossfadeMs: 3000 });
+    });
+    await startAbbey();
+    const row = within(current().getByRole("list", { name: /music in the order it plays$/ })).getAllByRole("listitem")[0];
+    expect(await within(row).findByRole("img", { name: "Crossfade loop" })).toBeInTheDocument();
+  });
+});
+
+describe("0.5.2 (round 9 review M3): a room whose bot lost its connection", () => {
+  it("says Connection lost and that the players hear nothing, with Try again", async () => {
+    const { outputs } = await openLive();
+    const bots = outputs.state.bots.map((b) => (b.room ? { ...b, room: { ...b.room, status: "reconnecting" as const } } : b));
+    act(() => outputs.push({ ...outputs.state, bots }));
+    const table = await findRoom("Table");
+    expect(table.getByText("Connection lost")).toBeInTheDocument();
+    expect(table.queryByText("Joining")).toBeNull();
+    expect(table.getByRole("alert")).toHaveTextContent("Connection lost · players hear nothing");
+    await userEvent.click(table.getByRole("button", { name: "Try again" }));
+    expect(outputs.calls).toContainEqual(["retry", TABLE_BOT]);
+  });
+
+  it("a bot joining for the first time still says Joining", async () => {
+    const { outputs } = await openLive();
+    const bots = outputs.state.bots.map((b) => (b.room ? { ...b, room: { ...b.room, status: "joining" as const } } : b));
+    act(() => outputs.push({ ...outputs.state, bots }));
+    const table = await findRoom("Table");
+    expect(table.getByText("Joining")).toBeInTheDocument();
+    expect(table.queryByRole("alert")).toBeNull();
+  });
+});
+
 describe("rooms", () => {
   it("a room has Mute, shown as the one status Muted, and a volume slider that works from the keyboard", async () => {
     const { outputs } = await openLive();
@@ -1169,3 +1312,41 @@ describe("UX-R4: focus after the control in use goes", () => {
     await waitFor(() => expect(focusName()).toBe("Lyre Table in Table: change"));
   });
 });
+
+/*
+ * 0.5.2 (Nik's items 3 and 11: "click track titles from anywhere in prep and live views and get to the library view with
+ * the details pane popped out at that track"): in Live a name never replaces a play action, so the track on air is a
+ * link, and a list's track has Track details among its details (its name still unfolds them).
+ */
+describe("track names lead to the track's details", () => {
+  it("the music on air in a room is a link to its details in the Library", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const link = room("Table").getByRole("link", { name: /^Eerie dread/ });
+    expect(link).toHaveAttribute("href", "#/library/t13");
+    // The buttons beside it still pause, stop and skip.
+    expect(room("Table").getByRole("button", { name: "Pause music" })).toBeInTheDocument();
+  });
+
+  it("a scene's track: its name unfolds its details, which have Track details; Play on air stays", async () => {
+    await openLive();
+    await startAbbey();
+    const row = within(current().getByRole("list", { name: /music in the order it plays$/ })).getAllByRole("listitem")[0];
+    await userEvent.click(within(row).getByRole("button", { name: /^Eerie dread/, expanded: false }));
+    expect(within(row).getByRole("link", { name: "Track details" })).toHaveAttribute("href", "#/library/t13");
+    expect(within(row).getByRole("button", { name: /^Play on air/ })).toBeInTheDocument();
+  });
+
+  it("what played in a room links each track to its details", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    await userEvent.click(room("Table").getByRole("button", { name: "Next music track" }));
+    await playOn(sound, 3);
+    await userEvent.click(room("Table").getByRole("button", { name: "What played" }));
+    const played = within(room("Table").getByRole("list", { name: "What played in Table" }));
+    expect(played.getAllByRole("link")[0]).toHaveAttribute("href", expect.stringMatching(/^#\/library\/t\d+$/));
+  });
+});
+

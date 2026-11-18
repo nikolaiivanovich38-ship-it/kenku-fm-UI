@@ -28,6 +28,7 @@ describe("schema version 7 (Start at)", () => {
     it("is in place and leaves no broken link", () => {
       expect(schemaVersion(db)).toBe(MIGRATIONS.length);
       expect(MIGRATIONS.length).toBeGreaterThanOrEqual(7);
+      expect(MIGRATIONS[6].version).toBe(7);
       expect(all(db, "PRAGMA foreign_key_check")).toEqual([]);
     });
 

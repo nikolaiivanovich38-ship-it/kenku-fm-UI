@@ -303,10 +303,18 @@ export type Campaign = {
   obsidian: ObsidianLinks;
   /** The number of the first session; the others count on in session order (the prototype renumbers this way). */
   firstSessionNumber: number;
+  /**
+   * 0.5.2 (schema 8): "auto" counts on from firstSessionNumber; "typed" keeps each session's typed number, and a new
+   * session gets the last one's number plus one.
+   */
+  sessionNumbering: SessionNumbering;
   position: number;
   createdAt: number;
   updatedAt: number;
 };
+
+export const SESSION_NUMBERINGS = ["auto", "typed"] as const;
+export type SessionNumbering = (typeof SESSION_NUMBERINGS)[number];
 
 export const SESSION_STATUSES = ["played", "next", "draft"] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];

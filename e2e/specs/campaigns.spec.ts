@@ -518,7 +518,8 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
       ["campaign/crown", ["Campaigns"], /The Sunken Crown/],
       ["board/abbey", ["Pad boards"], /Drowned Abbey/],
       ["playlist/p-abbess", ["Playlists"], /The Abbess/],
-      ["profile/t13", [/^(Track l|L)ibrary$/], /Audio profile/],
+      // 0.5.2 (Nik's item 3): in the app the Audio profile's trail goes up to the track's details too.
+      ["profile/t13", test.info().project.name === "app" ? ["Track library", "Track details"] : ["Library"], /Audio profile/],
       ["backup", [/^(Track l|L)ibrary$/], /Back up, move or share/],
     ];
     for (const [route, links, title] of cases) {
@@ -836,3 +837,50 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await expect(links.nth(1)).toHaveAccessibleName("Campaigns");
   });
 });
+
+/* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.2: deleting campaigns and sessions, and session numbers", () => {
+  const sessions = (page: Page) => page.getByRole("list", { name: "Sessions in order" }).getByRole("listitem");
+
+  test("a campaign's ⋯ › Delete… names what goes with it, deletes it, and Undo brings it back (items 15 and 48)", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "campaigns");
+    const cards = page.getByRole("main").getByRole("article");
+    await page.getByRole("article", { name: "The Sunken Crown" }).getByRole("button", { name: "More for The Sunken Crown" }).click();
+    await page.getByRole("menuitem", { name: "Delete…" }).click();
+    const sheet = page.getByRole("dialog", { name: "Delete this campaign?" });
+    await expect(sheet).toContainText("with its 4 sessions");
+    await expect(sheet).toContainText("the campaign's playlists and pads? Tracks, playlists and pad boards stay in your library.");
+    await sheet.getByRole("button", { name: "Delete campaign" }).click();
+    await expect(cards).toHaveCount(2);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(cards).toHaveCount(3);
+  });
+
+  test("a session's ⋯ › Delete… deletes it with its scenes; the sessions after it count on (items 15 and 48)", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "campaign/crown");
+    await page.getByRole("button", { name: "More for Session 13: The coast road" }).click();
+    await page.getByRole("menuitem", { name: "Delete…" }).click();
+    await page.getByRole("dialog", { name: "Delete this session?" }).getByRole("button", { name: "Delete session" }).click();
+    await expect(sessions(page)).toHaveCount(3);
+    await expect(page.getByRole("link", { name: "Session 13: The Drowned Abbey" })).toBeVisible();
+  });
+
+  test("Session numbers: a first number renumbers the sessions; Type each number lets a session keep its own (item 13)", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "campaign/crown");
+    const first = page.getByRole("spinbutton", { name: "First session number" });
+    await first.fill("1");
+    await first.press("Enter");
+    await expect(page.getByRole("link", { name: "Session 1: Smugglers of Greyhollow" })).toBeVisible();
+    await page.getByRole("combobox", { name: "Session numbers" }).selectOption({ label: "Type each number" });
+    await expect(first).toHaveCount(0);
+    await page.getByRole("link", { name: "Session 3: The Drowned Abbey" }).click();
+    const number = page.getByRole("spinbutton", { name: "Session number" });
+    await number.fill("30");
+    await number.press("Enter");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Session 30: The Drowned Abbey");
+  });
+});
+

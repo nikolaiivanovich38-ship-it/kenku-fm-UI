@@ -17,7 +17,7 @@ import path from "path";
 import fs from "fs";
 
 import { CUE_STEP_KINDS, PAD_MODES, REPEATS, STEP_HOWS, STEP_STOPS, STEP_UP_NEXTS, TRACK_KINDS, TRACK_ROLES, TRACK_SHAPES, type AudioProfileInput, type CueStep, type MovesOn, type PlayOrder, type PlayOrderOverrides, type PlaylistRule, type ProfileOverrides, type SoundRef, type TrackOrders } from "../../common/domain";
-import { CAMPAIGN_THEMES, PAD_COLORS, SESSION_STATUSES, type CampaignInfo, type LibraryTrack, type PadBoard, type Pad, type PlaylistInfo, type SceneInfo, type SessionInfo, type TagGroup, type TransferCounts, type TransferScope } from "../../common/lyre/api";
+import { CAMPAIGN_THEMES, PAD_COLORS, SESSION_NUMBERINGS, SESSION_STATUSES, type CampaignInfo, type LibraryTrack, type PadBoard, type Pad, type PlaylistInfo, type SceneInfo, type SessionInfo, type TagGroup, type TransferCounts, type TransferScope } from "../../common/lyre/api";
 import { AUDIO_EXTENSIONS } from "../data/import/audioFiles";
 import { AUDIO_HEAD_BYTES, looksLikeAudio } from "./audioBytes";
 import { ZipError, openZip, writeZip, type OpenedZip } from "./zip";
@@ -558,6 +558,7 @@ function checkCampaign(v: unknown, at: string): CampaignInfo {
   const o = obj(v, at);
   const campaignId = id(o.id, `${at}.id`);
   const obs = isObj(o.obsidian) ? o.obsidian : {};
+  const sessions = list(o.sessions, `${at}.sessions`, (s, sat) => checkSession(s, sat, campaignId), 10_000);
   return {
     id: campaignId,
     name: str(o.name, `${at}.name`, 500),
@@ -569,7 +570,10 @@ function checkCampaign(v: unknown, at: string): CampaignInfo {
     playlistIds: list(o.playlistIds, `${at}.playlistIds`, id, 1000),
     boardIds: list(o.boardIds, `${at}.boardIds`, id, 1000),
     trackIds: list(o.trackIds ?? [], `${at}.trackIds`, id, 10_000),
-    sessions: list(o.sessions, `${at}.sessions`, (s, sat) => checkSession(s, sat, campaignId), 10_000),
+    sessions,
+    // 0.5.2: files from 0.5.1 and before count on from their first session's number.
+    numbering: o.numbering === undefined ? "auto" : oneOf(SESSION_NUMBERINGS, o.numbering, `${at}.numbering`),
+    firstSessionNumber: o.firstSessionNumber === undefined ? (sessions[0]?.number ?? 1) : int(o.firstSessionNumber, `${at}.firstSessionNumber`, 0, 100_000),
   };
 }
 

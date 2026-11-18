@@ -18,7 +18,7 @@ import { Pane } from "../../kit/Pane";
 import { SeekBar } from "../../kit/SeekBar";
 import { StatusPill } from "../../kit/Pills";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
-import { trackNameAt } from "../../kit/trackName";
+import { TrackNameLink, trackNameAt } from "../../kit/trackName";
 import { cx } from "../../kit/cx";
 import { restoreRoom } from "../../outputs/roomRestore";
 import { roomVolumeControl } from "../../outputs/roomVolume";
@@ -28,7 +28,8 @@ import { formatLength } from "../campaigns/model";
 import { busiestChannel as moveToChannel, moveLosesSound, roomToRestore, viewOf } from "../outputs/outputsModel";
 import { clearAdded, FADE_BUTTON_MS, LIVE_FADE_MS, nextInRoom, takeOut } from "./liveActions";
 import { laneProfile, sceneSteps, showLibraryOf, useLive, type LiveData } from "./liveData";
-import { addRoomChoices, busiestChannel, channelChoices, endWords, noRoomStatus, roomStatus, TABLE, UNDO_MS, upNextRows, type LiveRoom } from "./liveModel";
+import { LoopMark } from "./Rows";
+import { addRoomChoices, busiestChannel, channelChoices, endWords, noRoomStatus, roomStatus, TABLE, UNDO_MS, loopSettingAt, upNextRows, type LiveRoom } from "./liveModel";
 import { offerSoftUndo, touched, updateLive } from "./liveState";
 import { focusLive, focusLiveSoon } from "./focus";
 import { useFoldedSummary } from "./Scenes";
@@ -188,7 +189,7 @@ function RoomPart({ r, short, undo }: { r: LiveRoom; short: boolean; undo: () =>
         <PlayedButton r={r} />
         <RoomControls r={r} />
       </div>
-      {r.nobody && r.view && <NobodyThere r={r} />}
+      {r.bot?.room?.status === "reconnecting" ? <ConnectionLost r={r} /> : r.nobody && r.view && <NobodyThere r={r} />}
       <PlayedList r={r} />
       {(room?.music || room?.ambience || fx.length > 0 || showUp) && (
         <div className="lv-rm-b">
@@ -205,6 +206,36 @@ function RoomPart({ r, short, undo }: { r: LiveRoom; short: boolean; undo: () =>
         </div>
       )}
       <SoftUndoStrip where={`room:${r.roomId}`} onUndo={undo} />
+    </div>
+  );
+}
+
+/**
+ * 0.5.2 (round 9 review M3): the bot's connection dropped and it is trying again: the players hear nothing, whatever the
+ * music line counts. Said once to screen readers (role alert), in the place and style of Players hear nothing, with
+ * Try again (the bot reconnects now).
+ */
+function ConnectionLost({ r }: { r: LiveRoom }) {
+  const { client } = useLive();
+  const { say } = useAnnounce();
+  const bot = r.bot!;
+  return (
+    <div className="lv-noroom" role="alert">
+      <Icon name="warn" size="s" />
+      <span className="grow">Connection lost · players hear nothing</span>
+      {client && (
+        <button
+          type="button"
+          className="btn s lv-fix"
+          title={`${bot.name} connects to ${r.name} again now`}
+          onClick={() => {
+            client.retry(bot.id);
+            say(`${bot.name} is trying again`);
+          }}
+        >
+          Try again
+        </button>
+      )}
     </div>
   );
 }
@@ -310,7 +341,6 @@ function RoomControls({ r }: { r: LiveRoom }) {
           aria-label={`Mute ${r.name}`}
           title={`${bot.muted ? "Unmute" : "Mute"} ${r.name}`}
           onClick={() => {
-            touched();
             client.setMuted(bot.id, !bot.muted);
             say(`${r.name} ${bot.muted ? "unmuted" : "muted"}`);
           }}
@@ -352,7 +382,6 @@ function RoomVolume({ name, saved, onChange }: { name: string; saved: number; on
         const value = Number(event.target.value);
         lastMove.current = Date.now();
         setShown(value);
-        touched();
         onChange(value);
       }}
     />
@@ -587,8 +616,13 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
       </div>
       <div className="lv-lane-m">
         <div className="lv-lane-t ellipsis" title={title}>
-          {shown.name}
-          {shown.name !== shown.own && <span className="sr-only"> (its own name: {shown.own})</span>}
+          {/* 0.5.2 (Nik's item 53): its loop setting first, so a long name never hides it. */}
+          {track && <LoopMark setting={loopSettingAt(track, playing.place, playing.playlistId, overrides)} />}
+          {/* 0.5.2 (Nik's items 3 and 11): the name leads to the track's details in the Library. */}
+          <TrackNameLink trackId={playing.trackId} title={shown.name}>
+            {shown.name}
+            {shown.name !== shown.own && <span className="sr-only"> (its own name: {shown.own})</span>}
+          </TrackNameLink>
           {pos && <span className="sr-only">, {pos}</span>}
         </div>
         <LaneTime roomId={room.roomId} lane={lane} length={length} markers={markers} name={shown.name} />
@@ -747,7 +781,6 @@ function Effects({ room, roomName }: { room: RoomNowPlaying; roomName: string })
         aria-label={`Stop effects in ${roomName}`}
         title={`Stop effects in ${roomName}`}
         onClick={() => {
-          touched();
           audio.stopLane("effects", { target: { room: room.roomId } });
           say(`Effects stopped in ${roomName}`);
         }}
@@ -851,9 +884,15 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
             <span className="sr-only">{e.kind === "playNext" ? "Play next: " : "Added: "}</span>
           </>
         )}
-        <span className="ellipsis grow" title={`${name}${left ? ` (${left})` : ""}`}>
-          {name}
-        </span>
+        {e.trackIds.length === 1 && d.index.track(e.trackIds[0]) ? (
+          <TrackNameLink trackId={e.trackIds[0]} className="ellipsis grow" title={name}>
+            {name}
+          </TrackNameLink>
+        ) : (
+          <span className="ellipsis grow" title={`${name}${left ? ` (${left})` : ""}`}>
+            {name}
+          </span>
+        )}
         {left && <span className="faint num">{left}</span>}
         <button
           type="button"
@@ -935,9 +974,9 @@ function PlayedList({ r }: { r: LiveRoom }) {
             const name = t ? trackNameAt(t, place, d.names).name : x.title;
             return (
               <li key={`${x.trackId}-${x.at}-${i}`} className="lv-trk-r">
-                <span className="ellipsis grow" title={name}>
+                <TrackNameLink trackId={x.trackId} className="ellipsis grow" title={name}>
                   {name}
-                </span>
+                </TrackNameLink>
                 <span className="lv-trk-acts">
                   <button
                     type="button"

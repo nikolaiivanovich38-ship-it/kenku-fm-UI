@@ -683,3 +683,27 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await expect(scenes(page).nth(2)).toHaveAccessibleName("Scene 3: Scene 3");
   });
 });
+
+/* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.2: dragging in a scene's music (items 41 and 36)", () => {
+  test("a scene's track dragged by its handle onto the lower half of the last item goes last, exactly where the line showed", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
+    const rows = page.getByRole("list", { name: "Music in order" }).locator(":scope > li");
+    await expect(rows).toHaveCount(4);
+    const moving = ((await rows.first().getByRole("link").first().textContent()) ?? "").replace(/\s*\((Track|Playlist|FX)[^)]*\)$/, "").trim();
+    const handle = (await rows.first().locator("[title^='Drag to change the order']").boundingBox())!;
+    const last = (await rows.nth(3).boundingBox())!;
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + 10, handle.y + 10, { steps: 5 });
+    await page.mouse.move(last.x + 80, last.y + last.height - 6, { steps: 15 });
+    // Chromium reports a drag's last position with the next move: one more pixel, so the line is where the pointer is.
+    await page.mouse.move(last.x + 81, last.y + last.height - 6);
+    await expect(rows.nth(3)).toHaveClass(/cp-drop-after/);
+    await page.mouse.up();
+    await expect(rows.nth(3)).toContainText(moving);
+  });
+});
+

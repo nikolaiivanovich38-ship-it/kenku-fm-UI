@@ -35,7 +35,6 @@ export function CurrentScenePane() {
   const ref = scene ? sceneRefOf(campaign.id, session.id, scene) : null;
 
   const stopPads = () => {
-    touched();
     audio.stopPads();
     say("Pads stopped");
     // Stop pads goes with the last sound: focus goes to the first pad, not to the page.

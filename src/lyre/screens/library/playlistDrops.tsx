@@ -299,7 +299,7 @@ export function useFileDrops(targetOf: (el: Element | null, clientY: number) => 
       const el = e.target instanceof Element ? e.target : null;
       if (t.kind === "row") el?.closest(".pl-item")?.classList.add("pl-droptarget");
       if (t.kind === "page" && t.index !== null) {
-        const row = el?.closest<HTMLElement>(".pl-tr[draggable]");
+        const row = el?.closest<HTMLElement>(".pl-tr[data-tid]");
         if (row) {
           const r = row.getBoundingClientRect();
           row.classList.add(e.clientY > r.top + r.height / 2 ? "pl-drop-after" : "pl-drop-before");

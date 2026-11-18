@@ -397,6 +397,11 @@ export function LibraryScreen({ route }: ScreenProps) {
   const [fOpen, setFOpen] = useRememberedOpen("lb-filters", mode === "wide");
   const [tOpen, setTOpen] = useRememberedOpen("lb-tracks", true);
   const [dOpen, setDOpen] = useRememberedOpen("lb-details", true);
+  // 0.5.2 (Nik's items 3 and 11): a track's name on another screen opens the Library at that track with Details shown.
+  useEffect(() => {
+    if (tid && !dOpen) setDOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as the Library opens
+  }, []);
   const shownSel = list.reduce((k, t) => k + (sel.has(t.id) ? 1 : 0), 0);
 
   const filtersPane = (strip = false) => (

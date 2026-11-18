@@ -18,8 +18,9 @@ import { useAnnounce } from "../../shell/Announcer";
 import { useThemeChoice } from "../../shell/useThemeChoice";
 import type { ScreenProps } from "..";
 import { CAMPAIGN_THEME_IDS, DEFAULT_CAMPAIGN_THEME, formatDate, nextSession, plural, sessionLabel, shownTheme, SYSTEMS, themeName, themeNote } from "./model";
-import { ObsidianFields, Opening, useHeadingFocusWhenReady, useWrite, type ObsidianValues } from "./parts";
-import { useDragReorder, type DragReorder } from "./reorder";
+import { DeleteCampaignDialog } from "./deleting";
+import { ObsidianFields, Opening, RowMenu, useHeadingFocusWhenReady, useWrite, type ObsidianValues } from "./parts";
+import { useDragReorder, type DragReorder } from "../../kit/reorder";
 
 import "./campaigns.css";
 import { TopLead } from "../../shell/TopBar";
@@ -40,6 +41,7 @@ function CampaignsList({ campaigns, creating, setCreating }: { campaigns: Campai
   const write = useWrite();
   const { say } = useAnnounce();
   const [reordering, setReorderingNow] = useState(reorderingCampaigns);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const setReordering = (on: boolean) => setReorderingNow((reorderingCampaigns = on));
   // A new order shows at once while it is saved; the library's answer then takes over (a refusal puts it back).
   const [shown, setShown] = useState<string[] | null>(null);
@@ -111,6 +113,7 @@ function CampaignsList({ campaigns, creating, setCreating }: { campaigns: Campai
                 reordering={reordering}
                 move={(to, control) => void move(i, to, control)}
                 onKeyDown={(event) => onKeyDown(event, i)}
+                onDelete={() => setDeleting(c.id)}
               />
             ))}
           </div>
@@ -123,6 +126,7 @@ function CampaignsList({ campaigns, creating, setCreating }: { campaigns: Campai
         )}
       </div>
       {creating && <NewCampaignSheet onClose={() => setCreating(false)} />}
+      <DeleteCampaignDialog campaign={campaigns.find((c) => c.id === deleting) ?? null} onClose={() => setDeleting(null)} />
     </>
   );
 }
@@ -151,9 +155,11 @@ interface CardProps {
   /** Move this card to another place; `control` (data-ctl) keeps the focus on that button. */
   move: (to: number, control: string) => void;
   onKeyDown: (event: React.KeyboardEvent) => void;
+  /** 0.5.2: Delete… in its ⋯ menu. */
+  onDelete: () => void;
 }
 
-function CampaignCard({ campaign: c, index: i, count, drag, reordering, move, onKeyDown }: CardProps) {
+function CampaignCard({ campaign: c, index: i, count, drag, reordering, move, onKeyDown, onDelete }: CardProps) {
   const [choice] = useThemeChoice();
   const next = nextSession(c);
   const headingId = `cph-${c.id}`;
@@ -185,6 +191,15 @@ function CampaignCard({ campaign: c, index: i, count, drag, reordering, move, on
             </button>
           </span>
         )}
+        <RowMenu
+          label={`More for ${c.name}`}
+          k={`cpm-${c.id}`}
+          items={[
+            { label: "Open", icon: "right", onSelect: () => (window.location.hash = `#/campaign/${c.id}`) },
+            { separator: true },
+            { label: "Delete…", icon: "trash", danger: true, onSelect: onDelete },
+          ]}
+        />
       </div>
       <h2 className="display cp-card-name" id={headingId}>
         {c.name}

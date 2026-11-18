@@ -418,3 +418,14 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 
 /* Round 6 rule 5 (UX-R3): a key legend or reorder how-to shows only while the keyboard is in its box. */
 .pane:not(:focus-within) .keys-on-focus { display: none !important; }
+
+/* kit/reorder (useDragReorder): a row's drag handle, the row being dragged, and the line where it lands. */
+.cp-handle { display: grid; place-items: center; width: 14px; height: 24px; color: var(--ink-3); cursor: grab; flex: none; }
+.cp-handle:hover { color: var(--ink); }
+[data-drag].cp-dragging { opacity: .45; }
+[data-drag].cp-drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+[data-drag].cp-drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* kit/trackName TrackNameLink: a track's name that leads to its details; it reads as the name until hovered. */
+a.track-link { color: inherit; text-decoration: none; }
+a.track-link:hover, a.track-link:focus-visible { text-decoration: underline; }

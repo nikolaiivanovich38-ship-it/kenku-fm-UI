@@ -14,7 +14,7 @@ import { useAnnounce } from "../../shell/Announcer";
 import { useRememberedOpen } from "../../shell/ShellSettings";
 import { useLive } from "./liveData";
 import { currentBoard, ownBoards, trayContents } from "./liveModel";
-import { touched, updateLive } from "./liveState";
+import { updateLive } from "./liveState";
 import { PadGrid } from "./Pads";
 import { PlaylistRow, TrackRow, trackOnAir } from "./Rows";
 import { ToChip } from "./ToChip";
@@ -118,7 +118,6 @@ export function PadsBox({ scope }: { scope: Scope }) {
                 aria-label="Stop pads"
                 title="Stop every pad, in every room (music and ambience go on)"
                 onClick={() => {
-                  touched();
                   d.audio.stopPads();
                   say("Pads stopped");
                 }}

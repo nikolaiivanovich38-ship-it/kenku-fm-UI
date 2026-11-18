@@ -23,14 +23,14 @@ import { EnergyMeter } from "../../kit/Pills";
 import { PlayOrderButton } from "../../kit/PlayOrderButton";
 import { ProfileLink } from "../../kit/ProfileLink";
 import { TagStrip } from "../../kit/TagStrip";
-import { trackNameAt } from "../../kit/trackName";
+import { trackDetailsHref, TrackNameLink, trackNameAt } from "../../kit/trackName";
 import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
 import { useSave } from "../../shell/useSave";
 import { formatLength } from "../campaigns/model";
 import { addToList, playOnAir, type PlayWhat } from "./liveActions";
 import { playedMs, playlistInPlace, sameRef, sceneRefOf, scenePlace, sceneSteps, seedOfScene, showLibraryOf, useBoxTarget, useLive, type LiveData } from "./liveData";
-import type { LiveBox } from "./liveModel";
+import { LOOP_WORDS, loopSettingAt, type LiveBox, type LoopSetting } from "./liveModel";
 import { touched, updateLive } from "./liveState";
 
 const KIND_WORDS = { amb: "Ambience", fx: "FX" } as const;
@@ -131,6 +131,16 @@ function RepeatOne({ scene, sceneName, trackId, name, dataLv, shown }: { scene: 
   );
 }
 
+/** 0.5.2 (Nik's item 53): a track's loop setting as a small icon, its name on hover and for screen readers. */
+export function LoopMark({ setting }: { setting: LoopSetting }) {
+  const words = LOOP_WORDS[setting];
+  return (
+    <span className={cx("lv-loop", `lv-loop-${setting}`)} role="img" aria-label={words} title={words}>
+      <Icon name={setting === "none" ? "next" : setting === "crossfade" ? "fade" : "loop"} size="s" />
+    </span>
+  );
+}
+
 export interface TrackRowProps {
   track: LibraryTrack;
   /** Unique among the screen's rows: which list, then the track ("sc2:t42"). */
@@ -209,6 +219,7 @@ export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on,
             {!layered && track.energy !== null && <EnergyMeter value={track.energy} />}
           </>
         )}
+        {place?.kind === "scene" && <LoopMark setting={loopSettingAt(track, place, playlistId, overrides)} />}
         <span className="num lv-dur" title={Math.round(len / 1000) !== Math.round(track.durationMs / 1000) ? `Plays ${formatLength(len)} of the file's ${formatLength(track.durationMs)}` : `Length ${formatLength(track.durationMs)}`}>
           {formatLength(len)}
         </span>
@@ -248,6 +259,11 @@ export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on,
             <dd>{[track.artist, track.album].filter(Boolean).join(", ") || "–"}</dd>
           </dl>
           <div className="lv-trk-ap">
+            {/* 0.5.2 (Nik's items 3 and 11): the track's details in the Library, beside its Audio profile. */}
+            <a className="btn s" href={trackDetailsHref(track.id)} title={`Open the details of ${n.name} in the Track library`}>
+              <Icon name="library" size="s" />
+              Track details
+            </a>
             <ProfileLink trackId={track.id} title={n.name} place={profileKey(place, playlistId)} placeName={place?.kind === "scene" ? "in this scene" : playlistId ? "in this playlist" : undefined} />
             <TagStrip track={track} groups={tagGroups} />
           </div>
@@ -369,9 +385,15 @@ export function AmbienceRow({ scene, place, dataLv }: { scene: SceneInfo; place:
     <div className={cx("lv-in-line lv-trk-r lv-amb-r", on && "on")} role="group" aria-label={`Ambience: ${name}`}>
       <span className="lane-dot amb" aria-hidden="true" />
       <span className="sr-only">Ambience: </span>
-      <span className="grow ellipsis" title={name}>
-        {name}
-      </span>
+      {t ? (
+        <TrackNameLink trackId={t.id} className="grow ellipsis" title={name}>
+          {name}
+        </TrackNameLink>
+      ) : (
+        <span className="grow ellipsis" title={name}>
+          {name}
+        </span>
+      )}
       <span className={cx("lv-trk-acts", on && "shown")}>
         <button
           type="button"

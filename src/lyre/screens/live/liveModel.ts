@@ -6,7 +6,7 @@
  *
  * What plays is the audio host's (getNowPlaying); Live only reads it here.
  */
-import { isFx, SHORTCUT_ACTIONS, type AudioProfile, type ProfileSource, type RoomTarget } from "../../../common/domain";
+import { isFx, placeKey, profilePlacesFor, resolveProfile, SHORTCUT_ACTIONS, type AudioProfile, type ProfileOverrides, type ProfileSource, type RoomTarget, type UsePlace } from "../../../common/domain";
 import type { CampaignInfo, LibraryTrack, Pad, PadBoard, PlaylistInfo, SceneInfo, SessionInfo } from "../../../common/lyre/api";
 import type { LyreBot, LyreOutputs } from "../../../common/lyreOutputs";
 import type { NowPlaying, RoomNowPlaying, UpNextEntryNow } from "../../audio/lyreAudio";
@@ -97,7 +97,9 @@ export function liveRooms(outputs: LyreOutputs | null, now: NowPlaying): LiveRoo
 /** A room's one status pill. */
 export function roomStatus(r: LiveRoom): { text: string; tone: StatusTone } {
   const status = r.bot?.room?.status;
-  if (status === "joining" || status === "reconnecting") return { text: "Joining", tone: "warn" };
+  // 0.5.2 (round 9 review M3): a dropped connection says so; Joining is for a bot on its way in.
+  if (status === "reconnecting") return { text: "Connection lost", tone: "warn" };
+  if (status === "joining") return { text: "Joining", tone: "warn" };
   if (r.nobody) return { text: "Nobody there", tone: "warn" };
   if (r.bot?.muted) return { text: "Muted", tone: "idle" };
   if (isPlaying(r.room ?? undefined)) return { text: "Playing", tone: "live" };
@@ -285,6 +287,23 @@ export function trayContents(own: Pick<SessionInfo, "playlistIds" | "trackIds">,
   return { playlists, tracks: (own.trackIds ?? []).filter((id) => index.track(id)) };
 }
 
+/**
+ * 0.5.2 (Nik's item 49: "if there are no contents in the session playlists or session pads or campaign playlists panes,
+ * they should not appear, but only if there are no contents in them"): a tray box shows only when it lists something:
+ * a music playlist or single track (Playlists), a pad board (Pads).
+ */
+export function trayShown(
+  box: "ssp" | "ssd" | "cpp" | "cpd",
+  session: Pick<SessionInfo, "playlistIds" | "trackIds" | "boardIds">,
+  campaign: Pick<SessionInfo, "playlistIds" | "trackIds" | "boardIds">,
+  index: LibraryIndex,
+): boolean {
+  const own = box.startsWith("ss") ? session : campaign;
+  if (box.endsWith("d")) return ownBoards(own.boardIds, index).length > 0;
+  const { playlists, tracks } = trayContents(own, index);
+  return playlists.length + tracks.length > 0;
+}
+
 /* ---------- pads ---------- */
 
 /** A scene's pad boards that still exist; the first shows when the scene starts. */
@@ -334,6 +353,22 @@ export function endWords(profile: AudioProfile, source: ProfileSource): string {
   return `Ends ${formatLength(profile.endMs)}, ${then}${source === "track" ? "" : ` (${AFTER_WORDS[source]} setting)`}`;
 }
 
+/**
+ * 0.5.2 (Nik's item 53): a track's loop setting where it plays (Loop, Crossfade loop, Don't loop): its audio profile
+ * there (the place's own, else the track's), else its own choice in the Library. A profile that loops with a crossfade
+ * time is Crossfade loop; one that loops without saying is the track's choice.
+ */
+export type LoopSetting = "loop" | "crossfade" | "none";
+export const LOOP_WORDS: Record<LoopSetting, string> = { loop: "Loop", crossfade: "Crossfade loop", none: "Don't loop" };
+export function loopSettingAt(track: LibraryTrack, place: UsePlace | null, playlistId: string | null, overrides: ProfileOverrides): LoopSetting {
+  const places = profilePlacesFor(place, playlistId);
+  const { profile } = resolveProfile(track, places, overrides);
+  if (profile.after !== "loop") return "none";
+  if (profile.loopCrossfadeMs > 0) return "crossfade";
+  const own = places.map((p) => overrides[placeKey(p)]?.[track.id]).find(Boolean) ?? track.profile ?? {};
+  return own.loopCrossfadeMs === undefined && track.loop === "crossfade" ? "crossfade" : "loop";
+}
+
 /* ---------- keys ---------- */
 
 /** The four keys of Live that Settings › Keyboard shortcuts can change, as keyName writes them. */
@@ -369,6 +404,11 @@ export interface KeyInput {
   repeat: boolean;
   /** Focus is in a text box, a slider, a tick box or a list (the prototype's L.typing). */
   typing: boolean;
+  /**
+   * 0.5.2 (round 9 review M4): the text box with focus was typed into since the last change to what plays, so its own
+   * Ctrl+Z has something to take back. Missing: taken as yes.
+   */
+  unsavedTyping?: boolean;
   /** Focus is in Find a track, and what it holds. */
   inSearch: boolean;
   searchValue: string;
@@ -419,7 +459,7 @@ export function liveKey(k: KeyInput): KeyDecision {
   // Shift+Esc: two keys, so it is never pressed by accident; works even from a text box.
   if (k.name === keys.fadeAll) return { kind: "fadeAll" };
   if (k.key === "Escape" && k.keysOpen) return { kind: "closeKeys" };
-  if (k.name === keys.undo) return k.typing ? none : { kind: "undo" };
+  if (k.name === keys.undo) return k.typing && k.unsavedTyping !== false ? none : { kind: "undo" };
   // A Next scene key with Ctrl or Alt (or F1 to F12) is not a single key: it works whatever the switch says.
   if (k.name === keys.nextScene && !isSingleKey(keys.nextScene)) return next;
   if (k.ctrl) return none;

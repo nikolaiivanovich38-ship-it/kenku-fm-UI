@@ -347,6 +347,18 @@ describe("Library: a track's details", () => {
     expect(d.getByRole("region", { name: "Used in" })).toHaveTextContent(/Through/);
   });
 
+  it("0.5.2 (Nik's items 3 and 11): a track's name on another screen opens the Library with its details shown, even when Details was folded", async () => {
+    openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(within(details()).getByRole("button", { name: /^Details/ }));
+    expect(within(details()).getByRole("button", { name: /^Details/ })).toHaveAttribute("aria-expanded", "false");
+    go("playlists");
+    go("library/t13");
+    expect(await within(details()).findByRole("textbox", { name: "Your title" })).toBeInTheDocument();
+    expect(within(details()).getByRole("button", { name: /^Details/ })).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("Close details goes back to the list and keeps the filters", async () => {
     openAt("library");
     await loaded();

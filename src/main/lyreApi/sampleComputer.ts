@@ -137,6 +137,8 @@ export function sampleSharedLibrary(seed: SeedData): LyreFileLibrary {
         scene("sam-e", "Gates of Ravenloft", music("sam-t18")), scene("sam-f", "Castle corridors", music("sam-halls")), scene("sam-g", "The chapel", music("sam-t14", "sam-t15")), scene("sam-h", "Strahd's dinner", music("sam-10", "sam-t21")), scene("sam-i", "Escape", music("sam-11"), ["sam-ravenloft"]),
       ] },
     ],
+    numbering: "auto",
+    firstSessionNumber: 1,
   };
   return {
     tracks,

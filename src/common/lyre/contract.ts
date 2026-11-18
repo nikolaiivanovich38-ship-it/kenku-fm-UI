@@ -609,6 +609,28 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.campaigns.move("nope", 0), "not-found");
       });
 
+      it("0.5.2: deletes a campaign with its sessions, scenes and what it keeps on hand; the library keeps its tracks, playlists and pad boards; Undo brings it back", async () => {
+        const playlists = (await api.playlists.list()).length;
+        const boards = (await api.boards.list()).length;
+        const tracks = (await api.library.listTracks()).length;
+        const before = await api.campaigns.get("crown");
+        const done = await api.campaigns.delete("crown");
+        valueOf(done);
+        expect(done.ok && done.undoLabel).toMatch(/The Sunken Crown/);
+        expect((await api.campaigns.list()).map((c) => c.id)).toEqual(["sixth", "masks"]);
+        expect(await api.campaigns.get("crown")).toBeNull();
+        expect((await api.playlists.list()).length).toBe(playlists);
+        expect((await api.boards.list()).length).toBe(boards);
+        expect((await api.library.listTracks()).length).toBe(tracks);
+        expect((await api.campaigns.usesOf({ kind: "playlist", id: "p-company" })).filter((u) => u.campaignId === "crown")).toEqual([]);
+        expect(Object.keys(await api.profiles.overrides()).filter((k) => k.includes(":crown:"))).toEqual([]);
+        await changedEvent("campaigns", "history");
+        expectRefused(await api.campaigns.delete("crown"), "not-found");
+        valueOf(await api.history.undo());
+        expect(await api.campaigns.get("crown")).toEqual(before);
+        expect((await api.campaigns.list()).map((c) => c.id)).toEqual(["crown", "sixth", "masks"]);
+      });
+
       it("says where every playlist, board and track is used, as the shared rules do", async () => {
         const campaigns = await api.campaigns.list();
         for (const p of await api.playlists.list()) expect(await api.campaigns.usesOf({ kind: "playlist", id: p.id }), p.id).toEqual(usesOfPlaylist(p.id, campaigns));
@@ -660,6 +682,59 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         const crown = await api.campaigns.get("crown");
         expect(crown.sessions.map((s) => [s.id, s.number])).toEqual([["s15", 12], ["s12", 13], ["s13", 14], ["s14", 15]]);
         expectRefused(await api.sessions.move("crown", "nope", 0), "not-found");
+      });
+
+      it("0.5.2: deletes a session with its scenes; the sessions after it count on from the one before; Undo brings it back", async () => {
+        const before = await api.campaigns.get("crown");
+        const done = await api.sessions.delete("crown", "s13");
+        valueOf(done);
+        expect(done.ok && done.undoLabel).toMatch(/13/);
+        const crown = await api.campaigns.get("crown");
+        expect(crown.sessions.map((s) => [s.id, s.number])).toEqual([["s12", 12], ["s14", 13], ["s15", 14]]);
+        expect(crown.playlistIds).toEqual(before.playlistIds);
+        await changedEvent("campaigns", "history");
+        expectRefused(await api.sessions.delete("crown", "s13"), "not-found");
+        expectRefused(await api.sessions.delete("nope", "s12"), "not-found");
+        valueOf(await api.history.undo());
+        expect(await api.campaigns.get("crown")).toEqual(before);
+      });
+
+      it("0.5.2: deleting the session with its scene's own settings takes them too", async () => {
+        valueOf(await api.sessions.delete("crown", "s14"));
+        expect(Object.keys(await api.profiles.overrides()).filter((k) => k.startsWith("sc:crown:s14:") || k === "ss:crown:s14")).toEqual([]);
+        expect(await api.campaigns.usesOf({ kind: "board", id: "abbey" })).not.toContainEqual(expect.objectContaining({ sessionId: "s14" }));
+      });
+
+      it("0.5.2: sessions count on from the campaign's first session number, which can be changed", async () => {
+        const crown = await api.campaigns.get("crown");
+        expect(crown).toMatchObject({ numbering: "auto", firstSessionNumber: 12 });
+        const changed = valueOf(await api.campaigns.update("crown", { firstSessionNumber: 20 }));
+        expect(changed.sessions.map((s) => s.number)).toEqual([20, 21, 22, 23]);
+        expect(valueOf(await api.sessions.create("crown")).number).toBe(24);
+        expectRefused(await api.campaigns.update("crown", { firstSessionNumber: -1 }), "invalid");
+        expectRefused(await api.campaigns.update("crown", { numbering: "roman" as never }), "invalid");
+        // While they count on by themselves, a session's number is not typed.
+        expectRefused(await api.sessions.update("crown", "s14", { number: 40 }), "wrong-kind");
+        expect(valueOf(await api.campaigns.create({ name: "New" }))).toMatchObject({ numbering: "auto", firstSessionNumber: 1 });
+      });
+
+      it("0.5.2: with numbers typed by hand, each session keeps its number: new ones follow the last, and moves and deletes change none", async () => {
+        const typed = valueOf(await api.campaigns.update("crown", { numbering: "typed" }));
+        expect(typed.numbering).toBe("typed");
+        expect(typed.sessions.map((s) => s.number)).toEqual([12, 13, 14, 15]);
+        expect(valueOf(await api.sessions.update("crown", "s14", { number: 30 })).number).toBe(30);
+        expectRefused(await api.sessions.update("crown", "s14", { number: -2 }), "invalid");
+        expectRefused(await api.sessions.update("crown", "s14", { number: 1.5 }), "invalid");
+        valueOf(await api.sessions.move("crown", "s15", 0));
+        valueOf(await api.sessions.delete("crown", "s12"));
+        let crown = await api.campaigns.get("crown");
+        expect(crown.sessions.map((s) => [s.id, s.number])).toEqual([["s15", 15], ["s13", 13], ["s14", 30]]);
+        // A new session follows the last one's number.
+        expect(valueOf(await api.sessions.create("crown")).number).toBe(31);
+        // Back to counting on: from the first session's number.
+        crown = valueOf(await api.campaigns.update("crown", { numbering: "auto" }));
+        expect(crown).toMatchObject({ numbering: "auto", firstSessionNumber: 15 });
+        expect(crown.sessions.map((s) => s.number)).toEqual([15, 16, 17, 18]);
       });
 
       it("adds, changes, moves, duplicates and deletes scenes", async () => {

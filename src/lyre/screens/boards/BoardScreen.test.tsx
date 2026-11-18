@@ -724,6 +724,16 @@ describe("round 7: dividers and what a pad does (ORG-4, PLY-8)", () => {
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Spells" })).toBeNull());
   });
 
+  it("0.5.2 (round 8 finding 7): Enter in the divider's name adds it, as in every other dialog", async () => {
+    const { api } = await open("board/combat");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "More for this board" }));
+    await user.click(screen.getByRole("menuitem", { name: "Add a divider…" }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Spells{Enter}");
+    expect(await within(screen.getByRole("region", { name: "Pads" })).findByRole("heading", { name: "Spells" })).toBeInTheDocument();
+    expect((await api.boards.list()).find((b) => b.id === "combat")?.dividers).toEqual([{ row: 0, name: "Spells" }]);
+  });
+
   it("a pad plays its sound; What it does… adds a step that turns the music down first", async () => {
     const { api } = await open("board/weather");
     const user = userEvent.setup();

@@ -4,7 +4,7 @@
  */
 import React, { useEffect, useRef, useState } from "react";
 
-import type { CampaignInfo, CampaignPatch, SessionInfo } from "../../../common/lyre/api";
+import { MAX_SESSION_NUMBER, type CampaignInfo, type CampaignPatch, type SessionInfo, type SessionNumbering } from "../../../common/lyre/api";
 import { useCampaign, useLyreApi } from "../../api";
 import { Button } from "../../kit/Button";
 import { Icon } from "../../kit/Icon";
@@ -18,7 +18,8 @@ import { SystemList } from "./CampaignsScreen";
 import { CAMPAIGN_THEME_IDS, formatDate, nextSession, plural, sessionLabel, themeName } from "./model";
 import { OnHandPane } from "./OnHand";
 import { DraftField, ModeSwitch, NotFound, Opening, useHeadingFocusWhenReady, ObsidianFields, RowMenu, StatusBadge, useFocusLater, useLibraryIndex, useWrite } from "./parts";
-import { useDragReorder } from "./reorder";
+import { DeleteCampaignDialog, DeleteSessionDialog } from "./deleting";
+import { useDragReorder } from "../../kit/reorder";
 
 import "./campaigns.css";
 import { TopLead } from "../../shell/TopBar";
@@ -59,11 +60,13 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
 
   const played = c.sessions.filter((s) => s.status === "played").length;
   const shownName = nameDraft ?? c.name;
+  const [deleting, setDeleting] = useState(false);
   return (
     <>
       <div className="viewhead">
         <TopLead />
         <h1>{shownName || "Untitled campaign"}</h1>
+        <RowMenu label={`More for ${c.name}`} k="cp-more" items={[{ label: "Delete campaign…", icon: "trash", danger: true, onSelect: () => setDeleting(true) }]} />
         <span className="grow" />
         <ModeSwitch campaign={c} />
         {next && (
@@ -112,6 +115,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
             <label htmlFor="cp-c-blurb">Description</label>
             <DraftField className="input" id="cp-c-blurb" autoComplete="off" value={c.description} onSave={(description) => void saveField({ description }, `${c.name} description`)} />
           </div>
+          <SessionNumbers campaign={c} save={saveField} />
         </div>
         <div className="cp-split">
           <Column>
@@ -124,7 +128,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
               summary={played && next ? `Next: ${sessionLabel(next)}` : undefined}
               foldedSummary
               actions={
-                <Button size="s" icon="plus" onClick={newSession}>
+                <Button size="s" icon="plus" data-k="cp-newsession" onClick={newSession}>
                   New session
                 </Button>
               }
@@ -179,6 +183,55 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
           </Column>
         </div>
       </div>
+      <DeleteCampaignDialog campaign={deleting ? c : null} onClose={() => setDeleting(false)} onDeleted={() => (window.location.hash = "#/campaigns")} />
+    </>
+  );
+}
+
+/**
+ * 0.5.2 (Nik's list, item 13): how sessions are numbered: counting on in order from a first number ("we began using
+ * Lyre at session 12"), or each number typed in the session's details (SessionScreen), which nothing renumbers.
+ */
+function SessionNumbers({ campaign: c, save }: { campaign: CampaignInfo; save: (patch: CampaignPatch, what: string) => Promise<unknown> }) {
+  const { say } = useAnnounce();
+  return (
+    <>
+      <div className="field cp-f-numbers">
+        <label htmlFor="cp-c-numbers">Session numbers</label>
+        <select
+          className="input"
+          id="cp-c-numbers"
+          value={c.numbering}
+          onChange={async (event) => {
+            const numbering = event.target.value as SessionNumbering;
+            if ((await save({ numbering }, `${c.name} session numbers`)) !== undefined) say(numbering === "typed" ? "Each session keeps the number typed for it" : "Sessions count on from the first one's number");
+          }}
+        >
+          <option value="auto">Count on from a number</option>
+          <option value="typed">Type each number</option>
+        </select>
+      </div>
+      {c.numbering === "auto" ? (
+        <div className="field cp-f-first">
+          <label htmlFor="cp-c-first">First session number</label>
+          <DraftField
+            className="input"
+            id="cp-c-first"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={MAX_SESSION_NUMBER}
+            title="The first session's number; the others count on in order (for a campaign begun before Lyre)"
+            value={String(c.firstSessionNumber)}
+            onSave={(text) => {
+              const firstSessionNumber = Number(text);
+              if (text.trim() !== "" && firstSessionNumber !== c.firstSessionNumber) void save({ firstSessionNumber }, `${c.name} first session number`);
+            }}
+          />
+        </div>
+      ) : (
+        <p className="hint cp-f-first">Type each session&apos;s number in its details. New sessions follow the last one.</p>
+      )}
     </>
   );
 }
@@ -195,19 +248,31 @@ function SessionList({ campaign: c }: { campaign: CampaignInfo }) {
     if (!s || to < 0 || to >= c.sessions.length || from === to) return;
     focusLater(`sm-${s.id}`, to);
     if ((await write(api.sessions.move(c.id, s.id, to))) === undefined) return;
-    // Sessions are numbered in their order from the lowest number (session numbers are derived from order).
-    const number = Math.min(...c.sessions.map((x) => x.number)) + to;
-    say(`${s.name || "That session"} is now Session ${number}, ${to + 1} of ${c.sessions.length}`);
+    // Sessions count on in their order from the first number, unless their numbers are typed (0.5.2).
+    if (c.numbering === "typed") return say(`${sessionLabel(s)} is now ${to + 1} of ${c.sessions.length}`);
+    say(`${s.name || "That session"} is now Session ${c.firstSessionNumber + to}, ${to + 1} of ${c.sessions.length}`);
   };
   const drag = useDragReorder("sessions", (from, to) => void move(from, to));
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const deletingSession = c.sessions.find((s) => s.id === deleting) ?? null;
+  // Focus goes to the session that takes its place, else the one before, else New session.
+  const deleted = () => {
+    const at = c.sessions.findIndex((s) => s.id === deleting);
+    const next = c.sessions.filter((s) => s.id !== deleting)[Math.max(0, at - 1)];
+    focusLater(next ? `sm-${next.id}` : "cp-newsession");
+  };
 
+  const dialog = <DeleteSessionDialog session={deletingSession} onClose={() => setDeleting(null)} onDeleted={deleted} />;
   if (c.sessions.length === 0) return <p className="cp-none">No sessions yet.</p>;
   return (
-    <ol className="list cp-slist" aria-label="Sessions in order">
-      {c.sessions.map((s, i) => (
-        <SessionRow key={s.id} campaign={c} session={s} index={i} drag={drag} move={move} />
-      ))}
-    </ol>
+    <>
+      <ol className="list cp-slist" aria-label="Sessions in order">
+        {c.sessions.map((s, i) => (
+          <SessionRow key={s.id} campaign={c} session={s} index={i} drag={drag} move={move} onDelete={() => setDeleting(s.id)} />
+        ))}
+      </ol>
+      {dialog}
+    </>
   );
 }
 
@@ -221,12 +286,15 @@ function SessionRow({
   index: i,
   drag,
   move,
+  onDelete,
 }: {
   campaign: CampaignInfo;
   session: SessionInfo;
   index: number;
   drag: ReturnType<typeof useDragReorder>;
   move: (from: number, to: number) => Promise<void>;
+  /** 0.5.2: Delete… in its ⋯ menu. */
+  onDelete: () => void;
 }) {
   const api = useLyreApi();
   const write = useWrite();
@@ -287,6 +355,8 @@ function SessionRow({
           { label: "Rename", icon: "edit", onSelect: () => rename.start(nameLink.current) },
           ...(i > 0 ? [{ label: "Move up", icon: "chevup" as const, onSelect: () => { void move(i, i - 1); } }] : []),
           ...(i < c.sessions.length - 1 ? [{ label: "Move down", icon: "chevdown" as const, onSelect: () => { void move(i, i + 1); } }] : []),
+          { separator: true },
+          { label: "Delete…", icon: "trash", danger: true, onSelect: onDelete },
         ]}
       />
     </li>
