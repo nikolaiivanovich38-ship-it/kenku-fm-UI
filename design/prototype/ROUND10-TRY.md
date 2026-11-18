@@ -5,7 +5,7 @@ window size, design notes, and **Drop the connection** to show a lost bot); it i
 **Screen: Whole window**, then try **Half of a 1920 screen** for Live.
 
 The number in brackets is the item on your list of 14 Nov, or your answer to the reviewers' questions of 18 Nov (Q1 to
-Q7).
+Q7). Rows 26 to 29 are your four answers to this round's questions (A1 to A4).
 
 ## Live
 
@@ -49,5 +49,14 @@ Q7).
 | 21 | Settings › Discord bots. | No "Joins when Lyre starts"; a **Starting volume** per bot; **Rooms** at the top of the box (56). |
 | 22 | The menu: **Rooms (1/2)** under Settings. | The Rooms screen as it was, its trail Settings › Rooms. |
 | 23 | Settings › Sound to Discord › **Dip the music under effects**; a pad board › a pad › **While it plays**. | How far (A little by default), Comes back, Ambience dips too; pads have no mark on their face, their hover says they dip (47). |
-| 24 | Strip › Base theme: **Hearth and Iron**; then the other four. | Iron teal buttons, so the red On air light stands out (Q4); Elysium keeps its gold (Q5); Fern and Brass now reads green. Box titles in the plain face, no capitals. |
+| 24 | Strip › Base theme: **Hearth and Iron**; then the other four. | Iron teal buttons, so the red On air light stands out (Q4); Parchment's buttons are ink blue for the same reason (row 26); Elysium keeps its gold (Q5); Fern and Brass now reads green. Box titles in the plain face, no capitals. |
 | 25 | First start: open the prototype in a private window. | The short tour, then Help opens at **Set up Lyre** (19). Once all nine are done it folds to one line. |
+
+## Your answers to this round's questions
+
+| # | Try this | You should see |
+|---|---|---|
+| 26 | Strip › Base theme: **Parchment**; open Pad boards, then Live with a scene playing. | Main buttons (New board, Next scene) are ink blue, not oxblood; the On air light is the only red (A1). |
+| 27 | Strip › **Half of a 1920 screen**; Live. Start a scene, then point at the icons at the right of the top strip. | Fade all and Stop all are icons; hover names them (Fade all with Shift+Esc). Undo is an icon there too, no longer cut to "U". At 1000 px or wider Fade all and Stop all have their words again; Undo from 1100 px (A2). |
+| 28 | Live › click a room's name (**Table ▾**), then **+ Room**. | Move, copy, Leave and the bots; no Rooms… line. Rooms opens from the menu, under Settings (A3). |
+| 29 | Session 14 › open The abbey ruins › **Add pad boards…** › **New board…** › name it › **Make it and add it**. | The panel closes and the new board is last in the scene's pad boards; it is on the Pad boards page, empty, ready for pads. **Back** instead leaves your ticks as they were (A4). |

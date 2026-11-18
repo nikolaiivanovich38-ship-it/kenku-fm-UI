@@ -29,7 +29,7 @@ Built = drawn in the prototype this round. Later = kept for a later round, not d
 | # | Proposal | Verdict | Why |
 |---|---|---|---|
 | P1 | Back returns to the same scene, open playlist, scroll and control | Keep (built in round 9) | The prototype already does it; the app must match (acceptance check stays). |
-| P2 | Make a playlist from the Add music panel | Keep, built | Nik 18 Nov, 1a. **New board…** in the pad board picker: Drop for now: Nik's answer is about playlists, and a board needs its own grid editor. |
+| P2 | Make a playlist from the Add music panel | Keep, built | Nik 18 Nov, 1a. **New board…** in the pad board picker: built after Nik's answer 4 to this round's questions (below). |
 | P3 | "No ambience" chip on a folded scene | Drop | Nik 6 Nov: no Ready-type marks; 18 Nov: left out. |
 | P4 | "Starts when" becomes **Story cue**; a "When it starts" line in the open scene with Change… | Keep, built | The start steps decide what the table hears and were hidden in ⋯. |
 | P5 | The Library's tag chips in the pickers | Later | 0.5.2 put the Shape filter in the scene pickers; the full chip row shares the Library's filter code in the app, so it is built there. |
@@ -77,7 +77,7 @@ Built = drawn in the prototype this round. Later = kept for a later round, not d
 
 | # | Proposal | Verdict | Why |
 |---|---|---|---|
-| K1 | One signal: On air is a red lamp in every theme; no accent in the red-orange band | Keep, built | Nik 18 Nov, 4a: Hearth's orange becomes iron teal. Parchment's oxblood is in the same band: **question 1 for Nik**. |
+| K1 | One signal: On air is a red lamp in every theme; no accent in the red-orange band | Keep, built | Nik 18 Nov, 4a: Hearth's orange becomes iron teal; answer 1 below: Parchment's oxblood becomes ink blue. |
 | K1 | Elysium becomes bone | Drop | Nik 18 Nov, 5b: Elysium keeps gold. |
 | K2 | Status colours for status, the accent for one primary | Keep, built | Connected and Nobody there were both gold. |
 | K3 | One header grammar; sentence case; the trays as plain headings | Keep, built | ALL CAPS labels and dashed/solid trays meant nothing. |
@@ -125,7 +125,8 @@ the Track panel's left; the queue opens at the right.
 
 **Live.**
 - Top strip: Back, trail, session, Prep | Live, Find (shrinks first), **Undo place**, Fade all, Stop all (words from
-  1000 px of app), Keys, Arrange.
+  1000 px of app; below that, at half a 1920 screen, icons with their names read out and on hover, Fade all's key
+  Shift+Esc in its hover text), Keys, Arrange.
 - On air: a red lamp in its head, lit while any room plays; no tinted band. Each room: name ▾ (move, copy, Leave), status, mute,
   volume, Leave. Then Music and Ambience, each with a title of up to
   two lines, its bar and time, and one quiet line (where it comes from · how it loops); then the Effects line, always
@@ -149,7 +150,9 @@ the Track panel's left; the queue opens at the right.
 cue**. Every track title, nested in a playlist or not, opens the Track panel. Track rows: Preview · Play on air · Audio
 profile · Repeat · ⋯. No "Note link · Coming later" in scenes or the session. Add music: **Make a playlist of these…**
 in its foot (asks a name; the scene gets the new playlist in place of the ticked tracks; Cancel and Done stay); a
-**Dock** menu (Left, Right, Float) with words.
+**Dock** menu (Left, Right, Float) with words. Add pad boards: **New board…** in its foot asks a name, makes an empty
+4 × 3 board and puts it at the end of the scene's boards (Back keeps the ticks as they were); its pads are added on
+its own page.
 
 **Playlists.** A → Open button on every playlist row. Row buttons greyed at rest.
 
@@ -163,9 +166,11 @@ same picker).
 at the top right (UX-R16).
 
 **Rooms.** As 0.5.1 had it; its trail says Settings › Rooms; reached from the rail under Settings and from Settings.
+Live's room menus have no Rooms… line: rooms are joined and moved in Live itself.
 
-**Themes.** Hearth and Iron: iron teal accent. Fern and Brass: a green ground that reads. Candlelit, Elysium (gold) and
-Parchment as they were. On air is the same red family in all five.
+**Themes.** Hearth and Iron: iron teal accent. Parchment: ink blue accent (it was oxblood). Fern and Brass: a green
+ground that reads. Candlelit and Elysium (gold) as they were. On air is the same red family in all five, and no
+theme's buttons are in it.
 
 **Help.** First start: the short tour, then Set up Lyre. Set up Lyre folds to one line when all nine are done, and its
 badge, a quiet outline chip, never shows while Live has a scene running. New campaign: with something typed, the first
@@ -173,7 +178,9 @@ Esc says a second one throws it away.
 
 ## Specs and checks
 The prototype project (`npx playwright test -c playwright.spec.config.ts --project=prototype`, through `yarn heavy`):
-**813 passed, 0 failed, 13 skipped** (the skipped ones are `appOnly()` checks of 0.5.1). That includes the sweeps (no
+**813 passed, 0 failed, 13 skipped** (the skipped ones are `appOnly()` checks of 0.5.1). After Nik's four answers:
+818 passed, 0 failed, 13 skipped for the whole project; then, with the Undo icon, Live, the sweeps and Help again
+(477 passed, the one failure a fault in the new check itself, fixed and passing) and the new checks (39 passed). That includes the sweeps (no
 sideways scroll, no overlap or cut-off text, axe WCAG 2.2 A and AA, keyboard, the window's buttons, every screen from
 600 to 2560 px wide). Round 9 left 34 failing; they now pass.
 - **New checks, marked `expectFailureUntilBuilt("r10")`** (a new stream in `support/built.ts`, so the app project
@@ -193,12 +200,28 @@ sideways scroll, no overlap or cut-off text, axe WCAG 2.2 A and AA, keyboard, th
   real faults (Undo under Find lost its click, the strip shifted 3 px when Undo appeared, the Live tour skipped a step),
   which were then fixed.
 
-## Questions for Nik (recommended first)
-1. **Parchment's oxblood buttons** sit in the same red as On air, as Hearth's orange did: (a) ink blue, as you chose
-   iron teal for Hearth; (b) keep oxblood.
-2. **Fade all and Stop all at half a 1920 screen**: (a) icons there (names on hover and read out), words from 1000 px
-   up; (b) words always, and the campaign's name leaves Live's strip at that size.
-3. **Rooms from Live**: (a) only from the menu under Settings, so Live stays the place for joining and moving; (b) also
-   a "Rooms…" line at the foot of each room's menu.
-4. **A new pad board from the planner** (the prep reviewer's other half of your answer 1a): (a) New board… in the pad
-   board picker opens the board and comes back with it ticked; (b) build boards on the Pad boards page only.
+## Nik's answers to round 10's questions (18 Nov)
+Asked with the recommended option first; Nik chose it each time (verbatim in `/root/kenku-wt/R6-NIK-DECISIONS.md`,
+"answers to the round 10 merge agent's 4 questions"). All four are built; the questions are closed.
+
+1. **Parchment's buttons**: ink blue in place of oxblood, so On air's red stands out. Accent `#1f3d70` (hover
+   `#2b4f88`): its words 10.1:1 on the button, accent text 9.2:1 on the panels, the button 7.8:1 against the page.
+   `tools/check-contrast.js` now also fails a theme whose buttons are under 3:1 against the page (1.4.11) or within
+   30° of On air's hue; all five pass.
+2. **Fade all and Stop all at half a 1920 screen**: icons below 1000 px of window, words from 1000 px up. Their names
+   are read out, their hover text names them (Stop all's now starts "Stop all:"), and Fade all keeps Shift+Esc.
+   Found while retaking the half-screen shot: Undo's word was cut to "U" below 1100 px (the sweep measured the
+   button, not the word inside it). Undo is now an icon there in the same way, its name and Ctrl+Z kept.
+3. **Rooms from Live**: only from the menu under Settings (and Settings › Discord bots). Live's room menus and + Room
+   have no Rooms… line; a check makes sure of it.
+4. **A new pad board from the planner**: New board… in a scene's Add pad boards, as Make a playlist of these… in Add
+   music. It makes an empty 4 × 3 board and puts it in the scene; pads and size are changed on its page.
+
+New checks, test first (each failed before the change, marked `expectFailureUntilBuilt("r10")`): `look.spec.ts`
+"round 10: Parchment's buttons are ink blue"; `live.spec.ts` "round 10: Nik's answers on the strip at half a screen
+and on Rooms" (the Rooms check passed from the start, since no Rooms… line was there; it stays as a guard);
+`session-planner.spec.ts` New board… and its Back. The Undo icon check was written just after its fix, then seen
+to fail on the build without it.
+
+Shots (`shots/r10`): 11 (half a screen) and 12 (Parchment) retaken; 13 a room's menu in Live; 14 New board… in
+Add pad boards.
