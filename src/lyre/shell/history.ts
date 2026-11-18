@@ -167,8 +167,12 @@ export function trailOf(path: string, names?: PlaceNames): Crumb[] {
     case "board":
       return [{ href: "#/boards", label: "Pad boards" }];
     case "profile":
-      // The Library with the track open, as the prototype's profile.js crumbs.
-      return [{ href: `#/library/${a}`, label: "Library" }];
+      // The Library, then the track's details there (0.5.2, Nik's item 3: "breadcrumb nav in track audio profile up to
+      // track details").
+      return [
+        { href: "#/library", label: "Library" },
+        { href: `#/library/${a}`, label: "Track details" },
+      ];
     case "backup":
     case "moved":
     case "relink":

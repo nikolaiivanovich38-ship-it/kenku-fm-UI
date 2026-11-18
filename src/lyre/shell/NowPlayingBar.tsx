@@ -66,7 +66,7 @@ function Bar({ audio, previewOnly }: { audio: LyreAudio; previewOnly: boolean })
     if (!holdsFocus.current) return;
     const active = document.activeElement;
     if (active && active !== document.body && document.contains(active)) return;
-    const first = barRef.current?.querySelector<HTMLElement>("button:not([disabled]), input, a[href]");
+    const first = barRef.current?.querySelector<HTMLElement>("button:not([disabled]), input, a[href]:not(.track-link)");
     if (first) {
       first.focus();
       return;
@@ -173,7 +173,7 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
       <div className="oab-now">
         <div className="oab-title">
           <span className={cx("lane-dot", laneName === "music" ? "music" : "amb")} aria-hidden="true" />
-          <TrackName className="ellipsis" track={{ id: lane.trackId, title: lane.title, metaTitle: "", fileName: "" }} place={lane.place} names={names} hover={hoverOf(lane.trackId, lane.playlistId)} />
+          <TrackName link className="ellipsis" track={{ id: lane.trackId, title: lane.title, metaTitle: "", fileName: "" }} place={lane.place} names={names} hover={hoverOf(lane.trackId, lane.playlistId)} />
         </div>
         <div className="oab-from ellipsis" title={[from, ...extras].join(" · ")}>
           {from}

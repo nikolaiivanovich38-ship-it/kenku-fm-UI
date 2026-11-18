@@ -72,8 +72,10 @@ describe("the Audio profile screen", () => {
     await open();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(TITLE);
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
-    // Round 6 part 6: the trail's Library opens the track there; the h1 is the track, then "› Audio profile".
-    expect(within(crumbs).getByRole("link", { name: "Library" })).toHaveAttribute("href", "#/library/t13");
+    // Round 6 part 6: the h1 is the track, then "› Audio profile". 0.5.2 (Nik's item 3): the trail goes up to the
+    // track's details, then the Library.
+    expect(within(crumbs).getByRole("link", { name: "Track details" })).toHaveAttribute("href", "#/library/t13");
+    expect(within(crumbs).getByRole("link", { name: "Library" })).toHaveAttribute("href", "#/library");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("› Audio profile");
     expect(screen.getByText("06 Bridge of Death.flac")).toBeInTheDocument();
     // UX-18: Back is the shell's; opened by its address, it goes to the track in the Library.

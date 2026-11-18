@@ -116,7 +116,12 @@ describe("the trail (round 6 part 6)", () => {
     expect(trailOf("campaign/crown", NAMES)).toEqual([{ href: "#/campaigns", label: "Campaigns" }]);
     expect(trailOf("board/abbey", NAMES)).toEqual([{ href: "#/boards", label: "Pad boards" }]);
     expect(trailOf("playlist/p-abbess", NAMES)).toEqual([{ href: "#/playlists", label: "Playlists" }]);
-    expect(trailOf("profile/t13", NAMES)).toEqual([{ href: "#/library/t13", label: "Library" }]);
+    // 0.5.2 (Nik's item 3): the Audio profile's trail goes up to the track's details, then the Library.
+    expect(trailOf("profile/t13", NAMES)).toEqual([
+      { href: "#/library", label: "Library" },
+      { href: "#/library/t13", label: "Track details" },
+    ]);
+    expect(trailOf("profile/t13/sc:crown:s14:sc3", NAMES)).toEqual(trailOf("profile/t13", NAMES));
     expect(trailOf("backup", NAMES)).toEqual([{ href: "#/library", label: "Library" }]);
   });
 

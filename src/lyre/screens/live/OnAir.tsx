@@ -18,7 +18,7 @@ import { Pane } from "../../kit/Pane";
 import { SeekBar } from "../../kit/SeekBar";
 import { StatusPill } from "../../kit/Pills";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
-import { trackNameAt } from "../../kit/trackName";
+import { TrackNameLink, trackNameAt } from "../../kit/trackName";
 import { cx } from "../../kit/cx";
 import { restoreRoom } from "../../outputs/roomRestore";
 import { roomVolumeControl } from "../../outputs/roomVolume";
@@ -587,8 +587,11 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
       </div>
       <div className="lv-lane-m">
         <div className="lv-lane-t ellipsis" title={title}>
-          {shown.name}
-          {shown.name !== shown.own && <span className="sr-only"> (its own name: {shown.own})</span>}
+          {/* 0.5.2 (Nik's items 3 and 11): the name leads to the track's details in the Library. */}
+          <TrackNameLink trackId={playing.trackId} title={shown.name}>
+            {shown.name}
+            {shown.name !== shown.own && <span className="sr-only"> (its own name: {shown.own})</span>}
+          </TrackNameLink>
           {pos && <span className="sr-only">, {pos}</span>}
         </div>
         <LaneTime roomId={room.roomId} lane={lane} length={length} markers={markers} name={shown.name} />
@@ -851,9 +854,15 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
             <span className="sr-only">{e.kind === "playNext" ? "Play next: " : "Added: "}</span>
           </>
         )}
-        <span className="ellipsis grow" title={`${name}${left ? ` (${left})` : ""}`}>
-          {name}
-        </span>
+        {e.trackIds.length === 1 && d.index.track(e.trackIds[0]) ? (
+          <TrackNameLink trackId={e.trackIds[0]} className="ellipsis grow" title={name}>
+            {name}
+          </TrackNameLink>
+        ) : (
+          <span className="ellipsis grow" title={`${name}${left ? ` (${left})` : ""}`}>
+            {name}
+          </span>
+        )}
         {left && <span className="faint num">{left}</span>}
         <button
           type="button"
@@ -935,9 +944,9 @@ function PlayedList({ r }: { r: LiveRoom }) {
             const name = t ? trackNameAt(t, place, d.names).name : x.title;
             return (
               <li key={`${x.trackId}-${x.at}-${i}`} className="lv-trk-r">
-                <span className="ellipsis grow" title={name}>
+                <TrackNameLink trackId={x.trackId} className="ellipsis grow" title={name}>
                   {name}
-                </span>
+                </TrackNameLink>
                 <span className="lv-trk-acts">
                   <button
                     type="button"

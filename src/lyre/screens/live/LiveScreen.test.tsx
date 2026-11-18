@@ -1169,3 +1169,41 @@ describe("UX-R4: focus after the control in use goes", () => {
     await waitFor(() => expect(focusName()).toBe("Lyre Table in Table: change"));
   });
 });
+
+/*
+ * 0.5.2 (Nik's items 3 and 11: "click track titles from anywhere in prep and live views and get to the library view with
+ * the details pane popped out at that track"): in Live a name never replaces a play action, so the track on air is a
+ * link, and a list's track has Track details among its details (its name still unfolds them).
+ */
+describe("track names lead to the track's details", () => {
+  it("the music on air in a room is a link to its details in the Library", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const link = room("Table").getByRole("link", { name: /^Eerie dread/ });
+    expect(link).toHaveAttribute("href", "#/library/t13");
+    // The buttons beside it still pause, stop and skip.
+    expect(room("Table").getByRole("button", { name: "Pause music" })).toBeInTheDocument();
+  });
+
+  it("a scene's track: its name unfolds its details, which have Track details; Play on air stays", async () => {
+    await openLive();
+    await startAbbey();
+    const row = within(current().getByRole("list", { name: /music in the order it plays$/ })).getAllByRole("listitem")[0];
+    await userEvent.click(within(row).getByRole("button", { name: /^Eerie dread/, expanded: false }));
+    expect(within(row).getByRole("link", { name: "Track details" })).toHaveAttribute("href", "#/library/t13");
+    expect(within(row).getByRole("button", { name: /^Play on air/ })).toBeInTheDocument();
+  });
+
+  it("what played in a room links each track to its details", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    await userEvent.click(room("Table").getByRole("button", { name: "Next music track" }));
+    await playOn(sound, 3);
+    await userEvent.click(room("Table").getByRole("button", { name: "What played" }));
+    const played = within(room("Table").getByRole("list", { name: "What played in Table" }));
+    expect(played.getAllByRole("link")[0]).toHaveAttribute("href", expect.stringMatching(/^#\/library\/t\d+$/));
+  });
+});
+

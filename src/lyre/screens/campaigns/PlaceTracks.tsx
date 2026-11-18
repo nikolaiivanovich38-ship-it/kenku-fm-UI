@@ -17,7 +17,7 @@ import { ProfileLink } from "../../kit/ProfileLink";
 import { RepeatOneButton } from "../../kit/RepeatOneButton";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import { TagStrip } from "../../kit/TagStrip";
-import { ownNameTitle, trackNameAt, useTrackNames } from "../../kit/trackName";
+import { ownNameTitle, TrackNameLink, trackNameAt, useTrackNames } from "../../kit/trackName";
 import { useDragReorder } from "../../kit/reorder";
 import { useAnnounce } from "../../shell/Announcer";
 import { useSave } from "../../shell/useSave";
@@ -129,9 +129,9 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
                 <Icon name="drag" size="s" />
               </span>
               <span className="faint num">{i + 1}</span>
-              <span className="grow ellipsis" title={ownNameTitle(n)}>
+              <TrackNameLink trackId={t.id} className="grow ellipsis" title={ownNameTitle(n)}>
                 {n.name}
-              </span>
+              </TrackNameLink>
               {place.kind !== "campaign" && <TagStrip track={t} groups={groups} />}
               <span className="num faint">{formatLength(t.durationMs)}</span>
               {place.kind === "campaign" ? (

@@ -23,7 +23,7 @@ import { EnergyMeter } from "../../kit/Pills";
 import { PlayOrderButton } from "../../kit/PlayOrderButton";
 import { ProfileLink } from "../../kit/ProfileLink";
 import { TagStrip } from "../../kit/TagStrip";
-import { trackNameAt } from "../../kit/trackName";
+import { trackDetailsHref, TrackNameLink, trackNameAt } from "../../kit/trackName";
 import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
 import { useSave } from "../../shell/useSave";
@@ -248,6 +248,11 @@ export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on,
             <dd>{[track.artist, track.album].filter(Boolean).join(", ") || "–"}</dd>
           </dl>
           <div className="lv-trk-ap">
+            {/* 0.5.2 (Nik's items 3 and 11): the track's details in the Library, beside its Audio profile. */}
+            <a className="btn s" href={trackDetailsHref(track.id)} title={`Open the details of ${n.name} in the Library`}>
+              <Icon name="library" size="s" />
+              Track details
+            </a>
             <ProfileLink trackId={track.id} title={n.name} place={profileKey(place, playlistId)} placeName={place?.kind === "scene" ? "in this scene" : playlistId ? "in this playlist" : undefined} />
             <TagStrip track={track} groups={tagGroups} />
           </div>
@@ -369,9 +374,15 @@ export function AmbienceRow({ scene, place, dataLv }: { scene: SceneInfo; place:
     <div className={cx("lv-in-line lv-trk-r lv-amb-r", on && "on")} role="group" aria-label={`Ambience: ${name}`}>
       <span className="lane-dot amb" aria-hidden="true" />
       <span className="sr-only">Ambience: </span>
-      <span className="grow ellipsis" title={name}>
-        {name}
-      </span>
+      {t ? (
+        <TrackNameLink trackId={t.id} className="grow ellipsis" title={name}>
+          {name}
+        </TrackNameLink>
+      ) : (
+        <span className="grow ellipsis" title={name}>
+          {name}
+        </span>
+      )}
       <span className={cx("lv-trk-acts", on && "shown")}>
         <button
           type="button"

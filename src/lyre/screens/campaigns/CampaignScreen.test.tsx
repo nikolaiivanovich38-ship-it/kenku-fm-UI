@@ -359,6 +359,16 @@ describe("round 6: the campaign's own order (ORG-13)", () => {
     else expect((await api.playlists.trackOrders())["cp:crown"]?.["p-company"]).toBeUndefined();
   });
 
+  it("0.5.2 (Nik's items 3 and 11): each track's name in a playlist on hand leads to its details in the Library", async () => {
+    const user = userEvent.setup();
+    openAt("campaign/crown");
+    await screen.findByRole("region", { name: "Campaign playlists" });
+    await user.click(await box().findByRole("button", { name: "Show contents of The Company themes" }));
+    const rows = within(box().getByRole("list", { name: /^Tracks in The Company themes/ })).getAllByRole("listitem");
+    const link = within(rows[0]).getByRole("link", { name: /^Epic choir hero anthem/ });
+    expect(link.getAttribute("href")).toMatch(/^#\/library\/[\w-]+$/);
+  });
+
   it("the campaign's playlists themselves move with Alt+Down on their name", async () => {
     const user = userEvent.setup();
     openAt("campaign/crown");
