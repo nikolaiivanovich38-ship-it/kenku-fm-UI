@@ -18,6 +18,7 @@ import { SystemList } from "./CampaignsScreen";
 import { CAMPAIGN_THEME_IDS, formatDate, nextSession, plural, sessionLabel, themeName } from "./model";
 import { OnHandPane } from "./OnHand";
 import { DraftField, ModeSwitch, NotFound, Opening, useHeadingFocusWhenReady, ObsidianFields, RowMenu, StatusBadge, useFocusLater, useLibraryIndex, useWrite } from "./parts";
+import { DeleteCampaignDialog, DeleteSessionDialog } from "./deleting";
 import { useDragReorder } from "./reorder";
 
 import "./campaigns.css";
@@ -59,11 +60,13 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
 
   const played = c.sessions.filter((s) => s.status === "played").length;
   const shownName = nameDraft ?? c.name;
+  const [deleting, setDeleting] = useState(false);
   return (
     <>
       <div className="viewhead">
         <TopLead />
         <h1>{shownName || "Untitled campaign"}</h1>
+        <RowMenu label={`More for ${c.name}`} k="cp-more" items={[{ label: "Delete campaign…", icon: "trash", danger: true, onSelect: () => setDeleting(true) }]} />
         <span className="grow" />
         <ModeSwitch campaign={c} />
         {next && (
@@ -124,7 +127,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
               summary={played && next ? `Next: ${sessionLabel(next)}` : undefined}
               foldedSummary
               actions={
-                <Button size="s" icon="plus" onClick={newSession}>
+                <Button size="s" icon="plus" data-k="cp-newsession" onClick={newSession}>
                   New session
                 </Button>
               }
@@ -179,6 +182,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
           </Column>
         </div>
       </div>
+      <DeleteCampaignDialog campaign={deleting ? c : null} onClose={() => setDeleting(false)} onDeleted={() => (window.location.hash = "#/campaigns")} />
     </>
   );
 }
@@ -200,14 +204,26 @@ function SessionList({ campaign: c }: { campaign: CampaignInfo }) {
     say(`${s.name || "That session"} is now Session ${number}, ${to + 1} of ${c.sessions.length}`);
   };
   const drag = useDragReorder("sessions", (from, to) => void move(from, to));
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const deletingSession = c.sessions.find((s) => s.id === deleting) ?? null;
+  // Focus goes to the session that takes its place, else the one before, else New session.
+  const deleted = () => {
+    const at = c.sessions.findIndex((s) => s.id === deleting);
+    const next = c.sessions.filter((s) => s.id !== deleting)[Math.max(0, at - 1)];
+    focusLater(next ? `sm-${next.id}` : "cp-newsession");
+  };
 
+  const dialog = <DeleteSessionDialog session={deletingSession} onClose={() => setDeleting(null)} onDeleted={deleted} />;
   if (c.sessions.length === 0) return <p className="cp-none">No sessions yet.</p>;
   return (
-    <ol className="list cp-slist" aria-label="Sessions in order">
-      {c.sessions.map((s, i) => (
-        <SessionRow key={s.id} campaign={c} session={s} index={i} drag={drag} move={move} />
-      ))}
-    </ol>
+    <>
+      <ol className="list cp-slist" aria-label="Sessions in order">
+        {c.sessions.map((s, i) => (
+          <SessionRow key={s.id} campaign={c} session={s} index={i} drag={drag} move={move} onDelete={() => setDeleting(s.id)} />
+        ))}
+      </ol>
+      {dialog}
+    </>
   );
 }
 
@@ -221,12 +237,15 @@ function SessionRow({
   index: i,
   drag,
   move,
+  onDelete,
 }: {
   campaign: CampaignInfo;
   session: SessionInfo;
   index: number;
   drag: ReturnType<typeof useDragReorder>;
   move: (from: number, to: number) => Promise<void>;
+  /** 0.5.2: Delete… in its ⋯ menu. */
+  onDelete: () => void;
 }) {
   const api = useLyreApi();
   const write = useWrite();
@@ -287,6 +306,8 @@ function SessionRow({
           { label: "Rename", icon: "edit", onSelect: () => rename.start(nameLink.current) },
           ...(i > 0 ? [{ label: "Move up", icon: "chevup" as const, onSelect: () => { void move(i, i - 1); } }] : []),
           ...(i < c.sessions.length - 1 ? [{ label: "Move down", icon: "chevdown" as const, onSelect: () => { void move(i, i + 1); } }] : []),
+          { separator: true },
+          { label: "Delete…", icon: "trash", danger: true, onSelect: onDelete },
         ]}
       />
     </li>

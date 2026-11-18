@@ -342,4 +342,29 @@ describe("round 6: the campaign's own order (ORG-13)", () => {
     await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
     await waitFor(() => expect(box().getAllByRole("listitem")[1]).toHaveTextContent("The Company themes"));
   });
+
+  it("0.5.2 (Nik's items 15 and 48): a session's ⋯ deletes it with its scenes; the others count on; Undo brings it back", async () => {
+    openAt("campaign/crown");
+    await screen.findByRole("list", { name: "Sessions in order" });
+    await userEvent.click(sessions().getByRole("button", { name: "More for Session 13: The coast road" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete…" }));
+    const sheet = screen.getByRole("dialog", { name: "Delete this session?" });
+    expect(sheet).toHaveTextContent("Delete Session 13, The coast road, with its 1 scene and notes, and the session's playlists and pads? Tracks, playlists and pad boards stay in your library.");
+    await userEvent.click(within(sheet).getByRole("button", { name: "Delete session" }));
+    await waitFor(() => expect(sessions().getAllByRole("listitem")).toHaveLength(3));
+    expect(sessions().getByRole("link", { name: "Session 13: The Drowned Abbey" })).toBeInTheDocument();
+    expect(await screen.findByText("Deleted Session 13, The coast road.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(sessions().getAllByRole("listitem")).toHaveLength(4));
+    expect(sessions().getByRole("link", { name: "Session 14: The Drowned Abbey" })).toBeInTheDocument();
+  });
+
+  it("0.5.2: the campaign's own ⋯ beside its heading deletes it and goes back to Campaigns", async () => {
+    openAt("campaign/sixth");
+    await userEvent.click(await screen.findByRole("button", { name: "More for The Sixth Year" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete campaign…" }));
+    await userEvent.click(within(screen.getByRole("dialog", { name: "Delete this campaign?" })).getByRole("button", { name: "Delete campaign" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/campaigns"));
+    expect(await screen.findByText('Deleted the campaign "The Sixth Year".')).toBeInTheDocument();
+  });
 });

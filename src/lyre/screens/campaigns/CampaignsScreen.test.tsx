@@ -111,4 +111,27 @@ describe("0.5.1: the campaigns' order (Nik, 11 Nov: \"drag and drop to rearrange
     await waitFor(async () => expect((await api.campaigns.list()).map((c) => c.name)).toEqual([second, before[0], before[2]]));
     await waitFor(() => expect(within(screen.getByRole("article", { name: second })).getByRole("link", { name: `Open ${second}` })).toHaveFocus());
   });
+
+  it("0.5.2 (Nik's items 15 and 48): a campaign's ⋯ deletes it, naming what goes with it and what stays; Undo brings it back", async () => {
+    const { api } = openAt("campaigns");
+    const crown = await screen.findByRole("article", { name: "The Sunken Crown" });
+    await userEvent.click(within(crown).getByRole("button", { name: "More for The Sunken Crown" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete…" }));
+    const sheet = screen.getByRole("dialog", { name: "Delete this campaign?" });
+    const scenes = (await api.campaigns.get("crown"))!.sessions.reduce((n, s) => n + s.scenes.length, 0);
+    expect(sheet).toHaveTextContent(
+      `Delete The Sunken Crown with its 4 sessions, ${scenes} scenes and notes, and the campaign's playlists and pads? Tracks, playlists and pad boards stay in your library.`,
+    );
+    await userEvent.click(within(sheet).getByRole("button", { name: "Keep it" }));
+    expect(main().getAllByRole("article")).toHaveLength(3);
+    await userEvent.click(within(crown).getByRole("button", { name: "More for The Sunken Crown" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete…" }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete campaign" }));
+    await waitFor(() => expect(main().getAllByRole("article")).toHaveLength(2));
+    expect(await screen.findByText('Deleted the campaign "The Sunken Crown".')).toBeInTheDocument();
+    expect((await api.playlists.list()).some((p) => p.id === "p-company")).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(main().getAllByRole("article")).toHaveLength(3));
+    expect(main().getAllByRole("article")[0]).toHaveAccessibleName("The Sunken Crown");
+  });
 });

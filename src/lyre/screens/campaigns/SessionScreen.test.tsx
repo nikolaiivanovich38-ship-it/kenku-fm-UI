@@ -724,4 +724,15 @@ describe("round 6, part 4: Reorder in a scene's playlist (Must 3, ORG-13)", () =
     await waitFor(async () => expect((await s14(api)).scenes.find((x) => x.id === "sc3")?.repeatOnes).toContain("t13"));
     await waitFor(() => expect(abbey().getByRole("button", { name })).toHaveAttribute("aria-pressed", "true"));
   });
+
+  it("0.5.2 (Nik's items 15 and 48): the session's own ⋯ beside its heading deletes it and goes back to its campaign", async () => {
+    openAt("session/crown/s15");
+    await userEvent.click(await screen.findByRole("button", { name: /^More for Session 15/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Delete session…" }));
+    const sheet = screen.getByRole("dialog", { name: "Delete this session?" });
+    expect(sheet).toHaveTextContent(/with its \d+ scenes? and notes, and the session's playlists and pads\? Tracks, playlists and pad boards stay in your library\./);
+    await userEvent.click(within(sheet).getByRole("button", { name: "Delete session" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/campaign/crown"));
+    expect(await screen.findByText(/^Deleted Session 15/)).toBeInTheDocument();
+  });
 });

@@ -52,6 +52,7 @@ import type { TagGroup } from "../../../common/lyre/api";
 import { NameInSceneDialog, TrackUseInDialog } from "./trackDialogs";
 import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
 import { useOptimisticScenes, type ScenePlay } from "./optimistic";
+import { DeleteSessionDialog } from "./deleting";
 import { useDragReorder } from "./reorder";
 
 import "./campaigns.css";
@@ -141,6 +142,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
   const focusedScene = useFocusedScene();
   const [picking, setPicking] = useState<Picking>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [deletingSession, setDeletingSession] = useState(false);
   /** PLY-8: the scene whose steps are open (What it does when it starts…). */
   const [stepsOf, setStepsOf] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
@@ -339,6 +341,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
           )}
         </h1>
         <StatusBadge status={s.status} />
+        <RowMenu label={`More for ${sessionLabel(s)}`} k="ss-more" items={[{ label: "Delete session…", icon: "trash", danger: true, onSelect: () => setDeletingSession(true) }]} />
         <span className="grow" />
         <ModeSwitch campaign={c} sessionId={s.id} />
         <Button variant={s.status === "next" ? "primary" : undefined} icon="broadcast" onClick={() => runInLive({ campaignId: c.id, sessionId: s.id })}>
@@ -544,6 +547,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
         />
       )}
       {usingIn && index.track(usingIn) && <TrackUseInDialog track={index.track(usingIn)!} index={index} onClose={() => setUsingIn(null)} />}
+      <DeleteSessionDialog session={deletingSession ? s : null} onClose={() => setDeletingSession(false)} onDeleted={() => (window.location.hash = `#/campaign/${c.id}`)} />
       {stepsScene && <StepsDialog owner={{ kind: "scene", campaignId: c.id, sessionId: s.id, scene: stepsScene }} onClose={() => setStepsOf(null)} />}
       <Dialog
         open={!!deletingScene}
