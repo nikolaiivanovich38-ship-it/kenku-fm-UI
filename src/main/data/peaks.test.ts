@@ -362,6 +362,20 @@ describe("PeakJobs checks the length of a waveform saved before 0.5.2 (schema ve
     expect(reads).toEqual(["tone 1.wav"]);
   });
 
+  it("a read whose decoder could not tell the length still counts as checked (not read again at every start)", async () => {
+    const { library, ids } = await libraryWith(1);
+    savePeaks(library.store, sourceOf(library, ids[0]), levels());
+    let reads = 0;
+    const jobs = new PeakJobs(library.store, { read: async () => levels(), readWithLength: async () => (reads++, { levels: levels(), durationMs: null }) }, { onReady: () => undefined, notifyEveryMs: 0 });
+    jobs.inBackground(ids);
+    await jobs.idle();
+    jobs.inBackground(ids);
+    await jobs.idle();
+    jobs.close();
+    expect(reads).toBe(1);
+    expect(tracksNeedingLengthCheck(library.store)).toEqual([]);
+  });
+
   it("a reader that cannot tell the length leaves such a waveform as it is (nothing read again and again)", async () => {
     const { library, ids } = await libraryWith(1);
     savePeaks(library.store, sourceOf(library, ids[0]), levels());

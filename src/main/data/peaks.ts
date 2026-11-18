@@ -186,7 +186,7 @@ export class PeakJobs {
       this.current = null;
     }
     if (this.closed) return false;
-    const saved = (await this.save(() => savePeaks(this.store, source, levels, { lengthChecked: durationMs !== null }))) && levels !== null;
+    const saved = (await this.save(() => savePeaks(this.store, source, levels, { lengthChecked: this.reader.readWithLength !== undefined }))) && levels !== null;
     // 0.5.2: the decoded length puts right a length the file's tags got wrong (a joined MP3).
     if (saved && durationMs !== null && (await this.save(() => correctTrackLength(this.store, source, durationMs as number)))) this.options.onLengths?.([source.trackId]);
     return saved;
