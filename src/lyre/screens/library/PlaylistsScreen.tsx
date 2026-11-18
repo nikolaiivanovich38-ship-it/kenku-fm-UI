@@ -130,9 +130,9 @@ export function PlaylistsScreen(_props: ScreenProps) {
     (t) =>
       t.kind === "row"
         ? t.playlist.kind === "manual"
-          ? `Drop to add to ${t.playlist.name}. They also go into your Library.`
+          ? `Drop to add to ${t.playlist.name}. They are added to the Track library too.`
           : `${t.playlist.name} is Dynamic: drop to choose what to do.`
-        : "Drop on a playlist to add the files to it, or here to choose one. They also go into your Library.",
+        : "Drop on a playlist to add the files to it, or here to choose one. They are added to the Track library too.",
     (t, paths) => void dropFiles(actions, t, paths),
   );
 
@@ -249,7 +249,7 @@ export function PlaylistsScreen(_props: ScreenProps) {
               // w3-ux 9: a first-time user learns what a playlist is and how to make one.
               <div className="empty">
                 <b>No playlists yet.</b> A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with{" "}
-                <b>New playlist</b>, or tick tracks in the Library and choose <b>New playlist from these</b>.
+                <b>New playlist</b>, or tick tracks in the Track library and choose <b>New playlist from these</b>.
               </div>
             ) : data.ready ? (
               <div className="empty">

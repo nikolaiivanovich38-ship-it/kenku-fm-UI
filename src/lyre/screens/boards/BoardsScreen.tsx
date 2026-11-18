@@ -206,7 +206,7 @@ function BoardCard({
         </div>
       )}
       <div className="pb-card-used" title={uses.map((u) => u.label).join("\n")}>
-        <span className="pb-used-text">{uses.length ? `Used in ${plural(uses.length, "place")}` : <span className="faint">Not used yet</span>}</span>
+        <span className="pb-used-text">{uses.length ? `Used ${plural(uses.length, "time")}` : <span className="faint">Not used yet</span>}</span>
       </div>
       <div className="pb-card-acts">
         <a className="btn s" href={`#/board/${board.id}`} aria-label={`Open ${board.name}`}>

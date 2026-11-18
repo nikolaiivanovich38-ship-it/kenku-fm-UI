@@ -21,7 +21,7 @@ describe("all pad boards (boards.js list view)", () => {
     expect(screen.getByText("5 boards")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Weather and places 4 × 2, 8 pads, 1 spare" })).toBeInTheDocument();
     const weather = cards().find((c) => c.textContent?.includes("Weather and places"))!;
-    expect(weather).toHaveTextContent("Used in 8 places");
+    expect(weather).toHaveTextContent("Used 8 times");
     expect(within(weather).getByRole("link", { name: "Open Weather and places" })).toHaveAttribute("href", "#/board/weather");
   });
 

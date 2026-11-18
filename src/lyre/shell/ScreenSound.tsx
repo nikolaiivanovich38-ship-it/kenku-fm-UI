@@ -13,7 +13,7 @@ export const SCREEN_WORDS: Record<RouteName, string> = {
   campaigns: "Campaigns",
   campaign: "the campaign page",
   session: "the session planner",
-  library: "the Library",
+  library: "the Track library",
   playlists: "Playlists",
   playlist: "the playlist",
   boards: "Pad boards",

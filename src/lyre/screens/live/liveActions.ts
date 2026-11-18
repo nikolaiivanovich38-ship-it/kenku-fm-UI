@@ -110,7 +110,7 @@ export function addToList(d: LiveData, how: "next" | "queue", targets: readonly 
   const where = d.rooms.length > 1 ? ` in ${targets.length > 1 ? "all rooms" : (d.rooms.find((r) => r.roomId === roomOf(targets[0]))?.name ?? "")}` : "";
   if (added.length) {
     offerSoftUndo({ text: `${verb}: ${what.name}`, where: `room:${roomOf(added[0])}`, focus, restore: () => added.forEach((t) => d.audio.undoUpNext(t)) }, UNDO_MS);
-    speaker.say(`${verb}${where}: ${what.name}. Undo is available for 8 seconds, or press Ctrl+Z.`);
+    speaker.say(`${verb}${where}: ${what.name}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
   } else if (started) {
     touched();
     speaker.say(`Playing now: ${what.name}`);
@@ -151,7 +151,7 @@ function addAmbience(d: LiveData, how: "next" | "queue", targets: readonly RoomT
     });
     const verb = how === "next" ? "Ambience next" : "Ambience added to the queue";
     offerSoftUndo({ text: `${verb}: ${item.name}`, where: `room:${added[0]}`, focus, restore: () => updateLive({ aq: before }) }, UNDO_MS);
-    speaker.say(`${verb}: ${item.name}. It plays when you press Next on the ambience. Undo is available for 8 seconds, or press Ctrl+Z.`);
+    speaker.say(`${verb}: ${item.name}. It plays when you press Next on the ambience. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
   } else if (started) speaker.say(`Ambience now: ${item.name}`);
 }
 
@@ -172,7 +172,7 @@ export function nextInRoom(d: LiveData, lane: "music" | "ambience", roomId: stri
 export function takeOut(d: LiveData, roomId: string, remove: () => boolean, label: string, focus: string, speaker: Speaker): void {
   if (!remove()) return;
   offerSoftUndo({ text: `Taken out of Up next: ${label}`, where: `room:${roomId}`, focus, restore: () => d.audio.undoUpNext({ room: roomId }) }, UNDO_MS);
-  speaker.say(`Taken out of Up next: ${label}. Undo is available for 8 seconds, or press Ctrl+Z.`);
+  speaker.say(`Taken out of Up next: ${label}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
 }
 
 /** Clear added: everything added this evening leaves the room's list (the ambience waiting too); Undo brings it back. */
@@ -195,5 +195,5 @@ export function clearAdded(d: LiveData, roomId: string, focus: string, speaker: 
     },
     UNDO_MS,
   );
-  speaker.say("Cleared what you added. Undo is available for 8 seconds, or press Ctrl+Z.");
+  speaker.say("Cleared what you added. To undo this, press Undo or Ctrl+Z within 8 seconds.");
 }

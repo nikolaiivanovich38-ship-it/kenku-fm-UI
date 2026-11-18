@@ -119,7 +119,7 @@ export function roomItems(view: OutputsView, of: BotView): { server: string; ite
         const others = roomBots(view, server.id, channel.id).filter((b) => b.bot.id !== of.bot.id);
         const n = channel.members.length;
         const sub = [here ? "Here now" : "", n ? people(n) : ""].filter(Boolean).join(" · ");
-        const warn = others.length ? `${names(others)} is here: players would hear it twice` : !n ? (here ? "Nobody is listening" : "Empty: nobody would hear it") : "";
+        const warn = others.length ? `${names(others)} is here too, so the players would hear it twice` : !n ? (here ? "Nobody is listening" : "Empty: nobody would hear it") : "";
         return { serverId: server.id, channelId: channel.id, name: channel.name, here, sub, warn };
       }),
     }));
@@ -130,7 +130,7 @@ export function bringItems(view: OutputsView, serverId: string, channelId: strin
   const channel = view.outputs.servers.find((s) => s.id === serverId)?.channels.find((c) => c.id === channelId);
   const here = roomBots(view, serverId, channelId);
   const n = channel?.members.length ?? 0;
-  const warn = here.length ? `${names(here)} is here: players would hear it twice` : !n ? "Empty: nobody would hear it" : "";
+  const warn = here.length ? `${names(here)} is here too, so the players would hear it twice` : !n ? "Empty: nobody would hear it" : "";
   return view.bots
     .filter((b) => b.bot.login === "ready" && b.bot.serverIds.includes(serverId) && !here.includes(b))
     .map((b) => ({ botId: b.bot.id, name: b.bot.name, sub: b.inRoom ? `Leaves ${b.channel!.name}` : "Not in a room now", warn }));
@@ -151,9 +151,9 @@ export function moveMessage(view: OutputsView, of: BotView, channelId: string): 
   if (!server || !channel) return "That voice channel has gone. Reconnect the bot in Settings to refresh the list.";
   if (of.inRoom && of.bot.room!.channelId === channelId) return `${of.bot.name} is already in ${channel.name}`;
   const others = roomBots(view, server.id, channelId).filter((b) => b.bot.id !== of.bot.id);
-  if (others.length) return `${of.bot.name} is joining ${channel.name}, where ${names(others)} already plays: players will hear it twice`;
+  if (others.length) return `${of.bot.name} is joining ${channel.name}, where ${names(others)} already plays, so the players will hear it twice`;
   // UX-R9: the one wording for a room nobody is in, as its box says.
-  if (!channel.members.length) return `${of.bot.name} is joining ${channel.name}: nobody there.`;
+  if (!channel.members.length) return `${of.bot.name} is joining ${channel.name}, but nobody is there.`;
   return `${of.bot.name} is joining ${channel.name}`;
 }
 
@@ -163,7 +163,7 @@ export function chimeMessage(of: BotView): { ok: true; toast: string; say: strin
   if (bot.room?.status === "joining" || bot.room?.status === "reconnecting") return { ok: false, toast: `${bot.name} is still joining. Try again in a moment.` };
   if (!of.inRoom || bot.room?.status !== "connected") return { ok: false, toast: `${bot.name} is not in a voice channel. Choose a room first.` };
   const name = of.channel!.name;
-  if (bot.muted) return { ok: false, toast: `${name} is muted: unmute it to hear the test chime` };
+  if (bot.muted) return { ok: false, toast: `${name} is muted. Unmute it to hear the test chime.` };
   const n = of.listeners.length;
   return { ok: true, toast: `Test chime in ${name} only${n ? ` (${people(n).toLowerCase()} there)` : ": nobody is there to hear it"}`, say: `Test chime played in ${of.where}` };
 }

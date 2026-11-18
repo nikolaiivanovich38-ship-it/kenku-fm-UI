@@ -98,9 +98,9 @@ export function PlayOrderButton({ playlistId, place }: PlayOrderButtonProps) {
     { separator: true },
     {
       note: !place
-        ? "Scenes, sessions and campaigns can have their own."
+        ? "A scene, session or campaign can have its own play order."
         : own
-          ? `Only ${where}. Elsewhere: ${orderWords(elsewhere)}.`
+          ? `This order is used only ${where}. Elsewhere the order is: ${orderWords(elsewhere)}.`
           : `Uses the playlist's own order. A change here applies only ${where}.`,
     },
     ...(own

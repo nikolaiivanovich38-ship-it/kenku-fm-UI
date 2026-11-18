@@ -46,7 +46,7 @@ describe("outputsModel", () => {
     const side = viewOf(sideIn("1012")).bots[1];
     expect(pill(side, room({ roomId: SIDE_BOT, name: "Side room", music: lane() }))).toEqual({ text: "Nobody there", tone: "warn" });
     expect(pill(side, undefined)).toEqual({ text: "Nobody there", tone: "warn" });
-    expect(moveMessage(viewOf(PROTOTYPE_OUTPUTS), viewOf(PROTOTYPE_OUTPUTS).bots[1], "1012")).toBe("Lyre Side is joining Side room: nobody there.");
+    expect(moveMessage(viewOf(PROTOTYPE_OUTPUTS), viewOf(PROTOTYPE_OUTPUTS).bots[1], "1012")).toBe("Lyre Side is joining Side room, but nobody is there.");
   });
 
   it("counts people as the prototype words them", () => {
@@ -73,7 +73,7 @@ describe("outputsModel", () => {
     const groups = roomItems(outputs, outputs.bots[1]);
     expect(groups.map((g) => g.server)).toEqual(["The Gull and Lantern", "Night court"]);
     expect(groups[0].items.map((i) => [i.name, i.here, i.sub, i.warn])).toEqual([
-      ["Table", false, "5 people", "Lyre Table is here: players would hear it twice"],
+      ["Table", false, "5 people", "Lyre Table is here too, so the players would hear it twice"],
       ["Side room", false, "", "Empty: nobody would hear it"],
       ["Whispers", false, "", "Empty: nobody would hear it"],
       ["AFK", false, "1 person", ""],
@@ -88,7 +88,7 @@ describe("outputsModel", () => {
       { botId: TABLE_BOT, name: "Lyre Table", sub: "Leaves Table", warn: "Empty: nobody would hear it" },
       { botId: SIDE_BOT, name: "Lyre Side", sub: "Not in a room now", warn: "Empty: nobody would hear it" },
     ]);
-    expect(bringItems(outputs, "1001", "1011")).toEqual([{ botId: SIDE_BOT, name: "Lyre Side", sub: "Not in a room now", warn: "Lyre Table is here: players would hear it twice" }]);
+    expect(bringItems(outputs, "1001", "1011")).toEqual([{ botId: SIDE_BOT, name: "Lyre Side", sub: "Not in a room now", warn: "Lyre Table is here too, so the players would hear it twice" }]);
   });
 
   it("swaps only two bots in two different rooms", () => {
@@ -106,8 +106,8 @@ describe("outputsModel", () => {
   it("words a move as the prototype does", () => {
     const outputs = viewOf(PROTOTYPE_OUTPUTS);
     const [table, side] = outputs.bots;
-    expect(moveMessage(outputs, side, "1012")).toBe("Lyre Side is joining Side room: nobody there.");
-    expect(moveMessage(outputs, side, "1011")).toBe("Lyre Side is joining Table, where Lyre Table already plays: players will hear it twice");
+    expect(moveMessage(outputs, side, "1012")).toBe("Lyre Side is joining Side room, but nobody is there.");
+    expect(moveMessage(outputs, side, "1011")).toBe("Lyre Side is joining Table, where Lyre Table already plays, so the players will hear it twice");
     expect(moveMessage(outputs, side, "1014")).toBe("Lyre Side is joining AFK");
     expect(moveMessage(outputs, table, "1011")).toBe("Lyre Table is already in Table");
   });
@@ -119,7 +119,7 @@ describe("outputsModel", () => {
     expect(chimeMessage(viewOf(sideIn("1012", "joining")).bots[1])).toEqual({ ok: false, toast: "Lyre Side is still joining. Try again in a moment." });
     expect(chimeMessage(viewOf(sideIn("1012")).bots[1])).toEqual({ ok: true, toast: "Test chime in Side room only: nobody is there to hear it", say: "Test chime played in The Gull and Lantern › Side room" });
     const muted = viewOf(withBots(([t, s]) => [{ ...t, muted: true }, s])).bots[0];
-    expect(chimeMessage(muted)).toEqual({ ok: false, toast: "Table is muted: unmute it to hear the test chime" });
+    expect(chimeMessage(muted)).toEqual({ ok: false, toast: "Table is muted. Unmute it to hear the test chime." });
   });
 });
 

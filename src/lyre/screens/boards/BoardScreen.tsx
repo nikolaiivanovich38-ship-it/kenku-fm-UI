@@ -220,7 +220,7 @@ function BoardEditor({ board }: { board: PadBoard }) {
     const done = await write(api.history.undo());
     if (!done) return;
     setMessage(null);
-    say(`Undone. Grid is ${message.cols} × ${message.rows} again.`);
+    say(`Undone. The grid is ${message.cols} × ${message.rows} again.`);
     focusLater("pb-name");
   };
 
@@ -714,7 +714,7 @@ function BoardEditor({ board }: { board: PadBoard }) {
               kind="scenes"
               size="auto"
               flush
-              status={{ text: uses.length ? plural(uses.length, "place") : "Not used yet", tone: "idle" }}
+              status={{ text: uses.length ? plural(uses.length, "use") : "Not used yet", tone: "idle" }}
               actions={
                 <Button size="s" onClick={() => setUseIn(true)}>
                   Use in…

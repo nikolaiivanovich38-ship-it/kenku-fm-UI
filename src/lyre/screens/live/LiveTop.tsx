@@ -201,7 +201,7 @@ function KeysPop({ setKeysOpen, setKeys1, keys1 }: { setKeysOpen: TopProps["setK
         <input ref={switchRef} type="checkbox" role="switch" checked={keys1} onChange={(event) => setKeys1(event.target.checked)} />
         <span className="lv-switch-t">
           <b>Single-key shortcuts</b>
-          <span className="hint">Space, / and the pad keys. Turn off if they get in the way.</span>
+          <span className="hint">Space, / and the pad keys. Turn them off if they get in the way.</span>
         </span>
       </label>
       <ul className="lv-keylist">

@@ -111,7 +111,7 @@ test.describe("Add a bot, in the order Discord needs", () => {
     await expect(sheet(page)).toContainText("OAuth2 › URL Generator");
     await expect(sheet(page)).toContainText("Scopes: bot");
     await expect(sheet(page)).toContainText("Bot Permissions: View Channels, Connect, Speak");
-    await expect(sheet(page)).toContainText("Open the Generated URL, choose your server, Authorize");
+    await expect(sheet(page)).toContainText("Open the Generated URL, choose your server and press Authorize");
   });
 
   test("the last step takes the token from Bot › Reset Token, connects, and says which servers the bot is in", async ({ page }) => {

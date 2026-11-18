@@ -81,8 +81,8 @@ describe("the menu", () => {
       "Repeat oneThe track playing repeats until you press Next",
     ]);
     expect(radios.map((r) => r.getAttribute("aria-checked"))).toEqual(["true", "false", "false"]);
-    expect(menu).toHaveTextContent("Only in the scene The abbey ruins. Elsewhere: In order, repeat all.");
-    expect(menu).toHaveAccessibleDescription("Only in the scene The abbey ruins. Elsewhere: In order, repeat all.");
+    expect(menu).toHaveTextContent("This order is used only in the scene The abbey ruins. Elsewhere the order is: In order, repeat all.");
+    expect(menu).toHaveAccessibleDescription("This order is used only in the scene The abbey ruins. Elsewhere the order is: In order, repeat all.");
     expect(within(menu).getByRole("menuitem", { name: "Use the playlist's own order here" })).toBeVisible();
   });
 
@@ -131,7 +131,7 @@ describe("the menu", () => {
     await userEvent.click(await screen.findByRole("button", { name: /^Play order of The Company themes/ }));
     const menu = screen.getByRole("menu", { name: "Play order" });
     expect(menu).toHaveTextContent("Play order of this playlist");
-    expect(menu).toHaveTextContent("Scenes, sessions and campaigns can have their own.");
+    expect(menu).toHaveTextContent("A scene, session or campaign can have its own play order.");
     await userEvent.click(within(menu).getByRole("menuitemradio", { name: /^Repeat one/ }));
     await waitFor(async () => expect((await api.playlists.list()).find((p) => p.id === "p-company")?.order).toEqual({ shuffle: false, repeat: "one" }));
     await waitFor(() => expect(said()).toBe("In order, repeat one everywhere it has no order of its own"));

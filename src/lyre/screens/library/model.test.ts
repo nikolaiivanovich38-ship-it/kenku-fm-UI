@@ -167,7 +167,7 @@ describe("words the Library shows", () => {
     expect(profileSummary(t13, {})).toMatch(/^(Whole track|Starts at|Ends at)/);
     const plain: LibraryTrack = { ...tracks.find((t) => t.id === "t44"), profile: null };
     expect(profileSummary(plain, {})).toBe("Whole track, then the next one.");
-    expect(profileSummary(plain, { "pl:x": { t44: { startMs: 1000 } } })).toBe("Whole track, then the next one. Has its own settings in 1 place.");
+    expect(profileSummary(plain, { "pl:x": { t44: { startMs: 1000 } } })).toBe("Whole track, then the next one. Has its own settings in 1 playlist or scene.");
   });
 
   it("writes a dynamic playlist's rule as the prototype does, leaving out conditions without values", () => {

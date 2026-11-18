@@ -173,7 +173,7 @@ describe("Library: a track's details", () => {
     const d = within(details());
     const user = userEvent.setup();
     await user.click(await d.findByRole("button", { name: "Preview" }));
-    expect(audio.calls).toContainEqual(["previewTrack", "t44", { from: "the Library" }]);
+    expect(audio.calls).toContainEqual(["previewTrack", "t44", { from: "the Track library" }]);
     act(() => audio.setNowPlaying({ preview: { key: "t44", label: "Ashes" } }));
     expect(d.getByRole("button", { name: "Stop preview" })).toHaveAttribute("aria-pressed", "true");
     await user.click(d.getByRole("button", { name: "Play on air" }));
@@ -408,7 +408,7 @@ describe("Library: adding tracks", () => {
     await addFiles();
     expect(await screen.findByText("70 tracks")).toBeInTheDocument();
     await addFiles();
-    expect(await tracksBox().findByText(/Leaving Caladan is already in your Library/)).toBeInTheDocument();
+    expect(await tracksBox().findByText(/Leaving Caladan is already in the Track library/)).toBeInTheDocument();
     expect(tracksBox().queryByText(/added/)).toBeNull();
     expect(screen.getByText("70 tracks")).toBeInTheDocument();
     expect(screen.getByRole("toolbar", { name: "Selected tracks" })).toHaveTextContent("1 selected");

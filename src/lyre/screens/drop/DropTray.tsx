@@ -195,7 +195,7 @@ export function DropTray({ resolve }: { resolve: (el: HTMLElement) => Dragged | 
     <section className="droptray" aria-label="Drop on">
       <header className="dt-head">
         <b className="ellipsis">{nameOf(drag.ids)}</b>
-        <span className="faint dt-how">{canMove ? (shift ? "Moves it" : "Copies it · Shift moves") : "Adds it"} · Esc cancels</span>
+        <span className="faint dt-how">{canMove ? (shift ? "Moves it" : "Copies it. Hold Shift to move it") : "Adds it"} · Esc cancels</span>
       </header>
       {groups.map((g) => (
         <div key={g} className="dt-g" role="group" aria-label={g}>

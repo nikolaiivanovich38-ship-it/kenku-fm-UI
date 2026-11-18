@@ -154,7 +154,7 @@ export function DeleteBoardDialog({
     const done = await write(api.boards.delete(board.id).then((result) => ((undoLabel = result.ok ? result.undoLabel : null), result)));
     onClose();
     if (done === null) return;
-    offer(`Deleted the pad board "${board.name}" and took it out of the places that used it.`, undoLabel);
+    offer(`Deleted the pad board "${board.name}" and took it out of the scenes, sessions and campaigns that used it.`, undoLabel);
     onDeleted?.();
   };
   return (
@@ -180,7 +180,7 @@ export function DeleteBoardDialog({
                 <li key={u.label}>{u.label}</li>
               ))}
             </ul>
-            <p>Those places will have no pad board until you choose another.</p>
+            <p>They will have no pad board until you choose another.</p>
           </>
         ) : (
           <p>This board is not used anywhere.</p>

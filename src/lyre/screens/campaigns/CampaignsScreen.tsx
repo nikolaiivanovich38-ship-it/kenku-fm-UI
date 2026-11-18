@@ -120,7 +120,7 @@ function CampaignsList({ campaigns, creating, setCreating }: { campaigns: Campai
         ) : (
           // w3-ux 9: a first-time user learns what a campaign is and what to do first.
           <div className="empty">
-            <b>No campaigns yet.</b> A campaign holds your sessions, the scenes in each, and the music, ambience and pad boards you use in them. Start
+            <b>No campaigns yet.</b> A campaign contains your sessions, the scenes in each session, and the music, ambience and pad boards you use in them. Start
             with <b>New campaign</b>.
           </div>
         )}

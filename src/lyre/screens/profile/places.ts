@@ -182,7 +182,7 @@ export function nextContexts(trackId: string, key: string, view: LibraryView): N
     const same = view.tracks.filter((x) => x.kind === t?.kind);
     const k = same.findIndex((x) => x.id === trackId);
     const n = same[(k + 1) % same.length];
-    if (n) out.push({ label: "The next track in the Library", next: n.id, place: "", lib: true });
+    if (n) out.push({ label: "The next track in the Track library", next: n.id, place: "", lib: true });
   }
   return out;
 }

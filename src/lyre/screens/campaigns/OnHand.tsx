@@ -264,7 +264,7 @@ export function OnHandPane({ paneId, title, kind, owner, ids, trackIds = [], ind
       if ((await write(api.campaigns.setOnHand(owner, "tracks", trackIds.filter((x) => x !== id)))) === undefined) return;
       focusLater(addKey);
       const t = index.track(id);
-      toast(`Removed "${t ? trackInfo(t).name : "the track"}" from this ${ownerWord}. It is still in the Library.`);
+      toast(`Removed "${t ? trackInfo(t).name : "the track"}" from this ${ownerWord}. It is still in the Track library.`);
       return;
     }
     const at = ids.indexOf(id);

@@ -175,7 +175,7 @@ export function DevicesPane() {
       </div>
       <Switch
         label="Split one headset"
-        title="While something plays on air, the preview is in one ear and what you hear of Discord in the other, on one headset; a preview on its own plays in both ears"
+        title="While something plays on air, the preview is in one ear and what you hear of Discord in the other, on one headset. A preview on its own plays in both ears."
         checked={split}
         disabled={!devices}
         onChange={(on) => set({ split: on }, on ? `one headset split: preview in the ${ear} ear` : "headset not split")}
@@ -269,7 +269,7 @@ export function RemotePane() {
             <button
               type="button"
               className="btn s ghost"
-              title="The old code stops working at once; type the new one on each device"
+              title="The old code stops working at once. Type the new one on each device."
               onClick={() => {
                 void remote?.newCode().then((next) => {
                   setState(next);
@@ -375,7 +375,7 @@ export function KeysPane() {
   const problems = refused.length ? refused.map((r) => r.message) : (globalProblem as string[]);
 
   return (
-    <Pane id="st-keys" title="Keyboard shortcuts" icon="grid" kind="plain" size="auto" noMax collapsed describe="Ctrl+K finds and plays anything. Change any key here.">
+    <Pane id="st-keys" title="Keyboard shortcuts" icon="grid" kind="plain" size="auto" noMax collapsed describe="Press Ctrl+K to find and play anything. You can change any key here.">
       <table className="grid st-keys" aria-label="Keyboard shortcuts">
         <tbody>
           {rows.map((row) => {
@@ -432,7 +432,7 @@ export function KeysPane() {
           {message}
         </p>
       ))}
-      <p className="hint">Pad keys are set on each pad board.</p>
+      <p className="hint">Pad keys are chosen on each pad board.</p>
       <div className="row-flex">
         <button type="button" className="btn s" disabled={!settings} onClick={() => void write(() => api.settings.resetShortcuts(), "Lyre's keys put back")}>
           <Icon name="restart" size="s" />

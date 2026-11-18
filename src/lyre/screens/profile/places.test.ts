@@ -63,6 +63,6 @@ describe("the next track", () => {
     const lonely = seed.tracks.find((t) => t.kind === "music" && placesOf(t.id, view).pls.length === 0 && placesOf(t.id, view).scs.length === 0);
     expect(lonely).toBeDefined();
     const [c] = nextContexts(lonely!.id, "", view);
-    expect(c).toMatchObject({ label: "The next track in the Library", place: "", lib: true });
+    expect(c).toMatchObject({ label: "The next track in the Track library", place: "", lib: true });
   });
 });

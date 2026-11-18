@@ -337,7 +337,7 @@ function FolderSheet({
           ))}
         </div>
       ) : (
-        <p>No folders yet. New folder… makes one with {sheet.name} in it.</p>
+        <p>No folders yet. Choose New folder… to make one with {sheet.name} in it.</p>
       )}
     </Dialog>
   );

@@ -235,7 +235,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
         boards: { ...s.boards, sc: null },
         notesOpen: false,
       });
-      say(`Started ${target.name}. Undo is available for 8 seconds, or press Ctrl+Z.`);
+      say(`Started ${target.name}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
     },
     [say],
   );

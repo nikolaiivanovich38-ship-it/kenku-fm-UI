@@ -67,7 +67,7 @@ export function TrackBehaviour({ t, playlists, store }: { t: LibraryTrack; playl
               type="button"
               className="chip lb-pick"
               aria-pressed={fadesOn}
-              title="Lyre fades it out before its end (the length is in the Audio profile); not pressed, it plays to its last second"
+              title="Lyre fades it out before its end (the length of the fade is in the Audio profile). When this is off, it plays to its last second."
               onClick={() => {
                 setFadesOut(!fadesOn);
                 void write({ fadesOut: !fadesOn }, `${title} ending: ${fadesOn ? "hard end" : "fades out"}`);

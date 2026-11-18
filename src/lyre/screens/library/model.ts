@@ -275,7 +275,7 @@ export function profileSummary(t: DomainTrack, overrides: ProfileOverrides): str
   if (p.fadeOut.ms) fades.push(`out ${Math.round(p.fadeOut.ms / 100) / 10} s`);
   if (fades.length) parts.push(`fades ${fades.join(", ")}`);
   const places = Object.values(overrides).filter((byTrack) => byTrack[t.id]).length;
-  return `${parts.join(" · ")}.${places ? ` Has its own settings in ${plural(places, "place")}.` : ""}`;
+  return `${parts.join(" · ")}.${places ? ` Has its own settings in ${places === 1 ? "1 playlist or scene" : `${places} playlists and scenes`}.` : ""}`;
 }
 
 /** A dynamic playlist's rule in the prototype's words (L.ruleText), leaving out conditions that have no values yet. */

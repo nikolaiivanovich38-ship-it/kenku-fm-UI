@@ -221,7 +221,7 @@ function SessionNumbers({ campaign: c, save }: { campaign: CampaignInfo; save: (
             inputMode="numeric"
             min={0}
             max={MAX_SESSION_NUMBER}
-            title="The first session's number; the others count on in order (for a campaign begun before Lyre)"
+            title="The first session's number. The others follow in order. Use it for a campaign you began before Lyre."
             value={String(c.firstSessionNumber)}
             onSave={(text) => {
               const firstSessionNumber = Number(text);

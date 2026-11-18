@@ -39,7 +39,7 @@ describe("Undo after large changes", () => {
     await userEvent.click(await screen.findByRole("button", { name: "More for Weather and places" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Delete board…" }));
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete board" }));
-    expect(await screen.findByRole("group", { name: "Undo" })).toHaveTextContent('Deleted the pad board "Weather and places" and took it out of the places that used it.');
+    expect(await screen.findByRole("group", { name: "Undo" })).toHaveTextContent('Deleted the pad board "Weather and places" and took it out of the scenes, sessions and campaigns that used it.');
     expect(await api.boards.list()).toHaveLength(4);
     await undoInNote();
     await waitFor(async () => expect(await api.boards.list()).toHaveLength(5));

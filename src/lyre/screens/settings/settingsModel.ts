@@ -41,8 +41,8 @@ export function addedWords(outputs: LyreOutputs, bot: Pick<LyreBot, "name" | "se
 /* ---------- Sound to Discord ---------- */
 
 export const STREAMING_MODES = [
-  { value: "lowLatency", name: "Best sound quality", description: "Clearer sound; works the computer a little harder." },
-  { value: "performance", name: "Lighter on the computer", description: "Leaves more power for other programs; slightly less clear." },
+  { value: "lowLatency", name: "Best sound quality", description: "Clearer sound, but the computer works a little harder." },
+  { value: "performance", name: "Lighter on the computer", description: "Leaves more power for other programs, but the sound is slightly less clear." },
 ] as const;
 
 /** PLY-8: Between tracks, in whole seconds as the prototype lists them. */

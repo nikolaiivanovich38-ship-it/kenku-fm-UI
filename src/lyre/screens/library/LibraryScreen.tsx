@@ -744,7 +744,7 @@ function fileName(filePath: string): string {
  */
 function addedWords(count: number, alreadyIn: string[], how = ""): string {
   const names = alreadyIn.length <= 3 ? alreadyIn.join(", ").replace(/, ([^,]*)$/, " and $1") : `${alreadyIn.length} of these files`;
-  const already = alreadyIn.length ? `${names} ${alreadyIn.length === 1 ? (count ? "was" : "is") : count ? "were" : "are"} already in your Library.` : "";
+  const already = alreadyIn.length ? `${names} ${alreadyIn.length === 1 ? (count ? "was" : "is") : count ? "were" : "are"} already in the Track library.` : "";
   if (!count) return already || "Nothing was added.";
   return `${plural(count, "track")} added${how ? ` ${how}` : ""}.${already ? ` ${already}` : ""}`;
 }

@@ -171,7 +171,7 @@ function BotRow({ bot, outputs, client }: { bot: LyreBot; outputs: LyreOutputs; 
         if (problem) toast(problem);
       });
     });
-    say(`Removed ${bot.name}. Undo is at the bottom right, or press Ctrl+Z.`);
+    say(`Removed ${bot.name}. To undo this, press Undo, at the bottom right, or Ctrl+Z.`);
     focusLater("st-add");
   };
 
@@ -245,7 +245,7 @@ function BotRow({ bot, outputs, client }: { bot: LyreBot; outputs: LyreOutputs; 
           </div>
         ) : (
           <>
-            <span className="st-tok num" title={bot.tokenRemembered ? "Kept encrypted on this computer; only the last four characters show" : "Kept until Lyre closes; only the last four characters show"}>
+            <span className="st-tok num" title={bot.tokenRemembered ? "Kept encrypted on this computer. Only its last four characters are shown." : "Kept until Lyre closes. Only its last four characters are shown."}>
               {masked ?? <span className="faint">No token</span>}
             </span>
             <button type="button" className="btn s ghost" data-k={`${k}-tokrep`} aria-label={`Replace the token of ${bot.name}`} onClick={() => setReplacing(true)}>
@@ -295,7 +295,7 @@ function InviteLink({ applicationId, client, className, children, dataK, onOpene
         event.preventDefault();
         client.openInvite(applicationId);
         onOpened?.();
-        toast("Opens Discord in your browser: choose your server, Authorize");
+        toast("Discord opens in your browser. Choose your server and press Authorize.");
       }}
     >
       <Icon name="link" size="s" />
@@ -484,7 +484,7 @@ function AddBotSheet({ outputs, client, onClose }: { outputs: LyreOutputs; clien
         </div>
         <ol className="st-do">
           <li>
-            Choose your server, <b>Authorize</b>. You need <b>Manage Server</b> on it.
+            Choose your server and press <b>Authorize</b>. You need <b>Manage Server</b> on it.
           </li>
         </ol>
         <button type="button" className="st-handbtn" aria-expanded={byHand} aria-controls={`${ids}-hand`} onClick={() => setByHand(!byHand)}>
@@ -503,7 +503,7 @@ function AddBotSheet({ outputs, client, onClose }: { outputs: LyreOutputs; clien
               Bot Permissions: <b>View Channels</b>, <b>Connect</b>, <b>Speak</b>
             </li>
             <li>
-              Open the <b>Generated URL</b>, choose your server, <b>Authorize</b>
+              Open the <b>Generated URL</b>, choose your server and press <b>Authorize</b>
             </li>
           </ol>
         )}
@@ -533,7 +533,7 @@ function AddBotSheet({ outputs, client, onClose }: { outputs: LyreOutputs; clien
             onInput={() => setTokenMissing(false)}
             onKeyDown={(event) => event.key === "Enter" && !done && void connect()}
           />
-          <span className="hint" id={`${ids}-token-d`} title="Lost it? Reset Token again makes a new one">
+          <span className="hint" id={`${ids}-token-d`} title="If you lose it, press Reset Token again to make a new one.">
             {/* UX-R10: the same as Settings says about this computer. */}
             {outputs.encryption ? "Kept encrypted on this computer." : "Kept only until Lyre closes: this computer cannot keep it encrypted."}
           </span>

@@ -29,7 +29,7 @@ describe("ScreenSound", () => {
   it("names every screen as the prototype does", () => {
     expect(SCREEN_WORDS.session).toBe("the session planner");
     expect(SCREEN_WORDS.campaign).toBe("the campaign page");
-    expect(SCREEN_WORDS.library).toBe("the Library");
+    expect(SCREEN_WORDS.library).toBe("the Track library");
   });
 
   it("adds where a preview was started unless the screen said, and leaves everything else as it was", async () => {

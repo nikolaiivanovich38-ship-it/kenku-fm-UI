@@ -78,7 +78,7 @@ export function TagsScreen(_props: ScreenProps) {
     const text = words(result.value.tracks, result.value.groupRemoved === true);
     // UX-R19: Undo puts focus back where the change was made from.
     offer(text, result.undoLabel, `[data-k="${focusAfterUndo}"], [data-k-wrap="${focusAfterUndo}"] button`);
-    say(`${text}. Undo is at the bottom right, or press Ctrl+Z.`);
+    say(`${text}. To undo this, press Undo, at the bottom right, or Ctrl+Z.`);
   };
 
   const ref = (group: TagGroup, tag: string): TagRef => ({ group: group.id, value: tag });
@@ -360,7 +360,7 @@ function TagSheet({ sheet, api, tracksWith, tracksInGroup, onClose, onRename, on
             "Rename",
             named((n) => {
               if (n === tag) onClose();
-              else if (sheet.group.values.includes(n)) toast(`${n} is already a tag here: use Merge into… instead`);
+              else if (sheet.group.values.includes(n)) toast(`${n} is already a tag here. Use Merge into… instead.`);
               else onRename(sheet.group, tag, n);
             }),
           )}
@@ -417,7 +417,7 @@ function TagSheet({ sheet, api, tracksWith, tracksInGroup, onClose, onRename, on
             <label htmlFor="tg-also">Other words, separated by commas</label>
             <input className="input" id="tg-also" autoComplete="off" placeholder="For example sad, sorrowful" value={words} onChange={(e) => setWords(e.target.value)} />
           </div>
-          <p className="hint">Typing one of them while tagging offers {tag}.</p>
+          <p className="hint">If you type one of them while tagging, Lyre offers {tag}.</p>
         </Dialog>
       );
     case "colour":

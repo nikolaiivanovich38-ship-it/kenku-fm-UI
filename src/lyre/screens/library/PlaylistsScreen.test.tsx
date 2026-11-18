@@ -120,7 +120,7 @@ describe("Playlists: every playlist", () => {
     openAt("playlists");
     await screen.findByText("21 playlists");
     dropNames(rowOf("Coast road travel"), ["01 Harbour dawn.flac", "notes.txt"]);
-    expect(await main().findByText(/added to Coast road travel and your Library/)).toBeInTheDocument();
+    expect(await main().findByText(/added to Coast road travel and the Track library/)).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Show contents of Coast road travel" }));
     const inside = screen.getByRole("list", { name: "Tracks in Coast road travel" });
     expect(within(inside).getAllByRole("listitem")).toHaveLength(5);
@@ -134,7 +134,7 @@ describe("Playlists: every playlist", () => {
     const ask = await screen.findByRole("group", { name: "Dropped files" });
     expect(ask).toHaveTextContent("1 audio file dropped");
     await userEvent.setup().click(within(ask).getByRole("button", { name: "Library only" }));
-    expect(await main().findByText(/added to your Library/)).toBeInTheDocument();
+    expect(await main().findByText(/added to the Track library\. Give them/)).toBeInTheDocument();
   });
 
   it("passes axe", async () => {

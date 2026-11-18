@@ -34,8 +34,8 @@ beforeEach(() => localStorage.clear());
 
 describe("empty screens for a first-time user", () => {
   it.each([
-    ["campaigns", "No campaigns yet. A campaign holds your sessions, the scenes in each, and the music, ambience and pad boards you use in them. Start with New campaign."],
-    ["playlists", "No playlists yet. A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with New playlist, or tick tracks in the Library and choose New playlist from these."],
+    ["campaigns", "No campaigns yet. A campaign contains your sessions, the scenes in each session, and the music, ambience and pad boards you use in them. Start with New campaign."],
+    ["playlists", "No playlists yet. A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with New playlist, or tick tracks in the Track library and choose New playlist from these."],
     ["boards", "No pad boards yet. A pad board is a grid of buttons for sound effects you play during a game, each with its own key. Start with New board."],
     ["library", "Your library is empty. Add music, ambience and sound effects with Add tracks, or drop audio files or a folder here."],
   ])("%s says what it is for and what to do first", async (path, words) => {

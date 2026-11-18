@@ -110,7 +110,7 @@ describe("AppProviders", () => {
             { roomId: "table", name: "Table", music: lane("t13", "Bridge of Death"), ambience: lane("t40", "Rain on the roof"), upNext: null, queued: [], effects: [{ trackId: "t60", title: "Thunder", padKey: null }] },
             { roomId: "side", name: "Side room", music: null, ambience: null, upNext: null, queued: [], effects: [{ trackId: "t61", title: "Door", padKey: null }] },
           ],
-          preview: { key: "t02", label: "Wistful", from: "the Library" },
+          preview: { key: "t02", label: "Wistful", from: "the Track library" },
         }),
       );
 
@@ -130,7 +130,7 @@ describe("AppProviders", () => {
       expect(bar).toHaveTextContent("1 effect sounding");
       // The Side room plays only an effect, so it has no row.
       expect(within(bar).getAllByRole("group", { name: /^On air/ })).toHaveLength(1);
-      expect(within(bar).getByRole("group", { name: "Only you" })).toHaveTextContent("Previewed from the Library");
+      expect(within(bar).getByRole("group", { name: "Only you" })).toHaveTextContent("Previewed from the Track library");
       expect(screen.getByRole("link", { name: "Go to Live" })).toHaveAttribute("href", "#/live");
       await userEvent.click(within(bar).getByRole("button", { name: "Stop" }));
       expect(audio.calls).toContainEqual(["stopLane", "music", { target: { room: "table" }, fadeMs: 1000 }]);
@@ -168,7 +168,7 @@ describe("AppProviders", () => {
         </AppProviders>,
       );
       await userEvent.click(screen.getByRole("button", { name: "Preview it" }));
-      expect(audio.calls).toContainEqual(["previewTrack", "t13", { from: "the Library" }]);
+      expect(audio.calls).toContainEqual(["previewTrack", "t13", { from: "the Track library" }]);
     });
   });
 
