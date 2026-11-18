@@ -1580,5 +1580,14 @@ test.describe("0.5.2: Live's empty boxes, loop settings and track names", () => 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Library/);
     await expect(page.getByRole("region", { name: "Details", exact: true }).getByRole("textbox", { name: "Your title" })).toBeVisible();
   });
+
+  test("a double-click on Next scene starts one scene, as its key's guard does (round 9 review M2)", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    await page.waitForTimeout(1100);
+    await page.getByRole("button", { name: /^Next scene: / }).dblclick();
+    await expect(page.getByRole("button", { name: /^Restart scene 2: / })).toBeVisible();
+  });
 });
 
