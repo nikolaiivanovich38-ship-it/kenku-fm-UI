@@ -5,8 +5,9 @@
  *
  * - A campaign has a theme, a game system, a description and Obsidian links,
  *   and an ordered list of playlists and of boards.
- * - A session has a number (the campaign's first session number plus its place
- *   in the campaign's order, never stored), a name (may be empty), a date, a status (played,
+ * - A session has a number: the campaign's first session number plus its place
+ *   in the campaign's order (never stored), or, when the campaign's numbers are
+ *   typed (0.5.2), the number typed for it. It has a name (may be empty), a date, a status (played,
  *   next, draft; at most one next per campaign), its own ordered playlists and
  *   boards, and a note link.
  * - A scene has a name, a "starts when" line, notes, a note link, an ordered
@@ -23,6 +24,7 @@ import type { SQLInputValue } from "../sqlite";
 import type { Store } from "../store";
 import {
   CAMPAIGN_THEMES,
+  SESSION_NUMBERINGS,
   SESSION_STATUSES,
   type Campaign,
   type CampaignTheme,
@@ -32,6 +34,7 @@ import {
   type Scene,
   type SceneMusicItem,
   type Session,
+  type SessionNumbering,
   type SessionStatus,
   type UseTarget,
 } from "../types";
@@ -51,6 +54,7 @@ type CampaignRow = {
   obsidian_note: string;
   obsidian_sessions: string;
   first_session_number: number;
+  session_numbering: string;
   position: number;
   created_at: number;
   updated_at: number;
@@ -93,6 +97,7 @@ const toCampaign = (row: CampaignRow): Campaign => ({
   description: row.description,
   obsidian: { vault: row.obsidian_vault, note: row.obsidian_note, sessionsFolder: row.obsidian_sessions },
   firstSessionNumber: row.first_session_number,
+  sessionNumbering: row.session_numbering as SessionNumbering,
   position: row.position,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -135,11 +140,12 @@ const scenesOf = (sessionId: string): OrderedList => ({ table: "scenes", scope: 
 const musicOf = (sceneId: string): OrderedList => ({ table: "scene_music", scope: "scene_id = ?", params: [sceneId] });
 
 /**
- * Sessions with their number: the campaign's first session number plus how many of its sessions come before
- * (sessions_order serves the count). Numbers are never stored, so a move or a delete renumbers by itself.
+ * Sessions with their number: the number typed for it (0.5.2, a campaign whose numbers are typed), else the campaign's
+ * first session number plus how many of its sessions come before (sessions_order serves the count). Counted numbers
+ * are never stored, so a move or a delete renumbers by itself.
  */
-const SESSION_SELECT = `SELECT s.*, (SELECT c.first_session_number FROM campaigns c WHERE c.id = s.campaign_id)
-    + (SELECT count(*) FROM sessions o WHERE o.campaign_id = s.campaign_id AND o.position < s.position) AS number
+const SESSION_SELECT = `SELECT s.*, COALESCE(s.typed_number, (SELECT c.first_session_number FROM campaigns c WHERE c.id = s.campaign_id)
+    + (SELECT count(*) FROM sessions o WHERE o.campaign_id = s.campaign_id AND o.position < s.position)) AS number
   FROM sessions s`;
 
 const SCENE_SELECT = `SELECT sc.*, a.track_id AS ambience_track, a.playlist_id AS ambience_playlist
@@ -188,6 +194,7 @@ function campaignColumns(patch: Record<string, unknown>): Record<string, SQLInpu
   if (patch.description !== undefined) columns.description = v.optionalText("description", patch.description);
   if (patch.obsidian !== undefined) Object.assign(columns, obsidianColumns(patch.obsidian));
   if (patch.firstSessionNumber !== undefined) columns.first_session_number = v.integer("firstSessionNumber", patch.firstSessionNumber, 0, 100_000);
+  if (patch.sessionNumbering !== undefined) columns.session_numbering = v.oneOf("sessionNumbering", patch.sessionNumbering, SESSION_NUMBERINGS);
   return columns;
 }
 
@@ -203,6 +210,8 @@ export type CampaignInput = {
   obsidian?: Partial<ObsidianLinks>;
   /** Default 1. */
   firstSessionNumber?: number;
+  /** Default "auto". */
+  sessionNumbering?: SessionNumbering;
   placement?: Placement;
 };
 
@@ -234,15 +243,27 @@ export function listCampaigns(store: Store): Campaign[] {
   return store.all<CampaignRow>("SELECT * FROM campaigns ORDER BY position, rowid").map(toCampaign);
 }
 
-/** Changes only what is given; Obsidian fields can be changed one at a time. */
+/**
+ * Changes only what is given; Obsidian fields can be changed one at a time. Typing the session numbers (0.5.2) keeps
+ * every session's number as it is; counting on again starts from the first session's number, unless a first number
+ * is given with it.
+ */
 export function updateCampaign(
   store: Store,
   id: string,
   changes: Partial<Omit<CampaignInput, "id" | "placement">>,
 ): Campaign {
-  const patch = patchOf(changes, ["name", "color", "notes", "theme", "system", "description", "obsidian", "firstSessionNumber"]);
+  const patch = patchOf(changes, ["name", "color", "notes", "theme", "system", "description", "obsidian", "firstSessionNumber", "sessionNumbering"]);
   const campaignId = requireRow(store, "campaigns", "campaign", id);
-  applyColumns(store, "campaigns", campaignId, "Change campaign", campaignColumns(patch));
+  const was = (getCampaign(store, campaignId) as Campaign).sessionNumbering;
+  const columns = campaignColumns(patch);
+  const now = columns.session_numbering as SessionNumbering | undefined;
+  const sessions = now !== undefined && now !== was ? listSessions(store, campaignId) : [];
+  if (now === "auto" && was === "typed" && columns.first_session_number === undefined && sessions.length) columns.first_session_number = sessions[0].number;
+  applyColumns(store, "campaigns", campaignId, "Change campaign", columns, () => {
+    if (now === "typed" && was === "auto") for (const s of sessions) store.run("UPDATE sessions SET typed_number = ? WHERE id = ?", s.number, s.id);
+    if (now === "auto" && was === "typed") store.run("UPDATE sessions SET typed_number = NULL WHERE campaign_id = ?", campaignId);
+  });
   return getCampaign(store, campaignId) as Campaign;
 }
 
@@ -450,6 +471,13 @@ export function createSession(store: Store, input: SessionInput): Session {
       updated_at: now,
     });
     if (wanted === "next") makeNext(store, id);
+    // 0.5.2: in a campaign whose numbers are typed, a new session follows the last one.
+    const campaign = getCampaign(store, campaignId) as Campaign;
+    if (campaign.sessionNumbering === "typed") {
+      const all = listSessions(store, campaignId);
+      const last = all[all.findIndex((s) => s.id === id) - 1];
+      store.run("UPDATE sessions SET typed_number = ? WHERE id = ?", last ? Math.min(last.number + 1, 100_000) : campaign.firstSessionNumber, id);
+    }
   });
   return getSession(store, id) as Session;
 }
@@ -467,11 +495,17 @@ export function listSessions(store: Store, campaignId: string): Session[] {
 export function updateSession(
   store: Store,
   id: string,
-  changes: Partial<Pick<SessionInput, "name" | "date" | "status" | "notes" | "noteLink">>,
+  changes: Partial<Pick<SessionInput, "name" | "date" | "status" | "notes" | "noteLink"> & { number: number }>,
 ): Session {
-  const patch = patchOf(changes, ["name", "date", "status", "notes", "noteLink"]);
+  const patch = patchOf(changes, ["name", "date", "status", "notes", "noteLink", "number"]);
   const sessionId = requireRow(store, "sessions", "session", id);
   const columns = sessionColumns(patch);
+  // 0.5.2: a typed number, only in a campaign whose numbers are typed.
+  if (patch.number !== undefined) {
+    const session = getSession(store, sessionId) as Session;
+    if ((getCampaign(store, session.campaignId) as Campaign).sessionNumbering !== "typed") throw new ValidationError("number", "This campaign numbers its sessions by itself.");
+    columns.typed_number = v.integer("number", patch.number, 0, 100_000);
+  }
   const status = patch.status === undefined ? undefined : v.oneOf("status", patch.status, SESSION_STATUSES);
   applyColumns(store, "sessions", sessionId, "Change session", columns, () => {
     if (status === "next") makeNext(store, sessionId);

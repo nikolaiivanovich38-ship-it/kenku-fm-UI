@@ -53,7 +53,10 @@ import type {
   TrackPatch as ApiTrackPatch,
   WriteResult,
 } from "../../common/lyre/api";
-import { CAMPAIGN_THEMES, NOT_SAVED } from "../../common/lyre/api";
+import { CAMPAIGN_THEMES, MAX_SESSION_NUMBER, NOT_SAVED, SESSION_NUMBERINGS } from "../../common/lyre/api";
+
+/** A whole number from lo to hi. */
+const isWhole = (n: unknown, lo: number, hi: number) => typeof n === "number" && Number.isInteger(n) && n >= lo && n <= hi;
 import { estimateTransfer, NOT_BROUGHT_ACROSS, transferContents, type TransferLibrary } from "../../common/lyre/transfer";
 import { fileAddress } from "../../common/lyre/media";
 import { plural, quoted, shownTitle, tagValue, trimmed } from "../../common/lyre/text";
@@ -80,9 +83,11 @@ import {
   createSession,
   createTag,
   deleteBoard,
+  deleteCampaign,
   deletePads,
   deletePlaylist,
   deleteScene,
+  deleteSession,
   findMissingTracks,
   getBoardLayout,
   getDomainCampaign,
@@ -607,6 +612,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       playlistIds: tree.playlistIds,
       boardIds: tree.boardIds,
       trackIds: tree.trackIds ?? [],
+      numbering: campaign.sessionNumbering,
+      firstSessionNumber: campaign.firstSessionNumber,
       sessions: tree.sessions.map((s): SessionInfo => {
         const row = sessions.get(s.id);
         const scenes = new Map(listScenes(store, s.id).map((sc) => [sc.id, sc]));
@@ -1196,9 +1203,23 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const c = requireCampaign(id);
           const changes: Record<string, unknown> = {};
           if (patch.name !== undefined) changes.name = requireName(patch.name, "campaign");
-          for (const key of ["system", "theme", "description", "notes", "obsidian"] as const) if (patch[key] !== undefined) changes[key] = patch[key];
+          for (const key of ["system", "theme", "description", "notes", "obsidian", "firstSessionNumber"] as const) if (patch[key] !== undefined) changes[key] = patch[key];
+          // 0.5.2 (item 13): counting on from a first number, or every number typed.
+          if (patch.numbering !== undefined) {
+            if (!(SESSION_NUMBERINGS as readonly string[]).includes(patch.numbering)) refuse("invalid", "Sessions count on by themselves or are typed.", "numbering");
+            changes.sessionNumbering = patch.numbering;
+          }
+          if (patch.firstSessionNumber !== undefined && !isWhole(patch.firstSessionNumber, 0, MAX_SESSION_NUMBER))
+            refuse("invalid", `A session number is a whole number from 0 to ${MAX_SESSION_NUMBER}.`, "firstSessionNumber");
           store.change(`Change the campaign ${quoted((changes.name as string) ?? c.name)}`, () => updateCampaign(store, id, changes));
           return requireCampaign(id);
+        });
+      },
+      async delete(id) {
+        // Its sessions, scenes, things on hand and own settings go with it (ON DELETE CASCADE); the library stays.
+        return write(["campaigns", "profiles", "playlists", "boards"], () => {
+          const c = requireCampaign(id);
+          store.change(`Delete the campaign ${quoted(c.name)}`, () => deleteCampaign(store, id));
         });
       },
       async move(id, toIndex) {
@@ -1273,6 +1294,11 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           if (patch.noteLink !== undefined) changes.noteLink = String(patch.noteLink);
           if (patch.date !== undefined) changes.date = patch.date || null;
           if (patch.status !== undefined) changes.status = patch.status;
+          if (patch.number !== undefined) {
+            if (requireCampaign(campaignId).numbering !== "typed") refuse("wrong-kind", "This campaign numbers its sessions by itself. Choose Type each number in its details first.", "number");
+            if (!isWhole(patch.number, 0, MAX_SESSION_NUMBER)) refuse("invalid", `A session number is a whole number from 0 to ${MAX_SESSION_NUMBER}.`, "number");
+            changes.number = patch.number;
+          }
           store.change(`Change session ${s.number}`, () => updateSession(store, sessionId, changes));
           return requireSession(campaignId, sessionId);
         });
@@ -1283,6 +1309,13 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const s = requireSession(campaignId, sessionId);
           const placement = placementAt(c.sessions.map((x) => x.id), sessionId, toIndex);
           store.change(`Move ${s.name ? quoted(s.name) : `session ${s.number}`}`, () => moveSession(store, sessionId, { placement }));
+        });
+      },
+      async delete(campaignId, sessionId) {
+        // Its scenes, things on hand and own settings go with it (ON DELETE CASCADE); the library stays.
+        return write(["campaigns", "profiles", "playlists", "boards"], () => {
+          const s = requireSession(campaignId, sessionId);
+          store.change(`Delete session ${s.number}${s.name ? ` ${quoted(s.name)}` : ""}`, () => deleteSession(store, sessionId));
         });
       },
       async createScene(campaignId, sessionId, after) {

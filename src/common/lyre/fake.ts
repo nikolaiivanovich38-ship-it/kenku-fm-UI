@@ -49,6 +49,8 @@ import {
   CAMPAIGN_THEMES,
   PAD_COLORS,
   SESSION_STATUSES,
+  SESSION_NUMBERINGS,
+  MAX_SESSION_NUMBER,
   type BringInReport,
   type CampaignInfo,
   type DuplicateChoice,
@@ -375,6 +377,15 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   }
   function session(campaignId: string, sessionId: string): SessionInfo {
     return campaign(campaignId).sessions.find((s) => s.id === sessionId) ?? refuse("not-found", "That session no longer exists.");
+  }
+  /** 0.5.2 (item 13): sessions counting on in order from the first number; typed numbers stay as they are. */
+  function renumber(c: CampaignInfo) {
+    if (c.numbering === "auto") c.sessions.forEach((x, i) => (x.number = c.firstSessionNumber + i));
+  }
+  /** 0.5.2: a deleted campaign's or session's own settings, play orders and track orders, by the start of their place keys. */
+  function forgetPlaces(...starts: string[]) {
+    const gone = (key: string) => starts.some((start) => (start.endsWith(":") ? key.startsWith(start) : key === start));
+    for (const map of [state.overrides, state.playOrders, state.trackOrders] as Record<string, unknown>[]) for (const key of Object.keys(map)) if (gone(key)) delete map[key];
   }
   function scene(a: SceneAddress): { session: SessionInfo; scene: SceneInfo; index: number } {
     const s = session(a.campaignId, a.sessionId);
@@ -1190,9 +1201,21 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
             boardIds: [],
             trackIds: [],
             sessions: [{ id: newId("session"), campaignId: id, number: 1, name: "", date: null, status: "draft", noteLink: "", playlistIds: [], boardIds: [], trackIds: [], scenes: [blankScene("Opening scene")] }],
+            numbering: "auto",
+            firstSessionNumber: 1,
           };
           state.campaigns.push(c);
           return c;
+        });
+      },
+      async delete(id) {
+        let label = "";
+        return write(() => label, ["campaigns", "profiles", "playlists", "boards"], () => {
+          const c = campaign(id);
+          state.campaigns.splice(state.campaigns.indexOf(c), 1);
+          forgetPlaces(`cp:${c.id}`, `ss:${c.id}:`, `sc:${c.id}:`);
+          for (const s of c.sessions) for (const sc of s.scenes) dropReferences(state, { sceneId: sc.id });
+          label = `Delete the campaign ${quoted(c.name)}`;
         });
       },
       async move(id, toIndex) {
@@ -1211,6 +1234,13 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           if (patch.theme !== undefined && !(CAMPAIGN_THEMES as readonly string[]).includes(patch.theme)) refuse("invalid", "Choose one of the themes.", "theme");
           for (const key of ["system", "theme", "description", "notes"] as const) if (patch[key] !== undefined) (c as unknown as Record<string, unknown>)[key] = String(patch[key]);
           if (patch.obsidian !== undefined) c.obsidian = { ...c.obsidian, ...copy(patch.obsidian) };
+          // 0.5.2 (item 13): counting on from a first number, or every number typed.
+          if (patch.numbering !== undefined && !(SESSION_NUMBERINGS as readonly string[]).includes(patch.numbering)) refuse("invalid", "Sessions count on by themselves or are typed.", "numbering");
+          if (patch.firstSessionNumber !== undefined && !isInt(patch.firstSessionNumber, 0, MAX_SESSION_NUMBER)) refuse("invalid", `A session number is a whole number from 0 to ${MAX_SESSION_NUMBER}.`, "firstSessionNumber");
+          if (patch.numbering === "auto" && c.numbering === "typed") c.firstSessionNumber = c.sessions[0]?.number ?? c.firstSessionNumber;
+          if (patch.numbering !== undefined) c.numbering = patch.numbering;
+          if (patch.firstSessionNumber !== undefined) c.firstSessionNumber = patch.firstSessionNumber;
+          renumber(c);
           return c;
         });
       },
@@ -1279,7 +1309,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           const s: SessionInfo = {
             id: newId("session"),
             campaignId,
-            number: latest ? latest.number + 1 : 1,
+            number: latest ? latest.number + 1 : c.firstSessionNumber,
             name: "",
             date: null,
             status: c.sessions.some((x) => x.status === "next") ? "draft" : "next",
@@ -1299,6 +1329,11 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           const s = session(campaignId, sessionId);
           if (patch.name !== undefined) s.name = trimmed(patch.name);
           if (patch.noteLink !== undefined) s.noteLink = String(patch.noteLink);
+          if (patch.number !== undefined) {
+            if (c.numbering !== "typed") refuse("wrong-kind", "This campaign numbers its sessions by itself. Choose Type each number in its details first.", "number");
+            if (!isInt(patch.number, 0, MAX_SESSION_NUMBER)) refuse("invalid", `A session number is a whole number from 0 to ${MAX_SESSION_NUMBER}.`, "number");
+            s.number = patch.number;
+          }
           if (patch.date !== undefined) {
             const date = patch.date || null;
             if (date !== null && (!DATE.test(date) || Number.isNaN(Date.parse(date)))) refuse("invalid", "Choose a date from the calendar.", "date");
@@ -1325,10 +1360,21 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           const s = session(campaignId, sessionId);
           c.sessions.splice(c.sessions.indexOf(s), 1);
           c.sessions.splice(clampIndex(toIndex, c.sessions.length), 0, s);
-          // Sessions are numbered in their order, starting from the lowest number they had.
-          const base = Math.min(...c.sessions.map((x) => x.number));
-          c.sessions.forEach((x, i) => (x.number = base + i));
+          // Sessions are numbered in their order from the first number (unless their numbers are typed).
+          renumber(c);
           label = `Move ${s.name ? quoted(s.name) : "a session"} to session ${s.number}`;
+        });
+      },
+      async delete(campaignId, sessionId) {
+        let label = "";
+        return write(() => label, ["campaigns", "profiles", "playlists", "boards"], () => {
+          const c = campaign(campaignId);
+          const s = session(campaignId, sessionId);
+          c.sessions.splice(c.sessions.indexOf(s), 1);
+          forgetPlaces(`ss:${c.id}:${s.id}`, `sc:${c.id}:${s.id}:`);
+          for (const sc of s.scenes) dropReferences(state, { sceneId: sc.id });
+          label = `Delete session ${s.number}${s.name ? ` ${quoted(s.name)}` : ""}`;
+          renumber(c);
         });
       },
       async createScene(campaignId, sessionId, after) {

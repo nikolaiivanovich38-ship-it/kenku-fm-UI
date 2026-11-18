@@ -19,7 +19,7 @@ The library database (backlog DAT-6, DAT-1, DAT-2, DAT-10, DAT-11, ORG-4, ORG-7,
 - **Repeat one in a scene** (version 5): a track of a scene (or of one of its playlists) that plays again when it ends, every time the scene plays. It goes with the scene or the track. The Repeat button on the Now playing bar and in Live's On air is not stored at all: it lasts while that room's music plays.
 - **A playlist's order in one place** (version 5): its tracks dragged into another order in one scene, one session's list or one campaign's list, used only there. Tracks added to the playlist later come after them; "Back to the playlist's order" removes it. The order of the playlists in a session's or campaign's list was already kept (version 1).
 - **Round 7 (version 6).** Tag groups, tags and folders can have a colour from the pad colours. A pad board can name a row of pads ("Spells"). A scene's start and a pad can do their own steps (play, stop, fade the music, wait, fire a pad, start a scene); a scene can start the next one by itself. A track can say what follows it when it ends, start again where it was stopped, and fade out at its end; one marker of an audio profile can be where the next track comes in. The keys you changed, the crossfade between tracks and Next scene's guard are kept with the library. Pads are found by Find and play.
-- **Campaigns, sessions and scenes.** A campaign has a look (theme), a game system, a description and (for later) its Obsidian notes, and the playlists and boards you use all campaign long. A session has a number (counted from the campaign's first session number in session order, so moving a session renumbers them all, as the prototype does), a name, a date, a status (played, next, draft; only one "next" per campaign) and its own playlists and boards. A scene has a name, a "starts when" line, notes, a music list (tracks and playlists in any mix, in playing order), one ambience track or playlist, and its pad boards.
+- **Campaigns, sessions and scenes.** A campaign has a look (theme), a game system, a description and (for later) its Obsidian notes, and the playlists and boards you use all campaign long. A session has a number (counted from the campaign's first session number in session order, so moving a session renumbers them all, as the prototype does; or, from 0.5.2, typed by hand for each session when the campaign's details say so), a name, a date, a status (played, next, draft; only one "next" per campaign) and its own playlists and boards. A scene has a name, a "starts when" line, notes, a music list (tracks and playlists in any mix, in playing order), one ambience track or playlist, and its pad boards.
 - **Folders** for playlists, boards and sessions, inside each other as deep as you like.
 - **Keys** (hotkeys) and what each runs: play a track or playlist, start a scene, next, previous, fade a lane, fade or stop everything, press a pad, undo a scene start, in order. Deleting a track, playlist, scene or pad takes it off every key.
 - **How loud each track is across its length** (its wave): about 1,000 loudness levels per track, worked out by Lyre from the file in the background after you add it (or when a screen first shows the track), and worked out again if the file changes. It goes when the track goes; undo brings the track back and Lyre works its wave out again. If a file cannot be read, Lyre remembers that and does not keep trying until the file changes.
@@ -240,7 +240,7 @@ Conventions: text ids (UUIDs; ids from older data can be kept); times in millise
 - **Profile markers and track markers** are different facts: a track's markers (DAT-3) are typed and searchable; a profile's markers belong to that profile and may differ per place.
 - **ON DELETE policy.** CASCADE for rows owned by their parent (a playlist's entries, a scene's items) and for link rows (memberships, uses): the interface shows `listUses`/`trackUsage` and asks before deleting, then the database removes the links in the same undo step, so undo restores them. RESTRICT where deleting would lose what the game master did not see (`library_roots`: `removeRoot()` first turns its tracks' paths into absolute paths). SET NULL where the child stays meaningful (a pad whose tag is deleted; folder parents as a safety net).
 - **Unique positions and moves.** Two rows of a list never share a position, even for a moment: renumbering and multi-row moves go through temporary positions (`assignPositions`), and the pad swap through a temporary spare place. Undo replays the same steps backwards, so it never meets a clash either.
-- **Session numbers are derived, not stored** (DB review, done in wave 3): `campaigns.first_session_number` plus the number of the campaign's sessions before it in `position` order (the prototype's `renumber`). `listSessions` and `getSession` compute it (`SESSION_SELECT`, served by `sessions_order`); moving or deleting a session renumbers the rest by itself.
+- **Session numbers are derived, not stored** (DB review, done in wave 3): `campaigns.first_session_number` plus the number of the campaign's sessions before it in `position` order (the prototype's `renumber`). `listSessions` and `getSession` compute it (`SESSION_SELECT`, served by `sessions_order`); moving or deleting a session renumbers the rest by itself. From version 8, a campaign whose `session_numbering` is `typed` keeps each session's `typed_number` instead (`COALESCE` in `SESSION_SELECT`).
 - **Library order** is `tracks.added_seq`, the integer primary key: undo puts a deleted track back with its number, VACUUM cannot renumber it, and reading in library order reads the table in key order.
 - **One track per file.** The unique indexes compare paths ignoring letter case, as Windows and the import's `fileKey` do; full paths are stored normalised (`normalizePath`: backslashes and no `.` parts on Windows). Adding a library folder takes in the tracks already inside it (their paths become relative), the deepest folder winning, as for new files.
 
@@ -478,6 +478,26 @@ The order of the Campaigns screen (0.5.1) is version 1's `campaigns.position` (`
 | `schema/v007.test.ts` | The column and its CHECK; the upgrade from version 6 keeps profiles, with no Start at |
 | `repo/profiles.test.ts` | Start at saved and read with a place's profile, null as the Beginning, refusals |
 | `../lyreApi/transferApi.test.ts` (round 7) | Tag places, dividers, a scene's and a pad's steps, Then, Follow with, Ending, Pick up and mix out through a .lyre file |
+
+### Version 8: typed session numbers (0.5.2, w52-prep)
+
+`schema/v008-session-numbers.ts` adds `campaigns.session_numbering` ('auto' or 'typed', default 'auto') and
+`sessions.typed_number` (NULL, or 0–100,000). Nik's list of 14 Nov, item 13: start counting from a chosen number
+("we began using Lyre at session 12", version 1's `first_session_number`, now in the campaign's details), or type
+every number. Switching to typed copies each session's counted number into `typed_number`, so nothing changes on
+screen; a new session gets the number before it plus one; moving and deleting change no typed number. Switching back
+clears them and counts on from the first session's number. `CampaignInfo.numbering` and `firstSessionNumber`;
+`SessionPatch.number` (refused as `wrong-kind` while the campaign counts on by itself). Another 0.5.2 stream may
+also add a version 8: the second to merge renumbers its step.
+
+Deleting a campaign or a session (`campaigns.delete`, `sessions.delete`, 0.5.2) uses version 1's cascades: sessions,
+scenes, things on hand, a place's own settings, play orders, track orders and steps go with it; tracks, playlists and
+pad boards stay. One undo step brings it all back.
+
+| Test | Covers |
+| --- | --- |
+| `schema/v008.test.ts` | The columns and their CHECKs; the upgrade from version 7 counts on as before |
+| `../../common/lyre/contract.ts` (sessions and scenes) | Counting on from a first number, typed numbers kept through new sessions, moves and deletes; deleting a campaign or a session with Undo |
 
 ### Import (EDT-6, DAT-5, DAT-8, DAT-4)
 

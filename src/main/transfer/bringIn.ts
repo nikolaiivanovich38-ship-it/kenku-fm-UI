@@ -49,6 +49,7 @@ import {
   setPlayOrder,
   setRepeatOne,
   setTrackOrder,
+  updateSession,
   setProfileOverride,
   setSceneAmbience,
   setSceneTrackName,
@@ -480,6 +481,8 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
     if (!to) return;
     const { campaignId, asDrafts } = to;
     const session = createSession(store, { campaignId, name: s.name, date: s.date, status: asDrafts ? "draft" : s.status, noteLink: s.noteLink });
+    // 0.5.2: a campaign whose numbers are typed keeps them (merged sessions follow the numbering of yours).
+    if (!asDrafts && c.numbering === "typed") updateSession(store, session.id, { number: s.number });
     sessionMap.set(`${c.id}:${s.id}`, { campaignId, sessionId: session.id });
     addToSession(store, session.id, { playlistIds: playlistsOf(s.playlistIds), boardIds: boardsOf(s.boardIds), trackIds: tracksOf(s.trackIds) });
     for (const sc of s.scenes) {
@@ -521,7 +524,7 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
       return;
     }
     const name = choice === "keepBoth" ? `${c.name}${from}` : c.name;
-    const made = createCampaign(store, { name, system: c.system, theme: c.theme, description: c.description, notes: c.notes, obsidian: c.obsidian, firstSessionNumber: c.sessions[0]?.number ?? 1 });
+    const made = createCampaign(store, { name, system: c.system, theme: c.theme, description: c.description, notes: c.notes, obsidian: c.obsidian, firstSessionNumber: c.sessions[0]?.number ?? 1, sessionNumbering: c.numbering });
     campaignMap.set(c.id, made.id);
     addToCampaign(store, made.id, { playlistIds: playlistsOf(c.playlistIds), boardIds: boardsOf(c.boardIds), trackIds: tracksOf(c.trackIds) });
     sessionsGoTo.set(c.id, { campaignId: made.id, asDrafts: false });
