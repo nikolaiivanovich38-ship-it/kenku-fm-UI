@@ -35,7 +35,7 @@ describe("the help articles (FND-8)", () => {
       "Plan a campaign, session and scenes",
       "How a track plays (Audio profile)",
       "Pad boards",
-      "Shuffle and repeat per place",
+      "Shuffle and repeat in playlists and scenes",
       "Normalise volume",
       "Run a session in Live",
       "Preview or play on air",
