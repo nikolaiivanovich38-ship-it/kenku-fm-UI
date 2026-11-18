@@ -172,4 +172,32 @@ badge, a quiet outline chip, never shows while Live has a scene running. New cam
 Esc says a second one throws it away.
 
 ## Specs and checks
-See the end of this file once the run is done.
+The prototype project (`npx playwright test -c playwright.spec.config.ts --project=prototype`, through `yarn heavy`):
+**813 passed, 0 failed, 13 skipped** (the skipped ones are `appOnly()` checks of 0.5.1). That includes the sweeps (no
+sideways scroll, no overlap or cut-off text, axe WCAG 2.2 A and AA, keyboard, the window's buttons, every screen from
+600 to 2560 px wide). Round 9 left 34 failing; they now pass.
+- **New checks, marked `expectFailureUntilBuilt("r10")`** (a new stream in `support/built.ts`, so the app project
+  expects them to fail until the 0.6.0 build): Live keeps its place when a scene starts and a pad fires; Undo in one
+  place; a pad keeps the scene's Undo; Stop all and Play on air have Undo; double-click on Next scene; the transport
+  order; Connection lost and Try again; Arrange with one Move… per box and On air moving into a column; no Joins when
+  Lyre starts; Rooms with Settings in its trail; no Open all; When it starts; a nested track title opens the Track
+  panel; Make a playlist of these…; the first start ends in Set up Lyre; the six-step Live tour. Round 9's changed
+  words (uses, At its end, Play…, the six ends in the Audio profile, Rooms reached from the menu) are marked the same.
+- **Checks that read either name** (they pass in the app as it is and in the prototype): the Track library's name,
+  Story cue / Starts when, the room's button and Leave, Next time, start where it stopped, Leave out short cues, the
+  playlist menu's Move items, Undo found on the page wherever its strip is, the Rooms link at the menu's foot, Help's
+  article lists without Set up Lyre's buttons.
+- `tools/check-contrast.js`: all five themes pass (Hearth's teal: accent text 10.0:1, accent ink 4.5:1 or better).
+  New controls are 24 px or more; the box's foot edge (drag only) has Move… as its keyboard and pointer alternative.
+- Written after the design, not before: the new checks were written while building, and each was seen to fail on a
+  first run before the fix that made it pass (Undo beside Find, the strip at half a screen, the Live tour).
+
+## Questions for Nik (recommended first)
+1. **Parchment's oxblood buttons** sit in the same red as On air, as Hearth's orange did: (a) ink blue, as you chose
+   iron teal for Hearth; (b) keep oxblood.
+2. **Fade all and Stop all at half a 1920 screen**: (a) icons there (names on hover and read out), words from 1000 px
+   up; (b) words always, and the campaign's name leaves Live's strip at that size.
+3. **Rooms from Live**: (a) only from the menu under Settings, so Live stays the place for joining and moving; (b) also
+   a "Rooms…" line at the foot of each room's menu.
+4. **A new pad board from the planner** (the prep reviewer's other half of your answer 1a): (a) New board… in the pad
+   board picker opens the board and comes back with it ticked; (b) build boards on the Pad boards page only.
