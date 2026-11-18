@@ -1248,11 +1248,16 @@ names tracks, never paths, and the main process checks the file again before it 
   `problems`. It asks the main process for one file at a time (`askHost("trashFile", [path])`).
 - **The main process checks again** (`src/main/lyreApi/trashFile.ts`, `trashAudioFile`): a string, a full path, no NUL,
   an audio file name (`isAudioFile`), and `lstat` says a regular file (not a folder, not a link). Only then
-  `shell.trashItem`. There is no `fs.unlink` or `rm` anywhere on this path; a failure is passed back in plain words
+  `shell.trashItem`. Plainly, its protection is **audio files only, and only to the Recycle Bin**: it does not check
+  that the file is inside one of the library folders. A track may live outside them (added on its own, or a library
+  folder removed while its tracks stayed), so the limit to the library's own files is the library's process looking
+  the path up from the track's row, not a folder check in the main process. There is no `fs.unlink` or `rm` anywhere on this path; a failure is passed back in plain words
   and the track stays. Host operations the library may ask for are the host record's own names; `trashFile` is the
   only one that changes a file.
 - **Undo** brings back the tracks (one undo step), not the files: the confirmation says so, and the files are in the
   Recycle Bin.
+- **One at a time** (review of r052): the library takes one `deleteFiles` request at a time and refuses another as
+  `busy` while it works; the confirmation's button is disabled and marked busy after the first press.
 - **Removing a library folder** (`import.removeFolder`) never touches a file; with `removeTracks` it deletes the
   tracks' rows only (`removeRootWithTracks`, one undo step).
 
@@ -1261,6 +1266,7 @@ names tracks, never paths, and the main process checks the file again before it 
 | Test | Covers |
 |---|---|
 | `src/main/lyreApi/trashFile.test.ts` | A relative path, not text, a NUL, a folder, a file that is not audio, a file not there and a link are refused without calling `trashItem`; its failure in plain words |
-| `src/main/lyreApi/libraryApi.test.ts` | The host is handed the file the library has for the track; a host refusal keeps the track; without a Recycle Bin, "unavailable" |
+| `src/main/lyreApi/libraryApi.test.ts` | The host is handed the file the library has for the track; a host refusal keeps the track; without a Recycle Bin, "unavailable"; a second request while one works is refused as busy and touches nothing |
+| `src/lyre/screens/library/library052.test.tsx` | Delete file, Remove and Remove folder: a second press while the library works sends nothing; the button is disabled and busy |
 | `src/common/lyre/contract.ts` (both implementations) | Remove from library and Delete file from disk: one undo step, missing files kept, unknown ids refused with nothing changed |
 | `src/main/lyreApi/argChecks.test.ts` | Every method has a shape (the new ones included) |
