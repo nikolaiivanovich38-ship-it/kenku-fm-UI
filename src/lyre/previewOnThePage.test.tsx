@@ -96,7 +96,8 @@ describe("the time on the Now playing bar and in Live's On air (Nik, 0.5.0: it s
     await userEvent.click(details().getByRole("button", { name: "Preview" }));
     await playOn(sound, 1);
     const row = () => bar().getByRole("group", { name: /^Only you/ });
-    expect(timeOf(row())).toMatch(/ \/ 5:00$/);
+    // The library's length (7:21), not the five-minute fake file's: one length for a track (round 8 #6).
+    expect(timeOf(row())).toMatch(/ \/ 7:21$/);
     await movesEveryQuarterSecond(sound, row);
     const before = timeOf(row());
     await playOn(sound, 1);
