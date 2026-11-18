@@ -699,6 +699,8 @@ test.describe("0.5.2: dragging in a scene's music (items 41 and 36)", () => {
     await page.mouse.down();
     await page.mouse.move(handle.x + 10, handle.y + 10, { steps: 5 });
     await page.mouse.move(last.x + 80, last.y + last.height - 6, { steps: 15 });
+    // Chromium reports a drag's last position with the next move: one more pixel, so the line is where the pointer is.
+    await page.mouse.move(last.x + 81, last.y + last.height - 6);
     await expect(rows.nth(3)).toHaveClass(/cp-drop-after/);
     await page.mouse.up();
     await expect(rows.nth(3)).toContainText(moving);
