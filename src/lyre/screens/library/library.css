@@ -237,6 +237,14 @@ body .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
 /* 0.5.2 item 6: the two play buttons are wrapped (a click opens the track) without changing the row's layout. */
 .view .lb-play { display: contents; }
 
+/* 0.5.2 item 25: column headers sort. */
+.view .lb-table th .lb-sortbtn { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; min-height: 24px; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.view .lb-table th .lb-sortbtn:hover { color: var(--ink); text-decoration: underline; }
+.view .lb-table th .lb-sortbtn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+/* 0.5.2 item 21: Clear beside a filter's heading. */
+.view .lb-fhrow { display: flex; align-items: center; gap: 6px; }
+.view .lb-fhrow .lb-fh { flex: 1; min-width: 0; }
+
 /* 0.5.2 item 7: the file's length, and under it the length its Audio profile plays. */
 .view .lb-len { display: flex; flex-direction: column; line-height: 1.1; }
 .view .lb-played { font-size: var(--fs-xs); color: var(--ink-3); }

@@ -382,11 +382,12 @@ export function LibraryScreen({ route }: ScreenProps) {
             type="button"
             className="btn s ghost"
             onClick={() => {
-              setLibraryState({ filter: DEFAULT_FILTER, q: "" });
+              // Item 21: every filter, not the search.
+              setLibraryState({ filter: DEFAULT_FILTER });
               say("Filters cleared");
             }}
           >
-            Clear all
+            Clear all filters
           </button>
         ) : undefined
       }
@@ -478,6 +479,10 @@ export function LibraryScreen({ route }: ScreenProps) {
         missing={missing}
         emptyText={emptyText}
         sort={st.sort}
+        onSort={(sort) => {
+          setLibraryState({ sort });
+          say(`Sorted: ${SORTS.find(([k]) => k === sort)?.[1] ?? ""}`);
+        }}
         onOpen={openTrack}
         onToggle={toggleSel}
         onToggleAll={toggleAll}

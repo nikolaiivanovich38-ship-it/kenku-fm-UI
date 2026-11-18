@@ -21,7 +21,7 @@ import { ShapeTag } from "../../kit/ShapeGlyph";
 import { EnergyMeter } from "../../kit/Pills";
 import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
-import { fmt, kindMark, playedMs, shownTitle } from "./model";
+import { columnSort, fmt, kindMark, playedMs, shownTitle, type SortColumn, type SortKey } from "./model";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 
@@ -60,7 +60,9 @@ export interface TracksTableProps {
   /** Item 35: where the list starts scrolled, and where it is scrolled to (kept while the screen is drawn afresh). */
   initialScroll?: number;
   onScrolled?: (top: number) => void;
-  sort: string;
+  sort: SortKey;
+  /** Item 25: a click on a column header sorts by it (ascending, then descending). */
+  onSort?: (sort: SortKey) => void;
   /** Round 6: the id of the key legend under the list, read out with it. */
   describedBy?: string;
 }
@@ -215,14 +217,10 @@ export function TracksTable(props: TracksTableProps) {
                 <input ref={allRef} type="checkbox" aria-label={`Select all ${n} shown`} checked={allOn} onChange={props.onToggleAll} />
               </label>
             </th>
-            <th className="lb-c-title" aria-sort={sort === "title" ? "ascending" : undefined}>
-              Title
-            </th>
-            <th className="lb-c-tags">Tag</th>
-            <th className="lb-c-en">Energy</th>
-            <th className="lb-c-dur" aria-sort={sort === "short" ? "ascending" : sort === "long" ? "descending" : undefined}>
-              Length
-            </th>
+            <SortHeader column="title" className="lb-c-title" label="Title" sort={sort} onSort={props.onSort} />
+            <SortHeader column="tags" className="lb-c-tags" label="Tag" sort={sort} onSort={props.onSort} />
+            <SortHeader column="energy" className="lb-c-en" label="Energy" sort={sort} onSort={props.onSort} />
+            <SortHeader column="length" className="lb-c-dur" label="Length" sort={sort} onSort={props.onSort} />
             <th className="lb-c-pv">
               <span className="sr-only">Preview, play on air, more</span>
             </th>
@@ -404,5 +402,26 @@ function LengthCell({ t }: { t: LibraryTrack }) {
         {played}
       </span>
     </span>
+  );
+}
+
+/**
+ * Item 25: a column header that sorts. Its button sorts by the column, ascending, then descending on a second click;
+ * the header's aria-sort says which. Without onSort it is a plain header with its aria-sort.
+ */
+function SortHeader({ column, className, label, sort, onSort }: { column: SortColumn; className: string; label: string; sort: SortKey; onSort?: (sort: SortKey) => void }) {
+  const { aria, next } = columnSort(column, sort);
+  return (
+    <th className={className} aria-sort={aria}>
+      {onSort ? (
+        // Out of the Tab order, so the list stays one Tab stop: the Sort box above it has the same sorts for the keys.
+        <button type="button" className="lb-sortbtn" tabIndex={-1} title={aria === "ascending" ? `Sort by ${label.toLowerCase()}, descending` : `Sort by ${label.toLowerCase()}`} onClick={() => onSort(next)}>
+          <span className="ellipsis">{label}</span>
+          {aria && <Icon name={aria === "ascending" ? "chevup" : "chevdown"} size="s" />}
+        </button>
+      ) : (
+        label
+      )}
+    </th>
   );
 }

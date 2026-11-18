@@ -15,10 +15,15 @@ import { inVocabularyOrder } from "../../../common/lyre/lookup";
 export { inVocabularyOrder, plural, shownTitle };
 
 export type KindFilter = "all" | "music" | "amb" | "fx";
-export type SortKey = "title" | "artist" | "short" | "long" | "new" | "old";
+export type SortKey = "title" | "title-za" | "tag" | "tag-za" | "energy" | "energy-desc" | "artist" | "short" | "long" | "new" | "old";
 
 export const SORTS: readonly [SortKey, string][] = [
   ["title", "Title A to Z"],
+  ["title-za", "Title Z to A"],
+  ["tag", "Tag A to Z"],
+  ["tag-za", "Tag Z to A"],
+  ["energy", "Energy, calm first"],
+  ["energy-desc", "Energy, intense first"],
   ["artist", "Artist A to Z"],
   ["short", "Shortest first"],
   ["long", "Longest first"],
@@ -148,14 +153,38 @@ export function matches(t: LibraryTrack, f: LibraryFilter, words: string[], skip
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
 const byTitle = (a: LibraryTrack, b: LibraryTrack) => collator.compare(shownTitle(a), shownTitle(b));
+/** A track's first tag as its row shows it; "" when it has none (sorted last, whichever way). */
+const firstTag = (t: LibraryTrack) => tagsOf(t)[0] ?? "";
+const blanksLast = (a: string | number | null, b: string | number | null) => Number(a === "" || a === null) - Number(b === "" || b === null);
 const SORTERS: Record<SortKey, (a: LibraryTrack, b: LibraryTrack) => number> = {
   title: byTitle,
+  "title-za": (a, b) => byTitle(b, a),
+  tag: (a, b) => blanksLast(firstTag(a), firstTag(b)) || collator.compare(firstTag(a), firstTag(b)) || byTitle(a, b),
+  "tag-za": (a, b) => blanksLast(firstTag(a), firstTag(b)) || collator.compare(firstTag(b), firstTag(a)) || byTitle(a, b),
+  energy: (a, b) => blanksLast(a.energy, b.energy) || (a.energy ?? 0) - (b.energy ?? 0) || byTitle(a, b),
+  "energy-desc": (a, b) => blanksLast(a.energy, b.energy) || (b.energy ?? 0) - (a.energy ?? 0) || byTitle(a, b),
   artist: (a, b) => collator.compare(a.artist, b.artist) || byTitle(a, b),
   short: (a, b) => a.durationMs - b.durationMs,
   long: (a, b) => b.durationMs - a.durationMs,
   new: (a, b) => b.addedAt - a.addedAt || byTitle(a, b),
   old: (a, b) => a.addedAt - b.addedAt || byTitle(a, b),
 };
+
+/**
+ * Item 25: the column headers that sort, each with its sort one way and the other (a first click sorts ascending, a
+ * second descending), and what aria-sort says for a sort.
+ */
+export const COLUMN_SORTS = {
+  title: ["title", "title-za"],
+  tags: ["tag", "tag-za"],
+  energy: ["energy", "energy-desc"],
+  length: ["short", "long"],
+} as const satisfies Record<string, readonly [SortKey, SortKey]>;
+export type SortColumn = keyof typeof COLUMN_SORTS;
+export function columnSort(column: SortColumn, now: SortKey): { aria: "ascending" | "descending" | undefined; next: SortKey } {
+  const [up, down] = COLUMN_SORTS[column];
+  return { aria: now === up ? "ascending" : now === down ? "descending" : undefined, next: now === up ? down : up };
+}
 
 /** The tracks a filter, search and sort show, in order. */
 export function visibleTracks(tracks: readonly LibraryTrack[], f: LibraryFilter, q: string, sort: SortKey, missing: ReadonlySet<string> = NONE_MISSING, tree?: TagTree): LibraryTrack[] {

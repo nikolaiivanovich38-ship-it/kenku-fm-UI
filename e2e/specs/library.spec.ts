@@ -649,4 +649,39 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await page.getByRole("menuitem", { name: "Tags and groups…" }).click();
     await expect(page.getByRole("button", { name: "Back to Track library" })).toBeVisible();
   });
+
+  test("item 21: Clear in one filter clears only that filter; Clear all filters clears every one", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const f = filters(page);
+    const toggle = page.getByRole("button", { name: "Filters", exact: true });
+    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+    await f.getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ }).click();
+    await f.getByRole("group", { name: "Shape" }).getByRole("button", { name: /^Builds/ }).click();
+    await expect(f).toContainText("2 filters on");
+    await f.getByRole("button", { name: "Clear Mood" }).click();
+    await expect(f).toContainText("1 filter on");
+    await expect(f.getByRole("group", { name: "Shape" }).getByRole("button", { name: /^Builds/ })).toHaveAttribute("aria-pressed", "true");
+    await f.getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ }).click();
+    await f.getByRole("button", { name: "Clear all filters" }).click();
+    await expect(f).not.toContainText("filter on");
+  });
+
+  test("item 25: a click on a column header sorts by it, ascending then descending, and says so with aria-sort", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const title = grid(page).getByRole("columnheader", { name: /^Title/ });
+    const length = grid(page).getByRole("columnheader", { name: /^Length/ });
+    await expect(title).toHaveAttribute("aria-sort", "ascending");
+    const first = (await shownTitles(page))[0];
+    await title.getByRole("button").click();
+    await expect(title).toHaveAttribute("aria-sort", "descending");
+    expect((await shownTitles(page)).at(-1)).toBe(first);
+    await length.getByRole("button").click();
+    await expect(length).toHaveAttribute("aria-sort", "ascending");
+    await expect(title).not.toHaveAttribute("aria-sort");
+    await length.getByRole("button").click();
+    await expect(length).toHaveAttribute("aria-sort", "descending");
+    await expect(page.getByRole("combobox", { name: "Sort tracks" })).toHaveValue("long");
+  });
 });

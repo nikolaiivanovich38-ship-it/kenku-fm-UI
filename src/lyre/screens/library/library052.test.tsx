@@ -78,3 +78,75 @@ describe("item 23: the Library is the Track library where its name shows", () =>
     expect(within(screen.getByRole("navigation", { name: "Lyre" })).getByRole("link", { name: "Track library" })).toHaveAttribute("href", "#/library");
   });
 });
+
+const filters = () => screen.getByRole("region", { name: "Filters" });
+const shownTitles = () =>
+  within(grid())
+    .queryAllByRole("checkbox")
+    .map((b) => b.getAttribute("aria-label") ?? "")
+    .filter((n) => n.startsWith("Select ") && !n.startsWith("Select all"))
+    .map((n) => n.slice(7));
+
+describe("item 21: Clear in one filter control clears only that control; Clear all filters clears them all", () => {
+  it("Clear by Mood takes off the Mood ticks only; the Shape and energy filters stay", async () => {
+    openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    const f = within(filters());
+    await user.click(within(f.getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
+    await user.click(within(f.getByRole("group", { name: "Shape" })).getByRole("button", { name: /^Builds/ }));
+    await user.selectOptions(f.getByRole("combobox", { name: "Highest energy" }), "4");
+    expect(filters()).toHaveTextContent("3 filters on");
+    // Only a control with something chosen has its Clear.
+    expect(f.queryByRole("button", { name: "Clear Leitmotif" })).toBeNull();
+    await user.click(f.getByRole("button", { name: "Clear Mood" }));
+    expect(filters()).toHaveTextContent("2 filters on");
+    expect(within(f.getByRole("group", { name: "Shape" })).getByRole("button", { name: /^Builds/ })).toHaveAttribute("aria-pressed", "true");
+    await user.click(f.getByRole("button", { name: "Clear energy" }));
+    expect(filters()).toHaveTextContent("1 filter on");
+    await user.click(f.getByRole("button", { name: "Clear Shape" }));
+    expect(filters()).not.toHaveTextContent("filter on");
+  });
+
+  it("Clear all filters clears every control and leaves the search as it is", async () => {
+    openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    const f = within(filters());
+    await user.type(screen.getByRole("searchbox", { name: "Search tracks" }), "the");
+    await user.click(within(f.getByRole("group", { name: "Kind of track" })).getByRole("button", { name: "Music" }));
+    await user.click(within(f.getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
+    await user.click(f.getByRole("button", { name: "Clear all filters" }));
+    expect(filters()).not.toHaveTextContent("filter on");
+    expect(screen.getByRole("searchbox", { name: "Search tracks" })).toHaveValue("the");
+  });
+});
+
+describe("item 25: a click on a column header sorts by it, ascending then descending, with aria-sort", () => {
+  it("Title, then Title again; Length; Energy", async () => {
+    openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    const header = (name: string) => within(grid()).getByRole("columnheader", { name: new RegExp(`^${name}`) });
+    expect(header("Title")).toHaveAttribute("aria-sort", "ascending");
+    const a = shownTitles();
+    await user.click(within(header("Title")).getByRole("button", { name: /Title/ }));
+    expect(header("Title")).toHaveAttribute("aria-sort", "descending");
+    expect(shownTitles()).toEqual([...a].reverse());
+    expect(screen.getByRole("combobox", { name: "Sort tracks" })).toHaveValue("title-za");
+    await user.click(within(header("Length")).getByRole("button", { name: /Length/ }));
+    expect(header("Length")).toHaveAttribute("aria-sort", "ascending");
+    expect(header("Title")).not.toHaveAttribute("aria-sort");
+    await user.click(within(header("Length")).getByRole("button", { name: /Length/ }));
+    expect(header("Length")).toHaveAttribute("aria-sort", "descending");
+    expect(screen.getByRole("combobox", { name: "Sort tracks" })).toHaveValue("long");
+    await user.click(within(header("Energy")).getByRole("button", { name: /Energy/ }));
+    expect(header("Energy")).toHaveAttribute("aria-sort", "ascending");
+    // Low energy first; tracks with no energy yet after them, whichever way.
+    const energies = [...grid().querySelectorAll("tbody td.lb-c-en [role=img]")].map((e) => Number(/Energy (\d)/.exec(e.getAttribute("aria-label") ?? "")?.[1] ?? 9));
+    expect(energies).toEqual([...energies].sort((x, y) => x - y));
+    await user.click(within(header("Energy")).getByRole("button", { name: /Energy/ }));
+    const down = [...grid().querySelectorAll("tbody td.lb-c-en [role=img]")].map((e) => Number(/Energy (\d)/.exec(e.getAttribute("aria-label") ?? "")?.[1] ?? 0));
+    expect(down).toEqual([...down].sort((x, y) => y - x));
+  });
+});

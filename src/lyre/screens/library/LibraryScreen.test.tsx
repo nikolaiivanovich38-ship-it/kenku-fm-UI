@@ -76,7 +76,7 @@ describe("Library: finding tracks", () => {
     // The box's count says filters, not a selection like the Tracks box's "3 selected" (w3-ux 13).
     expect(filters()).toHaveTextContent("1 filter on");
     expect(filters()).not.toHaveTextContent("1 selected");
-    await user.click(within(filters()).getByRole("button", { name: "Clear all" }));
+    await user.click(within(filters()).getByRole("button", { name: "Clear all filters" }));
     expect(shownTitles().length).toBeGreaterThan(5);
   });
 
