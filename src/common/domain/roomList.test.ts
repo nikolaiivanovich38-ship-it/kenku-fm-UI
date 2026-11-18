@@ -272,3 +272,57 @@ describe("0.5.1: the room's Shuffle (Nik, 11 Nov: \"I also need a shuffle button
     expect(setRoomShuffle(list, null).shuffle).toBeNull();
   });
 });
+
+/*
+ * 45 (Nik's play test, 14 Nov): "I had a weird thing where it played a song I had played in the past rather than the
+ * song it said was coming up next." A playlist on its own repeats (DEFAULT_ORDER_ALONE), and at its last track Up next
+ * listed nothing, then its first track came round again: a track played before, not what Up next said. Up next now
+ * goes on into the next round, which the host deals ahead (a shuffled playlist gets a new order each round), and what
+ * plays at the bottom is the first of that round.
+ */
+describe("45: a plan that starts again shows its next round in Up next, and plays it", () => {
+  const nextRound = ["c", "a", "d", "b"].map((t): PlanStep => ({ trackId: t, playlistId: null, key: `t:${t}` }));
+  const ownSteps = ["a", "b", "c", "d"].map((t): PlanStep => ({ trackId: t, playlistId: null, key: `t:${t}` }));
+  const looping = (at: number | null, round: readonly PlanStep[] | null = nextRound): PlanView => ({ steps: ownSteps, at, inner: null, loops: true, keepAdded: true, nextRound: round });
+
+  it("Up next at the last track lists the next round, and the end of the last track plays its first", () => {
+    const list = emptyRoomList();
+    expect(upNext(list, looping(3)).map((e) => (e.kind === "plan" ? e.trackId : e.name))).toEqual(["c", "a", "d", "b"]);
+    const r = pickNext(list, looping(3), { ended: true, repeat: "all" });
+    expect(r.pick).toEqual({ from: "plan", at: 0, round: "next" });
+    expect(nextRound[0].trackId).toBe(upNext(list, looping(3))[0].kind === "plan" ? "c" : "");
+  });
+
+  it("before the last track Up next shows what is left, then the next round", () => {
+    expect(upNext(emptyRoomList(), looping(1)).map((e) => (e.kind === "plan" ? e.trackId : ""))).toEqual(["c", "d", "c", "a", "d", "b"]);
+  });
+
+  it("the next round never starts with the track that just played; it goes to the end of the round", () => {
+    const sameFirst = ["d", "a", "b", "c"].map((t): PlanStep => ({ trackId: t, playlistId: null, key: `t:${t}` }));
+    const r = pickNext(emptyRoomList(), looping(3, sameFirst), { ended: true, repeat: "all" });
+    expect(r.pick).toEqual({ from: "plan", at: 1, round: "next" });
+    expect(upNext(emptyRoomList(), looping(3, sameFirst)).map((e) => (e.kind === "plan" ? e.trackId : ""))).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("a skipped track stays skipped in the next round", () => {
+    const list = removeFromUpNext(emptyRoomList(), { kind: "plan", key: "t:c" });
+    expect(upNext(list, looping(3)).map((e) => (e.kind === "plan" ? e.trackId : ""))).toEqual(["a", "d", "b"]);
+    expect(pickNext(list, looping(3), { ended: true, repeat: "all" }).pick).toEqual({ from: "plan", at: 1, round: "next" });
+  });
+
+  it("what was added still plays before the next round, and Up next says so in that order", () => {
+    const list = addToQueue(emptyRoomList(), track("x"));
+    expect(upNext(list, looping(3)).map((e) => (e.kind === "plan" ? e.trackId : e.name))).toEqual(["Track x", "c", "a", "d", "b"]);
+  });
+
+  it("without a next round given (a scene), a plan that loops starts again at its top, as it always has", () => {
+    expect(upNext(emptyRoomList(), looping(3, null))).toEqual([]);
+    expect(pickNext(emptyRoomList(), looping(3, null), { ended: true, repeat: "all" }).pick).toEqual({ from: "plan", at: 0 });
+  });
+
+  it("a plan that does not loop lists nothing after its last track and stops there", () => {
+    const once: PlanView = { ...looping(3), loops: false, keepAdded: false };
+    expect(upNext(emptyRoomList(), once)).toEqual([]);
+    expect(pickNext(emptyRoomList(), once, { ended: true, repeat: "off" }).pick).toBeNull();
+  });
+});

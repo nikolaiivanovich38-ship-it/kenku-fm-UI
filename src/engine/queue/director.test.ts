@@ -632,11 +632,114 @@ describe("problems", () => {
     expect(await listenToMusic(7)).toEqual(["m1", "m3"]);
   });
 
+  it("52: a track the library thinks is 3 s long, whose file is 20 s (a wrong MP3 header), plays all 20 s on air", async () => {
+    data.tracks.push(track("short", 3));
+    context.mediaDurations.set("file:///short.ogg", 20);
+    context.mediaEstimates.set("file:///short.ogg", 18.4);
+    await run({ type: "playTrack", trackId: "short", target: table, fadeMs: 0 });
+    await context.advance(10);
+    expect(music()).toBe("short");
+    expect(rooms.hear("table", "music")).toBeCloseTo(1);
+    await context.advance(9.5);
+    expect(music()).toBe("short");
+    await context.advance(1);
+    expect(music()).toBeNull();
+  });
+
+  it("52: an End chosen inside such a track still ends it there", async () => {
+    data.tracks.push(track("short", 20, { profile: { endMs: 3000 } }));
+    context.mediaDurations.set("file:///short.ogg", 20);
+    await run({ type: "playTrack", trackId: "short", target: table, fadeMs: 0 });
+    await context.advance(3.5);
+    expect(music()).toBeNull();
+  });
+
   it("tells the screen when anything changes", async () => {
     const change = vi.fn();
     director.on("change", change);
     await run({ type: "startScene", scene: S1 });
     expect(change).toHaveBeenCalled();
+  });
+});
+
+/*
+ * 45 (Nik's play test, 14 Nov): Play on air of a playlist "played a song I had played in the past rather than the song
+ * it said was coming up next". A playlist on its own repeats, and at its last track Up next said nothing, then its
+ * first track (played before) came round. Reproduced as Nik used it: play a playlist, play another, come back.
+ */
+describe("45: what plays is what Up next said, round after round", () => {
+  /** Plays on, and for each change of track notes what Up next said just before it. */
+  async function followUpNext(seconds: number) {
+    const changes: { from: string | null; to: string | null; said: string | null }[] = [];
+    let now = music();
+    let said = director.report()[0].upNext;
+    for (let t = 0; t < seconds; t += 0.25) {
+      await context.advance(0.25);
+      const playing = music();
+      if (playing !== now) changes.push({ from: now, to: playing, said });
+      now = playing;
+      said = director.report()[0].upNext;
+    }
+    return changes;
+  }
+
+  beforeEach(() => {
+    for (const id of ["a1", "a2", "a3", "a4", "b1", "b2"]) {
+      data.tracks.push(track(id, 10));
+      context.mediaDurations.set(`file:///${id}.ogg`, 10);
+    }
+    data.playlists.push({ id: "PA", name: "Alpha", lane: "music", kind: "manual", trackIds: ["a1", "a2", "a3", "a4"] }, { id: "PB", name: "Beta", lane: "music", kind: "manual", trackIds: ["b1", "b2"] });
+  });
+
+  it("play a playlist, play another, come back: every track that plays is the one Up next named, also at the bottom", async () => {
+    await run({ type: "playPlaylist", playlistId: "PA", target: table, fadeMs: 0 });
+    await context.advance(12);
+    await run({ type: "playPlaylist", playlistId: "PB", target: table, fadeMs: 0 });
+    await context.advance(5);
+    await run({ type: "playPlaylist", playlistId: "PA", target: table, fadeMs: 0 });
+    expect(music()).toBe("a1");
+    const changes = await followUpNext(52);
+    expect(changes.map((c) => c.to)).toEqual(["a2", "a3", "a4", "a1", "a2"]);
+    for (const c of changes) expect(c.to, `after ${c.from} Up next said ${c.said}`).toBe(c.said);
+  });
+
+  it("Up next goes on into the next round, so at the last track it names the track that comes round", async () => {
+    await run({ type: "playPlaylist", playlistId: "PA", target: table, fadeMs: 0 });
+    await context.advance(35);
+    expect(music()).toBe("a4");
+    expect(director.report()[0].upNext).toBe("a1");
+    expect(director.report()[0].list.filter((e) => e.kind === "plan").map((e) => (e.kind === "plan" ? e.trackId : ""))).toEqual(["a1", "a2", "a3", "a4"]);
+  });
+
+  it("46: a shuffled playlist deals a new order each round, never starting with the track just played, and still plays what Up next said", async () => {
+    let r = 0.123;
+    const engine = new PlaybackEngine({ context, scheduler: context.clock, loader: new SourceLoader({ context, createElement: () => context.createMediaElement(), fetchBytes: async () => null }) });
+    director = new Director({ engine, rooms, library: staticLibrary(data), random: () => (r = (r * 9301 + 0.49297) % 1) });
+    data.playOrders = {};
+    const a = data.playlists.find((p) => p.id === "PA")!;
+    a.order = { shuffle: true, repeat: "all" };
+    await run({ type: "playPlaylist", playlistId: "PA", target: table, fadeMs: 0 });
+    const first = music();
+    const changes = await followUpNext(121);
+    for (const c of changes) expect(c.to, `after ${c.from} Up next said ${c.said}`).toBe(c.said);
+    const order = [first, ...changes.map((c) => c.to)];
+    const rounds = [order.slice(0, 4), order.slice(4, 8), order.slice(8, 12)];
+    for (const round of rounds) expect([...round].sort()).toEqual(["a1", "a2", "a3", "a4"]);
+    // Not the same order every round, and never the same track twice in a row.
+    expect(new Set(rounds.map((round) => round.join())).size).toBeGreaterThan(1);
+    for (let i = 1; i < order.length; i++) expect(order[i]).not.toBe(order[i - 1]);
+  });
+});
+
+describe("46: where the shuffle's randomness comes from", () => {
+  it("with no random numbers given, a shuffled playlist is dealt from the cryptographic random numbers", async () => {
+    const spy = vi.spyOn(globalThis.crypto, "getRandomValues");
+    const engine = new PlaybackEngine({ context, scheduler: context.clock, loader: new SourceLoader({ context, createElement: () => context.createMediaElement(), fetchBytes: async () => null }) });
+    director = new Director({ engine, rooms, library: staticLibrary(data) });
+    data.playlists.find((p) => p.id === "P")!.order = { shuffle: true, repeat: "all" };
+    director.run({ type: "playPlaylist", playlistId: "P", target: table });
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

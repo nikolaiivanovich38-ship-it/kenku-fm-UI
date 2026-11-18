@@ -362,8 +362,8 @@ describe("0.5.1: a room's Shuffle (Nik, 11 Nov)", () => {
     expect(rig.audio.toggleShuffle()).toEqual({ ok: true });
     await rig.advance(0.1);
     expect(first().shuffle).toBe(true);
-    // Every planned track is still to come, in some order.
-    expect(first().upNextList.filter((e) => e.kind === "planned").flatMap((e) => e.trackIds).sort()).toEqual(["m3"]);
+    // Every planned track is still to come, in some order, then the next round (45: the playlist repeats on its own).
+    expect(first().upNextList.filter((e) => e.kind === "planned").flatMap((e) => e.trackIds).sort()).toEqual(["m2", "m3", "m3"]);
     rig.audio.toggleShuffle();
     await rig.advance(0.1);
     expect(first().shuffle).toBe(false);

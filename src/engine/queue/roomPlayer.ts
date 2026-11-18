@@ -52,7 +52,7 @@ import {
   type UsePlace,
 } from "../../common/domain";
 import type { PlaybackEngine } from "../engine";
-import { laneProfile, profileInputFor } from "../profile/trackProfile";
+import { endsAtFileEnd, laneProfile, profileInputFor } from "../profile/trackProfile";
 import type { Scheduler } from "../audio/types";
 import { positionAfter } from "../profile/position";
 import type { RoomLane, RoomsAudio } from "../rooms.contract";
@@ -198,6 +198,11 @@ export class RoomPlayer {
   private handOver: { start: () => void; cancel: () => void } | null = null;
   /** DAT-3: where an added item's first track starts (Play next or Add to queue from a marker), in seconds. */
   private readonly startFrom = new Map<string, number>();
+  /**
+   * 45, 46: the seed a playlist plan's next round is dealt with, drawn ahead (so Up next can show that round) for the
+   * deal it follows (`after`, the plan's own seed then).
+   */
+  private round: { after: number | undefined; seed: number } | null = null;
 
   constructor(
     readonly roomId: string,
@@ -427,6 +432,11 @@ export class RoomPlayer {
   /** Play what the list picked. */
   private startPick(pick: ListPick, fadeSeconds: number): void {
     if (pick.from === "plan") {
+      // 45: the plan goes round again in the deal Up next showed for its next round.
+      const plan = this.plan;
+      if (pick.round === "next" && plan && plan.origin.kind === "playlist") {
+        this.plan = { ...plan, origin: { ...plan.origin, seed: this.nextRoundSeed(plan.origin.seed) } };
+      }
       const item = this.planItemAt(pick.at);
       if (item) this.startPlan(item, fadeSeconds);
       return;
@@ -469,7 +479,19 @@ export class RoomPlayer {
     }
     // PLY-8: a scene that moves on when its music ends plays its list once.
     const loops = origin.kind === "scene" ? !this.deps.playsOnce?.(origin.scene) : repeat === "all";
-    return { steps, at, inner, loops, keepAdded: repeat === "all" };
+    // 45: a playlist that starts again is dealt ahead for its next round (a shuffle gets a new order), so Up next can
+    // name what comes round and that is what plays.
+    const nextRound =
+      loops && origin.kind === "playlist"
+        ? sequenceOf({ ...origin, seed: this.nextRoundSeed(origin.seed) }, lib).map((step) => ({ trackId: step.trackId, playlistId: step.playlistId, key: `t:${step.trackId}` }))
+        : null;
+    return { steps, at, inner, loops, keepAdded: repeat === "all", nextRound };
+  }
+
+  /** 45, 46: the seed of the round after the deal `after` (drawn once per deal). */
+  private nextRoundSeed(after: number | undefined): number {
+    if (!this.round || this.round.after !== after) this.round = { after, seed: this.deps.newSeed?.() ?? (after ?? 0) + 1 };
+    return this.round.seed;
   }
 
   /** PLY-17: the Repeat that applies to what plays now: the room's, else the scene track's saved one, else its playlist's. */
@@ -834,6 +856,8 @@ export class RoomPlayer {
       bus: lane,
       media: found.media,
       profile,
+      endAtFileEnd: endsAtFileEnd(found.track, profile),
+      trackId: found.track.id,
       id: `${this.roomId}/${lane}/${found.track.id}#${++this.plays}`,
       room: { id: this.roomId, input: this.deps.rooms.getRoomBus(this.roomId, lane) },
     });
