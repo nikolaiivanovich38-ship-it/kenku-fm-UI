@@ -644,7 +644,8 @@ var L = (function () {
      (Shift+Esc) and a lane's Fade out take L.FADE seconds. The crossfade between tracks is Settings' own (L.defaultCrossfade). */
   L.FADE = 5;
   L.fadeAll = function (s) { L.stopLane('music', s); L.stopLane('amb', s); Object.keys(pb.own).forEach(function (id) { L.stopLane('music', s, id); L.stopLane('amb', s, id); }); pb.fx.forEach(function (f) { f.fadeOut = s || 2; }); L.say('Fading everything out'); L.changed(); };
-  L.stopAll = function () { pb.music = pb.amb = null; pb.musicOut = []; pb.ambOut = []; pb.fx = []; Object.keys(pb.own).forEach(function (id) { pb.own[id] = newMix(); }); L.say('Everything stopped'); L.changed(); };
+  // Round 10 (Nik, 18 Nov 08:36, answer 7b): Stop all stops the headphone preview too; the button keeps its name.
+  L.stopAll = function () { var pv = !!pb.preview; pb.music = pb.amb = null; pb.musicOut = []; pb.ambOut = []; pb.fx = []; pb.preview = null; Object.keys(pb.own).forEach(function (id) { pb.own[id] = newMix(); }); L.say(pv ? 'Everything stopped, your headphones too' : 'Everything stopped'); L.changed(); };
   // target: a bot id with its own sound, 'table' (default) or 'all' (every output at once).
   L.firePad = function (boardId, padId, phase, target) {
     var b = L.board(boardId); if (!b) return; var p = b.slots.concat(b.spare).filter(function (x) { return x && x.id === padId; })[0]; if (!p) return;
@@ -1083,7 +1084,7 @@ var L = (function () {
   var steps = [], HISTORY_MAX = 50;
   L.HISTORY_MAX = HISTORY_MAX;
   function viewOf(h) { for (var i = 0; i < ROUTES.length; i++) if ((h || '').match(ROUTES[i][0])) return ROUTES[i][1]; return ''; }
-  var ROUTE_WORDS = { campaigns: 'Campaigns', library: 'Library', playlists: 'Playlists', boards: 'Pad boards', profile: 'Audio profile', live: 'Live', outputs: 'Rooms',
+  var ROUTE_WORDS = { campaigns: 'Campaigns', library: 'Track library', playlists: 'Playlists', boards: 'Pad boards', profile: 'Audio profile', live: 'Live', outputs: 'Rooms',
     look: 'Look and feel', tags: 'Tags', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
   L.routeLabel = function (h) {
     var v = viewOf(h), a = (h || '').replace(/^#\//, '').split('/');
@@ -1092,7 +1093,7 @@ var L = (function () {
     if (v === 'playlist') return (L.playlist(a[1]) || {}).name || 'Playlist';
     if (v === 'board') return (L.board(a[1]) || {}).name || 'Pad board';
     // A track in the Library, or its Audio profile, is named by the track.
-    if (v === 'library' && a[1] && L.track(a[1])) return 'Library: ' + L.title(L.track(a[1]));
+    if (v === 'library' && a[1] && L.track(a[1])) return 'Track library: ' + L.title(L.track(a[1]));
     if (v === 'profile' && L.track(a[1])) return 'Audio profile: ' + L.title(L.track(a[1]));
     return ROUTE_WORDS[v] || 'the last screen';
   };
@@ -1281,7 +1282,7 @@ var L = (function () {
     return 'Single track';
   }
   L.onAirOrigin = originOf;
-  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Rooms', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
+  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Track library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Rooms', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
   L.previewVol = 80;
   function roomRow(r, named, first, inLive) {
     var m = r.mix, c = m.music || m.amb, ln = m.music ? 'music' : 'amb', target = r.main ? 'table' : r.id, pk = ln + (r.main ? '' : '@' + r.id);
@@ -1387,10 +1388,12 @@ var L = (function () {
     return '<div class="logo">' + L.logo + '<b>Lyre</b></div><nav aria-label="Lyre"><div class="stack" style="gap:2px">' +
       // Round 8 (Nik, 11 Nov 20:33: "Let's move the live tab to the top of the left side bar"): Live comes first.
       a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) +
-      a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
+      a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Track library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
       // Round 9 (item 56): no Rooms screen; rooms are joined and moved in Live, bots set up in Settings › Discord bots.
       '</div></nav>' +
-      '<div class="bottom stack" style="gap:2px">' + a('#/settings', 'settings', 'gear', 'Settings') + a('#/look', 'look', 'palette', 'Look and feel') +
+      '<div class="bottom stack" style="gap:2px">' + a('#/settings', 'settings', 'gear', 'Settings') +
+      // Round 10 (Nik, 18 Nov: "keep the room screen as an option as it stands under settings"): Rooms, under Settings.
+      a('#/outputs', 'outputs', 'broadcast', 'Rooms' + outputsBadge(), 'Which bot is in which voice channel').replace('<a ', '<a class="r10-sub" ') + a('#/look', 'look', 'palette', 'Look and feel') +
       // FND-8: Help, beside Look and feel (views/help.js). It opens a side panel, not a screen, so it is a button.
       '<button class="nav" data-act="help" data-k="rail-help" aria-controls="lyre-help" aria-expanded="' + !!(L.helpOpen && L.helpOpen()) + '" aria-keyshortcuts="F1"' + (min ? ' title="Help"' : '') + '>' + L.icon('help') + '<span class="lbl">Help</span></button>' +
       '<button class="nav" data-act="rail" data-k="railtoggle" title="' + (min ? 'Show labels' : 'Icons only') + '" aria-label="' + (min ? 'Show menu labels' : 'Show icons only') + '">' + L.icon(min ? 'chevright' : 'chevleft') + '<span class="lbl">Icons only</span></button></div>';

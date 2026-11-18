@@ -148,7 +148,7 @@
   function railTarget(k) { return function () { return document.querySelector('#rail [data-k="' + k + '"]'); }; }
   var STEPS = [
     { title: "Lyre's places", text: 'Everything is a click away here. Help is at the foot, or press F1.', target: function () { return document.querySelector('#rail nav'); } },
-    { title: 'Library', text: 'Add your music here and tag it.', target: railTarget('rail-library') },
+    { title: 'Track library', text: 'Add your music here and tag it.', target: railTarget('rail-library') },
     { title: 'Scenes', text: 'Scenes are in Campaigns: a campaign holds its sessions, a session its scenes.', target: railTarget('rail-campaigns') },
     { title: 'Live', text: 'Run the session here. Space starts the next scene.', target: railTarget('rail-live') },
     { title: 'Now playing', text: 'What plays shows down here. On air: the players hear it. Only you: your headphones.', bottom: true,

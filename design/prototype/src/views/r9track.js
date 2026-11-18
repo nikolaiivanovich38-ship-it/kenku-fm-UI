@@ -30,7 +30,7 @@
   var USUAL = { 'Loop bed': 'xloop', Underscore: 'next', Sting: 'stop', Transition: 'fade' };
   var END_WORDS = { loop: 'loops', xloop: 'loops with a crossfade', next: 'then the next track', fade: 'fades out', stop: 'stops', follow: 'then plays something' };
 
-  function cur() { var r = L.current(), id = r.name === 'library' ? r.p.tid : (L.panelTrack && L.panelTrack()); return id ? L.track(id) : null; }
+  function cur() { var r = L.current(), id = r.name === 'library' || r.name === 'profile' ? r.p.tid : (L.panelTrack && L.panelTrack()); return id ? L.track(id) : null; } // Round 10: the Audio profile's Play… too
   function itemName(id) { var p = L.playlist(id); if (p) return p.name; var t = L.track(id); return t ? L.title(t) : ''; }
   L.endOf = function (t) {
     if (t.end) return t.end;

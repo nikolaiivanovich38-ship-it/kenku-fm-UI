@@ -75,7 +75,8 @@
     var t = L.track(id); if (!t) return null;
     var fx = L.isFx(t);
     return { kind: 'track', id: id, obj: t, name: L.title(t), href: '#/library/' + id, icon: fx ? 'sfx' : t.kind === 'amb' ? 'ambience' : 'music', cls: fx ? 'fx' : t.kind === 'amb' ? 'amb' : 'music',
-      label: fx ? (t.role === 'Sting' ? 'FX · Sting' : 'FX') : t.kind === 'amb' ? 'Ambience track' : 'Track', sub: (t.role && t.kind === 'music' && !fx ? t.role + ' · ' : '') + L.fmt(t.dur) };
+      // Round 10 (prep D10): the uses' words (Background, Scene music, Short cue, Lead-in) here too.
+      label: fx ? (t.role === 'Sting' ? 'FX · Short cue' : 'FX') : t.kind === 'amb' ? 'Ambience track' : 'Track', sub: (t.role && t.kind === 'music' && !fx ? ((L.roleWord && L.roleWord[t.role]) || t.role) + ' · ' : '') + L.fmt(t.dur) };
   }
   // Preview, optional expander and contents for a playlist or board row. xk: expander key unique to this place on the page.
   // okey (ORG-13): the place whose own track order the open playlist shows and changes.
@@ -447,7 +448,7 @@
   // Folded card: one chip only (what starts the scene). The rest is in the card's tooltip and in the open scene.
   function sceneTip(sc) {
     var items = L.sceneItems(sc), bds = L.sceneBoards(sc), amb = sc.amb && info(sc.amb);
-    return [sc.when ? 'Starts when: ' + sc.when : 'No Starts when line yet',
+    return [sc.when ? 'Story cue: ' + sc.when : 'No story cue yet',
       'Music: ' + (items.length ? items.map(function (x) { return info(x.id).name; }).join(', ') : 'none'),
       'Ambience: ' + (amb ? amb.name : 'none'),
       'Pad boards: ' + (bds.length ? bds.map(function (b) { return (L.board(b) || {}).name; }).join(', ') : 'none')].join('\n');
@@ -474,11 +475,13 @@
       (i === 0 ? '<span class="cp-firsttag">' + firstTag + '</span>' : '') + ownMark(sc, list, it) +
       // Round 8: the buttons in Live's order: (a playlist's play order,) Preview, (Repeat one,) Play on air.
       (it.kind === 'playlist' && list === 'music' ? L.orderButton(it.id, key) : '') +
+      // Round 10 (prep review S11, P6): one order on every track row in the planner: Preview, Play on air, Audio profile,
+      // Repeat one, then ⋯. The Audio profile has one name everywhere (prep S1).
       L.previewButton(it.kind, it.id) +
+      (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id, list === 'music' ? key : '', '', shown) : '') +
+      (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Audio profile of ' + esc(shown) + ' in this scene: its waveform, end and fades" aria-label="Audio profile in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       // Round 6 part 3 (decision 4): Repeat one, saved with the scene; the same button as on the track in Live.
       (isTrack ? L.repeatOneButton(key, it.id, 'r1-' + k, shown) : '') +
-      (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id, list === 'music' ? key : '', '', shown) : '') +
-      (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Waveform, end and fades of ' + esc(shown) + ' in this scene" aria-label="Waveform, end and fades in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       moreBtn('im-' + k, nm, 'data-menu="item" data-list="' + list + '" data-sc="' + sc.id + '" data-idx="' + i + '"') +
       '</div>' + xpBody(it, xk, list === 'music' ? sceneKey(sc) : '', list === 'music' ? sceneKey(sc) : '') + '</li>';
   }
@@ -525,12 +528,16 @@
     var f = 'sc' + sc.id;
     var body = '<div class="cp-scene-body" id="scb-' + sc.id + '">' +
       '<div class="field"><label for="' + f + 'n">Name</label><input class="input" id="' + f + 'n" data-input="cpscf" data-f="name" data-sc="' + sc.id + '" data-k="scname-' + sc.id + '" data-save="scene name {v}" value="' + esc(sc.name) + '" autocomplete="off"></div>' +
-      '<div class="field"><label for="' + f + 'w">Starts when</label><input class="input" id="' + f + 'w" data-input="cpscf" data-f="when" data-sc="' + sc.id + '" data-k="scwhen-' + sc.id + '" data-save="when ' + esc(sc.name || 'the scene') + ' starts" value="' + esc(sc.when) + '" placeholder="The moment in the story" autocomplete="off"></div>' +
+      // Round 10 (prep review S2, P4): the story note is the Story cue; what the scene does when it starts is shown in
+      // words under it, with Change… (it was hidden in the scene's ⋯).
+      '<div class="field"><label for="' + f + 'w">Story cue</label><input class="input" id="' + f + 'w" data-input="cpscf" data-f="when" data-sc="' + sc.id + '" data-k="scwhen-' + sc.id + '" data-save="story cue of ' + esc(sc.name || 'the scene') + '" value="' + esc(sc.when) + '" placeholder="The moment in the story, e.g. They crest the cliff path" autocomplete="off"></div>' +
+      (L.sceneStartLine ? L.sceneStartLine(ctx().c.id + '/' + ctx().s.id + '/' + sc.id, sc) : '') +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'm"><span class="label" id="' + f + 'm">Music</span>' + musicList(sc) + '</div>' +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'a"><span class="label" id="' + f + 'a">Ambience</span>' + ambSlot(sc) + '</div>' +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'b"><span class="label" id="' + f + 'b">Pad boards</span>' + boardList(sc) + '</div>' +
       '<div class="field"><label for="' + f + 'x">Notes</label><textarea class="input" id="' + f + 'x" rows="2" data-input="cpscf" data-f="notes" data-sc="' + sc.id + '" data-k="scnotes-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' notes" placeholder="Reminders for this scene">' + esc(sc.notes) + '</textarea></div>' +
-      '<div class="field cp-obsfield"><label for="' + f + 'o">Note link <span class="cp-later">Coming later</span></label><input class="input" id="' + f + 'o" data-input="cpscf" data-f="noteLink" data-sc="' + sc.id + '" data-k="scnote-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' note link" value="' + esc(sc.noteLink || '') + '" placeholder="Optional: an Obsidian note" title="Kept for later; Lyre does not open Obsidian notes yet" autocomplete="off"></div></div>';
+      // Round 10 (prep review S7): no "Note link · Coming later" in every scene; the campaign's Obsidian box keeps it.
+      '</div>';
     // UX-18: a screen opened from inside this scene goes Back to it, with the scene open.
     return '<li class="cp-scene open' + (sc.id === current ? ' sel' : '') + '" data-drag="scenes" data-idx="' + i + '" data-back-label="' + nm + '" data-back-open="' + sc.id + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
   }
@@ -717,7 +724,8 @@
       var allOpen = s.scenes.length && s.scenes.every(function (sc) { return open[sc.id]; });
       var scenes = L.pane({ id: 'ss-scenes', title: 'Scenes', icon: 'map', kind: 'scenes',
         status: s.scenes.length ? null : { text: 'Empty', tone: 'idle' },
-        actions: (s.scenes.length ? '<button class="closer" data-act="cpallscenes" data-k="allscenes" title="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '" aria-label="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '">' + L.icon(allOpen ? 'chevup' : 'chevdown') + '</button>' : '') +
+        // Round 10 (Nik, 18 Nov 08:36, answer 2b): each scene stays open until he closes it; no Open all.
+        actions: (allOpen && false ? '' : '') +
           '<button class="btn s" data-act="cpaddscene" data-k="addscene" title="' + (selIx > -1 ? 'Adds a scene after Scene ' + (selIx + 1) + ': ' + esc(sel.sc.name || 'Untitled scene') : 'Adds a scene at the end (no scene is selected)') + '">' + L.icon('plus', 's') + 'Add scene</button>',
         body: s.scenes.length ? '<p class="sr-only" id="cp-selnote">Selected: Add scene puts the new scene after it.</p><ol class="cp-scenes" aria-label="Scenes in order">' + s.scenes.map(function (sc, i) { return sceneCard(s, sc, i); }).join('') + '</ol>' : '<p class="cp-none">No scenes yet. Use Add scene.</p>',
         scroll: 'ss-scenes' });
@@ -735,7 +743,7 @@
           '<p class="hint cp-make">Campaign pads: ' + (cbNames.length ? esc(cbNames.join(', ')) : 'none') + '.</p>' });
       return head + '<div class="viewbody fill cp-body">' + details +
         '<div class="cp-split cp-ssplit"><div class="' + colClass(['ss-scenes']) + '">' + scenes + '</div>' +
-        '<div class="' + colClass(['ss-spl', 'ss-sbd', 'ss-cpl', 'ss-obs']) + ' cp-side">' + spl + sbd + cpl + obs + '</div></div></div>';
+        '<div class="' + colClass(['ss-spl', 'ss-sbd', 'ss-cpl', 'ss-obs']) + ' cp-side">' + spl + sbd + cpl + (obs && '') + '</div></div></div>'; // Round 10 (prep S7): no "Coming later" box in the session
     },
     after: afterRender
   });

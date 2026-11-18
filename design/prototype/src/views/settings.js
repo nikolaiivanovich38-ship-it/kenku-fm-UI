@@ -74,7 +74,7 @@
       '<div class="st-bot-2"><span class="st-l">Token</span>' + token + '</div>' +
       (b.login === 'online' ? '<div class="st-bot-2"><span class="st-l">Servers</span>' + (srv.length ? '<span class="ellipsis" title="' + esc(srv.join(', ')) + '">' + esc(srv.join(', ')) + '</span>'
         : '<span class="st-none">' + L.icon('warn', 's') + 'In no server yet</span>' + (b.appId ? '<a class="btn s" href="' + esc(L.inviteURL(b.appId)) + '" target="_blank" rel="noopener" data-act="stinvite" data-id="' + b.id + '" data-k="' + k + '-inv">Invite it…</a>' : '')) + '</div>' : '') +
-      // Round 9 (item 56): all a bot's setup is here: where it joins when Lyre starts, and its starting volume.
+      // Round 9 (item 56): all a bot's setup is here. Round 10: its starting volume (no joining by itself at start).
       (L.botStartHTML ? L.botStartHTML(b, k) : '') +
       (b.login === 'error' ? '<p class="st-err" role="alert">' + L.icon('warn', 's') + esc(b.error || 'Discord refused the token') + '</p>' : '') + '</div>';
   }
@@ -254,7 +254,7 @@
     return '<table class="grid st-keys" aria-label="Keyboard shortcuts"><tbody>' + rows + '</tbody></table>' +
       sw('guard', 'Ignore a second Next scene within a second', L.keyGuard, 'stguard', { title: 'So a double press never skips a scene' }) +
       sw('global', 'Next scene and Fade all work in other programs too', L.keyGlobal, 'stglobal', { title: 'While Discord or your VTT is in front. Off: the keys work only in Lyre.' }) +
-      '<p class="hint">Pad keys are set on each pad board.</p><div class="row-flex"><button class="btn s" data-act="stkeyreset" data-k="st-keyreset">' + L.icon('restart', 's') + 'Put back Lyre\'s keys</button>' +
+      '<p class="hint">Each pad board has its own pad keys.</p><div class="row-flex"><button class="btn s" data-act="stkeyreset" data-k="st-keyreset">' + L.icon('restart', 's') + 'Put back Lyre\'s keys</button>' +
       '<button class="btn s" data-act="stkeysheet" data-k="st-keysheet">' + L.icon('file', 's') + 'Printable sheet</button></div>';
   }
   L.acts.stkey = function (el) {
@@ -326,7 +326,8 @@
       var bots = L.bots();
       var head = '<div class="viewhead"><h1>Settings</h1><span class="grow"></span><span class="faint num" title="Lyre version">' + esc(L.version) + '</span></div>';
       var botPane = L.pane({ id: 'st-bots', title: 'Discord bots', icon: 'users', kind: 'onair', size: 'auto', noMax: true, cls: 'is-silent',
-        actions: '<button class="btn s" data-act="stadd" data-k="st-add">' + L.icon('plus', 's') + 'Add a bot</button>',
+        // Round 10 (Nik, 18 Nov 03:14, answer 2): the Rooms screen, as it stands, is reached from here too.
+        actions: '<a class="btn s ghost" href="#/outputs" data-k="st-rooms" title="Which bot is in which voice channel">' + L.icon('broadcast', 's') + 'Rooms</a><button class="btn s" data-act="stadd" data-k="st-add">' + L.icon('plus', 's') + 'Add a bot</button>',
         describe: 'Each bot is one voice in Discord: one room at a time.',
         body: legacyNote() + '<div class="st-bots">' + bots.map(botRow).join('') + '</div>' });
       // Round 7: set once, so folded like the other rare settings (and less to read on the screen).

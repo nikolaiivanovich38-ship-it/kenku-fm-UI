@@ -92,7 +92,9 @@
         (playlistOnAir(p) ? L.destTag('air', '') : '') + '</div>' +
       '<div class="num pl-c" aria-label="' + plural(tracks.length, 'track') + '">' + tracks.length + '</div>' +
       '<div class="num pl-c muted" aria-label="Length ' + len + '">' + len + '</div>' +
-      '<div class="pl-racts">' + L.previewButton('playlist', p.id) + L.playOnAirButton('playlist', p.id) + L.orderButton(p.id, '') + moreBtn('more-' + p.id, p.name, 'plrowmore', 'data-id="' + p.id + '"') + '</div></div>' +
+      // Round 10 (prep review D6, P14): an Open button at the row's end goes to the playlist's page in one click.
+      '<div class="pl-racts">' + L.previewButton('playlist', p.id) + L.playOnAirButton('playlist', p.id) + L.orderButton(p.id, '') + moreBtn('more-' + p.id, p.name, 'plrowmore', 'data-id="' + p.id + '"') +
+        '<a class="btn s icon r10-open" href="#/playlist/' + p.id + '" data-k="go-' + p.id + '" aria-label="Open ' + esc(p.name || 'Untitled playlist') + '" title="Open its page">' + L.icon('right', 's') + '</a></div></div>' +
       (open ? '<div class="xp-body pl-xp"><p class="pl-xpmeta">' + (rule ? '<span>' + L.icon('tag', 's') + esc(rule) + '</span>' : '') +
         '<span>' + L.icon('link', 's') + (uses.length ? esc(uses.map(function (u) { return u.label; }).join('; ')) : 'Not used yet') + '</span></p>' + L.contentsHTML('playlist', p.id) + '</div>' : '') + '</li>';
   }
@@ -168,7 +170,7 @@
       (el.dataset.manual ? '<button role="menuitem" data-act="divadd" data-pid="' + pl.id + '" data-before="' + t.id + '">' + L.icon('list', 's') + 'Add a divider above</button>' : '') + '<div class="sep"></div>';
     h += '<button role="menuitem" data-act="plprofile" data-tid="' + t.id + '">' + L.icon('wave', 's') + 'Audio profile in this playlist</button>' +
       '<button role="menuitem" data-act="pltusein" data-tid="' + t.id + '">' + L.icon('link', 's') + 'Use in…</button>' +
-      '<button role="menuitem" data-act="pllib" data-tid="' + t.id + '">' + L.icon('library', 's') + 'Open in the Library</button>';
+      '<button role="menuitem" data-act="pllib" data-tid="' + t.id + '">' + L.icon('library', 's') + 'Open in the Track library</button>';
     L.menu(el, h, 'More for ' + L.title(t));
   };
   L.acts.plprofile = function (el) { L.route('#/profile/' + el.dataset.tid + '/pl:' + cur().id); };

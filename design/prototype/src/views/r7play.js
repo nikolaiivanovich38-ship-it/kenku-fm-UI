@@ -110,6 +110,8 @@
     var a = document.activeElement, keep = k || (a && a.dataset && a.dataset.k); b.innerHTML = edBody();
     var f = keep && b.querySelector('[data-k="' + keep + '"]'); if (f && !f.disabled) f.focus(); else { var g = b.querySelector('[data-k="stp-add"]'); if (g) g.focus(); }
   }
+  // Round 10 (prep review P4): the scene's start in words, for the line under its Story cue.
+  L.stepsWords = function (what, ref) { return words(L.stepsOf(what, ref)); };
   L.stepsItem = function (what, ref) { return '<button role="menuitem" data-act="stepsopen" data-what="' + what + '" data-ref="' + esc(ref) + '">' + L.icon('list', 's') + 'What it does…</button>'; };
   L.sceneMarks = function (sc) {
     var m = '';

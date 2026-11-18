@@ -422,7 +422,7 @@
   /* ---------- the view ---------- */
   L.view('library', {
     nav: 'library',
-    title: function () { return 'Library'; },
+    title: function () { return 'Track library'; },
     notesTitle: 'Library: what changed',
     notes: [
       '<b>Round 5:</b> a track\'s <b>Shape</b> (Steady, Builds, Falls away, Peaks then falls, Rises and falls) is suggested from its loudness and can be changed in its details; filter by shape. <b>Names in scenes</b> sit with its other names. <b>Use in…</b> adds it to campaigns, sessions and scenes. Files Lyre cannot find show <b>Missing</b> and have a filter; ⋯ beside Add tracks has <b>Back up, move or share</b>, <b>Find missing files</b> and <b>What came across from Kenku FM</b>.',
@@ -444,7 +444,7 @@
 
       var head = '<div class="viewhead lb-head">' +
         (mode === 'narrow' && t ? '<button class="btn s" data-act="lbback" data-k="lb-back">' + L.icon('chevleft', 's') + 'Tracks</button>' : '') +
-        '<h1>Library</h1><span class="muted lb-count">' + plural(nAll, 'track') + '</span><span class="grow"></span>' +
+        '<h1>Track library</h1><span class="muted lb-count">' + plural(nAll, 'track') + '</span><span class="grow"></span>' +
         // Round 8 (Nik, 11 Nov: "In library view I still need the Prep and Live toggle we have elsewhere"): Live goes to
         // the session loaded in Live, as from Rooms.
         (L.campaign(L.state.live.cid) ? L.modeSwitch(L.state.live.cid) : '') +

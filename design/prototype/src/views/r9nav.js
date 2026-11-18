@@ -52,7 +52,7 @@
     if (!t || !L.trackDetailsHTML) { a.hidden = true; a.innerHTML = ''; return; }
     a.hidden = false;
     L.paint(a, '<header class="r9-tp-head"><div class="r9-tp-bar"><span class="r9-tp-kicker">Track</span><span class="grow"></span>' +
-      '<a class="btn s" href="#/library/' + t.id + '" data-r9-keep="1" data-k="r9-tp-lib" title="Open it in the Library, with its filters and the whole list">' + L.icon('library', 's') + 'Open in Library</a>' +
+      '<a class="btn s" href="#/library/' + t.id + '" data-r9-keep="1" data-k="r9-tp-lib" title="Open it in the Track library, with its filters and the whole list">' + L.icon('library', 's') + 'Open in Track library</a>' +
       '<button class="closer" data-act="r9tpclose" data-k="r9-tp-x" title="Close (Esc)" aria-label="Close the track details">' + L.icon('close') + '</button></div>' +
       '<h2 id="r9-tp-title" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</h2></header>' +
       '<div class="r9-tp-body" data-scroll="r9-tp-' + t.id + '">' + L.trackDetailsHTML(t) + '</div>');
@@ -102,7 +102,7 @@
       return [{ href: '#/campaign/' + c.id, label: c.name }, { href: '#/session/' + c.id + '/' + s.id, label: 'Session ' + s.n }]
         .concat(sc ? [{ href: '#/session/' + c.id + '/' + s.id, label: sc.name }] : []).concat([{ href: L.trackHrefFor(t.id, p.ctx), label: 'Track details' }, me]);
     }
-    return [{ href: '#/library', label: 'Library' }, { href: '#/library/' + t.id, label: 'Track details' }, me];
+    return [{ href: '#/library', label: 'Track library' }, { href: '#/library/' + t.id, label: 'Track details' }, me];
   };
 
   var render0 = L.render;

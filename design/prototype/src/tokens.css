@@ -35,15 +35,16 @@
 
 /* 1. Fern and Brass: Lyre's own colours. Old-world fantasy that suits any table. Default. */
 :root, [data-theme="fern"] {
-  --bg: #0d1d18;
-  --surface: #13281f;
-  --surface-2: #1a3329;
-  --surface-3: #234236;
-  --line: #2c4c40;
-  --line-strong: #557566;
+  /* Round 10 (look S1): a green ground that reads as green, so the five themes are five. */
+  --bg: #0f251c;
+  --surface: #163227;
+  --surface-2: #1b392d;
+  --surface-3: #234536;
+  --line: #335a4a;
+  --line-strong: #628a79;
   --ink: #f1e4c8;
   --ink-2: #d0c6ad;
-  --ink-3: #a9b29f;
+  --ink-3: #b3bca9;
   --accent: #d9a441;
   --accent-hover: #e6b55a;
   --accent-ink: #1a1306;
@@ -51,7 +52,7 @@
   --accent-soft: rgb(217 164 65 / .16);
   --second: #c0582f;
   --focus: #f6d27a;
-  --onair: #ff6b57;
+  --onair: #ff7266;
   --onair-ink: #1a0402;
   --ok: #6fd39a;
   --warn: #f0b64f;
@@ -70,6 +71,8 @@
 
 /* 2. Hearth and Iron: dungeon stone and forge light, for D&D and sword-and-sorcery tables. */
 [data-theme="hearth"] {
+  /* Round 10 (Nik, 18 Nov 08:36, answer 4a): the forge orange buttons become iron teal, so the red On air light
+     stands out; the orange stays as the second colour. */
   --bg: #120f0c;
   --surface: #1b1612;
   --surface-2: #261f19;
@@ -79,14 +82,14 @@
   --ink: #f2e3c6;
   --ink-2: #d3c1a0;
   --ink-3: #b29f80;
-  --accent: #e2803a;
-  --accent-hover: #ee934f;
-  --accent-ink: #1e0d02;
-  --accent-text: #f09a58;
-  --accent-soft: rgb(226 128 58 / .16);
-  --second: #5fae9a;
+  --accent: #6cc3b2;
+  --accent-hover: #86d2c3;
+  --accent-ink: #04201b;
+  --accent-text: #7fd0c0;
+  --accent-soft: rgb(108 195 178 / .16);
+  --second: #d9874a;
   --focus: #ffd27a;
-  --onair: #ff6b57;
+  --onair: #ff5a4f;
   --onair-ink: #1a0402;
   --ok: #7fd18f;
   --warn: #f2bd55;

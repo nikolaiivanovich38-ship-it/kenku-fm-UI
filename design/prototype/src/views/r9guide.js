@@ -30,11 +30,10 @@
     p.dataset.dock = g.dock || 'float';
     p.querySelectorAll('[data-act="r9dock"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === (g.dock || 'float'))); });
   }
+  // Round 10 (look D7, prep D12): one Dock menu with words in place of three unlabelled glyphs.
   L.floatTools = function () {
     return '<span class="r9-fl-tools" role="group" aria-label="Place">' +
-      '<button class="btn s icon" data-act="r9dock" data-v="left" title="Dock it on the left" aria-label="Dock left">' + L.icon('chevleft', 's') + '</button>' +
-      '<button class="btn s icon" data-act="r9dock" data-v="float" title="Let it float (drag its title to move it, its corner to size it)" aria-label="Float">' + L.icon('expand', 's') + '</button>' +
-      '<button class="btn s icon" data-act="r9dock" data-v="right" title="Dock it on the right" aria-label="Dock right">' + L.icon('chevright', 's') + '</button>' +
+      '<button class="btn s" data-act="r10dockmenu" data-k="r10-dock" aria-haspopup="menu" aria-expanded="false" title="Dock it left or right, or let it float (drag its title to move it, its corner to size it)">Dock' + L.icon('chevdown', 's') + '</button>' +
       '<button class="btn s icon r9-fl-move" data-r9-move="1" title="Move with the arrow keys; Shift and the arrows change its size" aria-label="Move or size with the arrow keys">' + L.icon('drag', 's') + '</button></span>';
   };
   L.floatPlace = function (p) {
@@ -42,10 +41,15 @@
     apply(p, g && g.dock === 'float' ? g : docked(g && g.dock === 'left' ? 'left' : 'right'));
     var grip = document.createElement('span'); grip.className = 'r9-fl-grip'; grip.setAttribute('aria-hidden', 'true'); p.appendChild(grip);
   };
+  L.acts.r10dockmenu = function (el) {
+    var p = el.closest('.panel'), cur = p.dataset.dock || 'float';
+    L.menu(el, [['left', 'Dock left'], ['right', 'Dock right'], ['float', 'Float']].map(function (x) {
+      return '<button role="menuitemradio" aria-checked="' + (cur === x[0]) + '" data-act="r9dock" data-v="' + x[0] + '">' + (cur === x[0] ? L.icon('check', 's') : '<span style="width:14px"></span>') + x[1] + '</button>'; }).join(''), 'Dock');
+  };
   L.acts.r9dock = function (el) {
-    var p = el.closest('.panel'), v = el.dataset.v, cur = { left: p.offsetLeft, top: p.offsetTop, width: p.offsetWidth, height: p.offsetHeight };
+    var p = el.closest('.panel') || document.querySelector('#lyre-sheet .panel'), v = el.dataset.v, cur = { left: p.offsetLeft, top: p.offsetTop, width: p.offsetWidth, height: p.offsetHeight };
     var g = v === 'float' ? { dock: 'float', left: cur.left - 40, top: cur.top + 40, width: Math.min(cur.width, 720), height: Math.min(cur.height, 560) } : docked(v);
-    apply(p, g); saveGeo(g); L.say(v === 'float' ? 'Floating: drag its title to move it' : 'Docked on the ' + v);
+    apply(p, g); saveGeo(g); L.say(v === 'float' ? 'Floating: drag its title to move it' : 'Docked on the ' + v); var d = p.querySelector('[data-k="r10-dock"]'); if (d) d.focus();
   };
   function cur(p) { return { dock: 'float', left: p.offsetLeft, top: p.offsetTop, width: p.offsetWidth, height: p.offsetHeight }; }
   // Move by dragging the title bar; resize by the corner grip.
@@ -88,12 +92,13 @@
     settings: { route: '#/settings', name: 'Settings › Discord bots', steps: [
       ['[data-pane="st-bots"] .pane-actions .btn, [data-act="stadd"]', 'Add a bot', 'Each bot is one voice in Discord. Add a bot walks you through making one in Discord and pasting its token.'],
       ['.st-bot', 'Your bot', 'Connected means Lyre can use it. Replace… takes a new token; ⋯ renames or removes it.'],
-      ['.r9-botstart select', 'Joins when Lyre starts', 'Choose a voice channel and the bot goes there by itself whenever Lyre starts.']] },
+      ['.r9-botstart input', 'Starting volume', 'The volume a bot has when you join it to a room. Bots join only when you join them, in Live.'],
+      ['[data-k="st-rooms"]', 'Rooms', 'Which bot is in which voice channel, all on one page.']] },
     rooms: { route: '#/live', name: 'Rooms in Live', steps: [
       ['[data-k="lv-addroom"]', 'Add a room', 'A room is a Discord voice channel Lyre plays into. Pick a channel here; Lyre uses a free bot.'],
       ['.r9-roombtn', 'Move a room', 'The room’s name moves it to another channel, copies what another room plays, or makes it leave.'],
       ['.lv-mute, .lv-vol', 'Mute and volume', 'Each room has its own volume and mute.']] },
-    library: { route: '#/library', name: 'Library', steps: [
+    library: { route: '#/library', name: 'Track library', steps: [
       ['[data-k="lb-add"]', 'Add tracks', 'Add files, a folder, or watch a folder so new files come in by themselves. You can also drop files on the page.'],
       ['[data-k="lb-q"]', 'Search', 'Any word of a title, file name, artist or tag.'],
       ['.lb-filters .pane-body', 'Filters', 'Click a filter once to show only those tracks, twice to hide them. The order button sorts the filters.'],
@@ -115,11 +120,15 @@
       ['.pb-grid, [aria-label^="Pads"]', 'Pads', 'Each pad plays a sound: click it to choose it, then set it up on the right.'],
       ['.pb-modes', 'Play mode', 'Once, a loop you toggle, while held, or restart on each press.'],
       ['.r9-paddip', 'While it plays', 'Whether the music dips while this pad sounds.']] },
+    // Round 10 (table review D-S7): the Live tour covers what matters at the table: what the players hear against
+    // what only you hear, pads and their keys, Undo, Fade all and Stop all. Arrange and Keys are in the article.
     live: { route: '#/live', name: 'Live', steps: [
-      ['[data-act="lvnext"], .lv-start, [data-k="lv-next"]', 'Next scene', 'Space starts the next scene.'],
-      ['[data-pane="lv-onair"] header', 'On air', 'What each room hears, with Up next.'],
-      ['[data-k="lv-arrange"]', 'Arrange', 'Move and size the boxes; Lyre keeps your layout for this window size.'],
-      ['[data-k="lv-keys"]', 'Keys', 'Every key for Live. Turn single keys off here if they get in your way.']] },
+      ['[data-act="lvnext"], .lv-start, [data-k="lv-nextsc"]', 'Next scene', 'Space starts the next scene. A second press within a second is ignored.'],
+      ['[data-pane="lv-onair"] header, [data-k="pane-lv-onair"]', 'On air: what the players hear', 'Each room, what it plays now and what comes next. The red light is on while they hear something.'],
+      ['.lv-trk-acts [data-act="lvpv"], [data-act="lvpv"]', 'Preview: only you', 'The headphones button plays a track in your headphones only. The last button on a row, Play on air, is for the players.'],
+      ['.lv-cur-pads .lv-pad, .lv-pad', 'Pads and their keys', 'Click a pad or press its key. Stop pads, beside them, stops every pad.'],
+      ['.r10-undo-slot', 'Undo', 'After a change to what the players hear, Undo shows here for 8 seconds. Ctrl+Z does the same.'],
+      ['[data-k="lv-fade"]', 'Fade all and Stop all', 'Fade all (Shift+Esc) fades everything out; Stop all stops it at once, your headphones too. Both have Undo.']] },
     look: { route: '#/look', name: 'Look and feel', steps: [['#view h1', 'Look and feel', 'Choose a theme, text size and how much moves on screen. A campaign can have its own theme.']] }
   };
   var G = null, guideEl = null;
@@ -156,7 +165,8 @@
   L.acts.r9gback = function () { if (G.i) { G.i--; paint(); } };
   L.acts.r9gskip = function () { endGuide(); };
   L.acts.r9showme = function (el) { L.startGuide(el.dataset.tour, 'rail-help'); };
-  L.acts.r9setuphide = function () { hidden = !hidden; try { localStorage.setItem('lyre-r9-setup', hidden ? 'hidden' : ''); } catch (e) { /* storage unavailable */ } L.render(); var b = document.querySelector('[data-k="r9-setup-hide"]'); if (b) b.focus(); };
+  var shownDone = false;
+  L.acts.r9setuphide = function () { var p0 = L.setupProgress(); if (p0.n === p0.of && !hidden) { shownDone = !shownDone; L.render(); var b0 = document.querySelector('[data-k="r9-setup-hide"]'); if (b0) b0.focus(); return; } hidden = !hidden; try { localStorage.setItem('lyre-r9-setup', hidden ? 'hidden' : ''); } catch (e) { /* storage unavailable */ } L.render(); var b = document.querySelector('[data-k="r9-setup-hide"]'); if (b) b.focus(); };
   window.addEventListener('resize', function () { if (G) paint(); });
 
   // The screen each route belongs to, for Tour of this screen and its article.
@@ -166,9 +176,11 @@
     var p = L.setupProgress(), sc = SCREEN[L.current().name], h = '';
     if (sc && TOURS[sc[0]]) h += '<div class="r9-help-screen"><h3 class="help-group">On this screen</h3><div class="r9-help-row"><button class="btn s" data-act="r9showme" data-tour="' + sc[0] + '" data-k="r9-screen-tour">' + L.icon('play', 's') + 'Tour of this screen</button>' +
       (sc[1] ? '<button class="help-item r9-help-art" data-act="helpopen" data-id="' + sc[1] + '" data-k="help-a-' + sc[1] + '-top">' + esc(TOURS[sc[0]].name) + ': how it works</button>' : '') + '</div></div>';
-    h += '<section class="r9-setup" aria-labelledby="r9-setup-h"><div class="r9-setup-head"><h3 class="help-group" id="r9-setup-h">Set up Lyre</h3><span class="num faint">' + p.n + ' of ' + p.of + '</span><span class="grow"></span>' +
-      '<button class="btn s ghost" data-act="r9setuphide" data-k="r9-setup-hide" aria-expanded="' + !hidden + '">' + (hidden ? 'Show' : 'Hide') + '</button></div>' +
-      (hidden ? '' : '<div class="r9-setup-bar" role="progressbar" aria-label="Set up Lyre" aria-valuemin="0" aria-valuemax="' + p.of + '" aria-valuenow="' + p.n + '"><span style="width:' + Math.round(p.n / p.of * 100) + '%"></span></div><ol class="r9-setup-list">' + TASKS.map(function (t, i) {
+    // Round 10 (table review D-S6): once all nine are done, Set up Lyre is one line until Nik asks to see it.
+    var folded = hidden || (p.n === p.of && !shownDone);
+    h += '<section class="r9-setup" aria-labelledby="r9-setup-h"><div class="r9-setup-head"><h3 class="help-group" id="r9-setup-h">Set up Lyre</h3><span class="num faint">' + (p.n === p.of ? 'all done' : p.n + ' of ' + p.of) + '</span><span class="grow"></span>' +
+      '<button class="btn s ghost" data-act="r9setuphide" data-k="r9-setup-hide" aria-expanded="' + !folded + '">' + (folded ? 'Show' : 'Hide') + '</button></div>' +
+      (folded ? '' : '<div class="r9-setup-bar" role="progressbar" aria-label="Set up Lyre" aria-valuemin="0" aria-valuemax="' + p.of + '" aria-valuenow="' + p.n + '"><span style="width:' + Math.round(p.n / p.of * 100) + '%"></span></div><ol class="r9-setup-list">' + TASKS.map(function (t, i) {
         var d = t.done();
         return '<li class="' + (d ? 'done' : '') + '"><span class="r9-setup-mark" aria-hidden="true">' + (d ? L.icon('check', 's') : (i + 1)) + '</span><span class="grow">' + esc(t.title) + '<span class="sr-only">' + (d ? ', done' : ', to do') + '</span></span>' +
           '<button class="btn s ' + (d ? 'ghost' : '') + '" data-act="r9showme" data-tour="' + t.tour + '" data-k="r9-show-' + t.id + '" aria-label="' + (d ? 'Show me again' : 'Show me') + ': ' + esc(t.title) + '">' + (d ? 'Show me again' : 'Show me') + '</button></li>';
@@ -181,6 +193,7 @@
     render0.apply(L, arguments);
     var b = document.querySelector('#rail [data-k="rail-help"]'), p = L.setupProgress(); if (!b) return;
     var old = b.querySelector('.r9-help-ring'); if (old) old.remove();
-    if (!p.hidden && p.n < p.of) b.insertAdjacentHTML('beforeend', '<span class="r9-help-ring" aria-hidden="true" title="Set up Lyre: ' + p.n + ' of ' + p.of + ' done">' + p.n + '/' + p.of + '</span>');
+    var running = L.current().name === 'live' && !!(L.pb.music || L.pb.amb);
+    if (!p.hidden && p.n < p.of && !running) b.insertAdjacentHTML('beforeend', '<span class="r9-help-ring" aria-hidden="true" title="Set up Lyre: ' + p.n + ' of ' + p.of + ' done">' + p.n + '/' + p.of + '</span>');
   };
 })();

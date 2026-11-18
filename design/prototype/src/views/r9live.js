@@ -23,13 +23,12 @@
   var esc = L.esc, D = L.data;
 
   /* ---------- §2 bots: where they join when Lyre starts, their starting volume ---------- */
+  // Round 10 (Nik, 18 Nov 03:14: "I should make bots join manually and they shouldn't auto join without my telling them
+  // to and taking them which room, unless they are fixing themselves after a connection interruption"): no "Joins when
+  // Lyre starts". The starting volume stays: it is the volume a bot has when Nik joins it to a room.
   L.botStartHTML = function (b, k) {
-    var opts = '<option value="">No, I put it in a room myself</option>' + D.discord.servers.map(function (g) {
-      return '<optgroup label="' + esc(g.name) + '">' + g.channels.map(function (c) { var v = g.id + '/' + c.id; return '<option value="' + v + '"' + (b.startServer === g.id && b.startChannel === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</optgroup>';
-    }).join('');
     var vol = b.startVolume != null ? b.startVolume : 85;
-    return '<div class="st-bot-2 r9-botstart"><label class="st-l" for="' + k + '-start">Joins when Lyre starts</label><select class="input" id="' + k + '-start" data-input="r9botstart" data-id="' + b.id + '" data-k="' + k + '-start">' + opts + '</select></div>' +
-      '<div class="st-bot-2 r9-botstart"><label class="st-l" for="' + k + '-svol">Starting volume</label><input type="range" min="0" max="100" step="5" id="' + k + '-svol" value="' + vol + '" data-input="r9botvol" data-id="' + b.id + '" data-k="' + k + '-svol" aria-valuetext="' + vol + ' percent"><span class="num faint">' + vol + '%</span></div>';
+    return '<div class="st-bot-2 r9-botstart"><label class="st-l" for="' + k + '-svol">Starting volume</label><input type="range" min="0" max="100" step="5" id="' + k + '-svol" value="' + vol + '" data-input="r9botvol" data-id="' + b.id + '" data-k="' + k + '-svol" aria-valuetext="' + vol + ' percent" title="Its volume when you join it to a room"><span class="num faint">' + vol + '%</span></div>';
   };
   L.inputs.r9botstart = function (el) {
     var b = L.bot(el.dataset.id); if (!b) return; var v = el.value.split('/');
@@ -41,9 +40,7 @@
     var n = el.nextElementSibling; if (n) n.textContent = el.value + '%';
     if (ev.type === 'change') L.saved(b.name + ' starting volume ' + el.value + '%', { key: 'r9bv-' + b.id });
   };
-  // The Rooms screen is retired: its address opens Live.
-  var route0 = L.route;
-  L.route = function (h, o) { return route0.call(L, h === '#/outputs' ? '#/live' : h, o); };
+  // Round 10 (Nik, 18 Nov 03:14, answer 2): the Rooms screen stays, as it was, under Settings (core.js rail, r10.js).
 
   /* ---------- §11 dipping the music ---------- */
   D.dip = D.dip || { amount: 'little', back: 'gentle', amb: false };
@@ -122,32 +119,38 @@
   };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && Q.open && e.target.closest && e.target.closest('#r9-queue')) { e.preventDefault(); e.stopPropagation(); L.acts.r9qclose(); } }, true);
 
-  /* ---------- §5 Arrange ---------- */
+  /* ---------- §5 Arrange (round 10: grips, edges and one Move… menu per box; On air moves too) ----------
+     Nik, 18 Nov 03:14, answer 6: "dynamic" (a layout per window size), On air "movable, top by default. And the boxes
+     shouldn't just be movable but also resizable." Round 10 (the three reviewers): round 9's bar of six to eight small
+     buttons per box, its second name and the ‹ › pairs between columns are gone. In Arrange each box shows a grip over
+     its own head (drag the head to move it; a line shows where it lands), an edge at its foot (drag to make it taller or
+     shorter) and one Move… button (WCAG 2.5.7: Up, Down, Column left, Column right, Taller, Shorter, Fit, Narrower,
+     Wider; On air also To the top, or Into a column). Between columns a bar to drag for widths. */
   var MODES = { 1: 'narrow', 2: 'half', 3: 'wide' };
   var ALL = ['scenes', 'current', 'ssp', 'ssd', 'cpp', 'cpd'];
   var NAMES = { scenes: 'Scenes', current: 'Current scene', ssp: 'Session playlists', ssd: 'Session pads', cpp: 'Campaign playlists', cpd: 'Campaign pads', onair: 'On air' };
   var A = { on: false, saved: {} };
   try { A.saved = JSON.parse(localStorage.getItem('lyre-r9-layout') || '{}') || {}; } catch (e) { A.saved = {}; }
   function save() { try { localStorage.setItem('lyre-r9-layout', JSON.stringify(A.saved)); } catch (e) { /* storage unavailable */ } }
+  var DEFAULT = { 1: [ALL.slice()], 2: [['scenes', 'ssp', 'ssd', 'cpp', 'cpd'], ['current']], 3: [['scenes'], ['current'], ['ssp', 'ssd', 'cpp', 'cpd']] };
   function lay(mode, def) {
-    var s = A.saved[MODES[mode]];
-    var cols = s && s.cols ? s.cols.map(function (c) { return c.filter(function (id) { return ALL.indexOf(id) > -1; }); }) : def.map(function (c) { return c.slice(); });
+    var s = A.saved[MODES[mode]], ok = ALL.concat(['onair']);
+    var cols = s && s.cols ? s.cols.map(function (c) { return c.filter(function (id) { return ok.indexOf(id) > -1; }); }) : (def || DEFAULT[mode]).map(function (c) { return c.slice(); });
+    if (!cols.length) cols = [[]];
     ALL.forEach(function (id) { if (!cols.some(function (c) { return c.indexOf(id) > -1; })) cols[cols.length - 1].push(id); });
     if (A.on && mode > 1 && cols.length < 4) cols.push([]);            // a spare column to drop into while arranging
     if (!A.on) cols = cols.filter(function (c) { return c.length; });
     return { cols: cols, widths: s && s.widths, heights: (s && s.heights) || {} };
   }
-  function current(mode) { var c = lay(mode, DEFAULT[mode]); return c; }
-  var DEFAULT = { 1: [ALL.slice()], 2: [['scenes', 'ssp', 'ssd', 'cpp', 'cpd'], ['current']], 3: [['scenes'], ['current'], ['ssp', 'ssd', 'cpp', 'cpd']] };
+  function current(mode) { return lay(mode, DEFAULT[mode]); }
   L.arranging = function () { return A.on && L.current().name === 'live'; };
-  // Whether Nik made his own layout for the window's width (then the keyboard follows the boxes on screen).
   L.liveArranged = function () { return !!A.saved[MODES[mode()]]; };
   L.liveLayout = function (mode, def) {
     DEFAULT[mode] = def;
     var c = lay(mode, def), out = c.cols;
     if (mode > 1) {
       var w = out.map(function (col, i) { return (c.widths && c.widths[i]) || (col.length || !A.on ? (mode === 3 ? [27, 43, 30, 25][i] : [38, 62, 30][i]) || 30 : 18); });
-      out.widths = out.map(function (col, i) { return 'minmax(0,' + w[i] + 'fr)' + (A.on && i < out.length - 1 ? ' 20px' : ''); }).join(' ');
+      out.widths = out.map(function (col, i) { return 'minmax(0,' + w[i] + 'fr)' + (A.on && i < out.length - 1 ? ' 12px' : ''); }).join(' ');
     }
     return out;
   };
@@ -156,111 +159,118 @@
   };
   L.arrangeBar = function (mode) {
     if (!A.on) return '';
-    var oh = (current(mode).heights || {}).onair;
-    return '<div class="r9-arrbar" role="region" aria-label="Arrange"><span class="grow"><b>Arrange the boxes</b> <span class="faint">· drag a box by its grip, or use its arrows. Saved for ' + (mode === 3 ? 'a whole window' : mode === 2 ? 'half a screen' : 'a narrow window') + '.</span></span>' +
-      '<span class="r9-arr-oa">On air ' + sizeBtns('onair', oh) + '</span>' +
+    return '<div class="r9-arrbar" role="region" aria-label="Arrange"><span class="grow"><b>Arrange the boxes</b> <span class="faint">· drag a box by its head, its foot to size it, or use Move…. Kept for ' + (mode === 3 ? 'a whole window' : mode === 2 ? 'half a screen' : 'a narrow window') + '.</span></span>' +
       '<button class="btn s ghost" data-act="r9arrreset" data-k="r9-arr-reset">' + L.icon('restart', 's') + 'Put back the usual layout</button><button class="btn s primary" data-act="r9arrange" data-k="r9-arr-done">Done</button></div>';
   };
-  function sizeBtns(id, h) {
-    return '<span class="r9-arr-size" role="group" aria-label="Height of ' + NAMES[id] + '"><span class="faint r9-arr-hl" aria-hidden="true">Height</span>' +
-      '<button class="btn s icon r9-hbtn" data-act="r9arrh" data-box="' + id + '" data-d="-1" data-k="r9h-' + id + '-s" aria-label="Shorter: ' + NAMES[id] + '" title="Shorter (it scrolls inside)">−</button>' +
-      '<button class="btn s icon r9-hbtn" data-act="r9arrh" data-box="' + id + '" data-d="1" data-k="r9h-' + id + '-t" aria-label="Taller: ' + NAMES[id] + '" title="Taller">+</button>' +
-      (h ? '<button class="btn s ghost" data-act="r9arrh" data-box="' + id + '" data-d="0" data-k="r9h-' + id + '-f" title="As tall as what it holds">Fit</button><span class="num faint">' + h + ' px</span>' : '') + '</span>';
-  }
   L.arrangeWrap = function (id, html, ci, mode) {
     var c = current(mode), h = c.heights[id];
-    if (!A.on) return h ? '<div class="r9-fixed" style="--r9h:' + h + 'px">' + html + '</div>' : html;
-    var col = c.cols[ci], i = col.indexOf(id), n = c.cols.filter(function (x) { return x.length; }).length;
-    var btn = function (dir, icon, label, dis) { return '<button class="btn s icon" data-act="r9arrmove" data-box="' + id + '" data-dir="' + dir + '" data-k="r9m-' + id + '-' + dir + '" aria-label="' + label + ': ' + NAMES[id] + '" title="' + label + '"' + (dis ? ' disabled' : '') + '>' + L.icon(icon, 's') + '</button>'; };
-    return '<div class="r9-box" data-box="' + id + '" data-col="' + ci + '"' + (h ? ' style="--r9h:' + h + 'px"' : '') + '><div class="r9-boxbar" role="group" aria-label="Arrange ' + NAMES[id] + '">' +
-      '<span class="r9-grip" draggable="true" data-r9grip="' + id + '" title="Drag to move ' + NAMES[id] + '" aria-hidden="true">' + L.icon('drag', 's') + '</span><b class="ellipsis grow">' + NAMES[id] + '</b>' +
-      btn('up', 'chevup', 'Move up', i === 0) + btn('down', 'chevdown', 'Move down', i === col.length - 1) + (mode > 1 ? btn('left', 'left', 'Move to the column on the left', ci === 0) + btn('right', 'right', 'Move to the column on the right', ci >= c.cols.length - 1) : '') +
-      sizeBtns(id, h) + '</div><div class="r9-boxin" inert>' + html + '</div></div>';
+    if (!A.on) return h ? '<div class="r9-fixed' + (id === 'onair' ? ' r10-fixed-air' : '') + '" data-box="' + id + '" style="--r9h:' + h + 'px">' + html + '</div>' : html;
+    return '<div class="r9-box r10-box' + (id === 'onair' && ci < 0 ? ' r10-box-top' : '') + '" data-box="' + id + '" data-col="' + ci + '"' + (h ? ' style="--r9h:' + h + 'px"' : '') + '>' +
+      '<div class="r10-arr" role="group" aria-label="Arrange ' + NAMES[id] + '"><span class="r10-arr-grip" draggable="true" data-r9grip="' + id + '" title="Drag to move ' + NAMES[id] + '" aria-hidden="true">' + L.icon('drag', 's') + '</span>' +
+      '<button class="btn s r10-arr-move" data-act="r10move" data-box="' + id + '" data-k="r10m-' + id + '" aria-haspopup="menu" aria-expanded="false" aria-label="Move or size: ' + NAMES[id] + '" title="Move or size ' + NAMES[id] + ' with the keyboard">Move…</button></div>' +
+      '<div class="r9-boxin" inert>' + html + '</div>' +
+      '<span class="r10-edge-b" data-r10edge="' + id + '" title="Drag to make ' + NAMES[id] + ' taller or shorter" aria-hidden="true"></span></div>';
   };
   L.arrangeSplit = function (ci, n, mode) {
     if (!A.on || mode < 2 || ci >= n - 1) return '';
-    return '<div class="r9-split" role="group" aria-label="Width between column ' + (ci + 1) + ' and ' + (ci + 2) + '" data-split="' + ci + '"><span class="r9-split-bar" aria-hidden="true"></span>' +
-      '<button class="btn s icon" data-act="r9arrw" data-c="' + ci + '" data-d="-1" data-k="r9w-' + ci + '-n" aria-label="Column ' + (ci + 1) + ' narrower" title="Left column narrower">' + L.icon('chevleft', 's') + '</button>' +
-      '<button class="btn s icon" data-act="r9arrw" data-c="' + ci + '" data-d="1" data-k="r9w-' + ci + '-w" aria-label="Column ' + (ci + 1) + ' wider" title="Left column wider">' + L.icon('chevright', 's') + '</button></div>';
+    return '<div class="r9-split r10-split" data-split="' + ci + '" title="Drag to change the widths" aria-hidden="true"><span class="r9-split-bar"></span></div>';
   };
   function mode() { var app = document.getElementById('app'), w = app ? app.getBoundingClientRect().width : 960; return w >= 1200 ? 3 : w >= 820 ? 2 : 1; }
   function edit(fn) {
     var m = mode(), key = MODES[m], c = lay(m, DEFAULT[m]);
     var s = { cols: c.cols.map(function (x) { return x.slice(); }), widths: c.widths ? c.widths.slice() : null, heights: Object.assign({}, c.heights) };
-    fn(s, m); s.cols = s.cols.filter(function (x) { return x.length; }); if (s.widths) s.widths = s.widths.slice(0, s.cols.length);
+    fn(s, m); s.cols = s.cols.filter(function (x) { return x.length; }); if (!s.cols.length) s.cols = [[]]; if (s.widths) s.widths = s.widths.slice(0, s.cols.length);
     A.saved[key] = s; save(); L.render();
   }
   function where(s, id) { for (var ci = 0; ci < s.cols.length; ci++) { var i = s.cols[ci].indexOf(id); if (i > -1) return { ci: ci, i: i }; } return null; }
-  L.acts.r9arrange = function () { A.on = !A.on; L.render(); var b = document.querySelector('[data-k="lv-arrange"]'); if (b) b.focus(); L.say(A.on ? 'Arranging the boxes. Each box has a grip and arrow buttons; press Done when finished.' : 'Layout saved'); if (!A.on) L.saved('layout of Live for this window size'); };
+  function boxEl(id) { return document.querySelector('.r10-box[data-box="' + id + '"] .r9-boxin') || document.querySelector('[data-box="' + id + '"]'); }
+  function focusMove(id) { var b = document.querySelector('[data-k="r10m-' + id + '"]'); if (b) b.focus(); }
+  L.acts.r9arrange = function () { A.on = !A.on; L.render(); var b = document.querySelector('[data-k="lv-arrange"]'); if (b) b.focus(); L.say(A.on ? 'Arranging the boxes. Drag a box by its head, or use its Move… button; press Done when finished.' : 'Layout kept'); if (!A.on) L.saved('layout of Live for this window size'); };
   L.acts.r9arrreset = function () { delete A.saved[MODES[mode()]]; save(); L.render(); L.say('The usual layout is back'); var b = document.querySelector('[data-k="r9-arr-done"]'); if (b) b.focus(); };
-  L.acts.r9arrmove = function (el) {
-    var id = el.dataset.box, dir = el.dataset.dir;
-    edit(function (s) {
-      var p = where(s, id); if (!p) return; var col = s.cols[p.ci];
-      if (dir === 'up' && p.i > 0) { col.splice(p.i, 1); col.splice(p.i - 1, 0, id); }
-      if (dir === 'down' && p.i < col.length - 1) { col.splice(p.i, 1); col.splice(p.i + 1, 0, id); }
-      if ((dir === 'left' && p.ci > 0) || (dir === 'right' && p.ci < s.cols.length - 1)) { col.splice(p.i, 1); s.cols[p.ci + (dir === 'left' ? -1 : 1)].push(id); }
-    });
-    var b = document.querySelector('[data-k="r9m-' + id + '-' + dir + '"]'); if (!b || b.disabled) b = document.querySelector('[data-box="' + id + '"] .r9-boxbar button:not([disabled])'); if (b) b.focus();
-    L.say(NAMES[id] + ' moved');
+  L.acts.r10move = function (el) {
+    var id = el.dataset.box, m = mode(), c = current(m), p = where(c, id), cols = c.cols.filter(function (x) { return x.length; }), real = p ? p.ci : -1;
+    function it(act, label, icon, dis) { return '<button role="menuitem" data-act="r10do" data-box="' + id + '" data-do="' + act + '"' + (dis ? ' disabled' : '') + '>' + L.icon(icon, 's') + label + '</button>'; }
+    var col = p ? c.cols[p.ci] : null, h = '';
+    if (id === 'onair' && !p) h += cols.map(function (x, i) { return it('into' + i, 'Into column ' + (i + 1), 'right'); }).join('');
+    else {
+      h += it('up', 'Up', 'chevup', !p || p.i === 0) + it('down', 'Down', 'chevdown', !p || p.i === col.length - 1);
+      if (m > 1) h += it('left', 'Column left', 'left', real <= 0) + it('right', 'Column right', 'right', real < 0 || real >= c.cols.length - 1);
+      if (id === 'onair') h += it('top', 'To the top, the whole width', 'chevup');
+    }
+    h += '<div class="sep" role="separator"></div>' + it('taller', 'Taller', 'plus') + it('shorter', 'Shorter (it scrolls inside)', 'minus') + it('fit', 'Fit: as tall as what it holds', 'restart', !c.heights[id]);
+    if (m > 1 && p) h += it('narrower', 'Narrower', 'chevleft', cols.length < 2) + it('wider', 'Wider', 'chevright', cols.length < 2);
+    L.menu(el, h, 'Move or size ' + NAMES[id]);
   };
-  L.acts.r9arrh = function (el) {
-    var id = el.dataset.box, d = +el.dataset.d;
-    edit(function (s) {
-      var box = document.querySelector(id === 'onair' ? '.lv-dock' : '[data-box="' + id + '"] .r9-boxin'), now = s.heights[id] || (box ? Math.round(box.getBoundingClientRect().height) : 300);
-      if (!d) delete s.heights[id]; else s.heights[id] = Math.max(120, Math.min(900, Math.round((now + d * 60) / 10) * 10));
-    });
-    var b = document.querySelector('[data-k="' + el.dataset.k + '"]') || document.querySelector('[data-k="r9h-' + id + '-t"]'); if (b) b.focus();
-  };
-  L.acts.r9arrw = function (el) {
-    var ci = +el.dataset.c, d = +el.dataset.d;
+  L.acts.r10do = function (el) {
+    var id = el.dataset.box, d = el.dataset.do, said = NAMES[id] + ' moved';
     edit(function (s, m) {
-      var n = s.cols.length, base = s.widths || s.cols.map(function (x, i) { return (m === 3 ? [27, 43, 30, 25][i] : [38, 62, 30][i]) || 30; });
-      base = base.slice(0, n); while (base.length < n) base.push(25);
-      var step = 4; if (base[ci] + d * step < 12 || base[ci + 1] - d * step < 12) return;
-      base[ci] += d * step; base[ci + 1] -= d * step; s.widths = base;
+      var p = where(s, id), col = p && s.cols[p.ci];
+      if (d === 'up' && p && p.i > 0) { col.splice(p.i, 1); col.splice(p.i - 1, 0, id); }
+      if (d === 'down' && p && p.i < col.length - 1) { col.splice(p.i, 1); col.splice(p.i + 1, 0, id); }
+      if ((d === 'left' && p && p.ci > 0) || (d === 'right' && p && p.ci < s.cols.length - 1)) { col.splice(p.i, 1); s.cols[p.ci + (d === 'left' ? -1 : 1)].push(id); }
+      if (d === 'top' && p) { col.splice(p.i, 1); said = 'On air is at the top again'; }
+      if (/^into/.test(d)) { var ci = +d.slice(4); while (s.cols.length <= ci) s.cols.push([]); s.cols[ci].unshift(id); said = 'On air moved into column ' + (ci + 1); }
+      if (d === 'taller' || d === 'shorter') { var box = boxEl(id), now = s.heights[id] || (box ? Math.round(box.getBoundingClientRect().height) : 300); s.heights[id] = Math.max(120, Math.min(1200, Math.round((now + (d === 'taller' ? 60 : -60)) / 10) * 10)); said = NAMES[id] + ' ' + s.heights[id] + ' pixels high'; }
+      if (d === 'fit') { delete s.heights[id]; said = NAMES[id] + ' as tall as what it holds'; }
+      if ((d === 'narrower' || d === 'wider') && p) {
+        var n = s.cols.length, base = (s.widths || s.cols.map(function (x, i) { return (m === 3 ? [27, 43, 30, 25][i] : [38, 62, 30][i]) || 30; })).slice(0, n); while (base.length < n) base.push(25);
+        var nb = p.ci < n - 1 ? p.ci + 1 : p.ci - 1, step = (d === 'wider' ? 4 : -4);
+        if (nb >= 0 && base[p.ci] + step >= 12 && base[nb] - step >= 12) { base[p.ci] += step; base[nb] -= step; s.widths = base; }
+        said = NAMES[id] + (d === 'wider' ? ' wider' : ' narrower');
+      }
     });
-    var b = document.querySelector('[data-k="' + el.dataset.k + '"]'); if (b) b.focus();
+    focusMove(id); L.say(said);
   };
-  // Dragging a box by its grip: a line shows where it lands (above or below the box under the pointer, or at the end of
-  // an empty column); dropping puts it there.
+  // Dragging a box by its head: a line shows where it lands (above or below the box under the pointer, at the end of
+  // an empty column, or back at the top for On air); dropping puts it there.
   var drag = null;
-  function clearMarks() { document.querySelectorAll('.r9-before, .r9-after, .r9-colover').forEach(function (n) { n.classList.remove('r9-before', 'r9-after', 'r9-colover'); }); }
+  function clearMarks() { document.querySelectorAll('.r9-before, .r9-after, .r9-colover, .r10-topover').forEach(function (n) { n.classList.remove('r9-before', 'r9-after', 'r9-colover', 'r10-topover'); }); }
   document.addEventListener('dragstart', function (e) {
     var g = e.target.closest && e.target.closest('[data-r9grip]'); if (!g) return;
     drag = { id: g.dataset.r9grip }; try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', drag.id); } catch (x) { /* older engines */ }
     e.stopPropagation();
   }, true);
   document.addEventListener('dragover', function (e) {
-    if (!drag) return; var box = e.target.closest && e.target.closest('.r9-box'), col = e.target.closest && e.target.closest('.lv-cols > .col'); if (!col) return;
+    if (!drag) return; var box = e.target.closest && e.target.closest('.r9-box'), col = e.target.closest && e.target.closest('.lv-cols > .col'), top = e.target.closest && e.target.closest('.r10-box-top, .r9-arrbar');
+    if (!col && !(top && drag.id === 'onair')) return;
     e.preventDefault(); e.stopPropagation(); clearMarks();
+    if (top && !col) { (document.querySelector('.r9-arrbar') || top).classList.add('r10-topover'); return; }
     if (box && box.dataset.box !== drag.id) { var r = box.getBoundingClientRect(); box.classList.add(e.clientY > r.top + r.height / 2 ? 'r9-after' : 'r9-before'); }
     else if (!box) col.classList.add('r9-colover');
   }, true);
   document.addEventListener('drop', function (e) {
-    if (!drag) return; var d = drag; drag = null; var box = e.target.closest && e.target.closest('.r9-box'), col = e.target.closest && e.target.closest('.lv-cols > .col'); clearMarks(); if (!col) return;
+    if (!drag) return; var d = drag; drag = null; var box = e.target.closest && e.target.closest('.r9-box'), col = e.target.closest && e.target.closest('.lv-cols > .col'), top = e.target.closest && e.target.closest('.r10-box-top, .r9-arrbar'); clearMarks();
+    if (!col && !(top && d.id === 'onair')) return;
     e.preventDefault(); e.stopPropagation();
     var after = box ? e.clientY > box.getBoundingClientRect().top + box.getBoundingClientRect().height / 2 : true;
     edit(function (s) {
-      var p = where(s, d.id); if (!p) return; s.cols[p.ci].splice(p.i, 1);
+      var p = where(s, d.id); if (p) s.cols[p.ci].splice(p.i, 1);
+      if (!col) return;                                               // On air dropped at the top
       var ci = +col.dataset.col; while (s.cols.length <= ci) s.cols.push([]);
-      var target = s.cols[ci], at = box && box.dataset.box !== d.id ? target.indexOf(box.dataset.box) + (after ? 1 : 0) : target.length;
+      var target = s.cols[ci], at = box && box.dataset.box !== d.id && target.indexOf(box.dataset.box) > -1 ? target.indexOf(box.dataset.box) + (after ? 1 : 0) : target.length;
       target.splice(Math.max(0, at), 0, d.id);
     });
     L.say(NAMES[d.id] + ' moved');
   }, true);
   document.addEventListener('dragend', function () { if (drag) { drag = null; clearMarks(); } }, true);
-  // Dragging a splitter changes the two columns' widths.
+  // Dragging a box's foot changes its height; dragging the bar between columns changes their widths.
   document.addEventListener('pointerdown', function (e) {
-    var bar = e.target.closest && e.target.closest('.r9-split-bar'); if (!bar) return;
-    var sp = bar.parentNode, ci = +sp.dataset.split, grid = sp.parentNode, cols = [].slice.call(grid.querySelectorAll(':scope > .col'));
+    var edge = e.target.closest && e.target.closest('[data-r10edge]');
+    if (edge) {
+      var id = edge.dataset.r10edge, inner = edge.parentNode.querySelector('.r9-boxin'), h0 = inner.getBoundingClientRect().height, y0 = e.clientY, hNow = h0; e.preventDefault();
+      var mv = function (ev) { hNow = Math.max(120, Math.min(1200, h0 + ev.clientY - y0)); edge.parentNode.style.setProperty('--r9h', hNow + 'px'); edge.parentNode.classList.add('r10-sizing'); };
+      var upE = function () { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', upE); edit(function (s) { s.heights[id] = Math.round(hNow / 10) * 10; }); L.say(NAMES[id] + ' ' + Math.round(hNow / 10) * 10 + ' pixels high'); };
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', upE); return;
+    }
+    var bar = e.target.closest && e.target.closest('.r9-split'); if (!bar) return;
+    var sp = bar, ci = +sp.dataset.split, grid = sp.parentNode, cols = [].slice.call(grid.querySelectorAll(':scope > .col'));
     var a = cols[ci].getBoundingClientRect().width, b = cols[ci + 1].getBoundingClientRect().width, x0 = e.clientX;
     e.preventDefault();
     function move(ev) { var dx = ev.clientX - x0; cols[ci].dataset.w = Math.max(80, a + dx); cols[ci + 1].dataset.w = Math.max(80, b - dx); sp.classList.add('on'); sp.style.transform = 'translateX(' + Math.max(80 - a, Math.min(b - 80, dx)) + 'px)'; }
     function up() {
       document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); sp.classList.remove('on'); sp.style.transform = '';
       var wa = +cols[ci].dataset.w || a, wb = +cols[ci + 1].dataset.w || b;
-      edit(function (s, m) {
+      edit(function (s) {
         var n = s.cols.length, base = (s.widths || cols.map(function (c) { return c.getBoundingClientRect().width; })).slice(0, n);
         var total = base[ci] + base[ci + 1]; base[ci] = total * wa / (wa + wb); base[ci + 1] = total * wb / (wa + wb); s.widths = base.map(function (x) { return Math.round(x * 10) / 10; });
       });
@@ -278,10 +288,6 @@
     if (old) old.remove();
     if (Q.open && bar) bar.insertAdjacentHTML('beforebegin', queueHTML()); else if (Q.open && !bar) Q.open = null;
     if (L.placeToasts) L.placeToasts();
-    // A fixed-height On air (Arrange).
-    var dock = document.querySelector('.lv-dock'), m = mode(), h = r.name === 'live' && lay(m, DEFAULT[m]).heights.onair;
-    if (dock) dock.style.maxHeight = h ? h + 'px' : '';
-    // Pads that dip the music carry a small mark (their names say it too).
-    document.querySelectorAll('.lv-pad[data-bid], .pb-pad[data-bid]').forEach(function (el) { var b = L.board(el.dataset.bid), p = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === el.dataset.pid; })[0]; el.classList.toggle('r9-dips', !!(p && L.padDips(p))); });
+    // Round 10 (look D6, table D-S9): no mark on a pad's face for dipping; its name and hover say it (live.js, boards.js).
   };
 })();

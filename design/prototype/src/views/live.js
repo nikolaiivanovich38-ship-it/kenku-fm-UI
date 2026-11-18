@@ -237,12 +237,43 @@
   function touched() { if (S.undo || S.undo2) { S.undo = null; S.undo2 = null; } }
   L.liveTouched = touched;
   function softUndo(text, restore, where, focus, items) { S.undo = null; S.undo2 = { text: text, restore: restore, where: where, focus: focus || '', at: Date.now(), until: Date.now() + UNDO_MS, items: items || null }; }
+  /* Round 10 (table review M1 and T1): one Undo place, fixed in the top strip, for every undoable action. Nothing is
+     put into a box when Undo appears or goes, so nothing under the pointer moves. undoStrip(where) is kept for the
+     older call sites and draws nothing there. */
   function undoStrip(where) {
-    var u = S.undo2; if (!u || u.where !== where) return '';
+    var u = S.undo2; if (!u || where !== 'strip') return '';
     return '<div class="lv-undo lv-undo2" role="group" aria-label="Undo"><span class="ellipsis grow">' + esc(u.text) + '</span>' +
       '<button class="btn s" data-act="lvundo2" data-k="lv-undo2" aria-keyshortcuts="Control+Z" title="Undo (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
       '<span class="lv-undo-bar" aria-hidden="true"><span data-undo2-left style="width:100%"></span></span></div>';
   }
+  function undoSlot() {
+    var u = S.undo, inner = S.undo2 ? undoStrip('strip') : u ? '<div class="lv-undo" role="group" aria-label="Undo"><span class="ellipsis grow">Started <b>' + esc(u.started) + '</b></span>' +
+        '<button class="btn s" data-act="lvundo" data-k="lv-undo" aria-keyshortcuts="Control+Z" title="Go back to ' + esc(u.label) + ', with its music and ambience (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
+        '<span class="lv-undo-bar" aria-hidden="true"><span data-undo-left style="width:100%"></span></span></div>' : '';
+    return '<div class="r10-undo-slot">' + inner + '</div>';
+  }
+  /* Round 10 (table review M4, S1; Nik, 18 Nov 08:36, answer 6a): what every room plays, kept before Play on air, Fade
+     all or Stop all, so Undo brings every room back where it was. */
+  function roomsSnap() {
+    var tgs = ['table'].concat(Object.keys(pb.own || {}).filter(function (id) { return tgOf(id) === id; }));
+    return { rm: clone(S.rm), rooms: tgs.map(function (tg) { return { tg: tg, music: laneCopy(M(tg).music), amb: laneCopy(M(tg).amb), rep: M(tg).rep || null }; }), at: Date.now() };
+  }
+  function restoreRooms(snap, sameTime) {
+    var elapsed = sameTime ? 0 : (Date.now() - snap.at) / 1000;
+    quiet(function () { snap.rooms.forEach(function (r) { if (r.tg === 'table' || tgOf(r.tg) === r.tg) { restoreLane('music', r.music, elapsed, r.tg); restoreLane('amb', r.amb, elapsed, r.tg); M(r.tg).rep = r.rep; } }); });
+    S.rm = snap.rm;
+    Object.keys(S.rm).forEach(function (tg) { var c = M(tg).music; if (c) S.rm[tg].playing = S.rm[tg].now === 'plan' ? c.id : S.rm[tg].playing; });
+  }
+  function anySound() { return roomTgs().concat(['table']).some(function (tg) { var m = M(tg); return m && (m.music || m.amb); }); }
+  L.liveFadeAll = function () {
+    var snap = anySound() ? roomsSnap() : null; touched(); L.fadeAll(L.FADE);
+    if (snap) softUndo('Fading everything out', function () { restoreRooms(snap, true); }, 'strip', 'lv-fade');
+  };
+  L.liveStopAll = function () {
+    var snap = anySound() ? roomsSnap() : null; touched(); L.stopAll();
+    if (snap) softUndo('Stopped everything', function () { restoreRooms(snap, true); }, 'strip', 'lv-stop');
+    L.render();
+  };
   function undo2() { var u = S.undo2; if (!u) return false; S.undo2 = null; u.restore(); L.render(); focusK(u.focus || 'lv-nextsc'); L.say('Undone: ' + u.text); return true; }
   function undo() {
     if (S.undo2) return undo2();
@@ -320,7 +351,7 @@
         L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'lv-sess-rename') + '</span>' :
       '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" data-f2="lvsessrename" aria-haspopup="menu" aria-expanded="false" aria-label="' + esc(c.name + ' Session ' + s.n + ': ' + s.name) + '" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session, or press F2 to rename it">' +
         L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm sr-only">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
-    return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() +
+    return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() + undoSlot() +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade all: everything fades out over ' + L.FADE + ' seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
       '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
       '<span class="lv-keyswrap"><button class="btn s" data-act="lvkeys" data-k="lv-keys" aria-expanded="' + S.keysOpen + '" aria-controls="lv-keys-pop" title="Keyboard keys for the live screen">Keys' + L.icon(S.keysOpen ? 'chevup' : 'chevdown', 's') + '</button>' +
@@ -378,6 +409,8 @@
     var m = M(tg), on = (m.music && !m.music.paused) || (m.amb && !m.amb.paused) || L.fxFor(tg).some(function (f) { return !f.fadeOut; });
     if (!b) return on || m.music || m.amb ? { text: 'Nobody hears it', tone: 'warn' } : { text: 'Silent', tone: 'idle' };
     if (b.status === 'connecting') return { text: 'Joining', tone: 'warn' };
+    // Round 10 (table review M3; 0.5.2 built it): a dropped connection says so; the players hear nothing.
+    if (b.lost) return { text: b.lost === 'retry' ? 'Trying again…' : 'Connection lost', tone: 'warn' };
     if (nobodyThere(b)) return { text: 'Nobody there', tone: 'warn' };
     if (b.muted) return { text: 'Muted', tone: 'idle' };
     if (on) return { text: 'Playing', tone: 'live' };
@@ -394,35 +427,43 @@
   }
   function laneBlock(ln, tg, name) {
     var m = M(tg), c = m[ln], t = c && L.track(c.id), isM = ln === 'music', word = isM ? 'Music' : 'Ambience', at = tg === 'table' ? '' : '@' + tg, kx = tg === 'table' ? '' : '-' + tg, tga = ' data-tg="' + tg + '"';
-    if (!c) return '';
+    // Round 10 (table review M1): an empty lane keeps its room, so On air does not grow when music starts.
+    if (!c) return '<div class="lv-lane r10-lane-empty ' + (isM ? 'lv-m' : 'lv-a') + '" aria-hidden="true"></div>';
     var shown = L.nameIn(t, L.lanePlace(c)), si = isM && seqItem(c), pos = si ? 'Item ' + (si.item + 1) + ' of ' + si.n : '';
     var h = '<div class="lv-lane ' + (isM ? 'lv-m' : 'lv-a') + '">' +
       '<div class="lv-lane-l"><span class="lv-lane-n"><span class="lane-dot ' + ln + '"></span>' + word + '</span>' + (c.paused ? '<span class="badge">Paused</span>' : '') +
         // Round 9 (item 47): while a dipping effect sounds, the music says so in words.
-        (L.dippedIn && L.dippedIn(tg, ln) ? '<span class="badge r9-dipped" title="Quieter while an effect plays; it comes back by itself">' + L.icon('chevdown', 's') + 'Dipped</span>' : '') + '</div>' +
+        // Round 10 (look D6, table D-S9): a status in words, not a button-looking chip.
+        (L.dippedIn && L.dippedIn(tg, ln) ? '<span class="r9-dipped r10-status" title="Quieter while an effect plays; it comes back by itself">Dipped</span>' : '') + '</div>' +
       // The scene position and the end rule are hover text (and read out); the track list shows where it is.
-      '<div class="lv-lane-m"><div class="lv-lane-t ellipsis" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
+      // Round 10 (look M2): the playing title gets up to two lines; it is the most important text on screen.
+      '<div class="lv-lane-m"><div class="lv-lane-t r10-clamp2" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
         // Round 8 (Nik, 11 Nov: "click in the tracking bar for the currently playing track and skip to a certain point"):
         // the bar is a slider (core's L.seekBar), with the markers on it as before.
         '<div class="lv-lane-pr">' + L.seekBar(ln + at, shown, 'lv-mkbar ' + ln, markTicks(t, c, ln, tg)) + '<span class="num lv-time" data-time="' + ln + at + '"></span></div>';
     if (isM) {
       // Where the music comes from, when it is a playlist or something added. What comes next is Up next, beside it.
       var vis = c.added ? 'Added: ' + c.added : c.playlistId ? plName(c.playlistId) : '';
-      if (vis) h += '<div class="lv-lane-sub ellipsis" title="' + esc(vis) + '">' + esc(vis) + '</div>';
+      // Round 10 (look M2; 0.5.2 item 53): how it loops, in words, beside where it comes from.
+      var lw = L.endWords ? L.endWords(t) : ''; lw = lw ? lw.charAt(0).toUpperCase() + lw.slice(1) : '';
+      var sub = [vis, lw].filter(Boolean).join(' · ');
+      if (sub) h += '<div class="lv-lane-sub ellipsis" title="' + esc(sub) + '">' + esc(sub) + '</div>';
     }
-    h += '</div><div class="lv-lane-c" role="group" aria-label="' + word + ' in ' + esc(name) + '">';
-    if (isM) h += '<button class="btn s icon" data-act="lvprevt" data-lane="music"' + tga + ' data-k="lv-prev-m' + kx + '" title="Previous track" aria-label="Previous music track"' + (c.playlistId || c.seq || c.added || (RM(tg).now !== 'plan' && RM(tg).ret) ? '' : ' disabled') + '>' + L.icon('prev', 's') + '</button>';
-    h += '<button class="btn s icon" data-act="lvpause" data-lane="' + ln + '"' + tga + ' data-k="lv-pause-' + ln + kx + '" title="' + (c.paused ? 'Resume' : 'Pause') + ' ' + word.toLowerCase() + '" aria-label="' + (c.paused ? 'Resume' : 'Pause') + ' ' + word.toLowerCase() + '">' + L.icon(c.paused ? 'play' : 'pause', 's') + '</button>' +
-      // Round 8 (Nik, 11 Nov: "I need a stop button in the on air view in live on the currently playing track, not just
-      // a pause button - I need both"): Stop beside Pause; it fades this room's music (or ambience) out in a second.
-      '<button class="btn s icon" data-act="lvstoplane" data-lane="' + ln + '"' + tga + ' data-k="lv-stopl-' + ln + kx + '" title="Stop the ' + word.toLowerCase() + esc(inRoom(tg)) + ' (fades out in a second)" aria-label="Stop ' + word.toLowerCase() + '">' + L.icon('stop', 's') + '</button>' +
-      '<button class="btn s icon" data-act="lvnextt" data-lane="' + ln + '"' + tga + ' data-k="lv-next-' + ln + kx + '" title="Next ' + (isM ? 'track' : 'ambience') + ' (crossfade)" aria-label="Next ' + word.toLowerCase() + ' track"' + (c.playlistId || c.seq || (isM && upcoming(tg).length) || (!isM && aqOf(tg).length) ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
-      // Round 8 (Nik: "I also need a shuffle button in the on air live view"): the Now playing bar's Shuffle, per room,
-      // beside Repeat. It is the play order of the playlist the music comes from, where it plays from (PLY-13), so
-      // Up next follows it; music that is not from a playlist has nothing to shuffle, and the button is greyed.
-      (isM ? shuffleIn(tg, kx) : '') +
+    h += '</div><div class="lv-lane-c r10-transport" role="group" aria-label="' + word + ' in ' + esc(name) + '">';
+    /* Round 10 (look M3 and table S2, merged in ROUND10.md): Previous · Pause (filled, larger) · Next, a gap, Stop on
+       its own, then Shuffle, Repeat and Fade, smaller. The ambience row keeps the same places (blank where it has no
+       button), so Pause and Stop sit at the same x in both rows. */
+    var gap = '<span class="r10-tgap" aria-hidden="true"></span>', blank = '<span class="r10-tblank" aria-hidden="true"></span>';
+    h += isM ? '<button class="btn s icon" data-act="lvprevt" data-lane="music"' + tga + ' data-k="lv-prev-m' + kx + '" title="Previous track" aria-label="Previous music track"' + (c.playlistId || c.seq || c.added || (RM(tg).now !== 'plan' && RM(tg).ret) ? '' : ' disabled') + '>' + L.icon('prev', 's') + '</button>' : blank;
+    h += '<button class="btn s icon r10-main" data-act="lvpause" data-lane="' + ln + '"' + tga + ' data-k="lv-pause-' + ln + kx + '" title="' + (c.paused ? 'Resume' : 'Pause') + ' ' + word.toLowerCase() + '" aria-label="' + (c.paused ? 'Resume' : 'Pause') + ' ' + word.toLowerCase() + '">' + L.icon(c.paused ? 'play' : 'pause', 's') + '</button>' +
+      '<button class="btn s icon" data-act="lvnextt" data-lane="' + ln + '"' + tga + ' data-k="lv-next-' + ln + kx + '" title="Next ' + (isM ? 'track' : 'ambience') + ' (crossfade)" aria-label="Next ' + word.toLowerCase() + ' track"' + (c.playlistId || c.seq || (isM && upcoming(tg).length) || (!isM && aqOf(tg).length) ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' + gap +
+      // Round 8 (Nik, 11 Nov: "I need a stop button in the on air view … not just a pause button - I need both"): Stop
+      // fades this room's music (or ambience) out in a second. Round 10: apart from Pause, so a slip does not stop it.
+      '<button class="btn s icon r10-stop" data-act="lvstoplane" data-lane="' + ln + '"' + tga + ' data-k="lv-stopl-' + ln + kx + '" title="Stop the ' + word.toLowerCase() + esc(inRoom(tg)) + ' (fades out in a second)" aria-label="Stop ' + word.toLowerCase() + '">' + L.icon('stop', 's') + '</button>' + gap +
+      // Round 8 (Nik: "I also need a shuffle button in the on air live view"): Shuffle beside Repeat (PLY-13).
+      (isM ? shuffleIn(tg, kx) : blank) +
       // Round 6 part 3: Repeat here is the room's, for what plays now; never saved (core's L.repeatButton).
-      (isM ? L.repeatButton('music', tg, 'lv-rep' + kx) : '') +
+      (isM ? L.repeatButton('music', tg, 'lv-rep' + kx) : blank) +
       '<button class="btn s icon" data-act="lvfadeout" data-lane="' + ln + '"' + tga + ' data-k="lv-fo-' + ln + kx + '" title="Fade ' + word.toLowerCase() + ' out over ' + L.FADE + ' seconds" aria-label="Fade ' + word.toLowerCase() + ' out">' + L.icon('fade', 's') + '</button></div></div>';
     return h;
   }
@@ -485,7 +526,14 @@
       '<button class="btn s lv-kick" data-act="lvkick" data-id="' + b.id + '" data-k="lv-kick-' + b.id + '" title="' + esc(name) + ' leaves Discord: ' + esc(b.name) + ' leaves the voice channel (Undo for 8 seconds)" aria-label="Leave ' + esc(name) + '">' + L.icon('leave', 's') + '<span class="lv-kick-t">Leave</span></button>' : '';
     // BUG-19: with no bot in a voice channel what plays goes nowhere; the one-click fix is right here.
     var none = '';
-    if (nobodyThere(b)) {
+    if (b && b.lost) {
+      // Round 10 (table review M3, Nik 18 Nov answer 3): the one case where a bot rejoins by itself. Said once (alert),
+      // in the warning colour, with Try again and the free bot.
+      var spare = (L.freeBots ? L.freeBots() : L.bots().filter(function (x) { return x.status === 'idle'; })).filter(function (x) { return x.id !== b.id && (!x.login || x.login === 'online'); })[0];
+      none = '<div class="lv-noroom r10-lost-line" role="alert">' + L.icon('warn', 's') + '<span class="grow">Connection lost · players hear nothing</span>' +
+        '<button class="btn s lv-fix" data-act="r10retry" data-id="' + b.id + '" data-k="r10-retry-' + b.id + '"' + (b.lost === 'retry' ? ' aria-disabled="true"' : '') + '>Try again</button>' +
+        (spare ? '<button class="btn s ghost" data-act="lvbotswap" data-from="' + b.id + '" data-to="' + spare.id + '" data-k="r10-swap-' + b.id + '">Use ' + esc(spare.name) + ' instead</button>' : '') + '</div>';
+    } else if (nobodyThere(b)) {
       // The same one-click fix as "No room": move this bot to where the players are.
       var to = busiestChannel(b);
       none = '<div class="lv-noroom" role="status">' + L.icon('warn', 's') + '<span class="grow">Players hear nothing</span>' +
@@ -496,10 +544,11 @@
       none = '<div class="lv-noroom" role="status">' + L.icon('broadcast', 's') + '<span class="grow">' + (joining ? 'Joining…' : 'No bot is in a voice channel: players hear nothing') + '</span>' +
         (bot && best && !joining ? '<button class="btn s lv-fix" data-act="lvbotjoin" data-id="' + bot.id + '" data-g="' + best.g.id + '" data-c="' + best.c.id + '" data-k="lv-fix" title="' + esc(bot.name + ' joins ' + best.g.name + ' › ' + best.c.name + ' (' + best.c.members.length + ' there)') + '">Join ' + esc(best.c.name) + '</button>' : '') + '</div>';
     }
-    var fxLine = fx.length ? '<div class="lv-line lv-fx"><span class="lv-line-l"><span class="lane-dot fx"></span>Effects</span><span class="ellipsis grow"><b>' + fx.length + ' sounding</b>: ' + esc(fx.map(function (f) { return f.label; }).join(', ')) + '</span>' +
-      '<button class="btn s icon" data-act="lvfxstop" data-tg="' + tg + '" data-k="lv-fxstop' + kx + '" title="Stop effects in ' + esc(name) + '" aria-label="Stop effects in ' + esc(name) + '">' + L.icon('stop', 's') + '</button></div>' : '';
+    // Round 10 (table review M1): the Effects line keeps its place when nothing sounds (blank, no resting words).
+    var fxLine = !fx.length ? '<div class="lv-line lv-fx r10-fx-empty" aria-hidden="true"></div>' : '<div class="lv-line lv-fx"><span class="lv-line-l"><span class="lane-dot fx"></span>Effects</span><span class="ellipsis grow"><b>' + fx.length + ' sounding</b>: ' + esc(fx.map(function (f) { return f.label; }).join(', ')) + '</span>' +
+      '<button class="btn s icon" data-act="lvfxstop" data-tg="' + tg + '" data-k="lv-fxstop' + kx + '" title="Stop effects in ' + esc(name) + '" aria-label="Stop effects in ' + esc(name) + '">' + L.icon('stop', 's') + '</button></div>';
     var lanes = laneBlock('music', tg, name) + laneBlock('amb', tg, name) + fxLine, up = m.music || aqOf(tg).length ? upNextBlock(tg) : '';
-    return '<div class="lv-rm' + (st.text === 'Playing' ? '' : ' is-silent') + '" role="group" aria-labelledby="' + hid + '" data-room="' + tg + '"' + (rooms().length > 1 ? ' title="To play in ' + esc(name) + ', choose To: ' + esc(name) + ' in a box"' : '') + '>' +
+    return '<div class="lv-rm' + (st.text === 'Playing' ? '' : ' is-silent') + (b && b.lost ? ' r10-lost' : '') + '" role="group" aria-labelledby="' + hid + '" data-room="' + tg + '"' + (rooms().length > 1 ? ' title="To play in ' + esc(name) + ', choose To: ' + esc(name) + ' in a box"' : '') + '>' +
       '<div class="lv-rm-h">' + (short() ? '<button class="xp-btn" data-act="lvrmopen" data-tg="' + tg + '" data-k="lv-rmopen' + kx + '" aria-expanded="true" title="Show one line for ' + esc(name) + '" aria-label="Show everything in ' + esc(name) + '">' + L.icon('chevdown', 's') + '</button>' : '') + (b ? '<h3 class="lv-rm-n r9-rm-n"><button class="r9-roombtn" data-act="lvroommenu" data-id="' + b.id + '" data-k="lv-room-' + b.id + '" aria-haspopup="menu" aria-expanded="false" title="' + esc(name) + ' (via ' + esc(b.name) + '): move it to another voice channel" aria-label="Room ' + esc(name) + ': move or change"><span class="ellipsis" id="' + hid + '">' + esc(name) + '</span>' + L.icon('chevdown', 's') + '</button></h3>' : '<h3 id="' + hid + '" class="lv-rm-n ellipsis">' + esc(name) + '</h3>') + '<span class="pane-status s-' + st.tone + '">' + esc(st.text) + '</span><span class="grow"></span>' + playedButton(tg, name) + ctl + '</div>' + none + playedList(tg, name) +
       (lanes || up ? '<div class="lv-rm-b"><div class="lv-rm-lanes">' + lanes + '</div>' + (up ? '<div class="lv-rm-up">' + up + '</div>' : '') + '</div>' : '') + undoStrip('room:' + tg) + '</div>';
   }
@@ -524,7 +573,8 @@
   }
   L.acts.lvplayed = function (el) { var tg = el.dataset.tg; S.playedOpen[tg] = !S.playedOpen[tg]; L.render(); focusK(el.dataset.k); };
   L.acts.lvupplay = function (el) {
-    var tg = el.dataset.tg, u = upcoming(tg)[+el.dataset.i]; if (!u || !u.e) return; touched();
+    var tg = el.dataset.tg, u = upcoming(tg)[+el.dataset.i]; if (!u || !u.e) return; var snap = roomsSnap(); touched();
+    softUndo('Playing now: ' + L.title(L.track(u.e.id)), function () { restoreRooms(snap); }, 'strip', el.dataset.k);
     var rm = RM(tg); rm.now = 'plan'; rm.ret = null; rm.pnCur = null; rm.playing = u.e.id;
     L.play(u.e.id, { lane: 'music', playlistId: u.e.pl, place: u.e.place, seq: u.e.seq, fade: 3, target: tg });
     L.say('Playing now: ' + L.title(L.track(u.e.id)));
@@ -568,7 +618,8 @@
   }
   function playBtn(box, data, k, nm, extra) {
     var where = inWhere(box);
-    return '<button class="closer" data-act="lvplay" data-box="' + box + '" ' + data + ' data-k="' + k + '-p" title="Play on air' + where + (extra || '') + '" aria-label="Play on air' + where + ': ' + esc(nm) + '">' + L.icon('playair') + '</button>';
+    // Round 10 (table review S5): Play on air stands apart, last, after a gap, in the room colour on hover and focus.
+    return '<button class="closer r10-air" data-act="lvplay" data-box="' + box + '" ' + data + ' data-k="' + k + '-p" title="Play on air' + where + (extra || '') + '. Players hear this now" aria-label="Play on air' + where + ': ' + esc(nm) + '">' + L.icon('playair') + '</button>';
   }
   function trackRow(t, src, o) {
     o = o || {};
@@ -588,13 +639,15 @@
         // Round 9 (item 16): every detail, in the Track panel beside Live (Live's controls stay in view).
         (L.openTrackPanel ? '<button class="btn s ghost" data-act="r9tp" data-tid="' + t.id + '" data-k="' + k + '-all">' + L.icon('file', 's') + 'All details</button>' : '') + '</div>' : '') +
       '<div class="chips">' + D.tagGroups.map(function (g) { return L.tagsOn(t, g.id).map(function (v) { return '<span class="chip lv-mood" title="' + esc(g.name) + '">' + esc(v) + '</span>'; }).join(''); }).join('') + (t.role ? '<span class="chip">' + esc((L.roleWord && L.roleWord[t.role]) || t.role) + '</span>' : '') + '</div></div>' : '';
-    return '<li class="lv-trk' + (onAirNow ? ' on' : '') + (isAmb ? ' amb' : '') + (open ? ' open' : '') + (o.inner ? ' inner' : '') + '"><div class="lv-trk-r">' +
+    return '<li class="lv-trk' + (t.missing ? ' r10-missing' : '') + (onAirNow ? ' on' : '') + (isAmb ? ' amb' : '') + (open ? ' open' : '') + (o.inner ? ' inner' : '') + '"><div class="lv-trk-r">' +
       (o.num ? '<span class="num lv-num" aria-hidden="true">' + o.num + '</span>' : '') +
       (onAirNow ? airBadge(t) : queued ? '<span class="badge lv-qb">Queued</span>' : '') +
       (isAmb || isFx ? '<span class="lane-dot ' + (isAmb ? 'amb' : 'fx') + '" title="' + L.kindName[t.kind] + '"></span><span class="sr-only">' + L.kindName[t.kind] + ':</span>' : '') +
       '<button class="lv-trk-t" data-act="lvsel" data-sel="' + src + ':' + t.id + '" data-k="' + k + '-t" aria-expanded="' + open + '"' + (open ? ' aria-controls="' + did + '"' : '') + ' title="' + esc(nm !== ownNm ? nm + ' (its own name: ' + ownNm + ')' : nm) + ' (click for details)"><span>' + esc(nm) + '</span></button>' +
       // Round 6 part 3: moods and energy are in the row's details (and Find's results), not on the row on air.
       (open || o.box === 'off' ? '<span class="chips lv-trk-chips">' + moodChips(t, o.prefer) + '</span>' + (isAmb || isFx ? '' : L.energy(t.energy)) : '') +
+      // Round 10 (table review S3): a track whose file is missing says so before Nik presses anything.
+      (t.missing ? '<span class="badge warn r10-miss" title="Lyre cannot find this file: Find missing files in the Track library">Missing</span>' : '') +
       '<span class="num lv-dur" title="' + (Math.round(len) !== Math.round(t.dur) ? 'Plays ' + L.fmt(len) + ' of the file\'s ' + L.fmt(t.dur) : 'Length ' + L.fmt(t.dur)) + '">' + L.fmt(len) + '</span>' +
       '<span class="lv-trk-acts' + (onAirNow ? ' shown' : '') + '">' +
         '<button class="closer lv-pvb' + (pv || o.noPlay ? '' : ' lv-hov') + '" data-act="lvpv" data-id="' + t.id + '" data-k="' + k + '-v" aria-pressed="' + pv + '" title="' + (pv ? 'Stop the preview' : 'Preview in your headphones (players do not hear it)') + '" aria-label="Preview: ' + esc(nm) + '">' + L.icon('headphones') + '</button>' +
@@ -632,9 +685,8 @@
     var short = compact && !S.allScenes && s.scenes.length > 2, u = S.undo;
     var body = '<div class="lv-sc-top"><button class="btn primary lv-nextsc" data-act="lvnext" data-k="lv-nextsc"' + (n ? '' : ' aria-disabled="true"') + (n && S.keys1 ? ' aria-keyshortcuts="Space"' : '') + ' title="' + (n ? 'Start ' + esc(n.name) + (S.keys1 ? ' (Space)' : '') + (rooms().length > 1 ? '. Scenes always play in ' + esc(rooms()[0].name) : '') : 'That was the last scene') + '">' +
       L.icon('next', 's') + '<span class="ellipsis">' + (n ? (S.notStarted ? 'Start: ' : 'Next scene: ') + esc(n.name) : 'No more scenes') + '</span>' + (n && S.keys1 ? '<span class="kbd" aria-hidden="true">Space</span>' : '') + '</button>' +
-      (u ? '<div class="lv-undo" role="group" aria-label="Undo"><span class="ellipsis grow">Started <b>' + esc(u.started) + '</b></span>' +
-        '<button class="btn s" data-act="lvundo" data-k="lv-undo" aria-keyshortcuts="Control+Z" title="Go back to ' + esc(u.label) + ', with its music and ambience (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
-        '<span class="lv-undo-bar" aria-hidden="true"><span data-undo-left style="width:100%"></span></span></div>' : '') + '</div>' +
+      // Round 10 (table review M1): the scene's Undo is in the top strip's Undo place (undoSlot), so the rows never move.
+      (u && false ? '' : '') + '</div>' +
       '<ol class="lv-scenes">' + s.scenes.map(function (sc, i) {
         var isNow = i === now, isNext = i === nx;
         if (short && !isNow && !isNext && !S.scOpen[i]) return '';
@@ -728,7 +780,8 @@
             return '<button data-act="lvboard" data-scope="sc" data-id="' + id + '" data-k="lv-bd-' + id + '" aria-pressed="' + (id === b.id) + '" title="' + esc(L.board(id).name) + '"><span class="ellipsis">' + esc(L.board(id).name) + '</span></button>';
           }).join('') + '</div>' : '<span class="lv-bd1"><span class="lane-dot fx" aria-hidden="true"></span>' + esc(b.name) + '</span>') + '<span class="grow"></span>' + (S.keys1 ? '' : '<span class="hint">Pad keys are off</span>') +
           // BUG-20: Stop pads stops every pad sound, in every room; music and ambience go on. It shows while a pad sounds.
-          (padsOn ? '<button class="btn s" data-act="lvpadstop" data-k="lv-padstop" title="Stop every pad, in every room (music and ambience go on)">' + L.icon('stop', 's') + 'Stop pads</button>' : '') + '</div>' +
+          // Round 10 (table review M1): Stop pads keeps its place while hidden, so the pads do not move when it shows.
+          '<button class="btn s' + (padsOn ? '' : ' r10-keepplace') + '" data-act="lvpadstop" data-k="lv-padstop" title="Stop every pad, in every room (music and ambience go on)"' + (padsOn ? '' : ' tabindex="-1" aria-hidden="true"') + '>' + L.icon('stop', 's') + 'Stop pads</button></div>' +
           padGrid(b, 'music', true) + '</div>' : '');
     }
     var more = sc ? '<button class="closer" data-act="lvcurmenu" data-k="lv-curmenu" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(sc.name) + '" title="More">' + L.icon('more') + '</button>' : '';
@@ -876,7 +929,8 @@
   });
 
   /* ---------- layout ---------- */
-  var PANES = { scenes: scenesBox, current: currentScene, ssp: function () { return playlistsBox('ss'); }, ssd: function () { return padsBox('ss'); }, cpp: function () { return playlistsBox('cp'); }, cpd: function () { return padsBox('cp'); } };
+  // Round 10 (Nik, 18 Nov 03:14, answer 6.2): On air moves like the other boxes; top, the whole width, by default.
+  var PANES = { onair: function () { return onAir(); }, scenes: scenesBox, current: currentScene, ssp: function () { return playlistsBox('ss'); }, ssd: function () { return padsBox('ss'); }, cpp: function () { return playlistsBox('cp'); }, cpd: function () { return padsBox('cp'); } };
   // On air at the top, the whole width (round 6 part 6); under it Scenes and Current scene where the eye starts, then
   // the session's things, then the campaign's.
   var LAYOUT = { 1: [['scenes', 'current', 'ssp', 'ssd', 'cpp', 'cpd']], 2: [['scenes', 'ssp', 'ssd', 'cpp', 'cpd'], ['current']], 3: [['scenes'], ['current'], ['ssp', 'ssd', 'cpp', 'cpd']] };
@@ -918,7 +972,8 @@
       var mode = layoutFor();
       // Round 9 (item 44, r9live.js): Nik's own arrangement of the boxes for this width, if he made one.
       var cols = L.liveLayout ? L.liveLayout(mode, LAYOUT[mode]) : LAYOUT[mode];
-      return '<div class="lv' + (L.arranging && L.arranging() ? ' r9-arranging' : '') + '">' + top() + (L.arrangeBar ? L.arrangeBar(mode) : '') + onAir() + '<div class="lv-cols c' + mode + (cols.widths ? ' r9-sized' : '') + '" data-scroll="lv-page"' + (cols.widths ? ' style="grid-template-columns:' + cols.widths + '"' : '') + '>' + cols.map(function (ids, ci) {
+      var airTop = !cols.some(function (c) { return c.indexOf('onair') > -1; }), wrapTop = L.arrangeWrap || function (id, html) { return html; };
+      return '<div class="lv' + (L.arranging && L.arranging() ? ' r9-arranging' : '') + '">' + top() + (L.arrangeBar ? L.arrangeBar(mode) : '') + (airTop ? wrapTop('onair', onAir(), -1, mode) : '') + '<div class="lv-cols c' + mode + (cols.widths ? ' r9-sized' : '') + '" data-scroll="lv-page"' + (cols.widths ? ' style="grid-template-columns:' + cols.widths + '"' : '') + '>' + cols.map(function (ids, ci) {
         var trays = mode === 3 && /^(ss|cp)/.test(ids[0]);
         var wrap = L.arrangeWrap || function (id, html) { return html; };
         return '<div class="col' + (trays ? ' lv-c-trays' : '') + '" data-col="' + ci + '">' + groups(ids).map(function (g) {
@@ -955,7 +1010,7 @@
       (b ? '<a role="menuitem" class="item" href="#/board/' + b.id + '">' + L.icon('grid', 's') + 'Edit the pad board ' + esc(b.name) + '</a>' : ''), sc.name);
   };
   L.acts.lvbotjoin = function (el) { moveBot(el.dataset.id, el.dataset.g, el.dataset.c); };
-  L.acts.lvbotmute = function (el) { touched(); L.botMute(el.dataset.id); };
+  L.acts.lvbotmute = function (el) { L.botMute(el.dataset.id); }; // Round 10: mute keeps the Undo
   L.acts.lvkeys = function () { S.keysOpen = !S.keysOpen; L.render(); focusK(S.keysOpen ? 'lv-keys1' : 'lv-keys'); };
   L.acts.lvhelp = function () { closeKeys(false); if (L.openHelp) L.openHelp(); };
   function closeKeys(refocus) { if (!S.keysOpen) return false; S.keysOpen = false; L.render(); if (refocus) focusK('lv-keys'); return true; }
@@ -977,15 +1032,19 @@
     changeScene(i);
     if (keep) focusK('lv-nextsc');
   }
-  L.acts.lvnext = nextScene;
+  // Round 10 (table review M2, as 0.5.2 built it): with the guard on, the second click of a double-click is ignored,
+  // as a second key press within a second is.
+  var clickDetail = 0;
+  document.addEventListener('click', function (e) { clickDetail = e.detail || 0; }, true);
+  L.acts.lvnext = function () { if (L.keyGuard !== false && clickDetail > 1) { L.say('A second Next scene within a second: ignored'); return; } nextScene(); };
   L.acts.lvstart = function (el) { changeScene(+el.dataset.i); };
   L.acts.lvundo = function () { undo(); };
   L.acts.lvundo2 = function () { undo2(); };
   L.acts.lvallsc = function () { S.allScenes = !S.allScenes; L.render(); };
   L.acts.lvsel = function (el) { S.sel = S.sel === el.dataset.sel ? null : el.dataset.sel; L.render(); };
   L.acts.lvnotes = function () { S.notesOpen = !S.notesOpen; L.render(); };
-  L.acts.lvfade = function () { touched(); L.fadeAll(L.FADE); };
-  L.acts.lvstop = function () { touched(); L.stopAll(); };
+  L.acts.lvfade = function () { L.liveFadeAll(); };
+  L.acts.lvstop = function () { L.liveStopAll(); };
   function tgArg(el) { return tgOf(el.dataset.tg); }
   L.acts.lvprevt = function (el) { touched(); L.prev(el.dataset.lane, tgArg(el)); };
   L.acts.lvnextt = function (el) { touched(); L.next(el.dataset.lane, tgArg(el)); };
@@ -1025,7 +1084,7 @@
   L.inputs.lvvol = function (el, ev) {
     var b = L.bot(el.dataset.id); if (!b) return;
     if (ev && ev.type === 'input') { b.volume = +el.value; el.setAttribute('aria-valuetext', el.value + ' percent'); el.title = 'Volume ' + el.value + '%'; return; }
-    touched(); L.botVolume(b.id, el.value);
+    L.botVolume(b.id, el.value); // Round 10: volume keeps the Undo
   };
   function channelItems(b, act) {
     var best = busiestChannel();
@@ -1101,7 +1160,7 @@
     // UX-R9: a channel nobody is in says so in the room's own words.
     var msg = c.members.length ? c.name + ' is joining. It starts silent: choose To: ' + c.name + ' in a box to play there.' : c.name + ' is joining: nobody there.'; L.say(msg); L.toast(msg);
   };
-  L.acts.lvfxstop = function (el) { touched(); var tg = el && el.dataset.tg; if (!tg) { L.stopFx(); return; } L.fxFor(tg).forEach(function (f) { f.fadeOut = .8; }); L.changed(); L.say('Effects stopped in ' + roomName(tg)); };
+  L.acts.lvfxstop = function (el) { var tg = el && el.dataset.tg; if (!tg) { L.stopFx(); return; } L.fxFor(tg).forEach(function (f) { f.fadeOut = .8; }); L.changed(); L.say('Effects stopped in ' + roomName(tg)); };
   L.acts.lvpvstop = function () { L.stopPreview(); L.say('Preview stopped'); };
   function seqOf(el) { return el.dataset.at != null && +el.dataset.at > -1 ? { cid: live().cid, sid: live().sid, scene: +el.dataset.sc, at: +el.dataset.at } : null; }
   /* Play on air: a playlist, a scene's track or a track from a list is a new plan for the room; a single track on its
@@ -1117,12 +1176,15 @@
     startEntry({ id: id, pl: pl || '', place: place || '', seq: seq }, tg);
   }
   L.acts.lvplay = function (el) {
-    var t = L.track(el.dataset.id); if (!t) return; touched();
+    var t = L.track(el.dataset.id); if (!t) return; var snap = t.kind === 'fx' ? null : roomsSnap(); touched();
+    // Round 10 (table review M4): Play on air replaces what the players hear, so it has Undo (the room's track back
+    // at its place). An effect layers over the music, like a pad, and needs none.
     eachTo(el.dataset.box || 'music', function (tg) {
       if (t.kind === 'fx') L.play(t.id, { target: tg }); // layers over the music, like a pad
       else if (t.kind === 'amb') L.play(t.id, { lane: 'amb', playlistId: el.dataset.pl || '', fade: 3, target: tg });
       else playMusic(t.id, el.dataset.pl, seqOf(el), tg, el.dataset.place || '');
     });
+    if (snap) { softUndo('Playing on air: ' + L.title(t), function () { restoreRooms(snap); }, 'strip', el.dataset.k); L.render(); }
   };
   L.acts.lvsctop = function () { touched(); var sc = scene(), q = sc ? L.sceneSequence(sc) : []; if (q[0]) eachTo('music', function (tg) { playMusic(q[0].trackId, q[0].playlistId, { cid: live().cid, sid: live().sid, scene: sess().scenes.indexOf(sc), at: 0 }, tg); }); };
   L.acts.lvpvpl = function (el) { L.previewPlaylist(el.dataset.id); };
@@ -1176,7 +1238,7 @@
   L.acts.lvqueue = function (el) { addItem(el, 'queue'); };
   L.acts.lvplaynext = function (el) { addItem(el, 'next'); };
   L.acts.lvpv = function (el) { L.preview(el.dataset.id); };
-  L.inputs.lvq = function (el) { S.q = el.value; S.findOpen = true; L.render(); };
+  L.inputs.lvq = function (el) { S.q = el.value; S.findOpen = true; S.findTyped = Date.now(); L.render(); };
   L.acts.lvtag = function (el) {
     var g = el.dataset.g, v = el.dataset.v;
     if (tagOn(g, v)) S.tags = S.tags.filter(function (x) { return !(x.g === g && x.v === v); }); else S.tags.push({ g: g, v: v });
@@ -1188,13 +1250,14 @@
   // Pads go to their box's room. With "All rooms", a pad that sounds anywhere stops everywhere.
   function firePads(bid, pid, phase, box) {
     var b = L.board(bid), p = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === pid; })[0]; if (!p) return;
-    var tgs = targetsOf(box || 'music'), ref = bid + '/' + pid; if (phase !== 'up') touched();
+    // Round 10 (table review M5, as 0.5.2 built it): a pad does not change what a room plays, so it keeps the Undo.
+    var tgs = targetsOf(box || 'music'), ref = bid + '/' + pid;
     function onIn(tg) { return L.fxFor(tg).some(function (f) { return f.ref === ref && !f.fadeOut; }); }
     if (tgs.length > 1 && phase !== 'up') { var any = tgs.some(onIn); tgs.forEach(function (tg) { if (!any || onIn(tg)) L.firePad(bid, pid, phase, tg); }); return; }
     tgs.forEach(function (tg) { L.firePad(bid, pid, phase, tg); });
   }
   L.acts.lvpad = function (el) { firePads(el.dataset.bid, el.dataset.pid, undefined, el.dataset.box); };
-  L.acts.lvpadstop = function (el) { var k = el.dataset.k; touched(); L.stopPads(); L.say('Pads stopped'); if (k === 'lv-padstop') focusK(document.querySelector('.lv-cur-pads .lv-pad') ? document.querySelector('.lv-cur-pads .lv-pad').dataset.k : 'pane-lv-current'); };
+  L.acts.lvpadstop = function (el) { var k = el.dataset.k; L.stopPads(); L.say('Pads stopped'); if (k === 'lv-padstop') focusK(document.querySelector('.lv-cur-pads .lv-pad') ? document.querySelector('.lv-cur-pads .lv-pad').dataset.k : 'pane-lv-current'); };
 
   /* ---------- keys and hold-to-play ---------- */
   function onLive() { return L.current().name === 'live'; }
@@ -1227,9 +1290,9 @@
     if (e.altKey && !e.ctrlKey && !e.metaKey && /^Digit[1-7]$/.test(e.code)) return goBox(+e.code.slice(5) - 1);
     if (e.altKey) return false;
     // Shift+Esc fades everything, even from a text box: two keys, so it is never pressed by accident.
-    if (isKey(e, 'fadeAll')) { closeKeys(false); L.fadeAll(L.FADE); return true; }
+    if (isKey(e, 'fadeAll')) { closeKeys(false); L.liveFadeAll(); return true; }
     if (e.key === 'Escape' && S.keysOpen) { closeKeys(true); return true; }
-    if (isKey(e, 'undo') && !typing) return undo();
+    if (isKey(e, 'undo') && (!typing || (t.dataset && t.dataset.k === 'lv-q' && (S.undo || S.undo2) && (S.findTyped || 0) < ((S.undo2 && S.undo2.at) || (S.undo && S.undo.until - UNDO_MS))))) return undo();
     if (isKey(e, 'nextScene') && !singleKey('nextScene')) { if (!e.repeat) nextSceneKey(); return true; }
     if (e.ctrlKey || e.metaKey) return false;
     if (typing) {
