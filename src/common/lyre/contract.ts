@@ -846,6 +846,8 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         const plan = valueOf(await api.import.planRelink({ from: "path", path: fx.relinkFolder }));
         const match = plan.matches.find((m) => m.trackId === fx.missingTrackId);
         expect(match).toBeDefined();
+        // 0.5.2 item 14: each match says why (the relink folder holds a file of the same name).
+        expect(match.reasons).toContain("name");
         expect(plan.matches.length + plan.ambiguous.length + plan.notFound.length).toBe(missing.length);
         const done = valueOf(await api.import.applyRelink([{ trackId: match.trackId, to: match.to }]));
         expect(done.relinked).toEqual([fx.missingTrackId]);

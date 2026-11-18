@@ -2,7 +2,7 @@
  * The words and small rules of the three round 5 screens (design/prototype/src/views/transfer.js): what can be saved,
  * the choices for each scope, sizes in words, and how sure a found file is.
  */
-import type { CampaignInfo, IncomingItem, MissingTrack, PadBoard, PlaylistInfo, RelinkMatch, TransferScope } from "../../../common/lyre/api";
+import type { CampaignInfo, IncomingItem, MissingTrack, PadBoard, PlaylistInfo, RelinkMatch, RelinkReason, TransferScope } from "../../../common/lyre/api";
 
 export type WhatKind = "library" | "campaign" | "session" | "scene" | "playlist" | "board" | "tags";
 
@@ -64,10 +64,24 @@ export const CHOICES = [
   { value: "keepBoth", label: "Keep both", hint: "Add theirs as a copy" },
 ] as const;
 
-/** How sure Lyre is of a found file, in words, and whether it is ticked to relink (transfer.js HOW). */
-export function howSure(match: Pick<RelinkMatch, "confidence" | "from" | "to">, missing: Pick<MissingTrack, "sizeBytes"> | undefined): { words: string; warn: boolean; ticked: boolean } {
+/**
+ * How sure Lyre is of a found file, in words that say why, and whether it is ticked to relink (transfer.js HOW; 0.5.2
+ * item 14: the sound, length and loudness, as a third reason).
+ */
+export function howSure(match: Pick<RelinkMatch, "confidence" | "from" | "to"> & { reasons?: readonly RelinkReason[] }, missing: Pick<MissingTrack, "sizeBytes"> | undefined): { words: string; warn: boolean; ticked: boolean } {
   const name = (p: string) => p.split(/[\\/]/).pop()?.toLowerCase();
-  if (match.confidence === "name") return { words: missing?.sizeBytes != null ? "Same name, different size: check it" : "Same name: check it", warn: true, ticked: false };
+  const sound = match.reasons?.includes("sound") ?? false;
+  if (match.confidence === "name") {
+    if (sound && !match.reasons?.includes("name")) return { words: "Same length and loudness, another name: check it", warn: true, ticked: false };
+    return { words: missing?.sizeBytes != null ? "Same name, different size: check it" : "Same name: check it", warn: true, ticked: false };
+  }
   if (match.confidence === "sure" && name(match.from) !== name(match.to)) return { words: "Same file under another name", warn: false, ticked: true };
+  if (sound) return { words: "Same name, length and loudness", warn: false, ticked: true };
   return { words: "Same name and size", warn: false, ticked: true };
+}
+
+/** 0.5.2 item 14: why a candidate file was offered, in a few words ("same content and name"). */
+export function reasonWords(reasons: readonly RelinkReason[]): string {
+  const words = reasons.map((r) => (r === "content" ? "content" : r === "name" ? "name" : "length and loudness"));
+  return words.length ? `same ${words.join(" and ")}` : "";
 }

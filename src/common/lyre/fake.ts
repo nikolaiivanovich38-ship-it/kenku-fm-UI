@@ -1634,8 +1634,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         for (const m of missing) {
           const name = splitPath(m.path).name.toLowerCase();
           const hits = files.filter((f) => splitPath(f).name.toLowerCase() === name);
-          if (hits.length === 1) plan.matches.push({ trackId: m.id, from: m.path, to: hits[0], confidence: "name", toUrl: fileAddress(hits[0]) });
-          else if (hits.length > 1) plan.ambiguous.push({ trackId: m.id, candidates: hits });
+          if (hits.length === 1) plan.matches.push({ trackId: m.id, from: m.path, to: hits[0], confidence: "name", reasons: ["name"], toUrl: fileAddress(hits[0]) });
+          else if (hits.length > 1) plan.ambiguous.push({ trackId: m.id, candidates: hits, reasons: hits.map(() => ["name"]) });
           else plan.notFound.push(m.id);
         }
         plan.summary = folder

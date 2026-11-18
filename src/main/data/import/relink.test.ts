@@ -13,6 +13,7 @@ import { addRoot } from "../repo/roots";
 import { createTrack, getTrack, resolveTrackLocation } from "../repo/tracks";
 import { readFileFacts } from "./fileFacts";
 import { applyRelink, findMissingTracks, planRelink } from "./relink";
+import { saveLoudness } from "../repo/loudness";
 import { writeAudio } from "./testing/fixtures";
 
 let temp: ReturnType<typeof makeTempFolder>;
@@ -32,7 +33,10 @@ afterEach(() => {
 async function trackMovedTo(relativeFrom: string, to: string | null, content: string, extra: Record<string, unknown> = {}) {
   const from = writeAudio(path.join(temp.folder, "Old"), relativeFrom, content);
   const facts = await readFileFacts(from);
-  const track = createTrack(t.store, { title: path.basename(relativeFrom), file: facts, ...extra });
+  const { loudness, ...rest } = extra as { loudness?: { lufs: number; truePeakDb: number } };
+  const track = createTrack(t.store, { title: path.basename(relativeFrom), file: facts, ...rest });
+  // 0.5.2 item 14: what Lyre measured from the file while it was there.
+  if (loudness) saveLoudness(t.store, { trackId: track.id, file: from, fileSize: facts.size ?? null, fileMtimeMs: facts.mtimeMs ?? null }, loudness);
   if (to) {
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.renameSync(from, to);
@@ -119,9 +123,92 @@ describe("planRelink and applyRelink (DAT-8)", () => {
     const plan = await planRelink(t.store, await findMissingTracks(t.store), newHome);
     expect(plan.matches.map((m) => [m.trackId, m.to])).toEqual([[a.id, witcher]]);
     expect(plan.ambiguous).toEqual([
-      { trackId: b.id, candidates: [path.join(newHome, "One", "main.flac"), path.join(newHome, "Two", "main.flac")] },
+      {
+        trackId: b.id,
+        candidates: [path.join(newHome, "One", "main.flac"), path.join(newHome, "Two", "main.flac")],
+        reasons: [
+          ["content", "name"],
+          ["content", "name"],
+        ],
+      },
     ]);
     expect(plan.summary).toBe("Found 1 of 2 missing files. 1 has more than one possible file: choose which.");
+  });
+
+  describe("0.5.2 item 14: by name, by content and by sound (length and loudness), ranked, saying why", () => {
+    /** Stands in for reading each file's length (its tags) and measuring its loudness (ffmpeg), counting reads. */
+    function soundOf(files: Record<string, { durationMs: number; lufs: number }>) {
+      const reads = { duration: 0, loudness: 0 };
+      const probe = {
+        durationMs: async (file: string) => (reads.duration++, files[path.basename(file)]?.durationMs ?? null),
+        lufs: async (file: string) => (reads.loudness++, files[path.basename(file)]?.lufs ?? null),
+      };
+      return { probe, reads };
+    }
+    const sounded = (durationMs: number, lufs: number) => ({ durationMs, loudness: { lufs, truePeakDb: -1 } });
+
+    it("moved: the same name and content in another folder is sure, because of both", async () => {
+      const newHome = path.join(temp.folder, "New");
+      const track = await trackMovedTo("theme.flac", path.join(newHome, "Deep", "theme.flac"), "theme bytes");
+      const plan = await planRelink(t.store, await findMissingTracks(t.store), newHome);
+      expect(plan.matches).toEqual([expect.objectContaining({ trackId: track.id, confidence: "sure", reasons: ["content", "name"] })]);
+    });
+
+    it("renamed: the same content under another name is sure, because of its content", async () => {
+      const newHome = path.join(temp.folder, "New");
+      const track = await trackMovedTo("door.wav", path.join(newHome, "door creak.wav"), "door bytes");
+      const plan = await planRelink(t.store, await findMissingTracks(t.store), newHome);
+      expect(plan.matches).toEqual([expect.objectContaining({ trackId: track.id, confidence: "sure", reasons: ["content"] })]);
+    });
+
+    it("moved and renamed: found by its content wherever it went", async () => {
+      const newHome = path.join(temp.folder, "New");
+      const track = await trackMovedTo("Old folder/rain.ogg", path.join(newHome, "Weather", "Wet", "heavy rain (loop).ogg"), "rain bytes");
+      writeAudio(newHome, "Weather/rain.ogg", "another rain"); // a stranger with its old name
+      const plan = await planRelink(t.store, await findMissingTracks(t.store), newHome);
+      expect(plan.matches).toEqual([expect.objectContaining({ trackId: track.id, to: path.join(newHome, "Weather", "Wet", "heavy rain (loop).ogg"), confidence: "sure", reasons: ["content"] })]);
+    });
+
+    it("re-encoded and renamed: the same length and loudness is offered to check, by sound, not ticked", async () => {
+      const newHome = path.join(temp.folder, "New");
+      const track = await trackMovedTo("battle.flac", null, "flac bytes", sounded(600_000, -14.2));
+      writeAudio(newHome, "Battle for Varden.mp3", "mp3 bytes");
+      writeAudio(newHome, "Other piece.mp3", "other bytes");
+      const { probe } = soundOf({ "Battle for Varden.mp3": { durationMs: 599_400, lufs: -14.0 }, "Other piece.mp3": { durationMs: 200_000, lufs: -14.1 } });
+      const plan = await planRelink(t.store, await findMissingTracks(t.store), newHome, { sound: probe });
+      expect(plan.matches).toEqual([expect.objectContaining({ trackId: track.id, to: path.join(newHome, "Battle for Varden.mp3"), confidence: "name", reasons: ["sound"] })]);
+    });
+
+    it("moved and re-encoded: the same name and sound is likely (ticked); a sound that differs is only a name to check", async () => {
+      const newHome = path.join(temp.folder, "New");
+      const same = await trackMovedTo("march.flac", null, "v1", sounded(120_000, -16));
+      const changed = await trackMovedTo("hymn.flac", null, "v1", sounded(120_000, -16));
+      writeAudio(newHome, "Re/march.flac", "v2 bytes");
+      writeAudio(newHome, "Re/hymn.flac", "v2 bytes, longer");
+      const { probe } = soundOf({ "march.flac": { durationMs: 120_300, lufs: -15.6 }, "hymn.flac": { durationMs: 95_000, lufs: -16 } });
+      const plan = await planRelink(t.store, await findMissingTracks(t.store), newHome, { sound: probe });
+      expect(plan.matches).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ trackId: same.id, confidence: "likely", reasons: ["name", "sound"] }),
+          expect.objectContaining({ trackId: changed.id, confidence: "name", reasons: ["name"] }),
+        ]),
+      );
+    });
+
+    it("ranks: of two files with its name, the one that also sounds the same wins, with no question", async () => {
+      const newHome = path.join(temp.folder, "New");
+      const track = await trackMovedTo("theme.flac", null, "v1", sounded(300_000, -18));
+      const right = writeAudio(newHome, "A/theme.flac", "v2");
+      writeAudio(newHome, "B/theme.flac", "v3");
+      const { probe, reads } = soundOf({});
+      probe.durationMs = async (file: string) => (reads.duration++, file === right ? 300_200 : 180_000);
+      probe.lufs = async (file: string) => (reads.loudness++, file === right ? -18.3 : -18);
+      const plan = await planRelink(t.store, await findMissingTracks(t.store), newHome, { sound: probe });
+      expect(plan.ambiguous).toEqual([]);
+      expect(plan.matches).toEqual([expect.objectContaining({ trackId: track.id, to: right, confidence: "likely", reasons: ["name", "sound"] })]);
+      // Loudness is measured only for a file whose length fits.
+      expect(reads.loudness).toBe(1);
+    });
   });
 
   it("relinks as one undo step, storing the new place under a library folder when it is in one", async () => {

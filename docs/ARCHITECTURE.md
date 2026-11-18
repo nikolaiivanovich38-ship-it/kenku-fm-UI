@@ -929,3 +929,12 @@ Built straight in the app, as 0.5.1's changes were. Each item's unit or componen
   `kit/ShapeFilter.tsx` (`ShapeFilter`, `matchesShapes`) is the Library's pattern as a kit piece: five chips, any number
   pressed, Clear while one is. `PickerDialog` takes `shapeOf` to show it (a shape pressed hides what is not a track).
   The pad editor's sound chooser (FX) was left without: a sound effect's shape says little.
+- **Find missing files (item 14).** `planRelink` (`src/main/data/import/relink.ts`) matches by name, by content (the
+  quick checksum) and by sound: the same length (within a second, or 1 % of a long track) and loudness (within 1 LU)
+  as Lyre measured the track while its file was there (`track_loudness`). The library's process reads a candidate's
+  length from its tags (else ffmpeg) and measures its loudness with ffmpeg only when the length fits (`soundProbe` in
+  `libraryApi.ts`); without ffmpeg nothing matches by sound. Name and sound together are "likely" (ticked); sound
+  alone (renamed and re-encoded) is offered to check, with Preview. Candidates are ranked (how sure, how many reasons,
+  the folders), and each match and choice says why (`RelinkMatch.reasons`; the Find missing files table and its
+  "Which file" list). Tests: `relink.test.ts` (moved, renamed, both, re-encoded, ranking, loudness measured only when
+  the length fits), `transfer/model.test.ts`, `TransferScreens.test.tsx`.

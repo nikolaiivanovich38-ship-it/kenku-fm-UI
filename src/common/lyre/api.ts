@@ -545,16 +545,24 @@ export interface RelinkMatch {
    * are ticked to relink, name is not (the game master listens first).
    */
   confidence: "sure" | "likely" | "name";
+  /**
+   * 0.5.2 item 14: why this file: the same content (its checksum), the same name, the same sound (its length and
+   * loudness as Lyre measured the track). "name" confidence with only "sound" is a renamed, re-encoded copy to check.
+   */
+  reasons: RelinkReason[];
   /** DAT-8: the address the found file plays from, for its Preview before relinking. */
   toUrl: string;
 }
+
+/** 0.5.2 item 14: why Find missing files took a file for a track. */
+export type RelinkReason = "content" | "name" | "sound";
 
 export interface RelinkPlan {
   /** The folder that was searched. */
   folder: string;
   matches: RelinkMatch[];
-  /** Missing tracks with several equally good files: the screen asks which. */
-  ambiguous: { trackId: string; candidates: string[] }[];
+  /** Missing tracks with several equally good files: the screen asks which (0.5.2: `reasons`, why each, same order). */
+  ambiguous: { trackId: string; candidates: string[]; reasons: RelinkReason[][] }[];
   notFound: string[];
   summary: string;
 }

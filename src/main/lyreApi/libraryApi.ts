@@ -171,7 +171,7 @@ import {
   type UseTarget,
 } from "../data";
 import { nextTurn } from "../data/store";
-import { diskProbe, type FileProbe } from "../data/import/relink";
+import { diskProbe, type FileProbe, type SoundProbe } from "../data/import/relink";
 import { joinRoot, unsafeFolderReason } from "../data/paths";
 import { saveLyreFile, openLyreFile, bringInLyreFile, type OpenTransfer, type TransferFiles } from "./transferApi";
 import { withCheckedArguments } from "./argChecks";
@@ -489,6 +489,14 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     });
   }
   const requireTrack = (id: string) => libraryTracks(id)[0] ?? refuse("not-found", ENTITY_WORDS.track);
+  /**
+   * 0.5.2 item 14: Find missing files' ear: a file's length from its tags (else ffmpeg), its loudness from ffmpeg's
+   * measure (none without ffmpeg, so nothing matches by sound there).
+   */
+  const soundProbe: SoundProbe = {
+    durationMs: async (file) => (await options.tagReader?.read(file).catch((): null => null))?.durationMs ?? (options.lengthProbe ? await options.lengthProbe(file) : null),
+    ...(options.loudnessReader ? { lufs: async (file: string) => (await options.loudnessReader?.measure(file, new AbortController().signal))?.lufs ?? null } : {}),
+  };
   /** 0.5.2: the tracks named, each once, all in the library (else the write is refused, nothing changed). */
   const existingTracks = (ids: readonly string[]) => {
     const unique = [...new Set(ids)];
@@ -1584,13 +1592,13 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           // Security review 5: looking through a whole drive or a system folder would read every file in it.
           const unsafe = unsafeFolderReason(folder);
           if (unsafe) refuse("invalid", unsafe, "path");
-          const plan = await planRelink(store, await findMissingTracks(store, { probe }), folder, { probe });
+          const plan = await planRelink(store, await findMissingTracks(store, { probe }), folder, { probe, sound: soundProbe });
           planned = new Map(plan.matches.map((m) => [relinkKey(m.trackId, m.to), m]));
           previewGrant = null;
           plannedChoices = new Set(plan.ambiguous.flatMap((a) => a.candidates.map((to) => relinkKey(a.trackId, to))));
           return {
             folder,
-            matches: plan.matches.map((m) => ({ trackId: m.trackId, from: m.from, to: m.to, confidence: m.confidence, toUrl: fileAddress(m.to) })),
+            matches: plan.matches.map((m) => ({ trackId: m.trackId, from: m.from, to: m.to, confidence: m.confidence, reasons: m.reasons, toUrl: fileAddress(m.to) })),
             ambiguous: plan.ambiguous,
             notFound: plan.notFound,
             summary: plan.summary,
