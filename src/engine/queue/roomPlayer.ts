@@ -52,7 +52,7 @@ import {
   type UsePlace,
 } from "../../common/domain";
 import type { PlaybackEngine } from "../engine";
-import { endsAtFileEnd, laneProfile, profileInputFor } from "../profile/trackProfile";
+import { endsAtFileEnd, laneProfile, profileInputFor, repeatProfile } from "../profile/trackProfile";
 import type { Scheduler } from "../audio/types";
 import { positionAfter } from "../profile/position";
 import type { RoomLane, RoomsAudio } from "../rooms.contract";
@@ -163,6 +163,8 @@ interface LaneVoice {
   after: AfterEnd;
   /** The profile it plays with (where its mix-out marker and End are). */
   profile: AudioProfile;
+  /** 37: its profile where it plays, before Repeat one made it go round. */
+  base: AudioProfile;
 }
 
 /** What a screen adds to a room's list: one track (with where it came from) or a playlist's tracks in its order there. */
@@ -271,7 +273,23 @@ export class RoomPlayer {
   /** PLY-17: the room's Repeat for what plays now (null: back to what the music does by itself). */
   setRepeat(repeat: RoomRepeat): void {
     this.list = setRoomRepeat(this.list, repeat);
+    this.applyRepeat();
     this.deps.changed();
+  }
+
+  /**
+   * 37: the music that plays goes round by its loop setting while Repeat one applies to it, and back to its own
+   * profile when it no longer does (a track that does not loop is played again when it ends instead).
+   */
+  private applyRepeat(): void {
+    const lane = this.musicVoice;
+    const track = lane ? this.deps.library.track(lane.item.trackId) : undefined;
+    if (!lane || !track || lane.voice.isFinal()) return;
+    const profile = (this.shownRepeat() === "one" ? repeatProfile(track, lane.base) : null) ?? lane.base;
+    if (profile === lane.profile) return;
+    lane.profile = profile;
+    lane.after = profile.after;
+    lane.voice.setProfile(profile, endsAtFileEnd(track, profile));
   }
 
   /**
@@ -616,8 +634,9 @@ export class RoomPlayer {
       const started = this.ambienceVoice;
       // PLY-13: an ambience playlist's track that ends by itself goes on as the playlist's play order says.
       started.voice.on("ended", () => {
-        if (this.ambienceVoice !== started || started.after !== "next") return;
-        const next = afterTrackEnded(item, this.deps.library);
+        if (this.ambienceVoice !== started) return;
+        // 43: ambience whose settings say "stop" ends there; "next" goes on as its playlist's play order says.
+        const next = started.after === "next" ? afterTrackEnded(item, this.deps.library) : null;
         if (next) this.playAmbience(next, 0);
         else {
           this.ambienceVoice = null;
@@ -787,8 +806,9 @@ export class RoomPlayer {
     };
   }
 
-  /** PLY-15: the library or a choice changed: what plays moves to its new gain, smoothly. */
+  /** PLY-15: the library or a choice changed: what plays moves to its new gain, smoothly (and 37: to its Repeat). */
   refreshGains(): void {
+    this.applyRepeat();
     const lib = this.deps.library;
     for (const lane of [this.musicVoice, this.ambienceVoice]) {
       if (lane && !lane.voice.isFinal()) lane.voice.setGainDb(this.gainOf(lib.track(lane.item.trackId), lane.item.playlistId));
@@ -827,12 +847,14 @@ export class RoomPlayer {
     const byDefault = profile.startAtMs != null ? profile.startAtMs / 1000 : undefined;
     const startAt = resume ? positionAfter(profile, resume.at, resume.elapsed) : (fromSeconds ?? picked ?? byDefault);
     if (lane === "music") this.musicLevel = 1;
-    const voice = this.play(lane, found, profile, {
+    // 37: music that Repeat one applies to goes round by the track's loop setting.
+    const heard = (lane === "music" && this.shownRepeat() === "one" ? repeatProfile(found.track, profile) : null) ?? profile;
+    const voice = this.play(lane, found, heard, {
       gainDb: this.gainOf(found.track, item.playlistId),
       crossfadeInSeconds: fadeSeconds,
       startAt,
     });
-    return { voice, item, after: profile.after, profile };
+    return { voice, item, after: heard.after, profile: heard, base: profile };
   }
 
   /** PLY-4: where a "Pick up where it stopped" track was stopped (near its end: from the top next time). */

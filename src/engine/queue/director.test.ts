@@ -731,6 +731,118 @@ describe("45: what plays is what Up next said, round after round", () => {
   });
 });
 
+/*
+ * 37 (Nik's play test, 14 Nov): "Ensure the repeat function triggers the track loop and cross-fade settings
+ * everywhere, with the appropriate context." Repeat one goes round as the track's loop setting says, with its audio
+ * profile where it plays: Loops well goes back to Loop start at End in the same play, Crossfade the loop crossfades
+ * there (its own crossfade, else 2 s), Do not loop plays it again from Start.
+ */
+describe("37: Repeat one uses the track's loop setting and crossfade", () => {
+  const voices = () => context.allNodes.filter((n) => n.constructor.name === "FakeMediaSource").length;
+  /** A track whose file is as long as the library says. */
+  const add = (t: ReturnType<typeof track>) => {
+    data.tracks.push(t);
+    context.mediaDurations.set(t.url, t.durationMs / 1000);
+  };
+
+  it("Loops well: at End it goes back to Loop start in the same play, with no fade in again", async () => {
+    add(track("lw", 10, { loop: "yes", profile: { after: "next", loopStartMs: 2000, fadeIn: { ms: 1000, shape: 50 } } }));
+    await run({ type: "playTrack", trackId: "lw", target: table, fadeMs: 0 });
+    director.setRepeat("one", table);
+    await context.advance(9.5);
+    const opened = voices();
+    await context.advance(1);
+    expect(music()).toBe("lw");
+    expect(director.report()[0].music?.positionSeconds).toBeGreaterThan(2);
+    expect(director.report()[0].music?.positionSeconds).toBeLessThan(3.5);
+    // No second fade in: full level straight after the loop point.
+    expect(rooms.hear("table", "music")).toBeCloseTo(1);
+    expect(voices()).toBeLessThanOrEqual(opened + 1);
+  });
+
+  it("Crossfade the loop: the end and Loop start overlap over the crossfade (2 s when it has none of its own)", async () => {
+    add(track("cf", 10, { loop: "crossfade", profile: { loopStartMs: 1000 } }));
+    await run({ type: "playTrack", trackId: "cf", target: table, fadeMs: 0 });
+    director.setRepeat("one", table);
+    await context.advance(9);
+    // Halfway through the 2 s crossfade both passes sound, each at half.
+    expect(rooms.hear("table", "music")).toBeCloseTo(1, 1);
+    const passes = context.elements.filter((e) => e.holdsMedia && !e.paused).length;
+    expect(passes).toBe(2);
+    await context.advance(2);
+    expect(music()).toBe("cf");
+    // The loop pass started at 8 s from Loop start (1 s): 3 s on, it is at 4 s.
+    expect(director.report()[0].music?.positionSeconds).toBeGreaterThan(3.5);
+    expect(director.report()[0].music?.positionSeconds).toBeLessThan(4.5);
+  });
+
+  it("Do not loop: Repeat one plays it again from Start", async () => {
+    add(track("dn", 10, { loop: "no", profile: { startMs: 1000 } }));
+    await run({ type: "playTrack", trackId: "dn", target: table, fadeMs: 0 });
+    director.setRepeat("one", table);
+    await context.advance(9.5);
+    expect(music()).toBe("dn");
+    expect(director.report()[0].music?.positionSeconds).toBeGreaterThan(1);
+    expect(director.report()[0].music?.positionSeconds).toBeLessThan(2);
+  });
+
+  it("Repeat one pressed while it plays, then off again: it loops at End, and with Repeat off it moves on at End", async () => {
+    add(track("lw", 10, { loop: "yes", profile: { after: "next" } }));
+    data.playlists.push({ id: "LW", name: "Loops", lane: "music", kind: "manual", trackIds: ["lw", "m3"] });
+    await run({ type: "playPlaylist", playlistId: "LW", target: table, fadeMs: 0 });
+    await context.advance(3);
+    director.setRepeat("one", table);
+    await context.advance(8);
+    expect(music()).toBe("lw");
+    expect(director.report()[0].music?.positionSeconds).toBeLessThan(2);
+    director.setRepeat("off", table);
+    await context.advance(10);
+    expect(music()).toBe("m3");
+  });
+
+  it("in a scene, a saved Repeat one loops from the scene's own Loop start for that track", async () => {
+    data.tracks.find((t) => t.id === "m1")!.loop = "yes";
+    data.repeatOnes = { [placeKey({ kind: "scene", ...S1 })]: ["m1"] };
+    data.profiles![placeKey({ kind: "scene", ...S1 })].m1 = { endMs: 5000, loopStartMs: 3000, after: "next" };
+    await run({ type: "startScene", scene: S1 });
+    await context.advance(5.5);
+    expect(music()).toBe("m1");
+    expect(director.report()[0].music?.positionSeconds).toBeGreaterThan(3);
+    expect(director.report()[0].music?.positionSeconds).toBeLessThan(4);
+  });
+});
+
+/*
+ * 43 (Nik's play test, 14 Nov): "Need ambience on a constant loop by default unless I switch that off." Ambience loops
+ * unless its audio profile says otherwise, for the track or for the place it plays in (What happens at the end).
+ */
+describe("43: ambience loops by default, unless its settings say not to", () => {
+  it("an ambience track with nothing chosen loops", async () => {
+    await run({ type: "playTrack", trackId: "amb2", target: table, fadeMs: 0 });
+    await context.advance(65);
+    expect(ambience()).toBe("amb2");
+    expect(rooms.hear("table", "ambience")).toBeCloseTo(1);
+  });
+
+  it("the track's own settings can switch the loop off: it plays once and the ambience stops", async () => {
+    data.tracks.find((t) => t.id === "amb2")!.profile = { after: "stop" };
+    await run({ type: "playTrack", trackId: "amb2", target: table, fadeMs: 0 });
+    await context.advance(31);
+    expect(ambience()).toBeNull();
+    expect(rooms.hear("table", "ambience")).toBe(0);
+  });
+
+  it("a scene's own settings can switch it off for that scene only: an ambience playlist then moves on to its next track", async () => {
+    data.profiles![placeKey({ kind: "scene", ...S1 })].amb1 = { after: "next" };
+    await run({ type: "startScene", scene: S1 });
+    await context.advance(31);
+    expect(ambience()).toBe("amb2");
+    await run({ type: "startScene", scene: S2 });
+    await context.advance(65);
+    expect(ambience()).toBe("amb2");
+  });
+});
+
 describe("46: where the shuffle's randomness comes from", () => {
   it("with no random numbers given, a shuffled playlist is dealt from the cryptographic random numbers", async () => {
     const spy = vi.spyOn(globalThis.crypto, "getRandomValues");

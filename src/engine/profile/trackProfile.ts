@@ -51,8 +51,8 @@ export function trackProfile(
 export type PlayLane = "music" | "ambience" | "effects";
 
 /**
- * The profile a lane plays a track with: ambience always loops (as the
- * prototype's ambience does), an effect plays once, music follows the track.
+ * The profile a lane plays a track with: ambience loops unless its settings say otherwise (43; the prototype's
+ * ambience always looped), an effect plays once, music follows the track.
  */
 export function laneProfile(
   track: DomainTrack,
@@ -62,7 +62,8 @@ export function laneProfile(
 ): AudioProfile {
   const { profile } = trackProfile(track, places, overrides);
   if (lane === "ambience") {
-    return { ...profile, after: "loop" };
+    // 43: ambience loops unless its settings for the place, or the track's own, say what happens at its end.
+    return chosenInput(track, places, overrides).after === undefined ? { ...profile, after: "loop" } : profile;
   }
   if (lane === "effects") {
     return { ...profile, after: "stop" };
@@ -91,4 +92,20 @@ function chosenInput(track: DomainTrack, places: readonly ProfilePlace[], overri
  */
 export function endsAtFileEnd(track: Pick<DomainTrack, "durationMs">, profile: Pick<AudioProfile, "endMs">): boolean {
   return profile.endMs >= Math.max(0, track.durationMs || 0);
+}
+
+/** 37: the loop crossfade Repeat one uses for a track whose loop setting is "Crossfade the loop" and has none of its own. */
+export const REPEAT_CROSSFADE_MS = 2000;
+
+/**
+ * 37: how a track goes round when Repeat one applies to it, by its loop setting, with its profile where it plays:
+ * "Do not loop" starts it again from Start (null: play it again); otherwise it goes back to Loop start at End in the
+ * same play, with its loop crossfade ("Crossfade the loop" without one of its own crossfades over REPEAT_CROSSFADE_MS,
+ * at most half the looped part).
+ */
+export function repeatProfile(track: Pick<DomainTrack, "loop">, profile: AudioProfile): AudioProfile | null {
+  if (track.loop === "no") return null;
+  const half = Math.max(0, (profile.endMs - profile.loopStartMs) / 2);
+  const crossfade = profile.loopCrossfadeMs > 0 || track.loop !== "crossfade" ? profile.loopCrossfadeMs : Math.min(REPEAT_CROSSFADE_MS, half);
+  return { ...profile, after: "loop", loopCrossfadeMs: crossfade };
 }
