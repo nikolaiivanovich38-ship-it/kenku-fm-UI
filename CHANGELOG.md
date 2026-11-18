@@ -47,6 +47,7 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 - Pads, volume and mute no longer take away the Undo for the scene you just started.
 - After Play on air, Ctrl+Z in Find undoes in Live instead of deleting letters from the search.
 - A bot that loses its connection shows "Connection lost · players hear nothing", with Try again.
+- In Live, a click on a row's button no longer moves the rows below it, so the next click lands. A row shows its whole name when you reach it with the keyboard.
 
 ## [0.5.1] - 2026-11-12: Lyre is the whole window; fixes and requests from your test of 0.5.0
 
