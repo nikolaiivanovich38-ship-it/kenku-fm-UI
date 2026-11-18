@@ -50,6 +50,21 @@ export function withDividers(trackIds: readonly string[], dividers: readonly Pla
   return out;
 }
 
+/**
+ * 0.5.2 (Nik's item 36): the tracks and dividers of a list as shown, back to a playlist's trackIds and dividers (each
+ * divider above the track after it), so a track or divider moved in the list lands on the side of a divider it was
+ * dropped on. withDividers(layoutOf(entries)) gives the entries back.
+ */
+export function layoutOf(entries: readonly PlaylistEntry[]): { trackIds: string[]; dividers: PlaylistDivider[] } {
+  const trackIds: string[] = [];
+  const dividers: PlaylistDivider[] = [];
+  for (const e of entries) {
+    if (e.kind === "track") trackIds.push(e.trackId);
+    else dividers.push({ id: e.id, name: e.name, at: trackIds.length });
+  }
+  return { trackIds, dividers };
+}
+
 /** DAT-14: every scene's names for its tracks, keyed by scene key as trackNameIn takes them, from the campaign trees. */
 export function trackNamesOf(campaigns: readonly CampaignInfo[]): TrackNames {
   const out: TrackNames = {};
