@@ -727,4 +727,34 @@ test.describe("round 10: the planner", () => {
     await expect(dialog(page)).toHaveCount(0);
     expect(await linkNames(musicOf(abbey(page)))).toContain("Abbey fight");
   });
+
+  test("Add pad boards: New board… makes a board and puts it in the scene, as Make a playlist of these… does (Nik, 18 Nov, round 10 answer 4)", async ({ page }) => {
+    await openAbbey(page);
+    const boards = abbey(page).getByRole("list", { name: "Pad boards in order" });
+    const before = await linkNames(boards);
+    await abbey(page).getByRole("button", { name: "Add pad boards… to The abbey ruins" }).click();
+    const panel = dialog(page);
+    await panel.getByRole("button", { name: "New board…" }).click();
+    await panel.getByRole("textbox", { name: "New board" }).fill("Abbey bells");
+    await panel.getByRole("button", { name: "Make it and add it" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    expect(await linkNames(boards)).toEqual([...before, "Abbey bells"]);
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Pad boards" }).click();
+    await expect(page.getByRole("main")).toContainText("Abbey bells");
+  });
+
+  test("New board… with Back keeps the ticks; the board is made only with Make it and add it", async ({ page }) => {
+    await openAbbey(page);
+    await abbey(page).getByRole("button", { name: "Add pad boards… to The abbey ruins" }).click();
+    const panel = dialog(page);
+    const ticked = await panel.getByRole("checkbox", { checked: true }).count();
+    await panel.getByRole("button", { name: "New board…" }).click();
+    await expect(panel.getByRole("textbox", { name: "New board" })).toBeFocused();
+    await panel.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(panel.getByRole("button", { name: "New board…" })).toBeFocused();
+    await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(ticked);
+    await panel.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Pad boards" }).click();
+    await expect(page.getByRole("main")).not.toContainText("New board 1");
+  });
 });

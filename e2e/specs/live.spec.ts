@@ -1670,3 +1670,44 @@ test.describe("round 10: Arrange with a grip, an edge and one Move… per box; O
     expect(air2.width).toBeGreaterThan(scenes.width * 1.5);
   });
 });
+
+/* Round 10, Nik's answers to its questions (18 Nov; R6-NIK-DECISIONS.md, "answers to the round 10 merge agent's 4
+   questions"). Not built yet. */
+test.describe("round 10: Nik's answers on the strip at half a screen and on Rooms", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  /** The words a person sees on a button (innerText leaves out what is not shown). */
+  const shown = (page: Page, name: string) => page.getByRole("button", { name, exact: true }).evaluate((b) => (b as HTMLElement).innerText.trim());
+
+  test("answer 2: at half a 1920 screen Fade all and Stop all are icons, with their names, hover text and key; words from 1000 px up", async ({ page }) => {
+    await page.setViewportSize({ width: 960, height: 1000 });
+    await openRoute(page, "live");
+    const fade = page.getByRole("button", { name: "Fade all", exact: true }), stop = page.getByRole("button", { name: "Stop all", exact: true });
+    expect(await shown(page, "Fade all")).toBe("");
+    expect(await shown(page, "Stop all")).toBe("");
+    await expect(fade).toHaveAttribute("title", /^Fade all\b.*Shift\+Esc/);
+    await expect(fade).toHaveAttribute("aria-keyshortcuts", "Shift+Escape");
+    await expect(stop).toHaveAttribute("title", /^Stop all\b/);
+    await page.setViewportSize({ width: 999, height: 1000 });
+    expect(await shown(page, "Fade all")).toBe("");
+    await page.setViewportSize({ width: 1000, height: 1000 });
+    await expect.poll(() => shown(page, "Fade all")).toBe("Fade all");
+    expect(await shown(page, "Stop all")).toBe("Stop all");
+  });
+
+  test("answer 3: no Rooms… line in Live's room menus; Rooms opens from the menu under Settings", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await page.getByRole("button", { name: ROOM_TABLE }).click();
+    const menu = page.getByRole("menu", { name: "Room Table" });
+    await expect(menu.getByRole("menuitem", { name: LEAVE_TABLE })).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: /Rooms/ })).toHaveCount(0);
+    await expect(menu.getByRole("link", { name: /Rooms/ })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Add a room" }).click();
+    await expect(page.getByRole("menu").getByRole("menuitem", { name: /Rooms/ })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("main").getByRole("link", { name: /^Rooms/ })).toHaveCount(0);
+    await page.getByRole("link", { name: /^Rooms \(/ }).click(); // the menu's foot, under Settings
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Rooms");
+  });
+});

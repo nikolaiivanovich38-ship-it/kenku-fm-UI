@@ -118,3 +118,33 @@ test.describe("round 7: motion and target size", () => {
   });
 });
 
+
+/* Round 10 (Nik, 18 Nov, answer 1 to round 10's questions): Parchment's oxblood buttons become ink blue, so the red On
+   air light stands out, as Hearth and Iron's orange became iron teal. Not built yet. */
+test.describe("round 10: Parchment's buttons are ink blue", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+
+  test("a main button in Parchment is ink blue, far from On air's red, and its words and its edge keep AA contrast", async ({ page }) => {
+    await openRoute(page, "boards", { theme: "parchment" });
+    const button = page.getByRole("button", { name: "New board", exact: true });
+    const c = await button.evaluate((el) => {
+      const rgb = (s: string) => (s.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+      const lum = (v: number[]) => {
+        const [r, g, b] = v.map((x) => { const s = x / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const ratio = (a: number[], b: number[]) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+      const fill = rgb(getComputedStyle(el).backgroundColor), ink = rgb(getComputedStyle(el).color);
+      let behind: number[] = [];
+      for (let n = el.parentElement; n && !behind.length; n = n.parentElement) { const s = getComputedStyle(n).backgroundColor; if (!/rgba\(.*,\s*0\)$|transparent/.test(s)) behind = rgb(s); }
+      const [r, g, b] = fill.map((x) => x / 255), max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+      const hue = d === 0 ? 0 : max === r ? (60 * ((g - b) / d) + 360) % 360 : max === g ? 60 * ((b - r) / d) + 120 : 60 * ((r - g) / d) + 240;
+      return { hue, sat: max === 0 ? 0 : d / max, text: ratio(fill, ink), edge: ratio(fill, behind) };
+    });
+    expect(c.hue, "ink blue").toBeGreaterThanOrEqual(200);
+    expect(c.hue, "ink blue").toBeLessThanOrEqual(240);
+    expect(c.sat).toBeGreaterThan(0.3);
+    expect(c.text, "its words on its colour (1.4.3)").toBeGreaterThanOrEqual(4.5);
+    expect(c.edge, "the button against the page (1.4.11)").toBeGreaterThanOrEqual(3);
+  });
+});
