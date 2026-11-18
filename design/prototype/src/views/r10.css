@@ -127,3 +127,6 @@
 .r10-undo-slot .lv-undo > .ellipsis { min-width: 0; }
 .r10-undo-slot .lv-undo .btn { flex: none; }
 @container app (max-width: 1100px) { .r10-undo-slot .lv-undo > .ellipsis { display: none; } .r10-undo-slot:not(:empty) { min-width: 0; flex: none; } }
+/* A nested track's name reads as a name, like the other rows; it underlines on hover and focus. */
+a.r9-dragname { color: inherit; text-decoration: none; }
+a.r9-dragname:hover, a.r9-dragname:focus-visible { text-decoration: underline; }

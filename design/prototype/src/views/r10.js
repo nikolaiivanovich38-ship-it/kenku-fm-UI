@@ -16,7 +16,7 @@
   L.sceneStartLine = function (ref, sc) {
     var w = L.stepsWords ? L.stepsWords('scene', ref) : '';
     var then = sc.then === 'end' ? 'then the next scene when its music ends' : sc.then === 'after' ? 'then the next scene after ' + (sc.afterMin || 5) + ' minutes' : 'then it waits for Next scene';
-    var text = (w ? w.charAt(0).toUpperCase() + w.slice(1) + ', ' : '') + then;
+    var text = ((w ? w.charAt(0).toUpperCase() + w.slice(1) + ', ' : '') + then).replace(/, then (\w)/g, function (m, c) { return ', then ' + c.toLowerCase(); });
     return '<div class="field cp-span r10-start" role="group" aria-labelledby="r10-st-' + sc.id + '"><span class="label" id="r10-st-' + sc.id + '">When it starts</span>' +
       '<div class="r10-start-row"><span class="grow r10-start-w">' + esc(text) + '</span>' +
       '<button class="btn s" data-act="stepsopen" data-what="scene" data-ref="' + esc(ref) + '" data-k="scstart-' + sc.id + '" aria-label="Change what ' + esc(sc.name || 'the scene') + ' does when it starts">Change…</button></div></div>';
