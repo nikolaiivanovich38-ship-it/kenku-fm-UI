@@ -4,7 +4,8 @@
    #/session/<cid>/<sid>  the session planner: scenes (Starts when, music: tracks and playlists in any mix,
                           ambience: a track or ambience playlist, pad boards: several, notes),
                           session playlists and pad boards, and a reminder of the campaign's playlists.
-   Playlists and pad boards are never made here, only assigned (they live on the Playlists and Pad boards pages). */
+   Playlists and pad boards live on the Playlists and Pad boards pages. Round 10: a scene's pickers can make one in
+   place (Make a playlist of these… in Add music, New board… in Add pad boards), which goes straight into the scene. */
 (function () {
   var esc = L.esc, D = L.data;
   var STATUS = { played: 'Played', next: 'Next', draft: 'Draft' };
@@ -618,7 +619,7 @@
   L.acts.cpaddboards = function (el) {
     var x = findScene(el.dataset.sc); current = x.sc.id; if (!x.sc.boards) x.sc.boards = L.sceneBoards(x.sc).slice();
     var b = x.sc.boards;
-    L.pickBoards({ title: 'Pad boards for "' + (x.sc.name || 'this scene') + '"', selected: b, multi: true, saved: (x.sc.name || 'scene') + ' pad boards',
+    L.pickBoards({ title: 'Pad boards for "' + (x.sc.name || 'this scene') + '"', selected: b, multi: true, saved: (x.sc.name || 'scene') + ' pad boards', makeBoard: true, // Round 10: New board…
       intro: 'Tick the boards to have in this scene. New ones are added at the end; the first one shows when the scene starts.',
       onDone: function (ids) {
         var keep = b.filter(function (id) { return ids.indexOf(id) > -1; }), added = ids.filter(function (id) { return b.indexOf(id) < 0; });

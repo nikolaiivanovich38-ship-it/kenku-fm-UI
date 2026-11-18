@@ -261,7 +261,7 @@
 .lv-undo { background: var(--surface-2); }
 .lv-undo-bar > span { background: var(--ink-3); }
 .lv .seg button[aria-pressed="true"] { background: var(--surface-3); color: var(--ink); box-shadow: inset 0 -2px 0 var(--ink-2); }
-/* Effects lane: a lime that stays clear of every theme's accent (gold, ember, candle gold, oxblood, blood red).
+/* Effects lane: a lime that stays clear of every theme's accent (gold, iron teal, candle gold, ink blue, blood red).
    Belongs in tokens.css as --fx; scoped here until it moves. */
 
 /* ---------- Discord bots in the top strip ---------- */

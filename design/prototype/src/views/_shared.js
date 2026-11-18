@@ -255,7 +255,7 @@
   L.pickerSheet = function (o) {
     pk = { items: o.items, sel: (o.selected || []).slice(), multi: !!o.multi, inside: !!o.inside, onDone: o.onDone, q: '', fold: !!o.fold, open: {}, filters: o.filters || null, filter: o.filters ? o.filters[0].id : '',
       // Round 6, part 5: what Done saves, for the Saved pop-up (shown only when the ticks changed).
-      saved: o.saved || '', was: (o.selected || []).join('|'), makePl: !!o.makePlaylist };
+      saved: o.saved || '', was: (o.selected || []).join('|'), makePl: !!o.makePlaylist, makeBoard: !!o.makeBoard };
     if (pk.fold) { (o.openGroups || []).forEach(function (g) { pk.open[g] = true; }); o.items.forEach(function (it) { if (pk.sel.indexOf(it.id) > -1) pk.open[it.group] = true; }); }
     L.sheet({ title: o.title, wide: !!o.wide, float: !!o.float,
       // Round 6: the intro is read out with the dialog (its description) and is the list's hover text; on screen the
@@ -270,12 +270,18 @@
   /* Round 10 (Nik, 18 Nov 08:36, answer 1a): Add music's foot has Make a playlist of these…: it asks a name, makes a
      manual playlist of the ticked tracks (in the order ticked) and puts it straight into the scene in their place.
      Cancel and Done stay (Nik, 18 Nov 03:14, answer 10). */
+  /* Round 10 (Nik, 18 Nov, answer 4 to round 10's questions): the pad board picker in a scene has New board… in the
+     same place: it asks a name, makes an empty 4 × 3 board and puts it in the scene at the end; its pads are added on
+     its own page. */
   function footer(okLabel) {
     pk.okLabel = okLabel || pk.okLabel || 'Done';
     if (pk.naming) return '<label class="r10-mkpl" for="pk-plname"><span>New playlist</span><input class="input" id="pk-plname" data-k="pk-plname" autocomplete="off" value="' + esc(pk.naming) + '"></label>' +
       '<span class="grow"></span><button class="btn" data-act="pkmkcancel" data-k="pk-mkcancel">Back</button><button class="btn primary" data-act="pkmkok" data-k="pk-mkok">Make it and add it</button>';
+    if (pk.namingBoard) return '<label class="r10-mkpl" for="pk-bdname" title="An empty 4 × 3 board; you give it pads, and change its size, on its own page"><span>New board</span><input class="input" id="pk-bdname" data-k="pk-bdname" autocomplete="off" value="' + esc(pk.namingBoard) + '"></label>' +
+      '<span class="grow"></span><button class="btn" data-act="pkbdcancel" data-k="pk-bdcancel">Back</button><button class="btn primary" data-act="pkbdok" data-k="pk-bdok">Make it and add it</button>';
     return '<span id="pk-count" class="muted grow">' + count() + '</span>' +
       (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="A manual playlist of the ticked tracks, in the order ticked; the scene gets the playlist in their place">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
+      (pk.makeBoard ? '<button class="btn" data-act="pkmkbd" data-k="pk-mkbd" title="An empty pad board, made here and put in this scene; you give it pads on its own page">' + L.icon('plus', 's') + 'New board…</button>' : '') +
       '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="pkdone">' + esc(pk.okLabel) + '</button>';
   }
   function paintFooter(k) { var f = document.querySelector('#lyre-sheet footer'); if (!f) return; f.innerHTML = footer(); var n = k && f.querySelector('[data-k="' + k + '"]'); if (n) { n.focus(); if (n.select) n.select(); } }
@@ -292,7 +298,24 @@
     var at = pk.sel.indexOf(ts[0]); pk.sel = pk.sel.filter(function (id) { return ts.indexOf(id) < 0; }); pk.sel.splice(Math.max(0, Math.min(at, pk.sel.length)), 0, p.id);
     pk.naming = ''; L.acts.pkdone(); L.say(name + ' made with ' + ts.length + (ts.length === 1 ? ' track' : ' tracks') + ', and put in the scene');
   };
-  document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'pk-plname') { e.preventDefault(); L.acts.pkmkok(); } });
+  L.acts.pkmkbd = function () {
+    var n = 1; while (D.boards.some(function (b) { return b.name === 'New board ' + n; })) n++;
+    pk.namingBoard = 'New board ' + n; paintFooter('pk-bdname');
+  };
+  L.acts.pkbdcancel = function () { pk.namingBoard = ''; paintFooter('pk-mkbd'); };
+  L.acts.pkbdok = function () {
+    var f = document.getElementById('pk-bdname'), name = (f && f.value.trim()) || pk.namingBoard, base = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'board', id = base, n = 2;
+    while (L.board(id)) id = base + '-' + n++;
+    var slots = []; for (var i = 0; i < 12; i++) slots.push(null);
+    D.boards.push({ id: id, name: name, cols: 4, rows: 3, spare: [], slots: slots });
+    if (pk.sel.indexOf(id) < 0) pk.sel.push(id);
+    pk.namingBoard = ''; L.acts.pkdone(); L.say(name + ' made, an empty 4 by 3 board, and put in the scene. Give it pads on its page.');
+  };
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || !e.target) return;
+    if (e.target.id === 'pk-plname') { e.preventDefault(); L.acts.pkmkok(); }
+    else if (e.target.id === 'pk-bdname') { e.preventDefault(); L.acts.pkbdok(); }
+  });
   L.inputs.pkq = function (el) { pk.q = el.value; paintList(); };
   L.acts.pkfilter = function (el) { pk.filter = el.dataset.f; document.querySelectorAll('[data-act="pkfilter"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); paintList(); };
   L.acts.pkgroup = function (el) { var g = el.dataset.g; pk.open[g] = !pk.open[g]; paintList(); var b = document.querySelector('.pk-groupbtn[data-g="' + g.replace(/"/g, '\\"') + '"]'); if (b) b.focus(); };
@@ -335,7 +358,7 @@
     L.pickerSheet({ title: o.title || 'Choose playlists', items: items, selected: o.selected, multi: o.multi !== false, onDone: o.onDone, intro: o.intro, saved: o.saved });
   };
   L.pickBoards = function (o) {
-    L.pickerSheet({ title: o.title || 'Choose pad boards', selected: o.selected, multi: o.multi !== false, onDone: o.onDone, intro: o.intro, saved: o.saved,
+    L.pickerSheet({ title: o.title || 'Choose pad boards', selected: o.selected, multi: o.multi !== false, onDone: o.onDone, intro: o.intro, saved: o.saved, makeBoard: !!o.makeBoard,
       items: D.boards.map(function (b) { return { id: b.id, label: b.name, sub: b.cols + ' × ' + b.rows + ' grid · ' + L.boardPads(b).filter(Boolean).length + ' pads', search: L.boardPads(b).filter(Boolean).map(function (p) { return p.label; }).join(' '), preview: { kind: 'board', id: b.id }, contents: { kind: 'board', id: b.id } }; }) });
   };
   L.pickTracks = function (o) {

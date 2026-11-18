@@ -10,7 +10,7 @@ Live is where you run the evening. **Run this session** on a campaign or session
 - **Current scene**: the running scene's music, its ambience and its pads, which answer to their keys.
 - **This session** and **Whole campaign**: their playlists and pads.
 - **Find a track or playlist** (`/`): anything not in the plan.
-- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds; **Stop all** stops everything at once, your headphones too.
+- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds; **Stop all** stops everything at once, your headphones too. In a narrow window both are icons: point at one for its name.
 
 On a row, the headphones play it to you only; the last button, **Play on air**, is for the players.
 

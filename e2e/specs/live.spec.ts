@@ -1694,6 +1694,16 @@ test.describe("round 10: Nik's answers on the strip at half a screen and on Room
     expect(await shown(page, "Stop all")).toBe("Stop all");
   });
 
+  test("at half a 1920 screen Undo is an icon with its name and hover text, not a word cut to its first letter", async ({ page }) => {
+    await page.setViewportSize({ width: 960, height: 1000 });
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const undo = page.getByRole("group", { name: "Undo" }).getByRole("button", { name: "Undo" });
+    expect((await undo.boundingBox())!.width, "an icon button").toBeLessThanOrEqual(32);
+    await expect(undo).toHaveAttribute("title", /Ctrl\+Z/);
+    await expect(undo).toBeInViewport();
+  });
+
   test("answer 3: no Rooms… line in Live's room menus; Rooms opens from the menu under Settings", async ({ page }) => {
     await openRoute(page, "live");
     await startAbbey(page);

@@ -146,6 +146,8 @@
 
 /* 4. Parchment: the light version of Candlelit Library, for daytime prep by a window. */
 [data-theme="parchment"] {
+  /* Round 10 (Nik, 18 Nov, answer 1 to round 10's questions): the oxblood buttons become ink blue, so the red On air
+     light stands out, as Hearth and Iron's orange became iron teal. */
   --bg: #e6dbc5;
   --surface: #f5eddd;
   --surface-2: #ece2cd;
@@ -155,11 +157,11 @@
   --ink: #241d2c;
   --ink-2: #463c4f;
   --ink-3: #5f5466;
-  --accent: #7b2232;
-  --accent-hover: #922a3d;
+  --accent: #1f3d70;
+  --accent-hover: #2b4f88;
   --accent-ink: #fff7ec;
-  --accent-text: #7b2232;
-  --accent-soft: rgb(123 34 50 / .1);
+  --accent-text: #1f3d70;
+  --accent-soft: rgb(31 61 112 / .1);
   --second: #8a6a1e;
   --focus: #1f4e8c;
   --onair: #b3261e;
