@@ -319,7 +319,7 @@ describe("FND-8 the first-run tour", () => {
       if (step === 1) expect(within(box).getByRole("button", { name: "Next" })).toHaveFocus();
       await user.click(within(box).getByRole("button", { name: step === 5 ? "Done" : "Next" }));
     }
-    expect(titles).toEqual(["Lyre's places", "Track library", "Scenes", "Live", "Now playing"]);
+    expect(titles).toEqual(["The menu", "Track library", "Scenes", "Live", "Now playing"]);
     expect(tour()).toBeNull();
     expect(loadShellSettings().tour).toBe("done");
   });
@@ -329,7 +329,7 @@ describe("FND-8 the first-run tour", () => {
     render(<Shell screens={SHELL_SCREENS} firstRunTour />);
     await user.click(screen.getByRole("button", { name: "Next" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("dialog", { name: "Lyre's places 1 of 5" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "The menu 1 of 5" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(tour()).toBeNull();
     expect(loadShellSettings().tour).toBe("done");
@@ -343,7 +343,7 @@ describe("FND-8 the first-run tour", () => {
     await user.click(screen.getByRole("button", { name: "Help" }));
     await user.click(screen.getByRole("button", { name: "Take the tour" }));
     expect(screen.queryByRole("complementary", { name: "Help" })).toBeNull();
-    expect(screen.getByRole("dialog", { name: "Lyre's places 1 of 5" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "The menu 1 of 5" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Skip" }));
     expect(screen.getByRole("button", { name: "Help" })).toHaveFocus();
   });
