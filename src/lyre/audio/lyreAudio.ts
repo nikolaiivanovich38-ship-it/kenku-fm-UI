@@ -1435,7 +1435,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const preview: PreviewNowPlaying | null = current && {
       ...current,
       position: at && at.key === current.key ? at.seconds : null,
-      length: this.parts.preview.length(),
+      length: trackLength(current.trackId ? this.library.track(current.trackId) : undefined, this.parts.preview.length()),
       volume: this.parts.preview.volume(),
     };
     const rooms = this.disposed ? [] : this.director.report().map((room) => this.roomState(room));
@@ -1491,10 +1491,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   private laneState(roomId: string, lane: MusicOrAmbience, playing: PlayingReport): LaneNowPlaying {
     const voice = this.laneVoice(roomId, lane);
-    // The library's length, as every list shows it, so the Now playing bar agrees with them; the playing file's
-    // length only for a track the library has no length for.
-    const known = (this.library.track(playing.trackId)?.durationMs ?? 0) / 1000;
-    const length = Number.isFinite(known) && known > 0 ? known : voice && Number.isFinite(voice.duration) ? voice.duration : null;
+    const length = trackLength(this.library.track(playing.trackId), voice ? voice.duration : null);
     return {
       trackId: playing.trackId,
       title: playing.title,
@@ -1510,6 +1507,17 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       level: playing.level,
     };
   }
+}
+
+/**
+ * The length the Now playing bar and Live show for a track, on air and in a preview (round 8 #6, item 51): the
+ * library's, as every list shows it, so a track has one length everywhere; the playing file's only when the library
+ * has none. (A file whose length is not the library's is logged for Save diagnostics: playbackLog.ts.)
+ */
+export function trackLength(track: Pick<DomainTrack, "durationMs"> | undefined, fileSeconds: number | null): number | null {
+  const known = (track?.durationMs ?? 0) / 1000;
+  if (Number.isFinite(known) && known > 0) return known;
+  return fileSeconds !== null && Number.isFinite(fileSeconds) && fileSeconds > 0 ? fileSeconds : null;
 }
 
 /** Where a lane's track plays from, for the Now playing bar: its scene, or the list its playlist was played from. */

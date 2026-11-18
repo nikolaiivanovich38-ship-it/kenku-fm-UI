@@ -139,7 +139,12 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
     const place = () => placeCorner(box.current);
     place();
     window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
+    // Round 8 #1: focus that moves while a note shows (Add marker focuses the new row) is kept clear too.
+    document.addEventListener("focusin", place);
+    return () => {
+      window.removeEventListener("resize", place);
+      document.removeEventListener("focusin", place);
+    };
   }, [note, fail]);
 
   const value = useMemo(() => ({ say, toast, saved, saveFailed }), [say, toast, saved, saveFailed]);
@@ -230,9 +235,14 @@ function placeCorner(box: HTMLElement | null): void {
   const active = document.activeElement;
   const shown = box.getBoundingClientRect();
   if (active instanceof HTMLElement && active !== document.body && !box.contains(active) && view.contains(active) && shown.height > 0) {
+    // Round 8 #1 (WCAG 2.4.11): clear of the focused control and of its row (a list row's other buttons sit beside it).
+    const row = active.closest<HTMLElement>("li, tr, [role=row]");
     const at = active.getBoundingClientRect();
-    if (at.left < shown.right && at.right > shown.left && at.top < shown.bottom && at.bottom > shown.top) {
-      box.style.bottom = `${Math.round(window.innerHeight - at.top + 8)}px`;
+    const around = row && view.contains(row) ? row.getBoundingClientRect() : at;
+    const top = Math.min(at.top, around.top);
+    const covers = (r: DOMRect) => r.left < shown.right && r.right > shown.left && r.top < shown.bottom && r.bottom > shown.top;
+    if (covers(at) || covers(around)) {
+      box.style.bottom = `${Math.round(window.innerHeight - top + 8)}px`;
     }
   }
 }

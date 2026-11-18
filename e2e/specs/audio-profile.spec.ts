@@ -381,6 +381,37 @@ test.describe("0.5.2: Nik's play test", () => {
     await expect(end).toBeInViewport();
   });
 
+  test("round 8 #3: Start at shows its whole choice, not \"Begi\"", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "profile/t13");
+    const startAt = atEnd(page).getByRole("combobox", { name: "Start at" });
+    const fits = await startAt.evaluate((select: HTMLSelectElement) => {
+      const probe = document.createElement("span");
+      probe.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font:${getComputedStyle(select).font}`;
+      probe.textContent = select.selectedOptions[0]?.textContent ?? "";
+      document.body.append(probe);
+      const text = probe.getBoundingClientRect().width;
+      probe.remove();
+      // The box holds the text beside its arrow (about 24 px) and padding.
+      return select.clientWidth - 24 >= text;
+    });
+    expect(fits).toBe(true);
+  });
+
+  test("round 8 #1: right after Add marker, the Saved pop-up leaves the new marker's row and its buttons in sight (WCAG 2.4.11)", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "profile/t13");
+    const markers = page.getByRole("region", { name: "Markers", exact: true });
+    await markers.scrollIntoViewIfNeeded();
+    await markers.getByRole("button", { name: /Add marker/ }).click();
+    const toast = page.locator("#lyre-toast");
+    await expect(toast).toContainText("Saved");
+    const row = page.locator(":focus").locator("xpath=ancestor::li[1]");
+    const [a, b] = [(await row.boundingBox())!, (await toast.boundingBox())!];
+    const overlaps = a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+    expect(overlaps).toBe(false);
+  });
+
   test("item 24: Back from the Audio profile keeps the preview playing, and the Now playing bar stays (\"At the moment, it stops and the bar disappears\")", async ({ page }) => {
     appOnly();
     await openRoute(page, "library/t13");

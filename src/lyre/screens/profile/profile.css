@@ -131,7 +131,9 @@
 .ap-next { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; padding: 6px 8px; border-radius: var(--r-m); background: var(--surface-2); min-width: 0; }
 .ap-next select { width: 100%; }
 .ap-fields { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.ap-frow { display: grid; grid-template-columns: 84px 66px minmax(0, auto); justify-content: start; gap: 4px 8px; align-items: center; }
+.ap-frow { display: grid; grid-template-columns: 84px 80px minmax(0, auto); justify-content: start; gap: 4px 8px; align-items: center; }
+/* Round 8 #3: Start at shows its whole choice ("Beginning (0:00)", a marker's name), across the field and button columns. */
+.ap-frow > select { grid-column: 2 / -1; width: auto; max-width: 100%; }
 .ap-frow > label { font-size: var(--fs-s); font-weight: 700; color: var(--ink-2); }
 .ap-time { text-align: center; font-size: 15px; }
 .ap-time[aria-invalid="true"] { border-color: var(--danger); }

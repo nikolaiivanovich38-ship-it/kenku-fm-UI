@@ -4,7 +4,7 @@
  * Music, Ambience and FX; expanders in the list; Preview and Play on air; no Duplicate; drop files in.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { appOnly, expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -506,5 +506,18 @@ test.describe("round 6 cuts on a playlist", () => {
     await expect(how).toBeHidden();
     await page.getByRole("list", { name: "Tracks in order" }).getByRole("button").first().focus();
     await expect(how).toBeVisible();
+  });
+});
+
+/* 0.5.2: from the round 8 click-through, built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.2: one length for a track", () => {
+  test("round 8 #6: a track previewed from a playlist shows the length the list shows (5:01, not its file's 6:00)", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "playlists");
+    await page.getByRole("button", { name: "Show contents of Crypt ambush" }).click();
+    const list = page.getByRole("list", { name: "Tracks in Crypt ambush" });
+    await expect(list.getByRole("listitem").first()).toContainText("5:01");
+    await page.getByRole("button", { name: "Preview Crypt ambush" }).first().click();
+    await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ })).toContainText(/ \/ 5:01/);
   });
 });
