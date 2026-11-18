@@ -31,6 +31,7 @@ import {
   roomStatus,
   sceneBoards,
   trayContents,
+  trayShown,
   upNextRows,
   type KeyInput,
   type OffScriptQuery,
@@ -183,6 +184,24 @@ describe("the trays: Session playlists and Campaign playlists", () => {
     expect(new Set(ss.playlists).size).toBe(ss.playlists.length);
     const cp = trayContents(crown, index);
     expect(cp.tracks.map((id) => index.track(id)?.title)).toContain("Ominous song, the villain's calling card (short)");
+  });
+});
+
+describe("0.5.2 (Nik's item 49): a tray box shows only when it has something in it", () => {
+  const s15 = crown.sessions.find((s) => s.id === "s15")!;
+  it("Session 14 and its campaign have playlists and pads: every box shows", () => {
+    for (const box of ["ssp", "ssd", "cpp", "cpd"] as const) expect(trayShown(box, s14, crown, index), box).toBe(true);
+  });
+  it("Session 15 keeps none: its two boxes go, the campaign's stay", () => {
+    expect(trayShown("ssp", s15, crown, index)).toBe(false);
+    expect(trayShown("ssd", s15, crown, index)).toBe(false);
+    expect(trayShown("cpp", s15, crown, index)).toBe(true);
+  });
+  it("a single track alone keeps Playlists; an ambience playlist alone does not (it is not listed there); a board that is gone does not count", () => {
+    const amb = seed.playlists.find((p) => p.lane === "amb")!.id;
+    expect(trayShown("ssp", { ...s15, trackIds: ["t13"] }, crown, index)).toBe(true);
+    expect(trayShown("ssp", { ...s15, playlistIds: [amb] }, crown, index)).toBe(false);
+    expect(trayShown("cpd", s15, { ...crown, boardIds: ["gone"] }, index)).toBe(false);
   });
 });
 

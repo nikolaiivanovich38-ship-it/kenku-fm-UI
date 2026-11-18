@@ -943,6 +943,37 @@ describe("the trays", () => {
   });
 });
 
+describe("0.5.2 (Nik's item 49): tray boxes with nothing in them", () => {
+  it("Session 15 keeps no playlists or pads: This session and its two boxes are not there; the campaign's are", async () => {
+    await openLive();
+    await userEvent.click(screen.getByRole("button", { name: /The Sunken Crown Session 14/ }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: /Session 15: Black sails/ }));
+    await screen.findByRole("button", { name: /The Sunken Crown Session 15/ });
+    expect(screen.queryByRole("region", { name: "Session playlists" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Session pads" })).toBeNull();
+    expect(screen.queryByText("This session")).toBeNull();
+    expect(screen.getByRole("region", { name: "Campaign playlists" })).toBeInTheDocument();
+    expect(screen.getByText("Whole campaign")).toBeInTheDocument();
+    // Its key says why nothing takes the focus.
+    blur();
+    press("5", { altKey: true, code: "Digit5" });
+    expect(await screen.findByText("Session pads: nothing in it, so it is not shown")).toBeInTheDocument();
+  });
+
+  it("a box comes back as soon as something is put in it", async () => {
+    const { api } = await openLive();
+    await userEvent.click(screen.getByRole("button", { name: /The Sunken Crown Session 14/ }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: /Session 15: Black sails/ }));
+    await screen.findByRole("button", { name: /The Sunken Crown Session 15/ });
+    await act(async () => {
+      await api.campaigns.setOnHand({ campaignId: "crown", sessionId: "s15" }, "boards", ["abbey"]);
+    });
+    expect(await screen.findByRole("region", { name: "Session pads" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Session playlists" })).toBeNull();
+    expect(screen.getByText("This session")).toBeInTheDocument();
+  });
+});
+
 describe("rooms", () => {
   it("a room has Mute, shown as the one status Muted, and a volume slider that works from the keyboard", async () => {
     const { outputs } = await openLive();

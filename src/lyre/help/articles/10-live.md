@@ -8,7 +8,7 @@ Live is where you run the evening. **Run this session** on a campaign or session
 - **On air**, at the top: a part for each room, with what it plays, **Up next**, its volume and its bot. Click a track's position line to jump in it. Its bot's button changes the channel; **+** adds a room.
 - **Scenes**: press `Space`, or **Next scene**, to start the next scene. Click a scene's name to check it; anything in it plays alone without starting the scene. **Undo**, or `Ctrl+Z`, takes back the last thing you did within 8 seconds.
 - **Current scene**: the running scene's music in play order, its ambience and its pads, which answer to their keys.
-- **This session** and **Whole campaign**: their playlists and pads, to play a whole playlist, one of its tracks or a pad.
+- **This session** and **Whole campaign**: their playlists and pads, to play a whole playlist, one of its tracks or a pad. Empty boxes hide.
 - **Find a track or playlist** (`/`): search the whole library for anything not in the plan.
 - **Fade all** (`Shift+Esc`) fades everything out over 5 seconds; **Stop all** stops at once.
 

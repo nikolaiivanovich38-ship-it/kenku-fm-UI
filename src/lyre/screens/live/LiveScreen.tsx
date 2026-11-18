@@ -34,7 +34,7 @@ import { CurrentScenePane } from "./CurrentScene";
 import { closeFind, openFind } from "./Find";
 import { focusBox, focusLiveSoon, focusLive } from "./focus";
 import { LiveDataProvider, sceneRefOf, type LiveData } from "./liveData";
-import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, padForKey, padStepWords, UNDO_MS, type LiveKeys } from "./liveModel";
+import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, padForKey, padStepWords, trayShown, UNDO_MS, type LiveKeys } from "./liveModel";
 import { getLiveState, standbyFor, touched, updateLive, useLiveState } from "./liveState";
 import { LiveTop } from "./LiveTop";
 import { OnAirPane } from "./OnAir";
@@ -405,7 +405,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           return handled();
         case "goBox": {
           const words = focusBox(LIVE_BOXES[decision.box].id);
-          if (words) say(words);
+          // 0.5.2 (item 49): a tray box with nothing in it is not shown; its key says so.
+          say(words ?? `${LIVE_BOXES[decision.box].name}: nothing in it, so it is not shown`);
           return handled();
         }
         case "fadeAll":
@@ -509,6 +510,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     cpp: <PlaylistsBox key="cpp" scope="cp" />,
     cpd: <PadsBox key="cpd" scope="cp" />,
   };
+  // 0.5.2 (Nik's item 49): a tray box with nothing in it is not shown, nor a tray with no box left.
+  const shown = (id: BoxId) => !/^(ss|cp)/.test(id) || trayShown(id as "ssp" | "ssd" | "cpp" | "cpd", data.session, data.campaign, data.index);
   return (
     <LiveDataProvider value={data}>
       <div className="lv">
@@ -517,7 +520,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
         <div className={`lv-cols c${columns}`} data-scroll="lv-page">
           {LAYOUT[columns].map((ids) => (
             <div className={columns === 3 && /^(ss|cp)/.test(ids[0]) ? "col lv-c-trays" : "col"} key={ids.join("-")}>
-              {trays(ids).map((group) =>
+              {trays(ids.filter(shown)).map((group) =>
                 group.scope ? (
                   // A tray per scope: the session's boxes on a filled tray, the campaign's on an outlined one (Should 6).
                   <div className={`lv-grp lv-grp-${group.scope}`} key={group.scope}>

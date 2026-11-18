@@ -285,6 +285,23 @@ export function trayContents(own: Pick<SessionInfo, "playlistIds" | "trackIds">,
   return { playlists, tracks: (own.trackIds ?? []).filter((id) => index.track(id)) };
 }
 
+/**
+ * 0.5.2 (Nik's item 49: "if there are no contents in the session playlists or session pads or campaign playlists panes,
+ * they should not appear, but only if there are no contents in them"): a tray box shows only when it lists something:
+ * a music playlist or single track (Playlists), a pad board (Pads).
+ */
+export function trayShown(
+  box: "ssp" | "ssd" | "cpp" | "cpd",
+  session: Pick<SessionInfo, "playlistIds" | "trackIds" | "boardIds">,
+  campaign: Pick<SessionInfo, "playlistIds" | "trackIds" | "boardIds">,
+  index: LibraryIndex,
+): boolean {
+  const own = box.startsWith("ss") ? session : campaign;
+  if (box.endsWith("d")) return ownBoards(own.boardIds, index).length > 0;
+  const { playlists, tracks } = trayContents(own, index);
+  return playlists.length + tracks.length > 0;
+}
+
 /* ---------- pads ---------- */
 
 /** A scene's pad boards that still exist; the first shows when the scene starts. */
