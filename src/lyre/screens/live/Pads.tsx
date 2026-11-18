@@ -17,7 +17,6 @@ import { MODE_ICON, MODE_NAME, PAD_COLOUR } from "../boards/boardModel";
 import { useBoxTarget, useLive } from "./liveData";
 import { padStepWords, type LiveBox, type LiveRoom } from "./liveModel";
 import { useAnnounce } from "../../shell/Announcer";
-import { touched } from "./liveState";
 
 /** Whether a pad sounds in a room. */
 function padOnIn(now: NowPlaying, roomId: string, key: string): boolean {
@@ -90,7 +89,7 @@ export function PadGrid({ board, box, keysOn }: { board: PadBoard; box: LiveBox;
           inWhere={target.inWhere}
           mine={target.targets.flatMap((t) => (t === "all" ? [] : [t.room]))}
           press={(phase) => {
-            if (phase === "down") touched();
+            // 0.5.2 (round 9 review M5): a pad does not end the scene's Undo.
             firePads(audio, now, target.targets, board, pad, phase);
             const words = phase === "down" ? padStepWords(pad) : null;
             if (words) toast(words);

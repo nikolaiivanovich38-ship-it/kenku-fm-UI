@@ -35,7 +35,7 @@ import { closeFind, openFind } from "./Find";
 import { focusBox, focusLiveSoon, focusLive } from "./focus";
 import { LiveDataProvider, sceneRefOf, type LiveData } from "./liveData";
 import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, padForKey, padStepWords, trayShown, UNDO_MS, type LiveKeys } from "./liveModel";
-import { getLiveState, standbyFor, touched, updateLive, useLiveState } from "./liveState";
+import { getLiveState, lastActed, standbyFor, touched, updateLive, useLiveState } from "./liveState";
 import { LiveTop } from "./LiveTop";
 import { OnAirPane } from "./OnAir";
 import { firePads } from "./Pads";
@@ -269,12 +269,28 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     updateLive({ undo: null });
     const outcome = dataRef.current?.audio.undoSceneStart();
     if (!outcome?.ok) return true;
-    updateLive({ now: offer.before.now, standby: offer.before.standby, boards: { ...getLiveState().boards, sc: null } });
+    // Back on the scene before, the next Next scene is a press of its own: the guard starts again.
+    updateLive({ now: offer.before.now, standby: offer.before.standby, boards: { ...getLiveState().boards, sc: null }, lastNextKey: null });
     focusLive("nextsc");
     say(`Back to ${offer.label}, with its music and ambience`);
     return true;
   }, [say]);
-  const sceneActions = useMemo(() => ({ start: changeScene, next: nextScene, undo }), [changeScene, nextScene, undo]);
+  /**
+   * 0.5.2 (round 9 review M2): the Next scene button has the key's guard: a second press within a second (a double-click
+   * included) is ignored while "Ignore a second Next scene" is on, so a reflex double-click never skips a scene.
+   */
+  const pressNextScene = useCallback(() => {
+    const d = dataRef.current;
+    if (!d) return;
+    const at = Date.now();
+    if (!guardAllows(getLiveState().lastNextKey, at, d.guard)) {
+      say("A second Next scene within a second: ignored");
+      return;
+    }
+    updateLive({ lastNextKey: at });
+    nextScene();
+  }, [nextScene, say]);
+  const sceneActions = useMemo(() => ({ start: changeScene, next: pressNextScene, undo }), [changeScene, pressNextScene, undo]);
 
   // PLY-8: a scene started by another's step, or moving on by itself, is the scene on now; a step can show a board.
   useLyreAudioEvent("scene-started", (at) => {
@@ -309,6 +325,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   const keysOpenRef = useRef(keysOpen);
   keysOpenRef.current = keysOpen;
   const keyNav = useRef(false);
+  /** 0.5.2 (round 9 review M4): the text box last typed into, and when (its own Ctrl+Z, until something plays). */
+  const lastTyped = useRef<{ el: EventTarget | null; at: number }>({ el: null, at: 0 });
   // The latest callbacks, so the key listeners are added once and a held pad is never let go by a redraw.
   const calls = useRef({ nextScene, undo, say, toast, setKeysOpen });
   calls.current = { nextScene, undo, say, toast, setKeysOpen };
@@ -386,6 +404,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
         alt: event.altKey,
         repeat: event.repeat,
         typing: isTyping(target),
+        unsavedTyping: !!target && lastTyped.current.el === target && lastTyped.current.at >= lastActed(),
         inSearch: target?.dataset?.lv === "search",
         searchValue: (target as HTMLInputElement | null)?.value ?? "",
         onControl: !!target && target !== document.body && target.matches("button, a, [role=menuitem]"),
@@ -416,7 +435,12 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           setKeysOpen(false, true);
           return handled();
         case "undo":
+          // In a text box with nothing typed since the last change on air, Ctrl+Z never takes letters out (M4).
           if (undo()) handled();
+          else if (isTyping(target)) {
+            handled();
+            say("Nothing to undo");
+          }
           return;
         case "clearSearchBox":
           updateLive((x) => ({ search: { ...x.search, q: "", tags: [] } }));
@@ -454,7 +478,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           handled();
           if (event.repeat || heldKeys.current.has(decision.key)) return;
           const targets = boxTarget(d.rooms, s.to.music).targets;
-          touched();
+          // 0.5.2 (round 9 review M5): a pad does not end the scene's Undo.
           firePads(d.audio, d.now, targets, board, pad, "down");
           const words = padStepWords(pad);
           if (words) calls.current.toast(words);
@@ -475,6 +499,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       heldKeys.current.forEach((release) => release());
       heldKeys.current.clear();
     };
+    const onInput = (event: Event) => (lastTyped.current = { el: event.target, at: Date.now() });
+    document.addEventListener("input", onInput, true);
     window.addEventListener("keydown", onTab, true);
     window.addEventListener(GLOBAL_KEY_EVENT, onGlobalKey);
     document.addEventListener("pointerdown", onPointer, true);
@@ -482,6 +508,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     document.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", onBlur);
     return () => {
+      document.removeEventListener("input", onInput, true);
       window.removeEventListener("keydown", onTab, true);
       window.removeEventListener(GLOBAL_KEY_EVENT, onGlobalKey);
       document.removeEventListener("pointerdown", onPointer, true);

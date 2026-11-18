@@ -97,7 +97,9 @@ export function liveRooms(outputs: LyreOutputs | null, now: NowPlaying): LiveRoo
 /** A room's one status pill. */
 export function roomStatus(r: LiveRoom): { text: string; tone: StatusTone } {
   const status = r.bot?.room?.status;
-  if (status === "joining" || status === "reconnecting") return { text: "Joining", tone: "warn" };
+  // 0.5.2 (round 9 review M3): a dropped connection says so; Joining is for a bot on its way in.
+  if (status === "reconnecting") return { text: "Connection lost", tone: "warn" };
+  if (status === "joining") return { text: "Joining", tone: "warn" };
   if (r.nobody) return { text: "Nobody there", tone: "warn" };
   if (r.bot?.muted) return { text: "Muted", tone: "idle" };
   if (isPlaying(r.room ?? undefined)) return { text: "Playing", tone: "live" };
@@ -402,6 +404,11 @@ export interface KeyInput {
   repeat: boolean;
   /** Focus is in a text box, a slider, a tick box or a list (the prototype's L.typing). */
   typing: boolean;
+  /**
+   * 0.5.2 (round 9 review M4): the text box with focus was typed into since the last change to what plays, so its own
+   * Ctrl+Z has something to take back. Missing: taken as yes.
+   */
+  unsavedTyping?: boolean;
   /** Focus is in Find a track, and what it holds. */
   inSearch: boolean;
   searchValue: string;
@@ -452,7 +459,7 @@ export function liveKey(k: KeyInput): KeyDecision {
   // Shift+Esc: two keys, so it is never pressed by accident; works even from a text box.
   if (k.name === keys.fadeAll) return { kind: "fadeAll" };
   if (k.key === "Escape" && k.keysOpen) return { kind: "closeKeys" };
-  if (k.name === keys.undo) return k.typing ? none : { kind: "undo" };
+  if (k.name === keys.undo) return k.typing && k.unsavedTyping !== false ? none : { kind: "undo" };
   // A Next scene key with Ctrl or Alt (or F1 to F12) is not a single key: it works whatever the switch says.
   if (k.name === keys.nextScene && !isSingleKey(keys.nextScene)) return next;
   if (k.ctrl) return none;

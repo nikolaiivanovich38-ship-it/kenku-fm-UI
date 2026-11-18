@@ -217,6 +217,52 @@ describe("scenes and undo", () => {
     expect(screen.getByRole("button", { name: "Next scene: Crypt ambush" })).toHaveFocus();
   });
 
+  it("0.5.2 (round 9 review M2): a double-click on Next scene starts one scene, as the guard does for its key", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound, 1.2);
+    await userEvent.dblClick(screen.getByRole("button", { name: "Next scene: Crypt ambush" }));
+    await playOn(sound);
+    expect(screen.getByRole("button", { name: "Restart scene 4: Crypt ambush" })).toBeInTheDocument();
+    expect(sound.audio.getNowPlaying().rooms[0].music?.origin).toMatchObject({ kind: "scene", scene: { sceneId: "sc4" } });
+  });
+
+  it("0.5.2 (round 9 review M5): a pad pressed after a scene starts leaves the scene's Undo; Ctrl+Z still goes back", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await userEvent.click(screen.getByRole("button", { name: "Next scene: Crypt ambush" }));
+    await playOn(sound);
+    const pad = current().getAllByRole("button").find((b) => b.classList.contains("lv-pad"))!;
+    await userEvent.click(pad);
+    await playOn(sound, 0.3);
+    expect(region("Scenes").getByRole("group", { name: "Undo" })).toHaveTextContent("Started Crypt ambush");
+    blur();
+    press("z", { ctrlKey: true });
+    await playOn(sound);
+    expect(screen.getByRole("button", { name: "Restart scene 3: The abbey ruins" })).toBeInTheDocument();
+  });
+
+  it("0.5.2 (round 9 review M4): after Play on air from Find, Ctrl+Z in its field is Live's Undo and leaves the words alone", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    const field = screen.getByRole("searchbox", { name: /^Find a track or playlist/ });
+    await userEvent.click(field);
+    await userEvent.type(field, "abbess");
+    const pl = within(region("Find a track or playlist").getByRole("list", { name: "Playlists" })).getAllByRole("listitem")[0];
+    await userEvent.click(within(pl).getByRole("button", { name: /^Play on air/ }));
+    await playOn(sound);
+    field.focus();
+    const event = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+    field.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(field).toHaveValue("abbess");
+    // Typing again gives the field its own Ctrl+Z back.
+    await userEvent.type(field, "x");
+    const again = new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true });
+    field.dispatchEvent(again);
+    expect(again.defaultPrevented).toBe(false);
+  });
+
   it("Must 1: after a pause, Ctrl+Z leaves the scene change alone", async () => {
     const { sound } = await openLive();
     await startAbbey();
@@ -1014,6 +1060,29 @@ describe("a track's loop setting in Live", () => {
     await startAbbey();
     const row = within(current().getByRole("list", { name: /music in the order it plays$/ })).getAllByRole("listitem")[0];
     expect(await within(row).findByRole("img", { name: "Crossfade loop" })).toBeInTheDocument();
+  });
+});
+
+describe("0.5.2 (round 9 review M3): a room whose bot lost its connection", () => {
+  it("says Connection lost and that the players hear nothing, with Try again", async () => {
+    const { outputs } = await openLive();
+    const bots = outputs.state.bots.map((b) => (b.room ? { ...b, room: { ...b.room, status: "reconnecting" as const } } : b));
+    act(() => outputs.push({ ...outputs.state, bots }));
+    const table = await findRoom("Table");
+    expect(table.getByText("Connection lost")).toBeInTheDocument();
+    expect(table.queryByText("Joining")).toBeNull();
+    expect(table.getByRole("alert")).toHaveTextContent("Connection lost · players hear nothing");
+    await userEvent.click(table.getByRole("button", { name: "Try again" }));
+    expect(outputs.calls).toContainEqual(["retry", TABLE_BOT]);
+  });
+
+  it("a bot joining for the first time still says Joining", async () => {
+    const { outputs } = await openLive();
+    const bots = outputs.state.bots.map((b) => (b.room ? { ...b, room: { ...b.room, status: "joining" as const } } : b));
+    act(() => outputs.push({ ...outputs.state, bots }));
+    const table = await findRoom("Table");
+    expect(table.getByText("Joining")).toBeInTheDocument();
+    expect(table.queryByRole("alert")).toBeNull();
   });
 });
 

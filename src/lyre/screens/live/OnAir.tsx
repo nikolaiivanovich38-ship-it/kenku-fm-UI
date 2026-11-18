@@ -189,7 +189,7 @@ function RoomPart({ r, short, undo }: { r: LiveRoom; short: boolean; undo: () =>
         <PlayedButton r={r} />
         <RoomControls r={r} />
       </div>
-      {r.nobody && r.view && <NobodyThere r={r} />}
+      {r.bot?.room?.status === "reconnecting" ? <ConnectionLost r={r} /> : r.nobody && r.view && <NobodyThere r={r} />}
       <PlayedList r={r} />
       {(room?.music || room?.ambience || fx.length > 0 || showUp) && (
         <div className="lv-rm-b">
@@ -206,6 +206,36 @@ function RoomPart({ r, short, undo }: { r: LiveRoom; short: boolean; undo: () =>
         </div>
       )}
       <SoftUndoStrip where={`room:${r.roomId}`} onUndo={undo} />
+    </div>
+  );
+}
+
+/**
+ * 0.5.2 (round 9 review M3): the bot's connection dropped and it is trying again: the players hear nothing, whatever the
+ * music line counts. Said once to screen readers (role alert), in the place and style of Players hear nothing, with
+ * Try again (the bot reconnects now).
+ */
+function ConnectionLost({ r }: { r: LiveRoom }) {
+  const { client } = useLive();
+  const { say } = useAnnounce();
+  const bot = r.bot!;
+  return (
+    <div className="lv-noroom" role="alert">
+      <Icon name="warn" size="s" />
+      <span className="grow">Connection lost · players hear nothing</span>
+      {client && (
+        <button
+          type="button"
+          className="btn s lv-fix"
+          title={`${bot.name} connects to ${r.name} again now`}
+          onClick={() => {
+            client.retry(bot.id);
+            say(`${bot.name} is trying again`);
+          }}
+        >
+          Try again
+        </button>
+      )}
     </div>
   );
 }
@@ -311,7 +341,6 @@ function RoomControls({ r }: { r: LiveRoom }) {
           aria-label={`Mute ${r.name}`}
           title={`${bot.muted ? "Unmute" : "Mute"} ${r.name}`}
           onClick={() => {
-            touched();
             client.setMuted(bot.id, !bot.muted);
             say(`${r.name} ${bot.muted ? "unmuted" : "muted"}`);
           }}
@@ -353,7 +382,6 @@ function RoomVolume({ name, saved, onChange }: { name: string; saved: number; on
         const value = Number(event.target.value);
         lastMove.current = Date.now();
         setShown(value);
-        touched();
         onChange(value);
       }}
     />
@@ -753,7 +781,6 @@ function Effects({ room, roomName }: { room: RoomNowPlaying; roomName: string })
         aria-label={`Stop effects in ${roomName}`}
         title={`Stop effects in ${roomName}`}
         onClick={() => {
-          touched();
           audio.stopLane("effects", { target: { room: room.roomId } });
           say(`Effects stopped in ${roomName}`);
         }}

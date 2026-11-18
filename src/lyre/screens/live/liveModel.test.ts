@@ -364,6 +364,11 @@ describe("keys on the live screen", () => {
     expect(key({ key: "z", name: "Ctrl+Z", ctrl: true, typing: true })).toEqual({ kind: "none" });
   });
 
+  it("0.5.2 (round 9 review M4): in a text box, Ctrl+Z is the box's own only while it holds typing since the last change on air", () => {
+    expect(key({ key: "z", name: "Ctrl+Z", ctrl: true, typing: true, unsavedTyping: true })).toEqual({ kind: "none" });
+    expect(key({ key: "z", name: "Ctrl+Z", ctrl: true, typing: true, inSearch: true, searchValue: "brutal", unsavedTyping: false })).toEqual({ kind: "undo" });
+  });
+
   it("/ and pad keys; nothing while typing or with single-key shortcuts off", () => {
     expect(key({ key: "/", name: "/" })).toEqual({ kind: "focusSearch" });
     expect(key({ key: "r", name: "R" })).toEqual({ kind: "pad", key: "r" });
