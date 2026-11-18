@@ -147,11 +147,16 @@ test.describe("listening while you set it", () => {
 
   test("the last 10 seconds before End can be played, and a loop is counted when the preview crosses End", async ({ page }) => {
     test.setTimeout(40_000);
-    // Crowd whispers (f14) is a 20-second loop: in the app the seeded tracks play a 20-second stand-in tone
-    // (seedAudio.ts), and since BUG-22 a preview keeps to the file's real length, so End must be inside 20 s to be
-    // crossed (t13's End, 5:18, is never reached by the tone). Counted at least once: the count can pass "once"
-    // between two looks.
+    // Crowd whispers (f14) is a 20-second loop. In the app the seeded tracks play a six-minute stand-in tone
+    // (seedAudio.ts), and since 0.5.2 (item 52) an End at the track's length in the library means the end of the file,
+    // so the tone would play on past 0:20. End is moved in one step (a tenth of a second in the app, a second in the
+    // prototype) to be a real End inside the track. Counted at least once: the count can pass "once" between two looks.
     await openRoute(page, "profile/f14");
+    const end = handle(page, "End");
+    const before = await num(end);
+    await end.focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect.poll(() => num(end)).toBeLessThan(before);
     await wave(page).getByRole("button", { name: "Play the last 10 s before End" }).click();
     await expect(wave(page)).toContainText(/Looped\s*(once|twice|\d+ times)/, { timeout: 20_000 });
   });
