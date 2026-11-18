@@ -582,7 +582,10 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-trk-r > .lv-trk-t, .lv-trk-r > .lv-pli-n { flex: 1 1 14ch; min-width: 14ch; }
 .lv-trk-r > .lv-trk-acts { margin-left: auto; }
 .lv-trk-t > span, .lv-pli-n > b.ellipsis { overflow-wrap: break-word; }
-.lv-trk-r:focus-within .lv-trk-t > span, .lv-trk-r:focus-within .lv-pli-n > b.ellipsis { -webkit-line-clamp: unset; display: block; }
+/* The whole name while the keyboard is in the row (:focus-visible). Not after a mouse click: the row grew, and when the
+   next press took the focus away it shrank, so the rows below moved between press and release and that click landed
+   elsewhere (0.5.2; the title shows the whole name on hover). */
+.lv-trk-r:has(:focus-visible) .lv-trk-t > span, .lv-trk-r:has(:focus-visible) .lv-pli-n > b.ellipsis { -webkit-line-clamp: unset; display: block; }
 /* Round 7 part 2: What played in a room (PLY-1), dividers over a row of pads (ORG-4), marker ticks (DAT-3). */
 .lv-rm-played:not(.on):not(:focus-visible) { opacity: 0; }
 .lv-rm-h:is(:hover, :focus-within) .lv-rm-played { opacity: 1; }

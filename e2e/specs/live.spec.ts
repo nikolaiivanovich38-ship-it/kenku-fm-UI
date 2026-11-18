@@ -1560,6 +1560,33 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
 });
 
 /* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.2 (before release): a row's full name unfolded with any focus in it, so after a click on one row's button the
+   rows below moved when the next press took the focus away, and that click landed elsewhere. */
+test.describe("0.5.2: clicks in a scene's list land", () => {
+  test("a click on a row's button leaves its name folded, so the rows below stay put and the next click lands; the keyboard unfolds it", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const scene = sceneMusic(page);
+    const nextRow = scene.getByRole("button", { name: "Add to queue: Abbey: eerie, low energy" });
+    const upNext = room(page, "Table").getByRole("list", { name: "Up next" });
+    await scene.getByRole("button", { name: /^Add to queue: Eerie dread/ }).click();
+    await expect(upNext).toContainText("Added: Eerie dread");
+    // The next press, as a mouse does it: the button stays where it was between press and release, so the click lands.
+    const box = (await nextRow.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    expect((await nextRow.boundingBox())!.y).toBe(box.y);
+    await page.mouse.up();
+    await expect(upNext).toContainText("Added: Abbey: eerie, low energy");
+    const before = (await nextRow.boundingBox())!.y;
+    // Reached from the keyboard, a row shows its whole name (two lines here), and the rows below move down.
+    await page.keyboard.press("Shift");
+    await scene.getByRole("button", { name: /^Add to queue: Eerie dread/ }).focus();
+    await expect.poll(async () => (await nextRow.boundingBox())!.y).toBeGreaterThan(before);
+  });
+});
+
 test.describe("0.5.2: Live's empty boxes, loop settings and track names", () => {
   test("Session 15 keeps nothing on hand: This session and its boxes are not shown; the campaign's are (item 49)", async ({ page }) => {
     appOnly();
