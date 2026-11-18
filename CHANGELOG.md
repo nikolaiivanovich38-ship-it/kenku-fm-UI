@@ -4,6 +4,50 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-18: fixes and requests from your play test of 0.5.1
+
+**Track library**
+- The Library is now the Track library in the menu, its heading, Back and help.
+- Remove tracks from the library (one, a selection, or every track a filter shows), with Undo; their files stay. Delete file from disk… sends files to the Recycle Bin after a confirmation that names them.
+- A track's Type (Music, Ambience, FX) in its details and for several tracks at once; FX tracks are offered for pads and ambience tracks as a scene's ambience. Lyre says first what a change affects.
+- A track is no longer New once you tag it.
+- Watched folders: choose what kind their new tracks are, or remove a folder (its tracks stay unless you choose otherwise).
+- Clear in one filter clears only that filter; Clear all filters clears them all.
+- Click a column header to sort by it; click again to reverse.
+- Preview or Play on air on a row opens that track's details; the list keeps its place when you open a track, and a track opened from a playlist is scrolled into view. A mouse click no longer opens the key legend, so a click on the last row opens that track.
+- The list shows a track's length and, when they differ, the length its Audio profile plays. Lengths are rounded the same way everywhere.
+- Deleting a group's last tag removes the group too, with Undo.
+- Shape filter in Add tracks and the scene pickers.
+- Find missing files also matches by sound (length and loudness), ranks what it finds and says why.
+- Pick up where it stopped fits on one line; Follow with's hint no longer sits under the focus ring.
+
+**Playback**
+- A track no longer stops after a few seconds when its MP3 says it is shorter than it is: it plays to the end of its file. Lyre puts right the stored length when it reads the whole file, and an End that sat at the old length moves to the new end. MP3s whose waveform was worked out in 0.5.1 are checked again in the background. Save diagnostics now says why a track ended early.
+- A track shows one length in the lists and the Now playing bar.
+- Up next keeps going into the next round of a repeating playlist, and what plays is what it said.
+- Shuffle is properly random: a new order each round, every track once a round, and never the same track twice in a row. The room's Shuffle deals again each round too.
+- Repeat one goes round as the track's loop setting says (Loop, Crossfade loop, Do not loop), on air, in Live, in scenes and in previews.
+- Ambience loops when it plays as ambience, unless you switch that off for the track or for the scene or playlist.
+- Previewing a playlist plays all of it with its shuffle and repeat. A track's Followed by plays when its preview ends.
+- Audio profile: Start and End move a tenth of a second per arrow key (Shift: a second), times can be typed with tenths, and Zoom in widens the waveform. Changes are heard at once while you preview, and Back keeps the preview playing.
+- The Saved message no longer covers the row you are working in. Start at shows its full text.
+
+**Preparing your games**
+- Delete a campaign or a session from its ⋯ menu. The question names what goes with it; tracks, playlists and pad boards stay in your library, and Undo brings it back.
+- Session numbers: count on from a first number of your choice (for a campaign begun before Lyre), or type each session's number in its details.
+- Dragging puts a row exactly where the line shows, in every list, on either side of a divider. Dividers in a playlist can be dragged, and moved with Move up, Move down or Alt+Up/Alt+Down. Enter adds a divider in a playlist or on a pad board.
+- Drag tracks, playlists and pad boards in a scene's lists into a new order.
+- A track's name opens the Track library with that track's details, in prep, Live and the Now playing bar. In Live, a track's details have Track details. The Audio profile's trail goes up to the track's details.
+
+**Live**
+- Live hides Session playlists, Session pads, Campaign playlists and Campaign pads when they have nothing in them.
+- Live shows whether a track loops (Loop, Crossfade loop or Don't loop) beside the music on air and on each scene track.
+- A sounding pad's room letters say where it sounds when you hover over them.
+- A double-click on Next scene starts one scene, not two, while "Ignore a second Next scene" is on.
+- Pads, volume and mute no longer take away the Undo for the scene you just started.
+- After Play on air, Ctrl+Z in Find undoes in Live instead of deleting letters from the search.
+- A bot that loses its connection shows "Connection lost · players hear nothing", with Try again.
+
 ## [0.5.1] - 2026-11-12: Lyre is the whole window; fixes and requests from your test of 0.5.0
 
 **Lyre is the whole window**
