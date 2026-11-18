@@ -855,6 +855,26 @@ describe("43: ambience loops by default, unless its settings say not to", () => 
   });
 });
 
+describe("43 stays in the ambience lane (review of r052)", () => {
+  it("an Ambience-type track in a music playlist plays once there and the playlist moves on", async () => {
+    data.playlists.find((p) => p.id === "P")!.trackIds = ["amb1", "m3"];
+    await run({ type: "playPlaylist", playlistId: "P", target: table, fadeMs: 0 });
+    await context.advance(1);
+    expect(music()).toBe("amb1");
+    await context.advance(31);
+    expect(music()).toBe("m3");
+  });
+
+  it("an Ambience-type track in a scene's music list moves on to the next music too", async () => {
+    data.campaigns[0].sessions[0].scenes[0].music = [{ kind: "track", id: "amb2" }, { kind: "track", id: "m1" }];
+    await run({ type: "startScene", scene: S1 });
+    await context.advance(1);
+    expect(music()).toBe("amb2");
+    await context.advance(31);
+    expect(music()).toBe("m1");
+  });
+});
+
 describe("46: where the shuffle's randomness comes from", () => {
   it("with no random numbers given, a shuffled playlist is dealt from the cryptographic random numbers", async () => {
     const spy = vi.spyOn(globalThis.crypto, "getRandomValues");
