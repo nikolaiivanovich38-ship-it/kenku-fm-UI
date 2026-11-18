@@ -181,10 +181,22 @@ dipping effect ends and does not stack. A Short cue played over the music dips i
 switch in its details (not drawn in the prototype).
 
 ## Specs
-The prototype project's acceptance specs were run after these changes (`playwright.spec.config.ts --project=prototype`);
-the checks that fail are the ones this design changes on purpose (the Rooms screen and its menu item, Kick, the bot
-button in On air, the role and looping chips, the modal Add music sheet, the two-state filter chips). Round 9's own
-checks are for the build stream to write (marked `appOnly()` where the prototype lacks something), after Nik approves.
+The prototype project's acceptance specs, run after these changes (`npx playwright test -c playwright.spec.config.ts
+--project=prototype`, through `yarn heavy`): 762 passed, 34 failed, 13 skipped. The sweeps (no sideways scroll, no
+overlap or cut-off text, axe, keyboard, the window's buttons, every screen fits) all pass. The 34 that fail check what
+this round changes on purpose, and need new words when the build stream takes the design:
+- the Rooms screen and its menu item (outputs.spec 9 checks; campaigns.spec Back through Rooms, 2);
+- Kick and the bot's button in On air ("Lyre Table in Table: change") (live.spec 11);
+- Role, Looping, Ending, Then and the old Follow with list (library.spec 5); "Leave out stings" (playlists.spec 1);
+- the Audio profile's trail now ends with Track details (campaigns.spec 1);
+- Help: the menu item shows the setup progress ("Help8/9" as text), On this screen and Set up Lyre come before the
+  articles (Tab order, the article walk by button text, the count of fifteen articles) (help.spec 6);
+- a playlist row's ⋯ now starts with Move up, Move down, Move to the top (playlists.spec 1).
+One more fails for a reason outside the design: session-planner.spec "files dropped on a scene's music" finds its
+words twice, in the Saved pop-up and in the hidden live region (`#lyre-live`, 1 × 1 px, which Playwright counts as
+visible); it passes on 0.5.1's prototype and fails here on timing. Its check should leave the live region out.
+Round 9's own checks are for the build stream to write (marked `appOnly()` where the prototype lacks something), after
+Nik approves.
 
 ## Try it (about 15 steps, whole window)
 1. Playlists › Crypt ambush (open its page) › click a track's name: the Track panel opens at the right. Change its
