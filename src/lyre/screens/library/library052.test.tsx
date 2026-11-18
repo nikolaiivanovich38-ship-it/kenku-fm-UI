@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
 
 import { openAt } from "./testHarness";
+import { expectNoAxeViolations } from "../../test/axe";
 
 const grid = () => screen.getByRole("grid", { name: "Tracks" });
 const rowOf = (id: string) => grid().querySelector(`tr[data-tid="${id}"]`) as HTMLElement;
@@ -339,4 +340,25 @@ describe("items 4, 12 and 39: a track's Type, for one track or the selection", (
     await user.click(await screen.findByRole("button", { name: "Undo" }));
     await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t44")?.kind).toBe("music"));
   });
+});
+
+describe("0.5.2: the new confirmations have no accessibility failures", () => {
+  it("Remove from library, Delete file from disk… and Remove folder…", async () => {
+    openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(within(rowOf("t13")).getByRole("button", { name: /^More for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from library" }));
+    await expectNoAxeViolations(screen.getByRole("dialog"));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await user.click(within(rowOf("t13")).getByRole("button", { name: /^More for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete file from disk…" }));
+    await expectNoAxeViolations(screen.getByRole("dialog"));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await user.click(within(filters()).getByRole("button", { name: "More for the folder H:\\Audio\\Ambience" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove folder…" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("checkbox"));
+    await expectNoAxeViolations(screen.getByRole("dialog"));
+    // Three axe runs: more time than one screen's check on a busy machine.
+  }, 60_000);
 });
