@@ -303,3 +303,16 @@ app) over the in-memory LyreApi and the real audio host on the fake audio graph,
 | Copy path copied nothing | `permissions.test.ts` (the Lyre page may write text to the clipboard, never read it), `LibraryScreen.test.tsx`, `SettingsScreen.test.tsx` (Copy code), `e2e/clipboard.spec.ts` (the main process's clipboard holds the path). |
 | A track's Preview ignored its audio profile | `lyreAudio.test.ts` (Start, fades, End; a scene's and a playlist's own settings), `SoundButtons.test.tsx`, `previewOnThePage.test.tsx`, `library.spec.ts` (t02's preview starts at 0:08). |
 | Stop preview started the track again | `lyreAudio.test.ts`, `previewOnThePage.test.tsx`, `library.spec.ts` (the Only you row goes). |
+
+## 0.5.2 playback (w52-play)
+
+| Test | What it covers |
+| --- | --- |
+| `src/engine/voice/fileEnd.test.ts` | Item 52: an End at the library's length plays to the end of the file, streamed (the fake element guesses a length from the "bit rate" and finds the real one near the end, `FakeAudioContext.mediaEstimates`, as Chromium does with an MP3 whose header is wrong or missing) and decoded; a moved End still ends there; fades and loops land on the real end; `Voice.ending`. |
+| `src/engine/voice/liveProfile.test.ts` | Item 28: `Voice.setProfile` moves End, fades and the loop at once, from where the voice is, without opening the file again. |
+| `src/engine/queue/director.test.ts` | 52 on air; 45 (play a playlist, play another, come back: every track is the one Up next named); 46 (a new deal each round, cryptographic random numbers by default); 37 (Repeat one by loop setting, in scenes, a reload leaving a crossfade alone); 43 (ambience loops unless told otherwise). |
+| `src/common/domain/roomList.test.ts`, `shuffle.test.ts` | 45: the next round in Up next and its pick; 46: chi-squared over 60,000 deals (every order equally likely) and each track in each place. |
+| `src/lyre/audio/preview052.test.ts`, `playbackLog.test.ts` | Items 9, 30, 37, 28, 24 and 52 through LyreAudio on the fake graph; the log lines Save diagnostics keeps. |
+| `src/lyre/previewOnThePage.test.tsx`, `src/lyre/screens/profile/ProfileScreen.test.tsx` | Item 24 on the whole page (Back keeps the preview and the bar); items 2 (tenths, typed tenths, zoom), 24 and 28 on the Audio profile. |
+| `src/lyre/screens/drop/DropTray.test.tsx`, `e2e/specs/library.spec.ts` (0.5.2 block) | Item 29: drags onto the Drop on panel with music on air and a preview playing (not reproduced; kept as a check). |
+| `e2e/specs/audio-profile.spec.ts` (0.5.2 block), `e2e/lyreMedia.spec.ts` | Items 2, 24, 28 in the packaged app; item 52 with a real joined MP3 made by the bundled ffmpeg. |

@@ -818,3 +818,35 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await expect(open).toBeInViewport();
   });
 });
+
+/* 0.5.2: from Nik's play test (14 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.2: Nik's play test", () => {
+  test("item 29: with music on air and a preview playing, tracks dragged from the list onto the Drop on panel land, and nothing fails (\"crashed the interface\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "playlists");
+    await page.getByRole("button", { name: "Play on air: The Abbess" }).first().click();
+    await page.getByRole("button", { name: "Preview The Company themes" }).first().click();
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Track library", exact: true }).click();
+    await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: "On air", exact: true })).toBeVisible();
+    const dragOnto = async (title: string, place: string) => {
+      await row(page, title).scrollIntoViewIfNeeded();
+      const b = (await row(page, title).getByRole("gridcell").nth(1).boundingBox())!;
+      await page.mouse.move(b.x + 20, b.y + b.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(b.x + 60, b.y + 60, { steps: 5 });
+      const tray = page.getByRole("region", { name: "Drop on" });
+      const t = (await tray.getByRole("button", { name: place, exact: true }).boundingBox())!;
+      await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2, { steps: 5 });
+      await page.mouse.up();
+      await expect(tray).toBeHidden();
+    };
+    await dragOnto("Ashes", "The Abbess");
+    await expect(page.getByRole("status").filter({ hasText: /^Saved: The Abbess/ })).toBeVisible();
+    await dragOnto("Memories of Mother", "Up next in Table");
+    await dragOnto("Ashes", "Greyhollow inn");
+    // The screen and the Now playing bar are still there: no "Something went wrong" in their place.
+    await expect(page.getByText(/went wrong|Show this screen again/)).toHaveCount(0);
+    await expect(grid(page)).toBeVisible();
+    await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: "On air", exact: true })).toBeVisible();
+  });
+});

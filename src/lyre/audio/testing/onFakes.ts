@@ -141,6 +141,8 @@ export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: Outpu
   const wanted: MediaRequest[][] = [];
   /** OUT-10: the room meters open now (an AnalyserNode each in the app). */
   const meters = { open: 0 };
+  /** 52: the lines LyreAudio writes to the log (Save diagnostics). */
+  const logged: string[] = [];
   const audio = new EngineLyreAudio({
     engine,
     mixer,
@@ -158,6 +160,7 @@ export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: Outpu
       source.connect(into);
       source.start(context.currentTime);
     },
+    logLine: (line) => logged.push(line),
     startRoomVolume: options.startRoomVolume,
     resumePositions: options.resumePositions,
     meter: (output) => {
@@ -186,6 +189,7 @@ export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: Outpu
     sinkIds,
     wanted,
     meters,
+    logged,
     /** The capture window says a bot is in a voice channel (true) or the last one left. */
     broadcast(active: boolean) {
       port.deliver({ kind: "broadcast", active });

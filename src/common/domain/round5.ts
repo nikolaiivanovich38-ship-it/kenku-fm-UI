@@ -184,6 +184,16 @@ export function shuffledOrder<T>(items: readonly T[], seed: number): T[] {
   return out;
 }
 
+/**
+ * 46: a random number from 0 up to (not including) 1 from the browser's (or Node's) cryptographic random numbers,
+ * for the seeds shuffles are dealt with and the variant a pad plays. Math.random only where there is no crypto.
+ */
+export function cryptoRandom(): number {
+  const crypto = (globalThis as { crypto?: { getRandomValues?: (array: Uint32Array) => Uint32Array } }).crypto;
+  if (!crypto?.getRandomValues) return Math.random();
+  return crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+}
+
 /** PLY-13: a playlist's tracks in the order they play: its own order, or shuffled by `seed` when the order shuffles. */
 export function tracksInOrder<T>(items: readonly T[], order: PlayOrder, seed: number): T[] {
   return order.shuffle ? shuffledOrder(items, seed) : items.slice();

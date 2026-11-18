@@ -12,7 +12,7 @@ import { Icon, type IconName } from "../../kit/Icon";
 import { Kbd } from "../../kit/Pills";
 import { cx } from "../../kit/cx";
 import { hasOwn, ownPlaceKeys, placeName, placesOf } from "./places";
-import { envAt, fmt, fmt1, POINT, sketchPath, startAtChoices, times, type Which } from "./profileModel";
+import { envAt, fmt, fmt1, fmtPoint, POINT, sketchPath, startAtChoices, times, type Which } from "./profileModel";
 import { ProfileLink } from "../../kit/ProfileLink";
 import { TrackPickUp } from "../library/PickUpSwitch";
 import type { ProfileController } from "./useProfileController";
@@ -32,7 +32,7 @@ function TimeInput({ c, which, value, secsOnly, label }: C & { which: Which; val
       className={cx("input", "num", "ap-time", secsOnly && "ap-secs")}
       data-k={id}
       value={c.editing?.which === which ? c.editing.text : value}
-      inputMode={secsOnly ? "decimal" : "numeric"}
+      inputMode="decimal"
       autoComplete="off"
       spellCheck={false}
       aria-label={label}
@@ -200,7 +200,7 @@ export function EndBox({ c }: C) {
   const field = (which: Which, value: number, buttonLabel: string, key: string) => (
     <div className="ap-frow">
       <label htmlFor={`ap-f-${which}`}>{POINT[which]}</label>
-      <TimeInput c={c} which={which} value={fmt(value)} />
+      <TimeInput c={c} which={which} value={fmtPoint(value)} />
       <button
         type="button"
         className="btn s"

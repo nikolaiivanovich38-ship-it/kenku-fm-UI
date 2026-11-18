@@ -1,18 +1,31 @@
 /**
  * The waveform strip (the prototype's waveHTML and layout in views/profile.js): the whole file, the parts not played
  * shaded, the looped part marked, the playhead, the marker flags, the time ruler, and handles for Start, End, Loop
- * start and both fade lengths. Every handle is a slider: drag it, or use the arrow keys (Shift for 10 s).
+ * start and both fade lengths. Every handle is a slider: drag it, or use the arrow keys (2: a tenth of a second, Shift
+ * a second, Page Up and Down ten). Zoom in widens the strip (up to 16 times) inside a box that scrolls sideways, to
+ * place Start and End finely; it keeps the playhead, or the handle with the focus, in view.
  */
 import React, { useLayoutEffect, useRef, useState } from "react";
 
+import { IconButton } from "../../kit/Button";
 import { Icon } from "../../kit/Icon";
+import { useAnnounce } from "../../shell/Announcer";
 import { cx } from "../../kit/cx";
-import { clamp, fmt, isLength, pointText, rangeOf, type Which } from "./profileModel";
+import {
+  clamp,
+  fmt,
+  isLength,
+  pointText,
+  rangeOf,
+  type Which,
+} from "./profileModel";
 import type { ProfileController } from "./useProfileController";
 import { drawWave } from "./waveDrawing";
 
 /** Ruler steps in seconds; the first that leaves at least 54 px between ticks is used. */
-const RULER_STEPS = [5, 10, 15, 30, 60, 120, 300];
+const RULER_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300];
+/** 2: how far in the strip can be zoomed, each press of Zoom in the next. */
+export const ZOOMS = [1, 2, 4, 8, 16] as const;
 
 function useWidth(ref: React.RefObject<HTMLElement>): number {
   const [width, setWidth] = useState(0);
@@ -35,11 +48,63 @@ function useWidth(ref: React.RefObject<HTMLElement>): number {
 export function Waveform({ c }: { c: ProfileController }) {
   const { p, dur, editable, clock, actions, levels } = c;
   const waveRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const W = useWidth(waveRef);
+  const { say } = useAnnounce();
+  const [zoom, setZoom] = useState<number>(1);
+  const zoomBy = (d: 1 | -1) => {
+    const next =
+      ZOOMS[
+        Math.max(
+          0,
+          Math.min(
+            ZOOMS.length - 1,
+            ZOOMS.indexOf(zoom as (typeof ZOOMS)[number]) + d,
+          ),
+        )
+      ];
+    setZoom(next);
+    say(`Zoom ${next}×`);
+  };
+  // After a zoom, the handle with the focus (else the playhead) is in the middle of the box.
+  useLayoutEffect(() => {
+    const box = scrollRef.current;
+    if (!box || !dur) return;
+    const focused = waveRef.current?.contains(document.activeElement)
+      ? Number(document.activeElement?.getAttribute("aria-valuenow"))
+      : NaN;
+    const handleAt = document.activeElement?.getAttribute("data-k");
+    const sec =
+      Number.isFinite(focused) &&
+      handleAt !== "ap-scrub" &&
+      !handleAt?.startsWith("ap-h-fade")
+        ? focused
+        : clock.pos;
+    box.scrollLeft = Math.max(
+      0,
+      (sec / dur) * box.scrollWidth - box.clientWidth / 2,
+    );
+    // Only when the zoom changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoom]);
+  /** A handle moved by its keys stays in view while zoomed in. */
+  const keepInView = (el: HTMLElement) => {
+    if (zoom > 1)
+      requestAnimationFrame(() =>
+        el.scrollIntoView?.({ block: "nearest", inline: "nearest" }),
+      );
+  };
 
   useLayoutEffect(() => {
-    if (canvasRef.current) drawWave(canvasRef.current, { prof: p, dur, pos: clock.pos, playing: clock.playing, levels });
+    if (canvasRef.current)
+      drawWave(canvasRef.current, {
+        prof: p,
+        dur,
+        pos: clock.pos,
+        playing: clock.playing,
+        levels,
+      });
   });
 
   const pct = (s: number) => `${((clamp(s, 0, dur) / dur) * 100).toFixed(3)}%`;
@@ -59,13 +124,14 @@ export function Waveform({ c }: { c: ProfileController }) {
   const handle = (which: Which, v: number, label: string, cls: string) => {
     const [lo, hi] = rangeOf(p, dur, which);
     const len = isLength(which);
-    const at = which === "fadein" ? p.start + v : which === "fadeout" ? p.end - v : v;
+    const at =
+      which === "fadein" ? p.start + v : which === "fadeout" ? p.end - v : v;
     const words = pointText(which, v);
     const tip = !editable
       ? " (the track's settings: not editable in this place)"
       : len
-        ? ": drag along the volume line, or arrow keys to change the length"
-        : ": drag, or use the arrow keys (Shift for 10 s)";
+        ? ": drag along the volume line, or arrow keys to change the length (0.1 s; Shift: 1 s)"
+        : ": drag, or use the arrow keys (0.1 s; Shift: 1 s; Page Up and Down: 10 s)";
     return (
       <div
         className={cx("ap-h", cls)}
@@ -82,7 +148,10 @@ export function Waveform({ c }: { c: ProfileController }) {
         aria-valuetext={words}
         title={`${label} ${words}${tip}`}
         onPointerDown={(e) => actions.dragHandle(which, e, secAt)}
-        onKeyDown={(e) => actions.keyOnHandle(which, e)}
+        onKeyDown={(e) => {
+          actions.keyOnHandle(which, e);
+          keepInView(e.currentTarget);
+        }}
       >
         {len ? (
           <span className="ap-knob" />
@@ -97,64 +166,120 @@ export function Waveform({ c }: { c: ProfileController }) {
   };
 
   return (
-    <div className={cx("ap-wave", !editable && "ro")} ref={waveRef}>
-      <div className="ap-out" style={{ left: 0, width: pct(p.start) }}>
-        <span hidden={startOutPx < 84}>Not played</span>
+    <>
+      <div className="ap-zoom" role="group" aria-label="Zoom">
+        <IconButton
+          icon="minus"
+          size="s"
+          label="Zoom out"
+          hint="Zoom out: see more of the track"
+          data-k="ap-zoom-out"
+          disabled={zoom <= ZOOMS[0]}
+          onClick={() => zoomBy(-1)}
+        />
+        <span className="num faint ap-zoom-v">{`${zoom}×`}</span>
+        <IconButton
+          icon="plus"
+          size="s"
+          label="Zoom in"
+          hint="Zoom in, to place Start and End to a tenth of a second"
+          data-k="ap-zoom-in"
+          disabled={zoom >= ZOOMS[ZOOMS.length - 1]}
+          onClick={() => zoomBy(1)}
+        />
       </div>
-      <div className="ap-out" style={{ left: pct(p.end), right: 0 }}>
-        <span hidden={endOutPx < 84}>Not played</span>
-      </div>
-      {p.after === "loop" && <div className="ap-loop" style={{ left: pct(p.loopStart), width: `${(((p.end - p.loopStart) / dur) * 100).toFixed(3)}%` }} />}
-      <canvas className="ap-canvas" ref={canvasRef} aria-hidden="true" />
-      <div
-        className="ap-scrub"
-        role="slider"
-        tabIndex={0}
-        data-k="ap-scrub"
-        aria-label="Playhead"
-        aria-orientation="horizontal"
-        aria-valuemin={0}
-        aria-valuemax={dur}
-        aria-valuenow={Math.floor(clock.pos)}
-        aria-valuetext={fmt(clock.pos)}
-        title="Click or drag to move the playhead; arrow keys move it 1 s (Shift: 10 s)"
-        onPointerDown={(e) => actions.scrubFrom(e, secAt)}
-        onKeyDown={(e) => actions.keyOnScrub(e)}
-      />
-      <div className={cx("ap-ph", clock.playing && "on")} style={{ left: pct(clock.pos) }} aria-hidden="true" />
-      {p.markers.map((m, i) => {
-        const flip = xs[i] > W - 60;
-        const room = flip ? xs[i] - (i ? xs[i - 1] : 0) - 14 : (i < xs.length - 1 ? xs[i + 1] : W) - xs[i] - 14;
-        return (
-          <span
-            key={`${m.at}-${i}`}
-            className={cx("ap-flag", flip && "flip", room < 70 && "crowd")}
-            style={{ left: pct(m.at) }}
-            title={`${m.label} (${fmt(m.at)}): go there`}
+      <div className="ap-wavescroll" ref={scrollRef}>
+        <div
+          className={cx("ap-wave", !editable && "ro")}
+          ref={waveRef}
+          style={{ width: `${zoom * 100}%` }}
+        >
+          <div className="ap-out" style={{ left: 0, width: pct(p.start) }}>
+            <span hidden={startOutPx < 84}>Not played</span>
+          </div>
+          <div className="ap-out" style={{ left: pct(p.end), right: 0 }}>
+            <span hidden={endOutPx < 84}>Not played</span>
+          </div>
+          {p.after === "loop" && (
+            <div
+              className="ap-loop"
+              style={{
+                left: pct(p.loopStart),
+                width: `${(((p.end - p.loopStart) / dur) * 100).toFixed(3)}%`,
+              }}
+            />
+          )}
+          <canvas className="ap-canvas" ref={canvasRef} aria-hidden="true" />
+          <div
+            className="ap-scrub"
+            role="slider"
+            tabIndex={0}
+            data-k="ap-scrub"
+            aria-label="Playhead"
+            aria-orientation="horizontal"
+            aria-valuemin={0}
+            aria-valuemax={dur}
+            aria-valuenow={Math.floor(clock.pos)}
+            aria-valuetext={fmt(clock.pos)}
+            title="Click or drag to move the playhead; arrow keys move it 1 s (Shift: 10 s)"
+            onPointerDown={(e) => actions.scrubFrom(e, secAt)}
+            onKeyDown={(e) => actions.keyOnScrub(e)}
+          />
+          <div
+            className={cx("ap-ph", clock.playing && "on")}
+            style={{ left: pct(clock.pos) }}
             aria-hidden="true"
-            onClick={() => actions.seek(m.at)}
-          >
-            <span className="ap-flag-l" style={{ maxWidth: `${Math.min(140, Math.max(room, 90))}px` }}>
-              {m.label}
+          />
+          {p.markers.map((m, i) => {
+            const flip = xs[i] > W - 60;
+            const room = flip
+              ? xs[i] - (i ? xs[i - 1] : 0) - 14
+              : (i < xs.length - 1 ? xs[i + 1] : W) - xs[i] - 14;
+            return (
+              <span
+                key={`${m.at}-${i}`}
+                className={cx("ap-flag", flip && "flip", room < 70 && "crowd")}
+                style={{ left: pct(m.at) }}
+                title={`${m.label} (${fmt(m.at)}): go there`}
+                aria-hidden="true"
+                onClick={() => actions.seek(m.at)}
+              >
+                <span
+                  className="ap-flag-l"
+                  style={{ maxWidth: `${Math.min(140, Math.max(room, 90))}px` }}
+                >
+                  {m.label}
+                </span>
+              </span>
+            );
+          })}
+          {handle("start", p.start, "Start", "ap-h-start")}
+          {handle("end", p.end, "End", "ap-h-end")}
+          {p.after === "loop" &&
+            handle("loop", p.loopStart, "Loop start", "ap-h-loop")}
+          {handle("fadein", p.fadeIn.dur, "Fade in length", "ap-fk ap-fk-in")}
+          {handle(
+            "fadeout",
+            p.fadeOut.dur,
+            "Fade out length",
+            "ap-fk ap-fk-out",
+          )}
+          <div className="ap-ruler" aria-hidden="true">
+            {ticks.map((s) => (
+              <span
+                key={s}
+                className={cx("ap-tick", s === 0 && "first")}
+                style={{ left: pct(s) }}
+              >
+                {fmt(s)}
+              </span>
+            ))}
+            <span className="ap-tick last" style={{ left: "100%" }}>
+              {fmt(dur)}
             </span>
-          </span>
-        );
-      })}
-      {handle("start", p.start, "Start", "ap-h-start")}
-      {handle("end", p.end, "End", "ap-h-end")}
-      {p.after === "loop" && handle("loop", p.loopStart, "Loop start", "ap-h-loop")}
-      {handle("fadein", p.fadeIn.dur, "Fade in length", "ap-fk ap-fk-in")}
-      {handle("fadeout", p.fadeOut.dur, "Fade out length", "ap-fk ap-fk-out")}
-      <div className="ap-ruler" aria-hidden="true">
-        {ticks.map((s) => (
-          <span key={s} className={cx("ap-tick", s === 0 && "first")} style={{ left: pct(s) }}>
-            {fmt(s)}
-          </span>
-        ))}
-        <span className="ap-tick last" style={{ left: "100%" }}>
-          {fmt(dur)}
-        </span>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

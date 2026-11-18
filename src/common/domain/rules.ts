@@ -132,7 +132,7 @@ function clamp(v: number, lo: number, hi: number): number {
 /**
  * The audio profile that applies to a track in the given places, most specific first: pass the scene (or session)
  * before the playlist (profilePlacesFor gives them in that order). The first place with its own settings wins; otherwise the track's own profile. Missing fields take
- * defaults: the whole track, looping when the track loops well, no fades. Points are kept inside the track.
+ * defaults: the whole track, looping when the track loops well or is ambience (43), no fades. Points are kept inside the track.
  */
 export function resolveProfile(t: DomainTrack, places: ProfilePlace[], overrides: ProfileOverrides): { profile: AudioProfile; source: ProfileSource } {
   let input = t.profile ?? {};
@@ -148,7 +148,8 @@ export function resolveProfile(t: DomainTrack, places: ProfilePlace[], overrides
   const dur = Math.max(0, t.durationMs);
   const startMs = clamp(input.startMs ?? 0, 0, dur);
   const endMs = clamp(input.endMs ?? dur, startMs, dur);
-  const after = input.after ?? (t.loop === "yes" || t.loop === "crossfade" ? "loop" : "next");
+  // 43: ambience loops unless it is told otherwise; other tracks follow their loop advice.
+  const after = input.after ?? (t.kind === "amb" || t.loop === "yes" || t.loop === "crossfade" ? "loop" : "next");
   const loopStartMs = clamp(input.loopStartMs ?? startMs, startMs, Math.max(startMs, endMs - 1));
   const fade = (f: { ms: number; shape: number } | undefined) => ({ ms: clamp(f?.ms ?? 0, 0, endMs - startMs), shape: clamp(f?.shape ?? 50, 0, 100) });
   return {

@@ -540,7 +540,9 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     rig.data.profiles = { ...rig.data.profiles, [placeKey({ kind: "playlist", playlistId: "P" })]: { m2: { endMs: 3000, after: "next" } } };
     rig.audio.previewPlaylist("P");
     await rig.advance(3.5);
-    expect(state().preview).toBeNull();
+    // 30: the playlist's preview goes on to its next track when the first reaches its End there.
+    expect(state().preview).toMatchObject({ key: "pl:P", trackId: "m3" });
+    rig.audio.stopPreview();
     rig.audio.previewTrack("m2", { playlistId: "P" });
     await rig.advance(3.5);
     expect(state().preview).toBeNull();
@@ -566,7 +568,7 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     expect(state().preview?.key).toBe("m2");
   });
 
-  it("BUG-22: a file shorter than Lyre thinks: the last 10 s before End play its last 10 s, with sound, and say its real length", async () => {
+  it("BUG-22: a file shorter than Lyre thinks: the last 10 s before End play its last 10 s, with sound", async () => {
     // The file is 20 s long (the rig's media), but the library still has 180 s for it (the file was replaced).
     rig.data.tracks.find((t) => t.id === "m2")!.durationMs = 180_000;
     const profile = { startMs: 0, endMs: 180_000, after: "loop" as const, loopStartMs: 60_000, loopCrossfadeMs: 0, fadeIn: { ms: 0, shape: 50 }, fadeOut: { ms: 0, shape: 50 }, markers: [] as { atMs: number; label: string }[] };
@@ -575,7 +577,8 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     expect(rig.hearPreview()).toBeCloseTo(1);
     expect(state().preview!.position!).toBeGreaterThan(10);
     expect(state().preview!.position!).toBeLessThan(12);
-    expect(state().preview!.length).toBe(20);
+    // Round 8 #6: the library's length, as every list shows it (the file's real length is logged instead).
+    expect(state().preview!.length).toBe(180);
     await rig.advance(10);
     // Loop start is past the file's end: nothing to loop back to, so it plays to the end once and stops.
     expect(state().preview).toBeNull();
@@ -680,9 +683,9 @@ describe("now-playing state and its events", () => {
     expect(calls).toBe(stopped);
   });
 
-  it("says the preview's length once its file is known, without anything else changing (UX-16)", async () => {
+  it("says the preview's length, the library's, at once (UX-16, round 8 #6)", async () => {
     rig.audio.previewTrack("m2");
-    expect(state().preview?.length).toBeNull();
+    expect(state().preview?.length).toBe(20);
     await rig.advance(0.5);
     expect(state().preview?.length).toBe(20);
   });

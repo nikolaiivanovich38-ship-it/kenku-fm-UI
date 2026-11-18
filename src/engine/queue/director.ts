@@ -14,7 +14,7 @@
  */
 import { TypedEmitter } from "tiny-typed-emitter";
 
-import { keyOfPlace, roomsFor, sceneRoom, sceneSequence } from "../../common/domain";
+import { cryptoRandom, keyOfPlace, roomsFor, sceneRoom, sceneSequence } from "../../common/domain";
 import type { CueStep, Repeat, RoomRepeat, RoomTarget, UpNextRef, UsePlace } from "../../common/domain";
 import type { PlaybackEngine } from "../engine";
 import type { RoomsAudio } from "../rooms.contract";
@@ -82,7 +82,8 @@ export class Director extends TypedEmitter<DirectorEvents> {
     this.resumeAt = options.resumeAt ?? new Map();
     this.rooms = options.rooms;
     this.library = options.library;
-    this.random = options.random ?? Math.random;
+    // 46: shuffles and pad variants from cryptographic random numbers unless a test gives its own.
+    this.random = options.random ?? cryptoRandom;
     this.unsubscribe = this.rooms.onRoomsChanged(() => this.dropGoneRooms());
   }
 
@@ -510,9 +511,9 @@ export class Director extends TypedEmitter<DirectorEvents> {
     return outcomes.find((outcome) => outcome.ok) ?? outcomes[0];
   }
 
-  /** PLY-13: a seed to deal a shuffled playlist with, from the host's random numbers. */
+  /** PLY-13: a seed to deal a shuffled playlist with, from the host's random numbers (46: all 32 bits of them). */
   private newSeed(): number {
-    return Math.floor(this.random() * 2 ** 31);
+    return Math.floor(this.random() * 2 ** 32);
   }
 
   private pickVariant(key: string, trackIds: string[], order: "random" | "roundrobin"): string {

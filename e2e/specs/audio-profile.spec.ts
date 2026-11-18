@@ -38,22 +38,26 @@ test.describe("the handles", () => {
   });
 
   test("on the End handle, the arrow keys move 1 s and Shift+Right 10 s, and the new time is announced", async ({ page }) => {
+    // 0.5.2 (item 2, Nik: "More granular positions"): in the app an arrow moves 0.1 s and Shift+arrow 1 s.
+    const [arrow, shift] = test.info().project.name === "app" ? [0.1, 1] : [1, 10];
     await openRoute(page, "profile/t13");
     const end = handle(page, "End");
     await end.focus();
     const start = await num(end);
     await page.keyboard.press("ArrowLeft");
-    expect(await num(end)).toBe(start - 1);
+    expect(await num(end)).toBeCloseTo(start - arrow, 5);
     await page.keyboard.press("Shift+ArrowLeft");
-    expect(await num(end)).toBe(start - 11);
+    expect(await num(end)).toBeCloseTo(start - arrow - shift, 5);
     await expect(end).toHaveAttribute("aria-valuetext", /\d:\d\d/);
   });
 
   test("the fade out handle changes the fade by a second per arrow key", async ({ page }) => {
+    // 0.5.2 (item 2): in the app a second is Shift+arrow; an arrow alone is a tenth.
+    const key = test.info().project.name === "app" ? "Shift+ArrowRight" : "ArrowRight";
     await openRoute(page, "profile/t13");
     const knob = handle(page, "Fade out length");
     await knob.focus();
-    for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+    for (let i = 0; i < 4; i++) await page.keyboard.press(key);
     await expect(fades(page).getByRole("textbox", { name: "fade out length in seconds" })).toHaveValue("4");
   });
 });
@@ -348,5 +352,91 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await expect(page.getByRole("status").filter({ hasText: /picks up where it stopped/ })).toBeVisible();
     await reopen(page);
     await expect(page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: "Pick up where it stopped" })).toBeChecked();
+  });
+});
+
+/* 0.5.2: from Nik's play test (14 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.2: Nik's play test", () => {
+  test("item 2: Start and End move in tenths of a second, a time can be typed with tenths, and the strip zooms in (\"More granular positions on the audio profile tracking bar\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "profile/t13");
+    const end = handle(page, "End");
+    await end.focus();
+    await page.keyboard.press("ArrowLeft");
+    await expect(end).toHaveAttribute("aria-valuetext", "5:17.9");
+    const typed = atEnd(page).getByRole("textbox", { name: "End" });
+    await typed.fill("5:12.4");
+    await typed.press("Enter");
+    await expect(end).toHaveAttribute("aria-valuenow", "312.4");
+    const listen = wave(page);
+    await listen.getByRole("button", { name: "Zoom in" }).click();
+    await listen.getByRole("button", { name: "Zoom in" }).click();
+    await expect(listen.getByText("4×")).toBeVisible();
+    // The strip is four times as wide as its box, which now scrolls sideways; the End handle is still in reach.
+    const sizes = await page.locator(".ap-wavescroll").evaluate((box) => ({ box: box.clientWidth, strip: box.scrollWidth }));
+    expect(sizes.strip).toBeGreaterThan(sizes.box * 3.5);
+    await end.focus();
+    await page.keyboard.press("Shift+ArrowRight");
+    await expect(end).toHaveAttribute("aria-valuenow", "313.4");
+    await expect(end).toBeInViewport();
+  });
+
+  test("round 8 #3: Start at shows its whole choice, not \"Begi\"", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "profile/t13");
+    const startAt = atEnd(page).getByRole("combobox", { name: "Start at" });
+    const fits = await startAt.evaluate((select: HTMLSelectElement) => {
+      const probe = document.createElement("span");
+      probe.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font:${getComputedStyle(select).font}`;
+      probe.textContent = select.selectedOptions[0]?.textContent ?? "";
+      document.body.append(probe);
+      const text = probe.getBoundingClientRect().width;
+      probe.remove();
+      // The box holds the text beside its arrow (about 24 px) and padding.
+      return select.clientWidth - 24 >= text;
+    });
+    expect(fits).toBe(true);
+  });
+
+  test("round 8 #1: right after Add marker, the Saved pop-up leaves the new marker's row and its buttons in sight (WCAG 2.4.11)", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "profile/t13");
+    const markers = page.getByRole("region", { name: "Markers", exact: true });
+    await markers.scrollIntoViewIfNeeded();
+    await markers.getByRole("button", { name: /Add marker/ }).click();
+    const toast = page.locator("#lyre-toast");
+    await expect(toast).toContainText("Saved");
+    const row = page.locator(":focus").locator("xpath=ancestor::li[1]");
+    const [a, b] = [(await row.boundingBox())!, (await toast.boundingBox())!];
+    const overlaps = a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+    expect(overlaps).toBe(false);
+  });
+
+  test("item 24: Back from the Audio profile keeps the preview playing, and the Now playing bar stays (\"At the moment, it stops and the bar disappears\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library/t13");
+    await page.evaluate(() => {
+      window.location.hash = "#/profile/t13";
+    });
+    await wave(page).getByRole("button", { name: "Play", exact: true }).click();
+    const bar = page.getByRole("region", { name: "Now playing" });
+    await expect(bar.getByRole("group", { name: /^Only you/ })).toBeVisible();
+    await page.getByRole("button", { name: /^Back to / }).click();
+    await expect(page.getByRole("region", { name: "Details", exact: true })).toBeVisible();
+    await expect(bar.getByRole("group", { name: /^Only you/ })).toBeVisible();
+    await expect(bar.getByRole("group", { name: /^Only you/ })).toContainText(/Eerie dread/);
+  });
+
+  test("item 28: a setting changed while the track previews applies to the sound that plays, without starting it again", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "profile/t13");
+    await wave(page).getByRole("button", { name: "Play the last 10 s before End" }).click();
+    const bar = page.getByRole("region", { name: "Now playing" });
+    await expect(bar.getByRole("group", { name: /^Only you/ })).toContainText(/5:\d\d/);
+    // End 20 s earlier: the preview, now past it, goes round to Loop start (1:04) at once.
+    const end = handle(page, "End");
+    await end.focus();
+    for (let i = 0; i < 2; i++) await page.keyboard.press("PageDown");
+    await expect(bar.getByRole("group", { name: /^Only you/ })).toContainText(/1:0\d \//, { timeout: 4000 });
   });
 });

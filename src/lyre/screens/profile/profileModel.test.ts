@@ -13,6 +13,7 @@ import {
   movePoint,
   normalise,
   parseTime,
+  fmtPoint,
   rangeOf,
   secs,
   sketchPath,
@@ -62,6 +63,15 @@ describe("times in words", () => {
     expect(parseTime("four", false)).toBeNull();
   });
 
+  it("2: reads a tenth of a second in a time, and no finer", () => {
+    expect(parseTime("4:30.5", false)).toBe(270.5);
+    expect(parseTime("95.2", false)).toBe(95.2);
+    expect(parseTime("4:30.55", false)).toBeNull();
+    expect(fmtPoint(270.5)).toBe("4:30.5");
+    expect(fmtPoint(270)).toBe("4:30");
+    expect(fmtPoint(5.04)).toBe("0:05");
+  });
+
   it("reads lengths as seconds with at most one decimal", () => {
     expect(parseTime("6", true)).toBe(6);
     expect(parseTime("2.5", true)).toBe(2.5);
@@ -100,9 +110,9 @@ describe("the profile in seconds", () => {
 });
 
 describe("moving a point", () => {
-  it("keeps End after Start, inside the file, in whole seconds", () => {
+  it("keeps End after Start, inside the file, in tenths of a second (2)", () => {
     expect(rangeOf(T13, DUR, "end")).toEqual([1, 441]);
-    expect(movePoint(T13, DUR, "end", 300.4).end).toBe(300);
+    expect(movePoint(T13, DUR, "end", 300.43).end).toBe(300.4);
     expect(movePoint(T13, DUR, "end", 900).end).toBe(441);
     expect(movePoint({ ...T13, start: 20 }, DUR, "end", 3).end).toBe(21);
   });
@@ -113,8 +123,8 @@ describe("moving a point", () => {
     expect(p.loopStart).toBe(49);
   });
 
-  it("changes fade lengths in half seconds and keeps both fades inside the played part", () => {
-    expect(movePoint(T13, DUR, "fadeout", 4.3).fadeOut).toEqual({ dur: 4.5, shape: 50 });
+  it("changes fade lengths in tenths of a second (2) and keeps both fades inside the played part", () => {
+    expect(movePoint(T13, DUR, "fadeout", 4.34).fadeOut).toEqual({ dur: 4.3, shape: 50 });
     const short = { ...T13, end: 10, fadeOut: { dur: 6, shape: 50 } };
     expect(rangeOf(short, DUR, "fadein")).toEqual([0, 4]);
     expect(movePoint(short, DUR, "fadein", 9).fadeIn.dur).toBe(4);

@@ -52,7 +52,7 @@ import {
   type UsePlace,
 } from "../../common/domain";
 import type { PlaybackEngine } from "../engine";
-import { laneProfile, profileInputFor } from "../profile/trackProfile";
+import { endsAtFileEnd, laneProfile, profileInputFor, repeatProfile } from "../profile/trackProfile";
 import type { Scheduler } from "../audio/types";
 import { positionAfter } from "../profile/position";
 import type { RoomLane, RoomsAudio } from "../rooms.contract";
@@ -163,6 +163,10 @@ interface LaneVoice {
   after: AfterEnd;
   /** The profile it plays with (where its mix-out marker and End are). */
   profile: AudioProfile;
+  /** 37: its profile where it plays, before Repeat one made it go round. */
+  base: AudioProfile;
+  /** 37: it goes round because Repeat one applies (its profile is repeatProfile of `base`). */
+  repeating: boolean;
 }
 
 /** What a screen adds to a room's list: one track (with where it came from) or a playlist's tracks in its order there. */
@@ -198,6 +202,11 @@ export class RoomPlayer {
   private handOver: { start: () => void; cancel: () => void } | null = null;
   /** DAT-3: where an added item's first track starts (Play next or Add to queue from a marker), in seconds. */
   private readonly startFrom = new Map<string, number>();
+  /**
+   * 45, 46: the seed a playlist plan's next round is dealt with, drawn ahead (so Up next can show that round) for the
+   * deal it follows (`after`, the plan's own seed then).
+   */
+  private round: { after: number | undefined; seed: number } | null = null;
 
   constructor(
     readonly roomId: string,
@@ -266,7 +275,26 @@ export class RoomPlayer {
   /** PLY-17: the room's Repeat for what plays now (null: back to what the music does by itself). */
   setRepeat(repeat: RoomRepeat): void {
     this.list = setRoomRepeat(this.list, repeat);
+    this.applyRepeat();
     this.deps.changed();
+  }
+
+  /**
+   * 37: the music that plays goes round by its loop setting while Repeat one applies to it, and back to its own
+   * profile when it no longer does (a track that does not loop is played again when it ends instead).
+   */
+  private applyRepeat(): void {
+    const lane = this.musicVoice;
+    const track = lane ? this.deps.library.track(lane.item.trackId) : undefined;
+    if (!lane || !track || lane.voice.isFinal()) return;
+    const looped = this.shownRepeat() === "one" ? repeatProfile(track, lane.base) : null;
+    // Only a change of Repeat touches the voice (a library reload must not cut a loop's crossfade short).
+    if (!!looped === lane.repeating) return;
+    const profile = looped ?? lane.base;
+    lane.repeating = !!looped;
+    lane.profile = profile;
+    lane.after = profile.after;
+    lane.voice.setProfile(profile, endsAtFileEnd(track, profile));
   }
 
   /**
@@ -427,6 +455,11 @@ export class RoomPlayer {
   /** Play what the list picked. */
   private startPick(pick: ListPick, fadeSeconds: number): void {
     if (pick.from === "plan") {
+      // 45: the plan goes round again in the deal Up next showed for its next round.
+      const plan = this.plan;
+      if (pick.round === "next" && plan && plan.origin.kind === "playlist") {
+        this.plan = { ...plan, origin: { ...plan.origin, seed: this.nextRoundSeed(plan.origin.seed) } };
+      }
       const item = this.planItemAt(pick.at);
       if (item) this.startPlan(item, fadeSeconds);
       return;
@@ -469,7 +502,19 @@ export class RoomPlayer {
     }
     // PLY-8: a scene that moves on when its music ends plays its list once.
     const loops = origin.kind === "scene" ? !this.deps.playsOnce?.(origin.scene) : repeat === "all";
-    return { steps, at, inner, loops, keepAdded: repeat === "all" };
+    // 45: a playlist that starts again is dealt ahead for its next round (a shuffle gets a new order), so Up next can
+    // name what comes round and that is what plays.
+    const nextRound =
+      loops && origin.kind === "playlist"
+        ? sequenceOf({ ...origin, seed: this.nextRoundSeed(origin.seed) }, lib).map((step) => ({ trackId: step.trackId, playlistId: step.playlistId, key: `t:${step.trackId}` }))
+        : null;
+    return { steps, at, inner, loops, keepAdded: repeat === "all", nextRound };
+  }
+
+  /** 45, 46: the seed of the round after the deal `after` (drawn once per deal). */
+  private nextRoundSeed(after: number | undefined): number {
+    if (!this.round || this.round.after !== after) this.round = { after, seed: this.deps.newSeed?.() ?? (after ?? 0) + 1 };
+    return this.round.seed;
   }
 
   /** PLY-17: the Repeat that applies to what plays now: the room's, else the scene track's saved one, else its playlist's. */
@@ -594,8 +639,9 @@ export class RoomPlayer {
       const started = this.ambienceVoice;
       // PLY-13: an ambience playlist's track that ends by itself goes on as the playlist's play order says.
       started.voice.on("ended", () => {
-        if (this.ambienceVoice !== started || started.after !== "next") return;
-        const next = afterTrackEnded(item, this.deps.library);
+        if (this.ambienceVoice !== started) return;
+        // 43: ambience whose settings say "stop" ends there; "next" goes on as its playlist's play order says.
+        const next = started.after === "next" ? afterTrackEnded(item, this.deps.library) : null;
         if (next) this.playAmbience(next, 0);
         else {
           this.ambienceVoice = null;
@@ -765,8 +811,9 @@ export class RoomPlayer {
     };
   }
 
-  /** PLY-15: the library or a choice changed: what plays moves to its new gain, smoothly. */
+  /** PLY-15: the library or a choice changed: what plays moves to its new gain, smoothly (and 37: to its Repeat). */
   refreshGains(): void {
+    this.applyRepeat();
     const lib = this.deps.library;
     for (const lane of [this.musicVoice, this.ambienceVoice]) {
       if (lane && !lane.voice.isFinal()) lane.voice.setGainDb(this.gainOf(lib.track(lane.item.trackId), lane.item.playlistId));
@@ -805,12 +852,15 @@ export class RoomPlayer {
     const byDefault = profile.startAtMs != null ? profile.startAtMs / 1000 : undefined;
     const startAt = resume ? positionAfter(profile, resume.at, resume.elapsed) : (fromSeconds ?? picked ?? byDefault);
     if (lane === "music") this.musicLevel = 1;
-    const voice = this.play(lane, found, profile, {
+    // 37: music that Repeat one applies to goes round by the track's loop setting.
+    const looped = lane === "music" && this.shownRepeat() === "one" ? repeatProfile(found.track, profile) : null;
+    const heard = looped ?? profile;
+    const voice = this.play(lane, found, heard, {
       gainDb: this.gainOf(found.track, item.playlistId),
       crossfadeInSeconds: fadeSeconds,
       startAt,
     });
-    return { voice, item, after: profile.after, profile };
+    return { voice, item, after: heard.after, profile: heard, base: profile, repeating: !!looped };
   }
 
   /** PLY-4: where a "Pick up where it stopped" track was stopped (near its end: from the top next time). */
@@ -834,6 +884,8 @@ export class RoomPlayer {
       bus: lane,
       media: found.media,
       profile,
+      endAtFileEnd: endsAtFileEnd(found.track, profile),
+      trackId: found.track.id,
       id: `${this.roomId}/${lane}/${found.track.id}#${++this.plays}`,
       room: { id: this.roomId, input: this.deps.rooms.getRoomBus(this.roomId, lane) },
     });

@@ -24,7 +24,8 @@ import { DomainLookup, DomainPlaylist, DomainTrack, playlistTracks } from "../..
 import { browserScheduler, GainLike, Scheduler } from "../audio/types";
 import type { PlayableSource } from "../sources/layers";
 import type { MediaRequest } from "../sources/sourceLoader";
-import { Voice, VoiceOptions } from "../voice/voice";
+import { Voice, VoiceOptions, type VoiceEnding } from "../voice/voice";
+import type { AudioProfile } from "../../common/domain";
 import type { PreviewOutput } from "./previewOutput";
 
 export interface PreviewItem {
@@ -68,6 +69,13 @@ interface PreviewEvents {
   failed: (key: string, message: string) => void;
   /** Where the preview is in its file, in seconds, sent every POSITION_MS while it plays. */
   position: (key: string, seconds: number) => void;
+  /**
+   * 9, 30: the preview reached its end by itself (not stopped, not failed). Sent before its "change": a listener that
+   * starts what follows (a playlist's next track, a track's Followed by) takes over with no moment of silence shown.
+   */
+  ended: (state: PreviewState) => void;
+  /** 52: how a preview finished by itself or failed (for Save diagnostics), with the voice's account of it. */
+  finish: (state: PreviewState, ending: VoiceEnding) => void;
 }
 
 /** A switch or a stop fades this fast, so it does not click. */
@@ -149,6 +157,16 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
     return true;
   }
 
+  /**
+   * 28: the preview of `trackId` plays as this profile says from now on, from where it is. False when that track is
+   * not what previews.
+   */
+  setProfile(trackId: string, profile: AudioProfile, endAtFileEnd?: boolean): boolean {
+    if (!this.voice || !this.state || this.state.trackId !== trackId) return false;
+    this.voice.setProfile(profile, endAtFileEnd);
+    return true;
+  }
+
   /** PLY-15: the normalising gain changed where the preview plays from (the library's setting or a choice). */
   setGainDb(db: number): void {
     if (!this.voice || !this.state) return;
@@ -186,7 +204,7 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
       { context: this.output.context, scheduler: this.scheduler, destination: this.gain },
       this.load(item.media),
       item.options ?? {},
-      { id: `preview:${item.key}` },
+      { id: `preview:${item.key}`, trackId: item.trackId ?? item.media.trackId ?? undefined },
     );
     this.voice = voice;
     this.state = {
@@ -209,11 +227,16 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
       if (this.voice !== voice || !voice.isFinal()) {
         return;
       }
+      const finished = { ...this.state! };
       this.voice = null;
       this.state = null;
       this.stopPositions();
+      if (voice.ending && voice.state !== "stopped") this.emit("finish", finished, voice.ending);
       const failure = voice.state === "failed" ? `Could not play the preview of ${item.label}.` : null;
       if (failure) this.emit("failed", item.key, failure);
+      if (voice.state === "ended") this.emit("ended", finished);
+      // What follows it started already: that change has been said.
+      if (this.voice) return;
       this.emit("change", null, item.quiet ? "" : (failure ?? "Preview finished"));
     });
     this.emit("change", this.current(), item.quiet ? "" : `Previewing in your headphones: ${item.label}`);

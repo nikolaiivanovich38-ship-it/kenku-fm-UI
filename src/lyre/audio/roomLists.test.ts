@@ -99,7 +99,12 @@ describe("Play next and Add to queue (Nik, 6 Nov 12:14)", () => {
     rig.audio.addToQueue({ kind: "playlist", playlistId: "P" });
     await rig.advance(1);
     expect(first().music).toMatchObject({ trackId: "m2", playlistId: "P" });
-    expect(first().upNextList).toEqual([expect.objectContaining({ kind: "planned", trackIds: ["m3"] })]);
+    // 45: the playlist starts again after its last track (Repeat all, as a playlist on its own does): Up next says so.
+    expect(first().upNextList).toEqual([
+      expect.objectContaining({ kind: "planned", trackIds: ["m3"] }),
+      expect.objectContaining({ kind: "planned", trackIds: ["m2"] }),
+      expect.objectContaining({ kind: "planned", trackIds: ["m3"] }),
+    ]);
   });
 
   it("Play on air of a single track while the plan plays: it plays now and the plan carries on after it", async () => {

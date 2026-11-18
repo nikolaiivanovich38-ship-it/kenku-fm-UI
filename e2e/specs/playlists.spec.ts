@@ -154,7 +154,7 @@ test.describe("one manual playlist", () => {
     await page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Alien, unknowable/ }).click();
     await page.getByRole("menuitem", { name: "Remove from this playlist" }).click();
     expect(await trackNames(page)).toHaveLength(4);
-    await page.getByRole("link", { name: "Library" }).first().click();
+    await page.getByRole("link", { name: "Track library", exact: true }).first().click();
     await expect(page.getByText("Alien, unknowable voices - ancient magic, a ghost speaks").first()).toBeVisible();
   });
 
@@ -521,5 +521,18 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await expect.poll(() => adds.count()).toBeLessThan(all);
     await add.getByRole("group", { name: "Shape" }).getByRole("button", { name: "Clear Shape" }).click();
     await expect.poll(() => adds.count()).toBe(all);
+  });
+});
+
+/* 0.5.2: from the round 8 click-through, built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.2: one length for a track", () => {
+  test("round 8 #6: a track previewed from a playlist shows the length the list shows (5:01, not its file's 6:00)", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "playlists");
+    await page.getByRole("button", { name: "Show contents of Crypt ambush" }).click();
+    const list = page.getByRole("list", { name: "Tracks in Crypt ambush" });
+    await expect(list.getByRole("listitem").first()).toContainText("5:01");
+    await page.getByRole("button", { name: "Preview Crypt ambush" }).first().click();
+    await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ })).toContainText(/ \/ 5:01/);
   });
 });

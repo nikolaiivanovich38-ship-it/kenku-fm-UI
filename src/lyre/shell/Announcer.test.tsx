@@ -170,3 +170,57 @@ describe("the Saved pop-up (UX-19, round 6 part 5)", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Saved: The Sunken Crown notes");
   });
 });
+
+/*
+ * Round 8 click-through #1 (WCAG 2.4.11 Focus Not Obscured): right after Add marker focused the last marker's name,
+ * the Saved pop-up covered that row's Go to and Mix out buttons. The pop-up keeps clear of the row that holds the focus
+ * (its list row), not only of the focused field.
+ */
+describe("the pop-up never covers the row that holds the focus (round 8 #1)", () => {
+  const rect = (left: number, top: number, width: number, height: number) =>
+    ({ left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+
+  function Row() {
+    const { saved } = useAnnounce();
+    return (
+      <div id="view">
+        <ol>
+          <li data-testid="row">
+            <input aria-label="Marker label at 6:01" />
+            <button type="button">Go to Marker 2</button>
+          </li>
+        </ol>
+        <button type="button" onClick={() => saved("audio profile of the track")}>Save</button>
+      </div>
+    );
+  }
+
+  it("raises the pop-up above the focused field's row when it would cover the row's buttons", () => {
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(960);
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(1600);
+    render(
+      <AnnouncerProvider>
+        <Row />
+      </AnnouncerProvider>,
+    );
+    const view = document.getElementById("view")!;
+    const field = screen.getByRole("textbox", { name: "Marker label at 6:01" });
+    const row = screen.getByTestId("row");
+    view.getBoundingClientRect = () => rect(160, 0, 1440, 960);
+    // The field ends left of where the pop-up sits; its row goes on under it.
+    field.getBoundingClientRect = () => rect(220, 914, 1125, 28);
+    row.getBoundingClientRect = () => rect(170, 910, 1400, 36);
+    const box = document.getElementById("lyre-toasts")!;
+    box.getBoundingClientRect = () => {
+      const bottom = 960 - parseFloat(box.style.bottom || "0");
+      return rect(1360, bottom - 30, 228, 30);
+    };
+    field.focus();
+    act(() => screen.getByRole("button", { name: "Save" }).click());
+    field.focus();
+    act(() => window.dispatchEvent(new Event("resize")));
+    const top = 960 - parseFloat(box.style.bottom) - 30;
+    expect(960 - parseFloat(box.style.bottom)).toBeLessThanOrEqual(910);
+    expect(top).toBeLessThan(910);
+  });
+});

@@ -58,9 +58,16 @@ describe("trackProfile: what a track does at its end when nothing says otherwise
 });
 
 describe("laneProfile: what each lane asks of a track", () => {
-  it("ambience always loops", () => {
+  it("43: ambience loops unless its settings say what happens at its end (the track's own, or the place's)", () => {
     expect(laneProfile(track({ kind: "amb" }), "ambience", [], {}).after).toBe("loop");
-    expect(laneProfile(track({ kind: "amb", profile: { after: "stop" } }), "ambience", [], {}).after).toBe("loop");
+    expect(laneProfile(track({ kind: "music", loop: "no" }), "ambience", [], {}).after).toBe("loop");
+    expect(laneProfile(track({ kind: "amb", profile: { after: "stop" } }), "ambience", [], {}).after).toBe("stop");
+    const playlist = { kind: "playlist" as const, playlistId: "p" };
+    expect(laneProfile(track({ kind: "amb" }), "ambience", [playlist], { [placeKey(playlist)]: { t1: { after: "next" } } }).after).toBe("next");
+  });
+
+  it("43: an ambience track with nothing chosen shows Loop as what happens at its end", () => {
+    expect(trackProfile(track({ kind: "amb" }), [], {}).profile.after).toBe("loop");
   });
 
   it("an effect plays once", () => {

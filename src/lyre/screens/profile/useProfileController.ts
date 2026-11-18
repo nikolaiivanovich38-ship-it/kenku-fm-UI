@@ -19,6 +19,7 @@ import {
   addMarker,
   fmt,
   fromDomain,
+  HANDLE_STEP,
   isLength,
   movePoint,
   parseTime,
@@ -178,7 +179,8 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
   });
   // The sound ended by itself (End, the end of the file): the clock goes there. Another Preview button taking the
   // headphones pauses the clock where it is.
-  const previewKey = useNowPlaying().preview?.key ?? null;
+  const nowPreview = useNowPlaying().preview;
+  const previewKey = nowPreview?.key ?? null;
   const heard = useRef(false);
   useEffect(() => {
     if (!sounding.current) {
@@ -222,22 +224,39 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
     if (!handoverId || !h || sounding.current === handoverId) return;
     startSound(h.pos, h.id, profileOf(h.id, h.place));
   }, [handoverId, startSound, profileOf]);
-  // The profile changed while it plays (a handle moved): the sound starts again from where it is, with the change.
+  // 28: the profile changed while it plays (a handle, a fade, what happens at the end): the playing sound takes the
+  // change at once, from where it is (past End, where it plays the plain file, it starts again from the playhead).
+  // A preview of this track started elsewhere (a Preview button) takes it too, as the players would hear it.
   const playingProfile = useRef(p);
+  const previewedHere = nowPreview?.kind === "track" && nowPreview.trackId === track.id;
   useEffect(() => {
     if (playingProfile.current === p) return;
     playingProfile.current = p;
-    if (sounding.current !== track.id || !clockRef.current.playing || clockRef.current.handover) return;
-    restartSoon();
-  }, [p, track.id, restartSoon]);
+    const s = clockRef.current;
+    if (sounding.current === track.id && s.playing && !s.handover) {
+      if (s.pos < p.end) audio.changePreview(track.id, toInput(heardProfile(p, s.mode)));
+      else restartSoon();
+    } else if (!sounding.current && previewedHere) {
+      audio.changePreview(track.id, toInput(p));
+    }
+  }, [p, track.id, restartSoon, audio, previewedHere]);
   // The clock stopped by itself (End, the end of the file, a few seconds into the next track): so does the sound.
   useEffect(() => {
     if (!clock.playing) stopSound();
   }, [clock.playing, stopSound]);
-  // Leaving the screen, or opening another place, stops the preview.
-  const stopSoundRef = useRef(stopSound);
-  stopSoundRef.current = stopSound;
-  useEffect(() => () => stopSoundRef.current(), []);
+  // 24: leaving the screen (Back, or opening another place) keeps its preview playing, and the Now playing bar with
+  // it: the sound plays on as the players would hear it from there, and what follows it plays when it ends.
+  const letGo = useCallback(() => {
+    if (restartTimer.current) clearTimeout(restartTimer.current);
+    restartTimer.current = null;
+    const id = sounding.current;
+    if (!id) return;
+    sounding.current = null;
+    audio.changePreview(id);
+  }, [audio]);
+  const letGoRef = useRef(letGo);
+  letGoRef.current = letGo;
+  useEffect(() => () => letGoRef.current(), []);
 
   /* ---------- focus after a change ---------- */
 
@@ -357,19 +376,20 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       editor.write(next, when);
       return next;
     },
+    /** 2: a handle's keys: arrows 0.1 s, Shift and an arrow 1 s, Page Up and Down 10 s, Home and End. */
     keyOnHandle(which: Which, e: React.KeyboardEvent) {
       const cur = valueOf(p, which);
       const [lo, hi] = rangeOf(p, dur, which);
-      const big = e.shiftKey ? 10 : 1;
+      const step = e.shiftKey ? HANDLE_STEP.shift : HANDLE_STEP.arrow;
       const v =
         e.key === "ArrowLeft" || e.key === "ArrowDown"
-          ? cur - big
+          ? cur - step
           : e.key === "ArrowRight" || e.key === "ArrowUp"
-            ? cur + big
+            ? cur + step
             : e.key === "PageDown"
-              ? cur - 10
+              ? cur - HANDLE_STEP.page
               : e.key === "PageUp"
-                ? cur + 10
+                ? cur + HANDLE_STEP.page
                 : e.key === "Home"
                   ? lo
                   : e.key === "End"

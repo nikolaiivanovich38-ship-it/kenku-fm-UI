@@ -230,3 +230,58 @@ describe("what a Preview button plays (prototype: core.js L.preview*)", () => {
     expect(playlistPreview(pl, lookup([pl]), media)).toEqual({ message: "This playlist has no tracks yet" });
   });
 });
+
+describe("0.5.2: what follows a preview, and changes while it plays", () => {
+  it("9, 30: says a preview ended by itself before it says the preview stopped, and what starts then takes over at once", async () => {
+    const tavern = track("tavern", "Tavern");
+    const storm = track("storm", "Storm");
+    const ended: string[] = [];
+    player.on("ended", (state) => {
+      ended.push(state.key);
+      player.play(trackPreview(storm, media(storm)));
+    });
+    player.play({ ...trackPreview(tavern, media(tavern)), options: { profile: { startMs: 0, endMs: 2000, after: "next", loopStartMs: 0, loopCrossfadeMs: 0, fadeIn: { ms: 0, shape: 50 }, fadeOut: { ms: 0, shape: 50 }, markers: [] } } });
+    await headphones.flush();
+    changes = [];
+    await headphones.advance(2.5);
+    await headphones.flush();
+    expect(ended).toEqual(["tavern"]);
+    expect(player.current()?.key).toBe("storm");
+    // No moment with nothing previewing: the Now playing bar does not blink.
+    expect(changes.map((c) => c.state?.key ?? null)).not.toContain(null);
+  });
+
+  it("a preview stopped by a press does not count as ended", async () => {
+    const tavern = track("tavern", "Tavern");
+    const ended = vi.fn();
+    player.on("ended", ended);
+    player.play(trackPreview(tavern, media(tavern)));
+    await headphones.flush();
+    player.stop();
+    await headphones.advance(1);
+    expect(ended).not.toHaveBeenCalled();
+  });
+
+  it("52: says how each preview finished by itself (for Save diagnostics)", async () => {
+    const tavern = track("tavern", "Tavern");
+    const finished: string[] = [];
+    player.on("finish", (state, ending) => finished.push(`${state.key} ${ending.how} ${ending.atSeconds}`));
+    player.play(trackPreview(tavern, media(tavern)));
+    await headphones.flush();
+    await headphones.advance(121);
+    expect(finished).toEqual(["tavern file end 120"]);
+  });
+
+  it("28: a new profile reaches the voice that plays, without opening the file again", async () => {
+    const tavern = track("tavern", "Tavern");
+    player.play(trackPreview(tavern, media(tavern)));
+    await headphones.flush();
+    await headphones.advance(3);
+    const opened = headphones.elements.length;
+    expect(player.setProfile("tavern", { startMs: 0, endMs: 4000, after: "next", loopStartMs: 0, loopCrossfadeMs: 0, fadeIn: { ms: 0, shape: 50 }, fadeOut: { ms: 0, shape: 50 }, markers: [] })).toBe(true);
+    expect(player.setProfile("storm", { startMs: 0, endMs: 4000, after: "next", loopStartMs: 0, loopCrossfadeMs: 0, fadeIn: { ms: 0, shape: 50 }, fadeOut: { ms: 0, shape: 50 }, markers: [] })).toBe(false);
+    await headphones.advance(1.2);
+    expect(player.current()).toBeNull();
+    expect(headphones.elements.length).toBe(opened);
+  });
+});

@@ -252,3 +252,31 @@ Lyre never changes your files: the level is evened out as Lyre plays them, and t
 - `LaneNowPlaying.gainDb` and `PreviewNowPlaying.gainDb` say the gain applied (normaliseHover words it). The preview hears the gain the players would: a track alone, a playlist's first track with the playlist's choice, a track previewed from a playlist (`PreviewTrackOptions.playlistId`), a pad's sound as on air.
 - When the library changes (the setting, a choice, a new measurement), `EngineLyreAudio.setLibrary` calls `Director.libraryChanged()` and moves what plays, and the preview, to its new gain over 50 ms. `LibrarySnapshot` loads `library.normaliseSettings()` with "tracks" and reloads tracks on "peaks" (new loudness).
 - Tests: `voice.test.ts` (the level, a change while playing, nothing left behind), `director.test.ts` "volume normalisation" (off by default, the library's target, playlist and track precedence, crossfade, pads, a change while playing), `lyreAudio.test.ts` (now-playing gains, previews, a library change).
+
+## 0.5.2: w52-play (Nik's play test, 14 Nov)
+
+### For the product owner
+
+- **A track plays to the end of its file (item 52).** An MP3 whose header counts too few frames (a file that was cut or joined) is read as a few seconds long, and its End used to stop it there. An End at the track's length now means the end of the file, so the track plays all of it; an End you moved still stops there. When a track on air or in a preview fails, runs out long before its length, or turns out longer than the library says, Lyre writes a line naming it, its file, where it stopped and why into the log that Help › Save diagnostics saves (log.txt).
+- **Up next says what plays (item 45).** A playlist on its own starts again after its last track; Up next now shows that next round, and that is what plays.
+- **Shuffle (item 46).** Shuffles are dealt from the computer's cryptographic random numbers, each round of a repeating shuffled playlist gets a new order, and a round never starts with the track that just played.
+- **Repeat one (item 37)** goes round by the track's loop setting, with its settings where it plays: Loops well goes back to Loop start, Crossfade the loop crossfades there (2 s when the track has no crossfade of its own), Do not loop plays it again from Start. On air, in Live, in scenes and in a playlist's preview.
+- **Ambience (item 43)** loops unless What happens at the end is chosen for the track, or for the scene or playlist it plays from.
+- **Previews (items 9, 30)** play as the players would hear them: a playlist plays all its tracks in its play order there (shuffle, repeat, the place's track order), and a track's Followed by plays when the preview ends.
+- **Audio profile (items 2, 24, 28):** handles move a tenth of a second (Shift: a second; Page Up and Down: ten), times can be typed with tenths, and Zoom in widens the waveform; a change is heard at once in the preview that plays; Back keeps the preview playing.
+
+### Technical design
+
+| Where | What |
+| --- | --- |
+| `voice/voice.ts` | `VoiceOptions.endAtFileEnd`: `profilePlan(…, toFileEnd)` ends at the media's own end; a stream's `durationchange` (`LayerEvents.onDuration`) remakes the plan, so fades and loops land on the real end. `Voice.ending` (`VoiceEnding`: how, where, the file's length, End, why, buffer or stream). `Voice.setProfile` plays a new profile from where it is (cancels a prepared pass, re-writes the gain, re-arms End). Voices carry their `trackId`. |
+| `profile/trackProfile.ts` | `endsAtFileEnd(track, profile)` (End at or past the library's length, or no length known); `repeatProfile(track, profile)` (37); ambience loops unless `after` was chosen (43). `resolveProfile` gives ambience tracks "loop" by default. |
+| `preview/previewPlayer.ts` | `ended` (before the final `change`; a listener that starts what follows leaves no gap), `finish` (with the voice's ending), `setProfile(trackId, profile)`. |
+| `queue/roomPlayer.ts` | Passes `endAtFileEnd` and `trackId`; Repeat one plays the music with `repeatProfile` and `applyRepeat` changes the playing voice when the Repeat changes; a playlist plan that loops is dealt ahead for its next round (`PlanView.nextRound`, one seed per deal). |
+| `common/domain/roomList.ts` | `PlanView.nextRound`: Up next goes on into it after what was added; the bottom picks `{ from: "plan", at, round: "next" }`; a round that would start with the track just played is turned to start with the next other track. Scenes give none and start again at their top as before. |
+| `common/domain/round5.ts` | `cryptoRandom()` (crypto.getRandomValues); the Director's default random and seeds of 32 bits. |
+| `lyre/audio/lyreAudio.ts` | `PreviewRun` (what the preview plays through), `previewStep`/`nextInPreview`/`previewEnded`, `changePreview(trackId, profile?)`; `logEnding` writes `playbackLog.ts` lines through `LyreAudioParts.logLine` (default `console.warn`, which the main process's log keeps for Save diagnostics). |
+
+### Tests
+
+`voice/fileEnd.test.ts` (52, with the fake element guessing a stream's length from its "bit rate" and finding the real one near the end, as Chromium does: `FakeAudioContext.mediaEstimates`), `voice/liveProfile.test.ts` (28), `previewPlayer.test.ts` (0.5.2 block), `director.test.ts` (52 on air, 45, 46, 37, 43), `roomList.test.ts` (45), `common/domain/shuffle.test.ts` (46: chi-squared over 60,000 deals), `lyre/audio/preview052.test.ts` (9, 30, 37, 28, 24, 52), `lyre/audio/playbackLog.test.ts`, `previewOnThePage.test.tsx` (24 on the whole page), `ProfileScreen.test.tsx` (2, 24, 28), `e2e/specs/audio-profile.spec.ts` (0.5.2 block, app only) and `e2e/lyreMedia.spec.ts` (52 with real MP3 files made by the bundled ffmpeg).

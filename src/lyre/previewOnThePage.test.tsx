@@ -121,3 +121,23 @@ describe("the time on the Now playing bar and in Live's On air (Nik, 0.5.0: it s
     expect(timeOf(box(), ".lv-time")).not.toBe(before);
   });
 });
+
+describe("0.5.2: the Audio profile's preview after Back (item 24) and a change while it plays (item 28)", () => {
+  it("Back from the Audio profile keeps its preview playing, the Now playing bar showing it", async () => {
+    const { sound } = await openPage("library/t13");
+    act(() => {
+      window.location.hash = "#/profile/t13";
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    await screen.findByRole("slider", { name: "End" });
+    await userEvent.click(within(screen.getByRole("region", { name: "Waveform and listening" })).getByRole("button", { name: "Play" }));
+    await playOn(sound, 2);
+    expect(sound.audio.getNowPlaying().preview?.trackId).toBe("t13");
+    await userEvent.click(screen.getByRole("button", { name: /^Back to/ }));
+    await screen.findByRole("region", { name: "Details" });
+    await playOn(sound, 2);
+    expect(sound.audio.getNowPlaying().preview?.trackId).toBe("t13");
+    expect(sound.hearPreview()).toBeGreaterThan(0);
+    expect(within(screen.getByRole("region", { name: "Now playing" })).getByRole("group", { name: /Only you/ })).toBeInTheDocument();
+  });
+});

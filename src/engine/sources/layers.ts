@@ -18,6 +18,8 @@ export interface LayerEvents {
   /** The layer reached the end of the media (never for a native loop). */
   onEnded(): void;
   onError(message: string): void;
+  /** 52: the media's length changed (a stream found its real length, longer or shorter than its first guess). */
+  onDuration?(seconds: number): void;
 }
 
 export interface Layer {
@@ -203,6 +205,9 @@ export class StreamLayer implements Layer {
         if (!layer.released) {
           events.onEnded();
         }
+      });
+      layer.listen("durationchange", () => {
+        if (ready && !layer.released && Number.isFinite(element.duration)) events.onDuration?.(element.duration);
       });
       try {
         layer.node = context.createMediaElementSource(element);

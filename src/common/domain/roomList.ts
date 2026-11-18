@@ -63,6 +63,12 @@ export interface PlanView {
   loops: boolean;
   /** Added items stay to come round again (Repeat all: the room's, or the playlist's own). */
   keepAdded: boolean;
+  /**
+   * 45: a plan that loops, dealt ahead for its next round (a shuffled playlist gets a new order each round; the same
+   * steps otherwise). Given, Up next goes on into it and the bottom plays its first step (`round: "next"`); not given
+   * (a scene), the plan starts again at its own top and Up next stops at the bottom, as before.
+   */
+  nextRound?: readonly PlanStep[] | null;
 }
 
 /** What plays now: the plan, a Play next item (taken off `pn`), or an added item (it stays in `q` while it plays). */
@@ -91,14 +97,18 @@ export interface RoomList {
   undo: ListUndo | null;
 }
 
-/** What to play next: a plan step, or one track of an added item. */
-export type ListPick = { from: "plan"; at: number } | { from: "added"; item: ListItem; at: number; trackId: string };
+/**
+ * What to play next: a plan step, or one track of an added item. `round: "next"`: step `at` of the plan's next round
+ * (PlanView.nextRound), which the host makes the plan from then on.
+ */
+export type ListPick = { from: "plan"; at: number; round?: "next" } | { from: "added"; item: ListItem; at: number; trackId: string };
 
 /** Names one Up next entry for ×: an added item, the rest of the added playlist that plays, or a planned step. */
 export type UpNextRef = { kind: "added"; itemId: string } | { kind: "rest"; itemId: string } | { kind: "plan"; key: string };
 
 export type UpNextEntry =
-  | { kind: "plan"; ref: UpNextRef; at: number; trackId: string; playlistId: string | null }
+  /** `round: "next"`: from the plan's next round (45), `at` in PlanView.nextRound. */
+  | { kind: "plan"; ref: UpNextRef; at: number; trackId: string; playlistId: string | null; round?: "next" }
   | {
       kind: "added";
       ref: UpNextRef;
@@ -220,8 +230,26 @@ function fromPlan(list: RoomList, plan: PlanView, pos: number | null, ended: boo
 }
 
 function planEnd(list: RoomList, plan: PlanView, loops: boolean): { list: RoomList; pick: ListPick | null } {
+  const ended: RoomList = { ...list, now: PLAN, ret: null };
+  if (loops && plan.nextRound) {
+    const first = roundOrder(list, plan)[0];
+    return { list: ended, pick: first === undefined ? null : { from: "plan", at: first, round: "next" } };
+  }
   const first = loops ? top(list, plan) : null;
-  return { list: { ...list, now: PLAN, ret: null }, pick: first === null ? null : { from: "plan", at: first } };
+  return { list: ended, pick: first === null ? null : { from: "plan", at: first } };
+}
+
+/**
+ * 45: the next round's steps in the order they will play (skips left out), never starting with the track the plan
+ * ends on: a round that would is turned so it starts with the first other track (unless nothing else is left).
+ */
+function roundOrder(list: RoomList, plan: PlanView): number[] {
+  const round = plan.nextRound ?? [];
+  const lastKey = plan.steps[playOrder(list, plan).filter((i) => !list.skips.includes(plan.steps[i].key)).pop() ?? -1]?.trackId;
+  const own = round.map((_, i) => i).filter((i) => !list.skips.includes(round[i].key));
+  const order = list.shuffle ? playOrder(list, { ...plan, steps: round }).filter((i) => own.includes(i)) : own;
+  const firstOther = order.findIndex((i) => round[i].trackId !== lastKey);
+  return firstOther > 0 ? [...order.slice(firstOther), ...order.slice(0, firstOther)] : order;
 }
 
 /** The queue goes on: the rest of the added item, the next one, then back to the plan's top (or stop). */
@@ -420,5 +448,12 @@ export function upNext(list: RoomList, plan: PlanView): UpNextEntry[] {
     }
     out.push(added(item, "q", 0, false));
   });
+  // 45: a plan that starts again goes on into its next round, which plays after the bottom and what was added.
+  if (plan.loops && plan.nextRound && plan.steps.length > 0) {
+    for (const at of roundOrder(list, plan)) {
+      const step = plan.nextRound[at];
+      out.push({ kind: "plan", ref: { kind: "plan", key: step.key }, at, trackId: step.trackId, playlistId: step.playlistId, round: "next" });
+    }
+  }
   return out;
 }
