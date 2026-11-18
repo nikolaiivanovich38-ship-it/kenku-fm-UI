@@ -281,7 +281,14 @@ test.describe("tagging many tracks at once", () => {
     await selectTwoNew(page);
     const bar = page.getByRole("toolbar", { name: "Selected tracks" });
     await expect(bar).toContainText("2 selected");
-    await expect(bar.getByRole("button")).toHaveText(["Tag…", "Add to playlist…", "New playlist from these", "Clear selection"]);
+    const named = ["Tag…", "Add to playlist…", "New playlist from these", "Clear selection"];
+    if (test.info().project.name === "app") {
+      // 0.5.2 items 4, 12, 39 (built in the app only): a ⋯ after them, for Type and Remove from library.
+      await expect(bar.getByRole("button")).toHaveText([...named, ""]);
+      await expect(bar.getByRole("button").last()).toHaveAccessibleName("More for the selected tracks");
+    } else {
+      await expect(bar.getByRole("button")).toHaveText(named);
+    }
     await bar.getByRole("button", { name: "Clear selection" }).click();
     await expect(bar).toHaveCount(0);
   });
@@ -793,7 +800,8 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   test("round 8 #2 and #4: Pick up where it stopped fits on one line; Follow with's line is clear of the list's focus ring", async ({ page }) => {
     appOnly();
     await openRoute(page, "library");
-    await row(page, "Ashes").locator("td.lb-c-title").click();
+    // An Underscore track: it has Pick up where it stopped and Follow with… (Ashes, with no role, has no Follow with…).
+    await openTrack(page, "Melancholy tense - melancholy heroism - fade");
     const pickUp = details(page).locator("label.lb-resume");
     await expect(pickUp).toBeVisible();
     expect((await pickUp.boundingBox())!.height).toBeLessThan(30);
