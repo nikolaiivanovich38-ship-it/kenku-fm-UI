@@ -131,7 +131,7 @@ test.describe("FND-8 the Help entry", () => {
     await expect(panel.getByRole("button", { name: "Connect Discord and add a bot to a room" })).toBeVisible();
     await expect(panel.getByRole("list", { name: "Get started" })).toHaveCount(0);
     await search.fill("shuffle repeat");
-    await expect(panel.getByRole("listitem").first()).toHaveText("Shuffle and repeat per place");
+    await expect(panel.getByRole("listitem").first()).toHaveText("Shuffle and repeat in playlists and scenes");
     await search.fill("zzzz");
     await expect(panel.getByText("Nothing found. Try other words.")).toBeVisible();
     await search.press("Escape");
@@ -214,7 +214,7 @@ test.describe("FND-8 the first-run tour", () => {
       await box.getByRole("button", { name: step === 5 ? "Done" : "Next" }).click();
     }
     // 0.5.2 item 23: the app's step is "Track library"; the prototype's "Library".
-    expect(titles.map((t) => t.replace(/^Track library$/, "Library"))).toEqual(["Lyre's places", "Library", "Scenes", "Live", "Now playing"]);
+    expect(titles.map((t) => t.replace(/^Track library$/, "Library"))).toEqual(["The menu", "Library", "Scenes", "Live", "Now playing"]);
     await expect(tour(page)).toHaveCount(0);
   });
 
@@ -224,7 +224,7 @@ test.describe("FND-8 the first-run tour", () => {
     await page.keyboard.press("Enter");
     await expect(page.getByRole("dialog", { name: /^(Track l|L)ibrary 2 of 5$/ })).toBeVisible();
     await tour(page).getByRole("button", { name: "Back" }).click();
-    await expect(page.getByRole("dialog", { name: "Lyre's places 1 of 5" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "The menu 1 of 5" })).toBeVisible();
   });
 
   test("Skip ends it, and it does not come back on the next start", async ({ page }) => {
@@ -244,7 +244,7 @@ test.describe("FND-8 the first-run tour", () => {
     await page.keyboard.press("F1");
     await helpPanel(page).getByRole("button", { name: "Take the tour" }).click();
     await expect(helpPanel(page)).toHaveCount(0);
-    await expect(page.getByRole("dialog", { name: "Lyre's places 1 of 5" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "The menu 1 of 5" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(helpButton(page)).toBeFocused();
   });

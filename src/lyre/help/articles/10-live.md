@@ -1,19 +1,19 @@
 ---
 title: Run a session in Live
 group: Run a session
-words: live run session scene next space undo keys shortcuts find track playlist search on air room rooms pads fade stop kick nobody there back shuffle seek jump position
+words: live run session scene next space undo keys shortcuts find track playlist search on air room rooms pads fade stop leave kick nobody there back shuffle seek jump position
 ---
-Live is where you run the evening. **Run this session** on a campaign or session page loads it here.
+Live is where you run the evening. Press **Run this session** on a campaign or session page to load it here.
 
-- **On air**, at the top: a part for each room, with what it plays (an icon says if it loops), **Up next**, its volume and its bot. Click a track's position line to jump in it. Its bot's button changes the channel; **+** adds a room.
-- **Scenes**: press `Space`, or **Next scene**, to start the next scene. Click a scene's name to check it; anything in it plays alone without starting the scene. **Undo**, or `Ctrl+Z`, takes back the last thing you did within 8 seconds.
-- **Current scene**: the running scene's music in play order, its ambience and its pads, which answer to their keys.
-- **This session** and **Whole campaign**: their playlists and pads, to play a whole playlist, one of its tracks or a pad. Empty boxes hide.
+- **On air**, at the top, has a part for each room: what it plays (an icon shows if it loops), **Up next**, its volume and its bot. Click a track's position line to jump to that point.
+- **Scenes**: press `Space`, or **Next scene**, to start the next scene. Click a scene's name to look inside it and play anything in it without starting the scene. Press **Undo**, or `Ctrl+Z`, within 8 seconds to take back the last thing you did.
+- **Current scene**: the running scene's music in play order, its ambience and its pads, which you can play with their keys.
+- **This session** and **Whole campaign**: their playlists and pads. Empty boxes are hidden.
 - **Find a track or playlist** (`/`): search the whole library for anything not in the plan.
-- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds; **Stop all** stops at once.
+- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds. **Stop all** stops everything at once.
 
-A room is a voice channel with one of your bots in it. Its bot button changes the channel, adds a room or kicks the bot. Scenes always start in the first room. With two rooms or more, **To:** on a box chooses where it plays. **No room**, **Nobody there** or **Connection lost** means the players hear nothing: the button beside it puts the bot where the players are.
+A room is a voice channel with one of your bots in it. Use its bot button to change the channel or add a room. To take the bot out, press **Leave**. Scenes always start in the first room. With two rooms or more, use **To:** on a box to choose where it plays. **No room**, **Nobody there** or **Connection lost** means the players hear nothing. Press the button beside the message to put the bot where the players are.
 
-**‹** (Back), top left, goes back one step through everywhere you have been. `Alt+Left` does the same. `Alt+1` to `Alt+7` jump to the boxes, from On air down.
+Press **‹** (Back), at the top left, or `Alt+Left` to go back to the screen before. To jump to the boxes, from On air down, use `Alt+1` to `Alt+7`.
 
 **Keys** lists every key. If single keys get in your way, turn **Single-key shortcuts** off there.
