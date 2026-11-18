@@ -174,7 +174,7 @@ var L = (function () {
       return (g ? g.name : c.group) + ' ' + (c.match === 'all' ? 'all of' : c.match === 'none' ? 'none of' : 'any of') + ' ' + c.values.join(', ');
     });
     if (rule.energy) parts.push('energy ' + rule.energy[0] + ' to ' + rule.energy[1]);
-    if (rule.notRole) parts.push('not ' + rule.notRole.toLowerCase() + 's');
+    if (rule.notRole) parts.push('not ' + ((L.roleWord && L.roleWord[rule.notRole]) || rule.notRole).toLowerCase() + 's');
     if (rule.shapes && rule.shapes.length) parts.push('shape ' + rule.shapes.map(function (x) { return (L.shapeName[x] || x).toLowerCase(); }).join(' or '));
     return parts.join('; ');
   };
@@ -1030,8 +1030,8 @@ var L = (function () {
 
   /* ---------- routing ---------- */
   var ROUTES = [
-    [/^#\/campaigns$/, 'campaigns', []], [/^#\/campaign\/([\w-]+)$/, 'campaign', ['cid']], [/^#\/session\/([\w-]+)\/([\w-]+)$/, 'session', ['cid', 'sid']],
-    [/^#\/library(?:\/([\w-]+))?$/, 'library', ['tid']], [/^#\/playlists$/, 'playlists', []], [/^#\/playlist\/([\w-]+)$/, 'playlist', ['pid']],
+    [/^#\/campaigns$/, 'campaigns', []], [/^#\/campaign\/([\w-]+)$/, 'campaign', ['cid']], [/^#\/session\/([\w-]+)\/([\w-]+)(?:\/([\w-]+))?$/, 'session', ['cid', 'sid', 'tid']],
+    [/^#\/library(?:\/([\w-]+))?$/, 'library', ['tid']], [/^#\/playlists$/, 'playlists', []], [/^#\/playlist\/([\w-]+)(?:\/([\w-]+))?$/, 'playlist', ['pid', 'tid']],
     [/^#\/profile\/([\w-]+)(?:\/([\w:-]+))?$/, 'profile', ['tid', 'ctx']], [/^#\/boards$/, 'boards', []], [/^#\/board\/([\w-]+)$/, 'board', ['bid']], [/^#\/live$/, 'live', []], [/^#\/outputs$/, 'outputs', []], [/^#\/look$/, 'look', []],
     [/^#\/tags$/, 'tags', []], [/^#\/backup$/, 'backup', []], [/^#\/moved$/, 'moved', []], [/^#\/relink$/, 'relink', []], [/^#\/settings$/, 'settings', []]
   ];

@@ -512,7 +512,7 @@
       // the screen's title, so it is not a crumb as well (it would show twice).
       backHTML(t);
       var head = '<div class="viewhead ap-head"><div class="ap-id"><div class="ap-titlerow"><!--lead-->' +
-        '<h1 title="' + esc(L.title(t)) + ' › Audio profile"><span class="ap-h1-t">' + esc(L.title(t)) + '</span><span class="ap-h1-k"><span aria-hidden="true">›</span> Audio profile</span></h1></div>' +
+        '<h1 title="' + esc(L.title(t)) + ' › Audio profile">' + (L.trackHrefFor ? '<a class="ap-h1-t r9-h1link" href="' + L.trackHrefFor(t.id, S.key) + '" data-k="ap-h1-track" title="' + esc(L.title(t)) + ': its details">' + esc(L.title(t)) + '</a>' : '<span class="ap-h1-t">' + esc(L.title(t)) + '</span>') + '<span class="ap-h1-k"><span aria-hidden="true">›</span> Audio profile</span></h1></div>' +
         // Round 6: the file's names are in the Library's details and on hover here; length and shape stay.
         '<p class="ap-meta" title="' + esc('Title in the file: ' + (t.metaTitle || 'none') + ' · File name: ' + t.file) + '"><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + normHTML(t) + '</div>' +
         '<div class="ap-headacts">' +
@@ -526,7 +526,7 @@
         L.pane({ id: 'ap-end', title: 'At the end', icon: 'loop', cls: 'ap-endpane', noMax: true, kind: 'plain', status: { text: endStatus(p), tone: 'idle' }, body: endHTML(t, p) }) +
         L.pane({ id: 'ap-fades', title: 'Fades', icon: 'fade', cls: 'ap-fadepane', noMax: true, kind: 'plain', status: { text: p.fadeIn.dur || p.fadeOut.dur ? 'In ' + secs(p.fadeIn.dur) + ' · out ' + secs(p.fadeOut.dur) : 'No fades', tone: 'idle' }, body: fadesHTML(t, p) }) +
         L.pane({ id: 'ap-markers', title: 'Markers', icon: 'tag', cls: 'ap-mpane', noMax: true, kind: 'plain', status: { text: p.markers.length ? p.markers.length + ' marker' + (p.markers.length === 1 ? '' : 's') : 'Empty', tone: 'idle' },
-          actions: '<button class="btn s" data-act="apmadd" data-k="ap-madd"' + (S.keys1 ? ' aria-keyshortcuts="M"' : '') + ' title="Add a marker at the playhead (' + L.fmt(S.pos) + ')"' + dis(t) + '>' + L.icon('plus', 's') + 'Add marker at playhead</button>', body: markersHTML(t, p) }) +
+          actions: '<button class="btn s" data-act="apmadd" data-k="ap-madd"' + (S.keys1 ? ' aria-keyshortcuts="M"' : '') + ' title="Add a marker at the playhead (' + L.fmt(S.pos) + ')"' + dis(t) + '>' + L.icon('plus', 's') + 'Add marker at playhead</button>' + (L.splitButton ? L.splitButton(t, p) : ''), body: markersHTML(t, p) }) +
         '</div></div>';
       return head + body;
     },

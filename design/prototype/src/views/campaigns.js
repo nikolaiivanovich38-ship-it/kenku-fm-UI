@@ -97,7 +97,7 @@
       var it = info(id, kind === 'bd'); if (!it) return ''; var o = it.obj, xk = 'cp-' + scope + ':' + id, nm = esc(o.name);
       var sub = kind === 'pl' ? plSub(o) : it.label + ' · ' + it.sub, ro = kind === 'pl' && !readonly && ids.length > 1;
       // ORG-13: the session's and the campaign's playlists can be dragged (or moved with Alt+Up / Alt+Down) into order.
-      return '<li class="cp-arow-wrap"' + (ro ? ' data-ro="apl|' + scope + '" data-ri="' + ids.indexOf(id) + '"' : '') + '><div class="cp-arow">' + (ro ? '<span class="ro-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
+      return '<li class="cp-arow-wrap"' + (ro ? ' data-ro="apl|' + scope + '" data-ri="' + ids.indexOf(id) + '"' : '') + (kind === 'pl' && o.kind === 'manual' ? ' data-dropto="pl:' + id + '"' : '') + '><div class="cp-arow">' + (ro ? '<span class="ro-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
         '<a class="ellipsis grow cp-aname" href="' + it.href + '" data-k="open-' + scope + kind + id + '" title="' + esc(o.name + ' · ' + sub) + '">' + nm + '</a>' +
         (kind === 'pl' ? L.orderButton(id, key) : '') + L.previewButton(it.kind, id) + (kind === 'pl' ? L.playOnAirButton('playlist', id, key) : '') +
         (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk, scope === 's' ? key : '', scope === 'r' ? '' : key) + '</li>';
@@ -490,7 +490,9 @@
   }
   function musicList(sc) {
     var items = L.sceneItems(sc);
-    return '<div class="cp-box" data-filedrop="music" data-sc="' + sc.id + '" title="Drop audio files or folders here to add them">' +
+    var x = ctx();
+    // Round 9 (item 32): a track dragged from a playlist anywhere in the planner can be dropped on a scene's Music list.
+    return '<div class="cp-box" data-filedrop="music" data-sc="' + sc.id + '"' + (x.c && x.s ? ' data-dropto="sc:' + x.c.id + ':' + x.s.id + ':' + sc.id + '"' : '') + ' title="Drop audio files or folders here to add them">' +
       (items.length ? '<ol class="cp-items" aria-label="Music in order">' + items.map(function (x, i) { return itemRow(sc, 'music', info(x.id), i, items.length, 'Starts the scene'); }).join('') + '</ol>'
         : '<p class="faint cp-mnone">No music yet. The first item you add starts the scene.</p>') +
       '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddmusic" data-sc="' + sc.id + '" data-k="am-' + sc.id + '" title="Plays in order; drop audio files on the box to add them">' + L.icon('plus', 's') + 'Add tracks or playlists…</button></div></div>';

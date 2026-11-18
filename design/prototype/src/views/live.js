@@ -572,7 +572,7 @@
       '<dl>' + (nm !== ownNm ? '<dt>Name in this scene</dt><dd>' + esc(nm) + '</dd>' : '') + '<dt>Your title</dt><dd>' + (t.title ? esc(t.title) : '<span class="faint">none yet</span>') + '</dd><dt>Title in the file</dt><dd>' + esc(t.metaTitle || '–') + '</dd>' +
       '<dt>File name</dt><dd>' + esc(t.file) + '</dd><dt>From</dt><dd>' + esc(t.artist + ', ' + t.album) + '</dd></dl>' +
       (L.profileLink ? '<div class="lv-trk-ap">' + L.profileLink(t.id, pk, true) + '<span class="hint">Audio profile' + (pk ? (o.seq ? ' in this scene' : ' here') : '') + '</span></div>' : '') +
-      '<div class="chips">' + D.tagGroups.map(function (g) { return L.tagsOn(t, g.id).map(function (v) { return '<span class="chip lv-mood" title="' + esc(g.name) + '">' + esc(v) + '</span>'; }).join(''); }).join('') + (t.role ? '<span class="chip">' + esc(t.role) + '</span>' : '') + '</div></div>' : '';
+      '<div class="chips">' + D.tagGroups.map(function (g) { return L.tagsOn(t, g.id).map(function (v) { return '<span class="chip lv-mood" title="' + esc(g.name) + '">' + esc(v) + '</span>'; }).join(''); }).join('') + (t.role ? '<span class="chip">' + esc((L.roleWord && L.roleWord[t.role]) || t.role) + '</span>' : '') + '</div></div>' : '';
     return '<li class="lv-trk' + (onAirNow ? ' on' : '') + (isAmb ? ' amb' : '') + (open ? ' open' : '') + (o.inner ? ' inner' : '') + '"><div class="lv-trk-r">' +
       (o.num ? '<span class="num lv-num" aria-hidden="true">' + o.num + '</span>' : '') +
       (onAirNow ? airBadge(t) : queued ? '<span class="badge lv-qb">Queued</span>' : '') +
@@ -607,7 +607,8 @@
         (p.lane === 'fx' ? '' : addBtns(box, whole, k, p.name, p.lane === 'amb')) +
         (o.noPlay ? '' : playBtn(box, 'data-id="' + (o.firstId || (ts[0] ? ts[0].id : '')) + '" data-pl="' + p.id + '" data-place="' + esc(o.place) + '"' + seqAttrs(o.firstSeq), k, p.name, ', from its first track')) +
       '</span></div>' +
-      (open ? '<ol class="lv-list lv-sub" aria-label="Tracks in ' + esc(p.name) + '">' + ts.map(function (t) { return trackRow(t, o.src, o.trackOpts(t)); }).join('') + '</ol>' : '') + '</li>';
+      // Round 9 (item 42): the playlist's dividers are headings here too, each with Play from here.
+      (open ? '<ol class="lv-list lv-sub" aria-label="Tracks in ' + esc(p.name) + '">' + (function () { var divs = L.dividersBefore ? L.dividersBefore(p) : {}; return ts.map(function (t) { return (divs[t.id] ? divs[t.id].map(function (d) { return L.dividerHeading(d, { tid: t.id, pid: p.id, place: o.place, box: box }); }).join('') : '') + trackRow(t, o.src, o.trackOpts(t)); }).join(''); })() + '</ol>' : '') + '</li>';
   }
 
   /* ---------- Scenes ---------- */

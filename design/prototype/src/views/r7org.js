@@ -225,7 +225,7 @@
   document.addEventListener('dragstart', function (e) {
     var it = e.target.closest && e.target.closest('[data-org], .pl-tr[data-tid]'); if (!it) return;
     var kind, ids, from = '';
-    if (it.dataset.org) { var a = it.dataset.org.split(':'); kind = a[0]; ids = a.slice(1).join(':').split(','); }
+    if (it.dataset.org) { var a = it.dataset.org.split(':'); kind = a[0]; ids = a.slice(1).join(':').split(','); from = it.dataset.orgFrom || ''; }
     else { if (L.isDivider(it.dataset.tid)) return; kind = 'track'; ids = [it.dataset.tid]; var r = L.current(); if (r.name === 'playlist') { var pl = L.playlist(r.p.pid); if (pl && pl.kind === 'manual') from = pl.id; } }
     drag = { kind: kind, ids: ids, from: from, cancelled: false };
     shiftDown = e.shiftKey || shiftDown;

@@ -269,7 +269,7 @@
       (f ? '<span class="chip"><span class="lane-dot music" aria-hidden="true"></span>' + esc(itemName(f)) + '<button class="x" data-act="r7follownone" data-k="lb-follow-x" title="Remove" aria-label="Stop following with ' + esc(itemName(f)) + '">' + L.icon('close') + '</button></span><button class="btn s ghost" data-act="r7follow" data-k="lb-follow">Change…</button>'
         : '<button class="btn s ghost" data-act="r7follow" data-k="lb-follow" title="When it ends, play a playlist or a track">' + L.icon('next', 's') + 'Follow with…</button>') + '</div></div>');
   };
-  function curTrack() { var r = L.current(); return r.name === 'library' && L.track(r.p.tid); }
+  function curTrack() { var r = L.current(), id = r.name === 'library' ? r.p.tid : (L.panelTrack && L.panelTrack()); return id && L.track(id); }
   L.acts.r7ending = function (el) {
     var t = curTrack(); if (!t) return; t.ending = el.dataset.v;
     var p = L.profileStore(t, '', true); p.fadeOut = { dur: t.ending === 'fades' ? (p.fadeOut && p.fadeOut.dur) || 4 : 0, shape: (p.fadeOut && p.fadeOut.shape) || 50 };

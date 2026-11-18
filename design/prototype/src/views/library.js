@@ -17,8 +17,17 @@
   D.watched = D.watched || [];
   var ROLES = ['Loop bed', 'Underscore', 'Sting', 'Transition'];
   var LOOPS = [['yes', 'Loops well'], ['crossfade', 'Crossfade the loop'], ['no', 'Do not loop']];
-  var SORTS = [['title', 'Title A to Z'], ['artist', 'Artist A to Z'], ['short', 'Shortest first'], ['long', 'Longest first'], ['new', 'Newest first'], ['old', 'Oldest first']];
-  var st = { kind: 'all', newOnly: false, missing: false, shapes: [], tags: { mood: [], motif: [], scene: [] }, emin: 1, emax: 5, folder: '', q: '', sort: 'title', sel: [], cursor: null, anchor: null, guide: null };
+  var SORTS = [['title', 'Title A to Z'], ['title-d', 'Title Z to A'], ['artist', 'Artist A to Z'], ['artist-d', 'Artist Z to A'], ['short', 'Shortest first'], ['long', 'Longest first'], ['new', 'Newest first'], ['old', 'Oldest first']];
+  var st = { kind: 'all', newOnly: false, missing: false, shapes: [], tags: { mood: [], motif: [], scene: [] }, emin: 1, emax: 5, folder: '', q: '', sort: 'title', sel: [], cursor: null, anchor: null, guide: null,
+    // Round 9 (§7, items 26, 27, 34): the columns shown, the order of the filter chips, and what is left out (hidden).
+    cols: ['tags', 'energy', 'len'], forder: 'vocab', hide: { mood: [], motif: [], scene: [] }, hideShapes: [], hideFolders: [] };
+  // Round 9 (§7, item 26): the columns Nik can show. Title is always there; the rest fold into the row's hover text
+  // when the pane is too narrow (as Energy did).
+  var COLS = [['artist', 'Artist'], ['album', 'Album'], ['type', 'Type'], ['use', 'Use it for'], ['tags', 'Tags'], ['shape', 'Shape'], ['energy', 'Energy'], ['len', 'Length'], ['plays', 'Plays for'], ['added', 'Added'], ['folder', 'Folder']];
+  var USUAL_COLS = ['tags', 'energy', 'len'];
+  // A header sorts by its column: first press A to Z (or shortest, lowest, oldest first), second Z to A (item 25).
+  var COL_SORT = { title: 'title', artist: 'artist', album: 'album', type: 'type', use: 'use', energy: 'energy', len: 'short', plays: 'plays', added: 'old', shape: 'shape', folder: 'folder' };
+  try { var savedCols = JSON.parse(localStorage.getItem('lyre-r9-cols') || 'null'); if (Array.isArray(savedCols)) st.cols = savedCols; st.forder = localStorage.getItem('lyre-r9-forder') || 'vocab'; } catch (e) { /* storage unavailable */ }
   var cbx = { g: null, q: '', act: 0, open: false };
   var ts = null; // bulk tag sheet state
   var pendingFocus = null, mode = 'wide', scrolledFor = null;
@@ -45,6 +54,10 @@
     if (!inFolder(t, st.folder)) return false;
     if (!(st.emin <= 1 && st.emax >= 5) && (t.energy < st.emin || t.energy > st.emax)) return false;
     if (!D.tagGroups.every(function (g) { var w = want(g.id); return !w.length || w.some(function (v) { return L.trackHasTag(t, g.id, v); }); })) return false;
+    // Round 9 (item 34): a hidden value leaves out every track that has it; Hide wins over Show.
+    if (D.tagGroups.some(function (g) { return hid(g.id).some(function (v) { return L.trackHasTag(t, g.id, v); }); })) return false;
+    if (st.hideShapes.indexOf(L.shapeOf(t)) > -1) return false;
+    if (st.hideFolders.some(function (f) { return inFolder(t, f); })) return false;
     var words = st.q.toLowerCase().split(/\s+/).filter(Boolean);
     if (words.length) {
       var hay = [t.title, t.metaTitle, t.file, t.artist, t.album].concat(tagsOf(t)).join(' ').toLowerCase();
@@ -59,19 +72,32 @@
       title: byTitle,
       artist: function (a, b) { return a.artist.localeCompare(b.artist) || byTitle(a, b); },
       short: function (a, b) { return a.dur - b.dur; }, long: function (a, b) { return b.dur - a.dur; },
-      'new': function (a, b) { return addedAt(b) - addedAt(a) || byTitle(a, b); }, old: function (a, b) { return addedAt(a) - addedAt(b) || byTitle(a, b); }
-    }[st.sort];
-    return list.sort(f);
+      'new': function (a, b) { return addedAt(b) - addedAt(a) || byTitle(a, b); }, old: function (a, b) { return addedAt(a) - addedAt(b) || byTitle(a, b); },
+      album: function (a, b) { return (a.album || '').localeCompare(b.album || '') || byTitle(a, b); },
+      type: function (a, b) { return typeWord(a).localeCompare(typeWord(b)) || byTitle(a, b); },
+      use: function (a, b) { return useWord(a).localeCompare(useWord(b)) || byTitle(a, b); },
+      energy: function (a, b) { return (a.energy || 0) - (b.energy || 0) || byTitle(a, b); },
+      plays: function (a, b) { return playsFor(a) - playsFor(b) || byTitle(a, b); },
+      shape: function (a, b) { return (L.shapeName[L.shapeOf(a)] || '').localeCompare(L.shapeName[L.shapeOf(b)] || '') || byTitle(a, b); },
+      folder: function (a, b) { return a.folder.localeCompare(b.folder) || byTitle(a, b); }
+    };
+    var key = st.sort.replace(/-d$/, ''), g = f[key] || f.title;
+    list.sort(g);
+    return /-d$/.test(st.sort) ? list.reverse() : list;
   }
-  function nFilters() { return (st.kind !== 'all') + st.newOnly + st.missing + st.shapes.length + !!st.folder + (st.emin > 1 || st.emax < 5) + D.tagGroups.reduce(function (a, g) { return a + want(g.id).length; }, 0); }
-  function filtersOn() { return st.kind !== 'all' || st.newOnly || st.missing || st.shapes.length || st.folder || st.emin > 1 || st.emax < 5 || D.tagGroups.some(function (g) { return want(g.id).length; }); }
-  function clearFilters() { st.kind = 'all'; st.newOnly = false; st.missing = false; st.shapes = []; st.folder = ''; st.emin = 1; st.emax = 5; D.tagGroups.forEach(function (g) { st.tags[g.id] = []; }); }
+  function nFilters() { return (st.kind !== 'all') + st.newOnly + st.missing + st.shapes.length + st.hideShapes.length + st.hideFolders.length + !!st.folder + (st.emin > 1 || st.emax < 5) + D.tagGroups.reduce(function (a, g) { return a + want(g.id).length + hid(g.id).length; }, 0); }
+  function filtersOn() { return nFilters() > 0; }
+  function clearFilters() { st.kind = 'all'; st.newOnly = false; st.missing = false; st.shapes = []; st.hideShapes = []; st.hideFolders = []; st.folder = ''; st.emin = 1; st.emax = 5; D.tagGroups.forEach(function (g) { st.tags[g.id] = []; st.hide[g.id] = []; }); }
   // Round 7 (DAT-10): groups come and go on the Tags screen; a group's filter list is made when first needed.
   function want(id) { return st.tags[id] || (st.tags[id] = []); }
+  function hid(id) { return st.hide[id] || (st.hide[id] = []); }
+  function typeWord(t) { return L.isFx(t) ? 'FX' : t.kind === 'amb' ? 'Ambience' : 'Music'; }
+  function useWord(t) { return t.role ? ((L.roleWord && L.roleWord[t.role]) || t.role) : ''; }
+  function playsFor(t) { var p = L.profileOf ? L.profileOf(t) : null; return p ? Math.max(0, p.end - p.start) : t.dur; }
   L.libTagFilters = function () { return st.tags; };
   // Kind marker in the list: text as well as colour.
   function kindMark(t) {
-    var k = t.kind === 'fx' ? ['fx', 'FX', 'Sound effect'] : t.kind === 'amb' ? ['amb', 'Amb', 'Ambience'] : L.isFx(t) ? ['fx', 'FX · Sting', 'FX: a sting (short music cue)'] : null;
+    var k = t.kind === 'fx' ? ['fx', 'FX', 'Sound effect'] : t.kind === 'amb' ? ['amb', 'Amb', 'Ambience'] : L.isFx(t) ? ['fx', 'FX · Short cue', 'FX: a short music cue'] : null;
     return k ? '<span class="lb-km ' + k[0] + '" title="' + k[2] + '"><span class="lane-dot ' + k[0] + '"></span>' + k[1] + '</span>' : '';
   }
   // What the players hear now: the music or ambience lane, or a sound effect still playing.
@@ -87,13 +113,30 @@
   }
 
   /* ---------- Filters pane ---------- */
+  // Round 9 (item 27): chips in tag list order, A to Z, Z to A, or most tracks first (x = [value, count, words]).
+  function orderVals(vals) {
+    if (st.forder === 'az') return vals.slice().sort(function (a, b) { return String(a[2]).localeCompare(String(b[2])); });
+    if (st.forder === 'za') return vals.slice().sort(function (a, b) { return String(b[2]).localeCompare(String(a[2])); });
+    if (st.forder === 'count') return vals.slice().sort(function (a, b) { return b[1] - a[1] || String(a[2]).localeCompare(String(b[2])); });
+    return vals;
+  }
+  // Round 9 (item 34): a filter chip with three states, in words for screen readers as well as the look.
+  function chip3(act, attrs, state, words, n, glyph) {
+    var said = state === 'show' ? ', shown' : state === 'hide' ? ', hidden' : '';
+    return '<button class="chip lb-fchip r9-c3' + (state === 'hide' ? ' is-hide' : '') + '" data-act="' + act + '" ' + attrs + ' data-state="' + state + '" aria-pressed="' + (state === 'show') + '" aria-describedby="r9-fhint"' +
+      ' title="' + esc(words) + ': ' + (state === 'off' ? 'click to show only these' : state === 'show' ? 'click to hide these instead' : 'click to clear') + '">' +
+      (state === 'show' ? L.icon('check', 's') : state === 'hide' ? L.icon('close', 's') : glyph || '') + '<span class="r9-c3-w">' + esc(words) + '</span><span class="sr-only">' + said + '</span><span class="lb-n num">' + n + '</span></button>';
+  }
+  var FORDERS = [['vocab', 'Tag list order'], ['az', 'A to Z'], ['za', 'Z to A'], ['count', 'Most tracks first']];
   function filterSummary() {
     var parts = [];
     if (st.kind !== 'all') parts.push(L.kindName[st.kind]);
     if (st.newOnly) parts.push('New, not tagged yet');
     if (st.missing) parts.push('Missing files');
     if (st.shapes.length) parts.push(st.shapes.map(function (x) { return L.shapeName[x]; }).join(', '));
-    D.tagGroups.forEach(function (g) { if (want(g.id).length) parts.push(want(g.id).join(', ')); });
+    if (st.hideShapes.length) parts.push('not ' + st.hideShapes.map(function (x) { return L.shapeName[x]; }).join(', not '));
+    D.tagGroups.forEach(function (g) { if (want(g.id).length) parts.push(want(g.id).join(', ')); if (hid(g.id).length) parts.push('not ' + hid(g.id).join(', not ')); });
+    if (st.hideFolders.length) parts.push('not ' + st.hideFolders.map(shortPath).join(', not '));
     if (st.emin > 1 || st.emax < 5) parts.push('energy ' + st.emin + ' to ' + st.emax);
     if (st.folder) parts.push(shortPath(st.folder));
     return parts.length ? esc(parts.join(' · ')) : '';
@@ -109,17 +152,20 @@
       // DAT-8: files Lyre cannot find; relink them in one go.
       (nMissing ? '<button class="btn s lb-newbtn lb-missbtn" data-act="lbmissing" data-k="lb-missing" aria-pressed="' + st.missing + '">' + (st.missing ? L.icon('check', 's') : L.icon('warn', 's')) + '<span class="grow lb-l">Missing</span><span class="badge warn">' + nMissing + '</span></button>' : '') + '</div>';
     // DAT-13: shape, the GM's choice or else the suggestion.
-    h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-shape"><h3 class="lb-fh" id="lb-fh-shape">Shape</h3><div class="chips">' + L.SHAPES.map(function (x) {
-      var n = base.filter(function (t) { return L.shapeOf(t) === x[0]; }).length, on = st.shapes.indexOf(x[0]) > -1;
-      return '<button class="chip lb-fchip" data-act="lbfshape" data-v="' + x[0] + '" data-k="lb-fs-' + x[0] + '" aria-pressed="' + on + '">' + (on ? L.icon('check', 's') : L.shapeGlyph(x[0])) + x[1] + '<span class="lb-n num">' + n + '</span></button>';
+    // Round 9 (items 27, 34): one line says how the chips work; each chip is off, Show (✓) or Hide (struck out).
+    h += '<p class="hint r9-fhint" id="r9-fhint">Click a filter once to show only those, twice to hide them.</p>';
+    var shapes = orderVals(L.SHAPES.map(function (x) { return [x[0], base.filter(function (t) { return L.shapeOf(t) === x[0]; }).length, x[1]]; }));
+    h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-shape"><h3 class="lb-fh" id="lb-fh-shape">Shape</h3><div class="chips">' + shapes.map(function (x) {
+      var state = st.shapes.indexOf(x[0]) > -1 ? 'show' : st.hideShapes.indexOf(x[0]) > -1 ? 'hide' : 'off';
+      return chip3('lbfshape', 'data-v="' + x[0] + '" data-k="lb-fs-' + x[0] + '"', state, x[2], x[1], L.shapeGlyph(x[0]));
     }).join('') + '</div></div>';
     D.tagGroups.forEach(function (g) {
-      var vals = D.tagValues[g.id].map(function (v) { return [v, base.filter(function (t) { return L.trackHasTag(t, g.id, v); }).length]; })
-        .filter(function (x) { return x[1] || want(g.id).indexOf(x[0]) > -1; });
+      var vals = orderVals(D.tagValues[g.id].map(function (v) { return [v, base.filter(function (t) { return L.trackHasTag(t, g.id, v); }).length, v]; })
+        .filter(function (x) { return x[1] || want(g.id).indexOf(x[0]) > -1 || hid(g.id).indexOf(x[0]) > -1; }));
       h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-' + g.id + '"><h3 class="lb-fh" id="lb-fh-' + g.id + '">' + esc(g.name) + '' + '</h3><div class="chips">' +
         (vals.length ? vals.map(function (x, i) {
-          var on = want(g.id).indexOf(x[0]) > -1;
-          return '<button class="chip lb-fchip" data-act="lbftag" data-g="' + g.id + '" data-v="' + esc(x[0]) + '" data-k="lb-ft-' + g.id + '-' + i + '" aria-pressed="' + on + '">' + (on ? L.icon('check', 's') : '') + esc(x[0]) + '<span class="lb-n num">' + x[1] + '</span></button>';
+          var state = want(g.id).indexOf(x[0]) > -1 ? 'show' : hid(g.id).indexOf(x[0]) > -1 ? 'hide' : 'off';
+          return chip3('lbftag', 'data-g="' + g.id + '" data-v="' + esc(x[0]) + '" data-k="lb-ft-' + g.id + '-' + esc(x[0]).replace(/\W/g, '_') + '"', state, x[0], x[1], '');
         }).join('') : '<span class="hint">No values used yet</span>') + '</div></div>';
     });
     var opts = function (sel) { var o = ''; for (var i = 1; i <= 5; i++) o += '<option' + (i === sel ? ' selected' : '') + '>' + i + '</option>'; return o; };
@@ -138,9 +184,11 @@
     return h + '</ul></div></div>';
   }
   function folderBtn(f, label, n, sub) {
-    var watched = D.watched.indexOf(f) > -1;
-    return '<li' + (sub ? ' class="sub"' : '') + '><button data-act="lbfolder" data-f="' + esc(f) + '" data-k="lb-fo-' + f.replace(/\W/g, '_') + '" aria-pressed="' + (st.folder === f) + '" title="' + esc(f || 'Every folder') + '">' +
-      L.icon(watched ? 'eye' : 'folder', 's') + '<span class="ellipsis grow">' + esc(label) + '</span>' + (watched ? '<span class="hint">watched</span>' : '') + '<span class="num lb-n">' + n + '</span></button></li>';
+    var watched = D.watched.indexOf(f) > -1, hidden = st.hideFolders.indexOf(f) > -1, fk = f.replace(/\W/g, '_');
+    return '<li class="r9-fo' + (sub ? ' sub' : '') + (hidden ? ' is-hide' : '') + '"><button data-act="lbfolder" data-f="' + esc(f) + '" data-k="lb-fo-' + fk + '" aria-pressed="' + (st.folder === f) + '" title="' + esc(f || 'Every folder') + '">' +
+      L.icon(watched ? 'eye' : 'folder', 's') + '<span class="ellipsis grow">' + esc(label) + (hidden ? '<span class="sr-only">, hidden</span>' : '') + '</span>' + (watched ? '<span class="hint">watched</span>' : '') + '<span class="num lb-n">' + n + '</span></button>' +
+      // Round 9 (item 34): a folder can be hidden (its tracks left out), with one click.
+      (f ? '<button class="closer r9-fohide" data-act="r9fohide" data-f="' + esc(f) + '" data-k="lb-foh-' + fk + '" aria-pressed="' + hidden + '" title="' + (hidden ? 'Show this folder again' : 'Hide this folder: leave out its tracks') + '" aria-label="Hide ' + esc(label) + '">' + L.icon(hidden ? 'eye' : 'close', 's') + '</button>' : '') + '</li>';
   }
 
   /* ---------- Tracks pane ---------- */
@@ -148,7 +196,9 @@
     var shownSel = list.filter(function (t) { return st.sel.indexOf(t.id) > -1; }).length;
     if (!st.cursor || !list.some(function (t) { return t.id === st.cursor; })) st.cursor = openId && list.some(function (t) { return t.id === openId; }) ? openId : (list[0] && list[0].id);
     var h = '<div class="lb-tools"><div class="search grow">' + L.icon('search') + '<input class="input" type="search" placeholder="Search titles, file names, artists, tags" aria-label="Search tracks" data-input="lbq" data-k="lb-q" value="' + esc(st.q) + '"></div>' +
-      '<label class="lb-sortl"><span class="sr-only">Sort</span><select class="input lb-sel" data-input="lbsort" data-k="lb-sort" aria-label="Sort tracks">' + SORTS.map(function (s) { return '<option value="' + s[0] + '"' + (st.sort === s[0] ? ' selected' : '') + '>' + s[1] + '</option>'; }).join('') + '</select></label></div>';
+      '<label class="lb-sortl"><span class="sr-only">Sort</span><select class="input lb-sel" data-input="lbsort" data-k="lb-sort" aria-label="Sort tracks">' + (SORTS.some(function (x) { return x[0] === st.sort; }) ? '' : '<option value="' + st.sort + '" selected>By a column</option>') + SORTS.map(function (s) { return '<option value="' + s[0] + '"' + (st.sort === s[0] ? ' selected' : '') + '>' + s[1] + '</option>'; }).join('') + '</select></label>' +
+      // Round 9 (item 26): which columns show.
+      '<button class="btn s" data-act="r9cols" data-k="lb-cols" aria-haspopup="menu" aria-expanded="false" title="Choose the columns">' + L.icon('list', 's') + 'Columns</button></div>';
     if (st.guide) h += '<div class="lb-guide" role="status">' + L.icon(st.guide.icon || 'check', 's') + '<span class="grow">' + st.guide.html + '</span>' +
       (st.guide.act ? '<button class="btn s" data-act="' + st.guide.act + '" data-k="lb-guide-act">' + esc(st.guide.actLabel) + '</button>' : '') +
       '<button class="closer" data-act="lbguideclose" data-k="lb-guide-x" title="Dismiss" aria-label="Dismiss this message">' + L.icon('close') + '</button></div>';
@@ -159,12 +209,19 @@
       '<button class="btn s" data-act="lbbnew" data-k="lb-bnew">' + L.icon('plus', 's') + 'New playlist from these</button>' +
       '<button class="btn s ghost" data-act="lbbclear" data-k="lb-bclear">Clear selection</button></div>';
     var allOn = list.length && shownSel === list.length;
-    var sortT = st.sort === 'title' ? 'ascending' : null, sortD = st.sort === 'short' ? 'ascending' : st.sort === 'long' ? 'descending' : null;
+    var cols = COLS.filter(function (c) { return st.cols.indexOf(c[0]) > -1; });
+    // Round 9 (item 25): a header sorts by its column, A to Z first, then Z to A; aria-sort says which.
+    function th(key, label, cls) {
+      var asc = COL_SORT[key], desc = asc === 'short' ? 'long' : asc === 'old' ? 'new' : asc + '-d';
+      var dir = st.sort === asc ? 'ascending' : st.sort === desc ? 'descending' : null;
+      return '<th class="' + cls + '"' + (dir ? ' aria-sort="' + dir + '"' : '') + '><button class="r9-th" data-act="r9sort" data-c="' + key + '" data-k="lb-th-' + key + '" title="Sort by ' + label.toLowerCase() + (dir === 'ascending' ? ', then press again for the other way' : '') + '">' + label +
+        (dir ? L.icon(dir === 'ascending' ? 'chevup' : 'chevdown', 's') : '') + '</button></th>';
+    }
     h += '<div class="lb-scroll" data-scroll="lb-list"><table class="grid lb-table" role="grid" aria-multiselectable="true" aria-label="Tracks" aria-describedby="lb-keys" aria-rowcount="' + (list.length + 1) + '"><thead><tr>' +
       '<th class="lb-c-ck"><label class="lb-ckl"><input type="checkbox" data-act="lbselall" data-k="lb-selall" aria-label="Select all ' + list.length + ' shown"' + (allOn ? ' checked' : '') + '></label></th>' +
-      '<th class="lb-c-title"' + (sortT ? ' aria-sort="' + sortT + '"' : '') + '>Title</th><th class="lb-c-tags">Tag</th><th class="lb-c-en">Energy</th>' +
-      '<th class="lb-c-dur"' + (sortD ? ' aria-sort="' + sortD + '"' : '') + '>Length</th><th class="lb-c-pv"><span class="sr-only">Preview, play on air, more</span></th></tr></thead><tbody>';
-    if (!list.length) h += '<tr class="lb-emptyrow"><td colspan="6"><div class="empty">' + (st.q || filtersOn() ? 'No track matches. <button class="btn s" data-act="lbclearall" data-k="lb-clearall2">Clear search and filters</button>' : '<b>Your library is empty.</b> Add music, ambience and sound effects with <b>Add tracks</b>, or drop audio files or a folder here.') + '</div></td></tr>';
+      th('title', 'Title', 'lb-c-title') + cols.map(function (c) { return COL_SORT[c[0]] ? th(c[0], c[1], 'lb-c-' + c[0] + ' r9-col') : '<th class="lb-c-' + c[0] + ' r9-col">' + c[1] + '</th>'; }).join('') +
+      '<th class="lb-c-pv"><span class="sr-only">Preview, play on air, more</span></th></tr></thead><tbody>';
+    if (!list.length) h += '<tr class="lb-emptyrow"><td colspan="' + (cols.length + 3) + '"><div class="empty">' + (st.q || filtersOn() ? 'No track matches. <button class="btn s" data-act="lbclearall" data-k="lb-clearall2">Clear search and filters</button>' : '<b>Your library is empty.</b> Add music, ambience and sound effects with <b>Add tracks</b>, or drop audio files or a folder here.') + '</div></td></tr>';
     list.forEach(function (t) {
       var sel = st.sel.indexOf(t.id) > -1, open = t.id === openId;
       var own = t.title, meta = t.metaTitle, shown = own || meta || t.file;
@@ -175,15 +232,50 @@
         '<td class="lb-c-title" title="' + esc(shown + ' — ' + tip) + '"><div class="lb-tl" ' + dragAttrs(t) + '>' + kindMark(t) + '<span class="lb-t1' + (own ? '' : ' untitled') + '">' + esc(shown) + '</span>' +
           (own && meta && meta !== own && open ? '<span class="lb-t2">' + esc(meta) + '</span>' : '') + air + (t.isNew ? '<span class="badge lb-newb">New</span>' : '') +
           (t.missing ? '<span class="badge warn lb-miss" title="Lyre cannot find this file at ' + esc(t.folder) + '">' + L.icon('warn', 's') + 'Missing</span>' : '') + '</div></td>' +
-        '<td class="lb-c-tags"><span class="lb-tagcell">' + L.shapeTag(t, true) + rowChips(t, 1) + '</span></td>' +
-        '<td class="lb-c-en">' + (t.energy ? L.energy(t.energy) : '<span class="lb-none" aria-label="No energy yet">–</span>') + '</td>' +
-        '<td class="lb-c-dur num">' + L.fmt(t.dur) + '</td>' +
+        cols.map(function (c) { return cellOf(t, c[0]); }).join('') +
         '<td class="lb-c-pv"><div class="lb-rowbtns">' + rowBtn(L.previewButton('track', t.id)) + rowBtn(L.playOnAirButton('track', t.id)) +
           '<button class="btn s icon ghost" tabindex="-1" data-act="lbrowmenu" data-tid="' + t.id + '" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for ' + esc(L.title(t)) + '">' + L.icon('more', 's') + '</button></div></td></tr>';
     });
     h += '</tbody></table></div><div class="lb-foot hint keys-on-focus" id="lb-keys">Keys: <span class="kbd">↑</span> <span class="kbd">↓</span> move · <span class="kbd">Enter</span> open · <span class="kbd">Space</span> select · <span class="kbd">P</span> preview · <span class="kbd">A</span> play on air</div>';
     return h;
   }
+
+  // Round 9 (item 26): one cell per chosen column.
+  function cellOf(t, c) {
+    var pf = playsFor(t);
+    switch (c) {
+      case 'tags': return '<td class="lb-c-tags"><span class="lb-tagcell">' + (st.cols.indexOf('shape') > -1 ? '' : L.shapeTag(t, true)) + rowChips(t, st.cols.indexOf('shape') > -1 ? 2 : 1) + '</span></td>';
+      case 'energy': return '<td class="lb-c-energy">' + (t.energy ? L.energy(t.energy) : '<span class="lb-none" aria-label="No energy yet">–</span>') + '</td>';
+      case 'len': return '<td class="lb-c-len num">' + L.fmt(t.dur) + '</td>';
+      case 'plays': return '<td class="lb-c-plays num"' + (Math.round(pf) !== Math.round(t.dur) ? ' title="Plays ' + L.fmt(pf) + ' of the file\'s ' + L.fmt(t.dur) + ' (its Audio profile)"' : '') + '>' + (Math.round(pf) !== Math.round(t.dur) ? '<b>' + L.fmt(pf) + '</b>' : L.fmt(pf)) + '</td>';
+      case 'artist': return '<td class="lb-c-artist"><span class="ellipsis">' + esc(t.artist || '') + '</span></td>';
+      case 'album': return '<td class="lb-c-album"><span class="ellipsis">' + esc(t.album || '') + '</span></td>';
+      case 'type': return '<td class="lb-c-type">' + typeWord(t) + '</td>';
+      case 'use': return '<td class="lb-c-use">' + esc(useWord(t)) + '</td>';
+      case 'shape': return '<td class="lb-c-shape"><span class="lb-tagcell">' + L.shapeGlyph(L.shapeOf(t)) + '<span class="ellipsis">' + esc(L.shapeName[L.shapeOf(t)] || '') + '</span></span></td>';
+      case 'added': return '<td class="lb-c-added">' + esc(t.added || '') + '</td>';
+      case 'folder': return '<td class="lb-c-folder"><span class="ellipsis" title="' + esc(t.folder) + '">' + esc(shortPath(t.folder)) + '</span></td>';
+    }
+    return '<td></td>';
+  }
+  L.acts.r9sort = function (el) {
+    var asc = COL_SORT[el.dataset.c], desc = asc === 'short' ? 'long' : asc === 'old' ? 'new' : asc + '-d';
+    st.sort = st.sort === asc ? desc : asc; L.render();
+    var b = document.querySelector('[data-k="lb-th-' + el.dataset.c + '"]'); if (b) b.focus();
+    L.say('Sorted by ' + el.textContent.trim().toLowerCase() + (st.sort === asc ? ', A to Z' : ', Z to A'));
+  };
+  L.acts.r9cols = function (el) {
+    L.menu(el, '<div class="group">Columns</div><label class="r9-colrow"><input type="checkbox" checked disabled>Title (always)</label>' + COLS.map(function (c) {
+      return '<label class="r9-colrow"><input type="checkbox" data-input="r9col" data-c="' + c[0] + '"' + (st.cols.indexOf(c[0]) > -1 ? ' checked' : '') + '>' + c[1] + (c[0] === 'plays' ? '<span class="hint"> after the Audio profile</span>' : '') + '</label>';
+    }).join('') + '<div class="sep"></div><button role="menuitem" data-act="r9colsreset">' + L.icon('restart', 's') + 'Put back the usual columns</button>', 'Columns');
+  };
+  function saveCols() { try { localStorage.setItem('lyre-r9-cols', JSON.stringify(st.cols)); } catch (e) { /* storage unavailable */ } }
+  L.inputs.r9col = function (el) {
+    var c = el.dataset.c, i = st.cols.indexOf(c); if (el.checked && i < 0) st.cols.push(c); if (!el.checked && i > -1) st.cols.splice(i, 1);
+    saveCols(); var open = document.querySelector('.menu'); L.render(); if (open && !document.querySelector('.menu')) { /* the menu stays open: core keeps it outside the view */ }
+    L.say(el.parentNode.textContent.trim() + (el.checked ? ' shown' : ' hidden'));
+  };
+  L.acts.r9colsreset = function () { st.cols = USUAL_COLS.slice(); saveCols(); L.closeMenu(); L.render(); var b = document.querySelector('[data-k="lb-cols"]'); if (b) b.focus(); L.say('The usual columns are back'); };
 
   /* ---------- Details pane ---------- */
   // Round 7 (ORG-5): a row's title is dragged to another list; with ticked rows, all of them go.
@@ -232,6 +324,7 @@
       '<dt>Artist</dt><dd>' + esc(t.artist) + '</dd><dt>Album</dt><dd>' + esc(t.album) + '</dd>' +
       '<dt>Length</dt><dd class="num">' + L.fmt(t.dur) + '</dd><dt>Added</dt><dd>' + esc(t.added) + (t.isNew ? ' <span class="badge lb-newb">New</span>' : '') + '</dd>' +
       // DAT-14: the names it has in scenes, beside its own, the file's title, the file name and the folder.
+      (L.partLine ? L.partLine(t) : '') +
       (L.namesOfTrack(t).length ? '<dt>Names in scenes</dt><dd><ul class="lb-scnames">' + L.namesOfTrack(t).map(function (x) { return '<li><b>' + esc(x.name) + '</b> <span class="hint">in ' + esc(x.label) + '</span></li>'; }).join('') + '</ul></dd>' : '') + '</dl>';
     h += '<div class="lb-acts"><button class="btn s lb-pvbtn" data-act="lbprev" data-tid="' + t.id + '" data-k="lb-dprev" aria-pressed="' + !!prev + '">' + L.icon(prev ? 'stop' : 'headphones', 's') + (prev ? 'Stop preview' : 'Preview') + '</button>' +
       '<button class="btn s" data-act="lbonair" data-k="lb-onair">' + L.icon('broadcast', 's') + 'Play on air</button>' + (L.profileLink ? L.profileLink(t.id) : '')  +
@@ -251,12 +344,13 @@
         : '<p class="hint" title="From the track\'s loudness. Choose another to change it.">Suggested by Lyre<span class="sr-only"> from the track\'s loudness. Choose another to change it.</span></p>') + '</div></div>' +
       // PLY-15, DAT-15: normalise this track (Library setting / On / Off), with what Lyre measured and the gain it gets.
       '<div class="lb-tg lb-normrow">' + L.normChoice({ id: 'lb-norm', value: t.norm, act: 'lbnorm', line: L.normLine(t), hint: normHint(t) }) + '</div>' +
-      '<div class="lb-tg"><div class="lb-tgl">Role</div>' + choiceChips('lbrole', (t.kind === 'fx' ? ['Effect'].concat(ROLES) : ROLES).map(function (r) { return [r, r]; }), t.role, 'Role') + '</div>' +
+      // Round 9 (r9track.js, item 18): Use it for and At its end replace Role, Looping, Ending and Then.
+      (L.r9UseFor ? L.r9UseFor(t) + L.r9AtEnd(t) : '<div class="lb-tg"><div class="lb-tgl">Role</div>' + choiceChips('lbrole', (t.kind === 'fx' ? ['Effect'].concat(ROLES) : ROLES).map(function (r) { return [r, r]; }), t.role, 'Role') + '</div>' +
       // Round 7 (PLY-4, SHW-3): a sting never loops; the ending, resume and follow-with rows (r7play.js).
-      L.loopRow(t, '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>') +
+      L.loopRow(t, '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>')) +
       '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" data-save="' + esc(L.title(t)) + ' notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div>' +
       // The rarer choices that follow from the role (ending, pick up, follow with) come last.
-      L.playRows(t) + '</section>';
+      (L.r9UseFor ? '' : L.playRows(t)) + '</section>';
     var man = pls.filter(function (p) { return p.kind === 'manual'; }), dyn = pls.filter(function (p) { return p.kind === 'dynamic'; });
     h += '<section class="lb-sec" aria-labelledby="lb-h-pl"><div class="lb-hrow"><h3 class="lb-h" id="lb-h-pl">In playlists</h3><button class="btn s" data-act="lbpladdmenu" data-k="lb-pladd" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add to playlist</button></div>';
     h += pls.length ? '<ul class="lb-pls">' + man.map(function (p) {
@@ -294,7 +388,7 @@
     return peak + (t.norm ? 'This track\'s own choice, wherever it plays.' : 'Follows the library (' + L.libraryNormWords() + '), or the playlist it plays from when that has its own choice.');
   }
   L.acts.lbnorm = function (el) {
-    var t = L.track(L.current().p.tid); if (!t) return;
+    var t = cur(); if (!t) return;
     if (el.dataset.v === 'library') delete t.norm; else t.norm = el.dataset.v;
     L.render(); var b = document.querySelector('[data-k="lb-norm-' + el.dataset.v + '"]'); if (b) b.focus(); L.saved(L.title(t) + ' volume setting');
     L.say('Normalise volume: ' + L.normLine(t));
@@ -354,7 +448,8 @@
 
       function fPane(strip) {
         return L.pane({ id: 'lb-filters', title: 'Filters', icon: 'rule', cls: 'lb-filters' + (strip ? ' lb-strip' : ''), collapsed: mode !== 'wide', kind: 'search', summary: filterSummary(), scroll: 'lb-filters', status: nFilters() ? { text: nFilters() + (nFilters() > 1 ? ' filters on' : ' filter on'), tone: 'on' } : null,
-          actions: filtersOn() ? '<button class="btn s ghost" data-act="lbclearall" data-k="lb-clearall">Clear all</button>' : '', body: filtersBody() });
+          actions: '<button class="btn s icon ghost" data-act="r9forder" data-k="lb-forder" aria-haspopup="menu" aria-expanded="false" aria-label="Order the filters" title="Order the filters (now ' + FORDERS.filter(function (x) { return x[0] === st.forder; })[0][1] + ')">' + L.icon('inorder', 's') + '</button>' +
+            (filtersOn() ? '<button class="btn s ghost" data-act="lbclearall" data-k="lb-clearall">Clear all</button>' : ''), body: filtersBody() });
       }
       function tPane(strip) {
         return L.pane({ id: 'lb-tracks', title: 'Tracks', icon: 'library', cls: 'lb-tracks' + (strip ? ' lb-strip' : ''), flush: true, kind: 'music',
@@ -404,9 +499,16 @@
   /* ---------- filter actions ---------- */
   L.acts.lbkind = function (el) { st.kind = el.dataset.v; L.render(); };
   L.acts.lbmissing = function () { st.missing = !st.missing; L.render(); L.say(st.missing ? 'Showing files Lyre cannot find' : 'Showing all tracks'); };
-  L.acts.lbfshape = function (el) { var v = el.dataset.v, i = st.shapes.indexOf(v); if (i > -1) st.shapes.splice(i, 1); else st.shapes.push(v); L.render(); L.say(visible().length + ' tracks shown'); };
+  // Round 9 (item 34): off → Show → Hide → off.
+  function cycle(show, hide, v) { var i = show.indexOf(v), j = hide.indexOf(v); if (i > -1) { show.splice(i, 1); hide.push(v); return 'hidden'; } if (j > -1) { hide.splice(j, 1); return 'cleared'; } show.push(v); return 'shown'; }
+  L.acts.lbfshape = function (el) { var w = cycle(st.shapes, st.hideShapes, el.dataset.v); L.render(); L.say(L.shapeName[el.dataset.v] + ' ' + w); };
+  L.acts.r9fohide = function (el) { var f = el.dataset.f, i = st.hideFolders.indexOf(f); if (i > -1) st.hideFolders.splice(i, 1); else { st.hideFolders.push(f); if (st.folder === f) st.folder = ''; } L.render(); L.say(shortPath(f) + (i > -1 ? ' shown again' : ' hidden')); };
+  L.acts.r9forder = function (el) {
+    L.menu(el, '<div class="group">Order the filters</div>' + FORDERS.map(function (x) { return '<button role="menuitemradio" aria-checked="' + (st.forder === x[0]) + '" data-act="r9fordset" data-v="' + x[0] + '">' + (st.forder === x[0] ? L.icon('check', 's') : '<span style="width:14px"></span>') + x[1] + '</button>'; }).join(''), 'Order the filters');
+  };
+  L.acts.r9fordset = function (el) { st.forder = el.dataset.v; try { localStorage.setItem('lyre-r9-forder', st.forder); } catch (e) { /* storage unavailable */ } L.closeMenu(); L.render(); var b = document.querySelector('[data-k="lb-forder"]'); if (b) b.focus(); L.say('Filters ordered ' + FORDERS.filter(function (x) { return x[0] === st.forder; })[0][1]); };
   L.acts.lbnew = function () { st.newOnly = !st.newOnly; L.render(); L.say(st.newOnly ? 'Showing new tracks not tagged yet' : 'Showing all tracks'); };
-  L.acts.lbftag = function (el) { var a = want(el.dataset.g), v = el.dataset.v, i = a.indexOf(v); if (i > -1) a.splice(i, 1); else a.push(v); L.render(); L.say(visible().length + ' tracks shown'); };
+  L.acts.lbftag = function (el) { var w = cycle(want(el.dataset.g), hid(el.dataset.g), el.dataset.v); L.render(); L.say(el.dataset.v + ' ' + w); };
   L.acts.lbfolder = function (el) { st.folder = el.dataset.f; L.render(); };
   L.inputs.lbemin = function (el) { st.emin = +el.value; if (st.emax < st.emin) st.emax = st.emin; L.render(); };
   L.inputs.lbemax = function (el) { st.emax = +el.value; if (st.emin > st.emax) st.emin = st.emax; L.render(); };
@@ -478,7 +580,9 @@
   }
 
   /* ---------- details actions ---------- */
-  function cur() { var p = L.current().p; return p.tid ? L.track(p.tid) : null; }
+  // Round 9 (r9nav.js): outside the Library the Track panel shows these same details, for L.panelTrack().
+  function cur() { var p = L.current().p, id = L.current().name === 'library' ? p.tid : (L.panelTrack && L.panelTrack()); return id ? L.track(id) : null; }
+  L.trackDetailsHTML = function (t) { return detailsBody(t); };
   L.inputs.lbtitle = function (el) { var t = cur(); if (!t) return; t.title = el.value; settle(t); L.render(); };
   L.acts.lbusemeta = function () { var t = cur(); if (!t) return; t.title = t.metaTitle; settle(t); L.render(); var f = document.querySelector('[data-k="lb-title"]'); if (f) { f.focus(); f.select(); } L.say('Your title is now ' + t.title + '. Type to change it.'); L.saved('title “' + t.title + '”', { key: 'lb-title' }); };
   L.inputs.lbnotes = function (el) { var t = cur(); if (t) t.notes = el.value; };
