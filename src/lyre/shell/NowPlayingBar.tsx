@@ -19,6 +19,7 @@
  * or the row that held the keyboard focus, goes away (Stop), focus goes to the bar's first control, or to the
  * screen's heading when the whole bar has gone, so keyboard users are not sent back to the top of the page.
  */
+import { clockTime } from "../../common/lyre/text";
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { DEFAULT_LIBRARY_NORMALISE, normaliseHover, originWords } from "../../common/domain";
@@ -42,11 +43,8 @@ export const STOP_FADE_MS = 1000;
 /** The volume sliders move in steps of 5, as in the prototype. */
 const VOLUME_STEP = 5;
 
-/** Seconds as the prototype writes them: 3:57. */
-export function clockTime(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
+/** Seconds as the prototype writes them: 3:57 (item 51: the one helper, common/lyre/text.ts). */
+export { clockTime };
 
 export function NowPlayingBar({ previewOnly = false }: { previewOnly?: boolean }) {
   const audio = useOptionalLyreAudio();

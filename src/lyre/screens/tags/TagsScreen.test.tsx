@@ -112,6 +112,22 @@ describe("the Tags screen (r7tags.js)", () => {
     await waitFor(() => expect(tagRow("Scene type", "Chase")).toBeUndefined());
   });
 
+  it("0.5.2 item 54: deleting a group's last tag removes the group too, says so, and Undo brings both back", async () => {
+    const user = userEvent.setup();
+    const { api } = renderTags();
+    await screen.findByRole("list", { name: "Mood tags" });
+    const g = await api.tags.createGroup("Faction");
+    if (!g.ok) throw new Error("no group");
+    await api.tags.createTag(g.value.id, "Harpers");
+    await waitFor(() => expect(tagRow("Faction", "Harpers")).toBeDefined());
+    await tagMenu(user, "Faction", "Harpers", "Delete…");
+    await user.click(within(screen.getByRole("dialog", { name: "Delete Harpers?" })).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Faction" })).toBeNull());
+    expect(screen.getAllByText(/The Faction group had no other tags, so it went too/).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(tagRow("Faction", "Harpers")).toBeDefined());
+  });
+
   it("New group and Add tag make a group with its own tag; groups move; a colour is chosen by name", async () => {
     const user = userEvent.setup();
     const { api } = renderTags();

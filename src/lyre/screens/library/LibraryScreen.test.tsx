@@ -76,7 +76,7 @@ describe("Library: finding tracks", () => {
     // The box's count says filters, not a selection like the Tracks box's "3 selected" (w3-ux 13).
     expect(filters()).toHaveTextContent("1 filter on");
     expect(filters()).not.toHaveTextContent("1 selected");
-    await user.click(within(filters()).getByRole("button", { name: "Clear all" }));
+    await user.click(within(filters()).getByRole("button", { name: "Clear all filters" }));
     expect(shownTitles().length).toBeGreaterThan(5);
   });
 
@@ -463,7 +463,7 @@ describe("Library: many tracks at once", () => {
     const user = await selectTwoNew();
     const bar = screen.getByRole("toolbar", { name: "Selected tracks" });
     expect(bar).toHaveTextContent("2 selected");
-    expect(within(bar).getAllByRole("button").map((b) => b.textContent)).toEqual(["Tag…", "Add to playlist…", "New playlist from these", "Clear selection"]);
+    expect(within(bar).getAllByRole("button").map((b) => b.textContent || b.getAttribute("aria-label"))).toEqual(["Tag…", "Add to playlist…", "New playlist from these", "Clear selection", "More for the selected tracks"]);
     await user.click(within(bar).getByRole("button", { name: "Clear selection" }));
     expect(screen.queryByRole("toolbar", { name: "Selected tracks" })).toBeNull();
   });

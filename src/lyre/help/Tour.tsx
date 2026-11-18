@@ -19,7 +19,7 @@ const railLink = (section: string) => () => document.querySelector(`#app .rail a
 
 export const TOUR_STEPS: readonly TourStep[] = [
   { title: "Lyre's places", text: "Everything is a click away here. Help is at the foot, or press F1.", target: () => document.querySelector("#app .rail nav") },
-  { title: "Library", text: "Add your music here and tag it.", target: railLink("library") },
+  { title: "Track library", text: "Add your music here and tag it.", target: railLink("library") },
   { title: "Scenes", text: "Scenes are in Campaigns: a campaign holds its sessions, a session its scenes.", target: railLink("campaigns") },
   { title: "Live", text: "Run the session here. Space starts the next scene.", target: railLink("live") },
   {

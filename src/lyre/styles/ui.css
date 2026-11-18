@@ -327,6 +327,12 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .shape-g { width: 22px; height: 11px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .shape-tag { position: relative; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); font-size: var(--fs-xs); flex: none; white-space: nowrap; }
 button .shape-g { color: inherit; }
+/* 0.5.2 item 17 (kit/ShapeFilter.tsx): the Library's Shape filter for Add tracks and the pickers. */
+.shape-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-s); }
+.shape-filter > .faint { margin-right: 2px; }
+.shape-filter .chip { gap: 5px; }
+.shape-filter .chip svg.i { width: 12px; height: 12px; }
+.pk-shapes { margin-bottom: 8px; }
 
 /* ORG-11 tags where music is chosen (kit/TagStrip.tsx): compact, each with its tag group's dot; "+n" for the rest.
    Below 820 px of the app only the first tag shows, with the count of the others. */

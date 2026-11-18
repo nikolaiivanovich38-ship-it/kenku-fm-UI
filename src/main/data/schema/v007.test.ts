@@ -27,7 +27,7 @@ describe("schema version 7 (Start at)", () => {
 
     it("is in place and leaves no broken link", () => {
       expect(schemaVersion(db)).toBe(MIGRATIONS.length);
-      expect(MIGRATIONS.length).toBe(7);
+      expect(MIGRATIONS.length).toBeGreaterThanOrEqual(7);
       expect(all(db, "PRAGMA foreign_key_check")).toEqual([]);
     });
 
@@ -44,7 +44,7 @@ describe("schema version 7 (Start at)", () => {
     migrate(db, MIGRATIONS.slice(0, 6));
     db.exec(BASE);
     expect(schemaVersion(db)).toBe(6);
-    migrate(db, MIGRATIONS);
+    migrate(db, MIGRATIONS.slice(0, 7));
     expect(schemaVersion(db)).toBe(7);
     expect(all(db, "SELECT id, start_ms, end_ms, start_at_ms FROM audio_profiles")).toEqual([{ id: "ap", start_ms: 1000, end_ms: 90000, start_at_ms: null }]);
     expect(all(db, "PRAGMA foreign_key_check")).toEqual([]);

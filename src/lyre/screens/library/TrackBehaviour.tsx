@@ -178,7 +178,7 @@ function FollowDialog({
     >
       <div className="field">
         <label htmlFor="lb-follow">When it ends, play</label>
-        <select className="input" id="lb-follow" value={value} onChange={(e) => setValue(e.target.value)}>
+        <select className="input" id="lb-follow" aria-describedby="lb-follow-hint" value={value} onChange={(e) => setValue(e.target.value)}>
           {options.map(([key, label]) => (
             <option key={key} value={key}>
               {label}
@@ -186,7 +186,10 @@ function FollowDialog({
           ))}
         </select>
       </div>
-      <p className="hint">Unless something is waiting in Play next.</p>
+      {/* Round 8 click-through #4: spaced clear of the list's focus ring (WCAG 2.4.11). */}
+      <p className="hint lb-follow-hint" id="lb-follow-hint">
+        Unless something is waiting in Play next.
+      </p>
     </Dialog>
   );
 }

@@ -6,7 +6,7 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeTempFolder } from "../test/helpers";
 import { makeTestStore } from "../test/testStore";
-import { addRoot } from "../repo/roots";
+import { addRoot, updateRoot } from "../repo/roots";
 import { createTrack, getTrack, listNewTrackIds, listTracks, updateTrack } from "../repo/tracks";
 import { search } from "../repo/search";
 import { importAudio, locationsInLibrary, refreshEmbeddedTags, type ImportProgress } from "./pipeline";
@@ -113,6 +113,25 @@ describe("importAudio (EDT-6)", () => {
     const second = await importAudio(t.store, { paths: [a] });
     expect(second.added).toEqual([]);
     expect(second.alreadyInLibrary).toEqual(first.added);
+  });
+
+  it("item 40: a library folder that says what its new tracks are gives them that kind, whatever the folder names say", async () => {
+    const scores = path.join(temp.folder, "Scores");
+    const root = await addRoot(t.store, { name: "Scores", path: scores, watched: true });
+    updateRoot(t.store, root.id, { newKind: "amb" });
+    writeAudio(scores, "Sound Effects/door creak.wav");
+    writeAudio(scores, "theme.flac");
+    const outside = writeAudio(temp.folder, "Elsewhere/Effects/clang.wav");
+    const result = await importAudio(t.store, { paths: [scores, outside] });
+    const kinds = result.added.map((id) => getTrack(t.store, id)!).map((tr) => [tr.fileName, tr.kind, tr.role]);
+    expect(kinds).toEqual(
+      expect.arrayContaining([
+        ["door creak.wav", "amb", null],
+        ["theme.flac", "amb", null],
+        // Outside the folder: guessed from its folder name, as before.
+        ["clang.wav", "fx", "effect"],
+      ]),
+    );
   });
 
   it("says in plain words what could not be added", async () => {

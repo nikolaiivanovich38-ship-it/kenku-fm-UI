@@ -73,18 +73,18 @@ describe("the Audio profile screen", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(TITLE);
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
     // Round 6 part 6: the trail's Library opens the track there; the h1 is the track, then "› Audio profile".
-    expect(within(crumbs).getByRole("link", { name: "Library" })).toHaveAttribute("href", "#/library/t13");
+    expect(within(crumbs).getByRole("link", { name: "Track library" })).toHaveAttribute("href", "#/library/t13");
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("› Audio profile");
     expect(screen.getByText("06 Bridge of Death.flac")).toBeInTheDocument();
     // UX-18: Back is the shell's; opened by its address, it goes to the track in the Library.
-    expect(screen.getByRole("button", { name: /^Back to Library: Eerie dread/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Back to Track library: Eerie dread/ })).toBeInTheDocument();
     expect(screen.getAllByText("Length")[0].parentElement).toHaveTextContent("Length 7:21");
   });
 
   it("is part of the Library: the rail's Library section is lit, also for a place", async () => {
     await open("profile/t13/sc:crown:s14:sc3");
     const rail = screen.getByRole("navigation", { name: "Lyre" });
-    expect(within(rail).getByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page");
+    expect(within(rail).getByRole("link", { name: "Track library" })).toHaveAttribute("aria-current", "page");
   });
 
   it("says so when the track is not in the library", async () => {

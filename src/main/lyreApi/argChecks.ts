@@ -185,6 +185,10 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     find: read(object({ text: text(1_000), "lane?": text(MAX_ID), "limit?": whole, "in?": owner })),
     // ORG-5: a drop or Add to….
     put: write(object({ place: dropPlace, what: object({ kind: literal("tracks", "playlists", "boards"), ids: list(id, 10_000) }), "from?": id, "move?": bool })),
+    // 0.5.2: tracks by id only; the library finds their files itself (never a path from the page).
+    removeTracks: write(list(id)),
+    deleteFiles: write(list(id, 10_000)),
+    setKind: write(list(id), literal("music", "amb", "fx")),
   },
   tags: {
     listGroups: read(),
@@ -291,6 +295,9 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
   import: {
     start: write(branch("from", { "choose-files": object(), "choose-folder": object(), paths: object({ paths: list(fullPath) }) })),
     watchFolder: write(folderSource),
+    // 0.5.2 items 40 and 20: a library folder by its full path.
+    setFolderKind: write(fullPath, nullable(literal("music", "amb", "fx"))),
+    removeFolder: write(fullPath, object({ removeTracks: bool })),
     findMissing: read(),
     planRelink: write(folderSource),
     previewFound: write(id),

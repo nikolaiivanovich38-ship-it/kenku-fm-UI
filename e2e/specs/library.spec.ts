@@ -605,3 +605,216 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Live" })).toBeAttached();
   });
 });
+
+test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
+  test("item 7: a track's row shows its file's length and, under it, the length its Audio profile plays", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const length = row(page, /^Select Eerie dread/).locator("td.lb-c-dur");
+    await expect(length).toContainText("7:21");
+    await expect(length.getByTitle("Plays 5:18 with its Audio profile (file 7:21)")).toBeVisible();
+  });
+
+  test("item 6: Preview or Play on air on a row opens that track's details", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const ashes = row(page, "Ashes");
+    await ashes.getByRole("button", { name: /^Preview / }).click();
+    await expect(ashes).toHaveAttribute("aria-current", "true");
+    await expect(page).toHaveURL(/#\/library\/[^/]+$/);
+    const eerie = row(page, /^Select Eerie dread/);
+    await eerie.getByRole("button", { name: /^Play on air: / }).click();
+    await expect(eerie).toHaveAttribute("aria-current", "true");
+  });
+
+  test("item 35: opening a track keeps the list scrolled where it was", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const box = page.locator(".lb-scroll");
+    await box.evaluate((el) => (el.scrollTop = 400));
+    const target = grid(page).locator("tbody tr[data-tid]").nth(20);
+    await target.locator("td.lb-c-title").click();
+    await expect(target).toHaveAttribute("aria-current", "true");
+    await expect.poll(() => box.evaluate((el) => el.scrollTop)).toBeGreaterThan(390);
+    expect(await box.evaluate((el) => el.scrollTop)).toBeLessThan(410);
+  });
+
+  test("item 23: the menu, the heading and Back call it the Track library; the address stays #/library", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "settings");
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Track library", exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Track library");
+    await expect(page).toHaveURL(/#\/library$/);
+    await page.getByRole("button", { name: "More for the library" }).click();
+    await page.getByRole("menuitem", { name: "Tags and groups…" }).click();
+    await expect(page.getByRole("button", { name: "Back to Track library" })).toBeVisible();
+  });
+
+  test("item 21: Clear in one filter clears only that filter; Clear all filters clears every one", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const f = filters(page);
+    const toggle = page.getByRole("button", { name: "Filters", exact: true });
+    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+    await f.getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ }).click();
+    await f.getByRole("group", { name: "Shape" }).getByRole("button", { name: /^Builds/ }).click();
+    await expect(f).toContainText("2 filters on");
+    await f.getByRole("button", { name: "Clear Mood" }).click();
+    await expect(f).toContainText("1 filter on");
+    await expect(f.getByRole("group", { name: "Shape" }).getByRole("button", { name: /^Builds/ })).toHaveAttribute("aria-pressed", "true");
+    await f.getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ }).click();
+    await f.getByRole("button", { name: "Clear all filters" }).click();
+    await expect(f).not.toContainText("filter on");
+  });
+
+  test("item 25: a click on a column header sorts by it, ascending then descending, and says so with aria-sort", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const title = grid(page).getByRole("columnheader", { name: /^Title/ });
+    const length = grid(page).getByRole("columnheader", { name: /^Length/ });
+    await expect(title).toHaveAttribute("aria-sort", "ascending");
+    const first = (await shownTitles(page))[0];
+    await title.getByRole("button").click();
+    await expect(title).toHaveAttribute("aria-sort", "descending");
+    expect((await shownTitles(page)).at(-1)).toBe(first);
+    await length.getByRole("button").click();
+    await expect(length).toHaveAttribute("aria-sort", "ascending");
+    await expect(title).not.toHaveAttribute("aria-sort");
+    await length.getByRole("button").click();
+    await expect(length).toHaveAttribute("aria-sort", "descending");
+    await expect(page.getByRole("combobox", { name: "Sort tracks" })).toHaveValue("long");
+  });
+
+  test("item 10: a New track the game master tags is no longer New, with no title of its own", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const ashes = row(page, "Ashes");
+    await expect(ashes.getByText("New", { exact: true })).toBeVisible();
+    await ashes.locator("td.lb-c-title").click();
+    await details(page).getByRole("combobox", { name: "Add a mood tag" }).fill("Grief");
+    await details(page).getByRole("combobox", { name: "Add a mood tag" }).press("Enter");
+    await expect(ashes.getByText("New", { exact: true })).toHaveCount(0);
+  });
+
+  test("item 40: a library folder's ⋯ says what kind its new tracks are", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const f = filters(page);
+    const toggle = page.getByRole("button", { name: "Filters", exact: true });
+    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+    await f.getByRole("button", { name: "More for the folder H:\\Audio\\Scores" }).click();
+    await expect(page.getByRole("menuitemradio", { name: "Guessed from the folder name" })).toHaveAttribute("aria-checked", "true");
+    await page.getByRole("menuitemradio", { name: "Always Ambience" }).click();
+    await expect(f.getByRole("button", { name: /^H:\\Audio\\Scores/ }).getByText("Ambience", { exact: true })).toBeVisible();
+    await f.getByRole("button", { name: "More for the folder H:\\Audio\\Scores" }).click();
+    await expect(page.getByRole("menuitemradio", { name: "Always Ambience" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  test("item 20: Remove folder… forgets a watched folder, its tracks stay unless ticked, and Undo brings it back", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const f = filters(page);
+    const toggle = page.getByRole("button", { name: "Filters", exact: true });
+    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+    const count = (await shownTitles(page)).length;
+    await f.getByRole("button", { name: "More for the folder H:\\Audio\\Effects" }).click();
+    await page.getByRole("menuitem", { name: "Remove folder…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Remove Effects?" });
+    await expect(dialog.getByRole("checkbox", { name: /^Also remove its \d+ tracks? from the library$/ })).not.toBeChecked();
+    await dialog.getByRole("button", { name: "Remove folder" }).click();
+    await expect(f.getByRole("button", { name: "More for the folder H:\\Audio\\Effects" })).toHaveCount(0);
+    expect((await shownTitles(page)).length).toBe(count);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(f.getByRole("button", { name: "More for the folder H:\\Audio\\Effects" })).toBeVisible();
+  });
+
+  test("items 1 and 50: Remove from library names where a track is used and works with Undo; Delete file from disk… asks first", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const eerie = row(page, /^Select Eerie dread/);
+    await eerie.getByRole("button", { name: /^More for / }).click();
+    await page.getByRole("menuitem", { name: "Remove from library" }).click();
+    const dialog = page.getByRole("dialog", { name: /^Remove “Eerie dread.*” from the library\?$/ });
+    await expect(dialog.getByRole("note")).toContainText("The abbey ruins (Session 14)");
+    await dialog.getByRole("button", { name: "Remove" }).click();
+    await expect(eerie).toHaveCount(0);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(eerie).toBeVisible();
+    // The file's own confirmation: it names the file and says it can't be undone (Cancel here: the files are the test build's).
+    await eerie.getByRole("button", { name: /^More for / }).click();
+    await page.getByRole("menuitem", { name: "Delete file from disk…" }).click();
+    const del = page.getByRole("dialog", { name: "Delete its file from disk?" });
+    await expect(del).toContainText("06 Bridge of Death.flac");
+    await expect(del).toContainText("This can't be undone in Lyre");
+    await del.getByRole("button", { name: "Cancel" }).click();
+    await expect(eerie).toBeVisible();
+  });
+
+  test("item 50: Remove all shown… removes the tracks a filter shows, with the count in its confirmation", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const toggle = page.getByRole("button", { name: "Filters", exact: true });
+    if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+    await filters(page).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ }).click();
+    const shown = (await shownTitles(page)).length;
+    await page.getByRole("button", { name: "More for the library" }).click();
+    await page.getByRole("menuitem", { name: `Remove all shown (${shown})…` }).click();
+    const dialog = page.getByRole("dialog", { name: `Remove all ${shown} shown tracks from the library?` });
+    await dialog.getByRole("button", { name: `Remove ${shown} tracks` }).click();
+    await expect.poll(async () => (await shownTitles(page)).length).toBe(0);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect.poll(async () => (await shownTitles(page)).length).toBe(shown);
+  });
+
+  test("items 4, 12 and 39: Type in a track's details; an FX track is offered for pads, and the selection's ⋯ changes several at once", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const ashes = row(page, "Ashes");
+    await ashes.locator("td.lb-c-title").click();
+    const type = details(page).getByRole("group", { name: "Type" });
+    await expect(type.getByRole("button", { name: "Music" })).toHaveAttribute("aria-pressed", "true");
+    await type.getByRole("button", { name: "FX" }).click();
+    await expect(type.getByRole("button", { name: "FX" })).toHaveAttribute("aria-pressed", "true");
+    await openRoute(page, "board/abbey");
+    await page.getByRole("region", { name: /^Pad: / }).getByRole("button", { name: "Choose from library…" }).click();
+    await expect(page.getByRole("dialog").getByRole("checkbox", { name: /^Ashes/ })).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+    await openRoute(page, "library");
+    await row(page, "Ashes").getByRole("checkbox").check();
+    await row(page, /^Select Eerie dread/).getByRole("checkbox").check();
+    await page.getByRole("button", { name: "More for the selected tracks" }).click();
+    await page.getByRole("menuitemradio", { name: "Ambience" }).click();
+    const ask = page.getByRole("dialog", { name: "Make 2 tracks Ambience?" });
+    if (await ask.isVisible()) await ask.getByRole("button", { name: "Make Ambience" }).click();
+    await expect(row(page, "Ashes").getByText("Amb", { exact: true })).toBeVisible();
+    await expect(row(page, /^Select Eerie dread/).getByText("Amb", { exact: true })).toBeVisible();
+  });
+
+  test("round 8 #2 and #4: Pick up where it stopped fits on one line; Follow with's line is clear of the list's focus ring", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    await row(page, "Ashes").locator("td.lb-c-title").click();
+    const pickUp = details(page).locator("label.lb-resume");
+    await expect(pickUp).toBeVisible();
+    expect((await pickUp.boundingBox())!.height).toBeLessThan(30);
+    await details(page).getByRole("button", { name: "Follow with…" }).click();
+    const select = page.getByRole("dialog").getByRole("combobox", { name: "When it ends, play" });
+    await select.focus();
+    const s = (await select.boundingBox())!;
+    const hint = (await page.getByRole("dialog").getByText("Unless something is waiting in Play next.").boundingBox())!;
+    // The focus ring is drawn up to 4 px outside the list.
+    expect(hint.y).toBeGreaterThanOrEqual(s.y + s.height + 4);
+  });
+
+  test("round 8 #5: a track title on a playlist page opens the Track library with that row in view", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "playlist/p-abbess");
+    const links = page.locator('a[href^="#/library/"]');
+    await expect(links.first()).toBeVisible();
+    const href = (await links.last().getAttribute("href"))!;
+    await links.last().click();
+    const open = grid(page).locator(`tr[data-tid="${href.split("/").pop()}"]`);
+    await expect(open).toHaveAttribute("aria-current", "true");
+    await expect(open).toBeInViewport();
+  });
+});

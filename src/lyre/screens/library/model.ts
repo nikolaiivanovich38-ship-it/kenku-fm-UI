@@ -8,17 +8,22 @@
  */
 import { isFx, resolveProfile, shapeOf, SHAPE_WORDS, type DomainTrack, type PlaylistRule, type ProfileOverrides, type TrackShape } from "../../../common/domain";
 import type { FolderRoot, LibraryTrack, TagGroup } from "../../../common/lyre/api";
-import { plural, shownTitle } from "../../../common/lyre/text";
+import { lengthText, plural, shownTitle } from "../../../common/lyre/text";
 import { trackHasTag, type TagTree } from "../../../common/domain/round7";
 import { inVocabularyOrder } from "../../../common/lyre/lookup";
 
 export { inVocabularyOrder, plural, shownTitle };
 
 export type KindFilter = "all" | "music" | "amb" | "fx";
-export type SortKey = "title" | "artist" | "short" | "long" | "new" | "old";
+export type SortKey = "title" | "title-za" | "tag" | "tag-za" | "energy" | "energy-desc" | "artist" | "short" | "long" | "new" | "old";
 
 export const SORTS: readonly [SortKey, string][] = [
   ["title", "Title A to Z"],
+  ["title-za", "Title Z to A"],
+  ["tag", "Tag A to Z"],
+  ["tag-za", "Tag Z to A"],
+  ["energy", "Energy, calm first"],
+  ["energy-desc", "Energy, intense first"],
   ["artist", "Artist A to Z"],
   ["short", "Shortest first"],
   ["long", "Longest first"],
@@ -74,17 +79,15 @@ export const inFolder = (t: { folder: string }, f: string): boolean => !f || t.f
 export const kindOk = (t: DomainTrack, k: KindFilter): boolean => k === "all" || (k === "fx" ? isFx(t) : t.kind === k);
 const energyOff = (f: LibraryFilter) => f.emin <= 1 && f.emax >= 5;
 
-/** "1:35" from milliseconds. */
-export function fmt(ms: number): string {
-  const s = Math.max(0, Math.round(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-/** A playlist's length: "19:26", or "1:02:05" from an hour. */
-export function fmtLong(ms: number): string {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 3600) return fmt(s * 1000);
-  const h = Math.floor(s / 3600);
-  return `${h}:${fmt((s - h * 3600) * 1000).padStart(5, "0")}`;
+/** "1:35" from milliseconds (item 51: the one helper, common/lyre/text.ts lengthText). */
+export const fmt = lengthText;
+/** A playlist's length: "19:26", or "1:02:05" from an hour (the same helper). */
+export const fmtLong = lengthText;
+
+/** Item 7: how long a track plays with its own Audio profile, Start to End (the file's length when it has none). */
+export function playedMs(t: DomainTrack): number {
+  const p = resolveProfile(t, [], {}).profile;
+  return Math.max(0, p.endMs - p.startMs);
 }
 
 /** When a track was added, as the Details pane says it: "Today", "12 Sep", or "12 Sep 2025" in another year. */
@@ -150,14 +153,38 @@ export function matches(t: LibraryTrack, f: LibraryFilter, words: string[], skip
 
 const collator = new Intl.Collator(undefined, { sensitivity: "base", numeric: true });
 const byTitle = (a: LibraryTrack, b: LibraryTrack) => collator.compare(shownTitle(a), shownTitle(b));
+/** A track's first tag as its row shows it; "" when it has none (sorted last, whichever way). */
+const firstTag = (t: LibraryTrack) => tagsOf(t)[0] ?? "";
+const blanksLast = (a: string | number | null, b: string | number | null) => Number(a === "" || a === null) - Number(b === "" || b === null);
 const SORTERS: Record<SortKey, (a: LibraryTrack, b: LibraryTrack) => number> = {
   title: byTitle,
+  "title-za": (a, b) => byTitle(b, a),
+  tag: (a, b) => blanksLast(firstTag(a), firstTag(b)) || collator.compare(firstTag(a), firstTag(b)) || byTitle(a, b),
+  "tag-za": (a, b) => blanksLast(firstTag(a), firstTag(b)) || collator.compare(firstTag(b), firstTag(a)) || byTitle(a, b),
+  energy: (a, b) => blanksLast(a.energy, b.energy) || (a.energy ?? 0) - (b.energy ?? 0) || byTitle(a, b),
+  "energy-desc": (a, b) => blanksLast(a.energy, b.energy) || (b.energy ?? 0) - (a.energy ?? 0) || byTitle(a, b),
   artist: (a, b) => collator.compare(a.artist, b.artist) || byTitle(a, b),
   short: (a, b) => a.durationMs - b.durationMs,
   long: (a, b) => b.durationMs - a.durationMs,
   new: (a, b) => b.addedAt - a.addedAt || byTitle(a, b),
   old: (a, b) => a.addedAt - b.addedAt || byTitle(a, b),
 };
+
+/**
+ * Item 25: the column headers that sort, each with its sort one way and the other (a first click sorts ascending, a
+ * second descending), and what aria-sort says for a sort.
+ */
+export const COLUMN_SORTS = {
+  title: ["title", "title-za"],
+  tags: ["tag", "tag-za"],
+  energy: ["energy", "energy-desc"],
+  length: ["short", "long"],
+} as const satisfies Record<string, readonly [SortKey, SortKey]>;
+export type SortColumn = keyof typeof COLUMN_SORTS;
+export function columnSort(column: SortColumn, now: SortKey): { aria: "ascending" | "descending" | undefined; next: SortKey } {
+  const [up, down] = COLUMN_SORTS[column];
+  return { aria: now === up ? "ascending" : now === down ? "descending" : undefined, next: now === up ? down : up };
+}
 
 /** The tracks a filter, search and sort show, in order. */
 export function visibleTracks(tracks: readonly LibraryTrack[], f: LibraryFilter, q: string, sort: SortKey, missing: ReadonlySet<string> = NONE_MISSING, tree?: TagTree): LibraryTrack[] {
@@ -200,6 +227,8 @@ export interface FolderRow {
   watched: boolean;
   /** A subfolder of the chosen library folder, shown under it. */
   sub: boolean;
+  /** 0.5.2 items 20 and 40: the library folder this row is (its ⋯), or null for any other row. */
+  root: FolderRoot | null;
 }
 
 /**
@@ -208,18 +237,18 @@ export interface FolderRow {
  */
 export function folderRows(tracks: readonly LibraryTrack[], roots: readonly FolderRoot[], chosen: string, kind: KindFilter): FolderRow[] {
   const base = tracks.filter((t) => kindOk(t, kind));
-  const all = roots.map((r) => ({ path: r.path, watched: r.watched }));
+  const all: { path: string; watched: boolean; root: FolderRoot | null }[] = roots.map((r) => ({ path: r.path, watched: r.watched, root: r }));
   for (const t of tracks) {
-    if (!all.some((r) => inFolder(t, r.path))) all.push({ path: t.folder.split("\\").slice(0, 3).join("\\"), watched: false });
+    if (!all.some((r) => inFolder(t, r.path))) all.push({ path: t.folder.split("\\").slice(0, 3).join("\\"), watched: false, root: null });
   }
   const count = (f: string) => base.filter((t) => inFolder(t, f)).length;
-  const rows: FolderRow[] = [{ path: "", label: "All folders", count: base.length, watched: false, sub: false }];
+  const rows: FolderRow[] = [{ path: "", label: "All folders", count: base.length, watched: false, sub: false, root: null }];
   for (const r of all) {
-    rows.push({ path: r.path, label: r.path, count: count(r.path), watched: r.watched, sub: false });
+    rows.push({ path: r.path, label: r.path, count: count(r.path), watched: r.watched, sub: false, root: r.root });
     if (chosen && inFolder({ folder: chosen }, r.path)) {
       const subs = new Set<string>();
       for (const t of base) if (t.folder.startsWith(`${r.path}\\`)) subs.add(`${r.path}\\${t.folder.slice(r.path.length + 1).split("\\")[0]}`);
-      for (const s of [...subs].sort()) rows.push({ path: s, label: shortPath(s), count: count(s), watched: false, sub: true });
+      for (const s of [...subs].sort()) rows.push({ path: s, label: shortPath(s), count: count(s), watched: false, sub: true, root: null });
     }
   }
   return rows;

@@ -22,7 +22,7 @@ import type { ScreenProps } from "../index";
 import { droppedPaths, hasFiles, NOTHING_TO_ADD } from "./drops";
 import { FiltersBody } from "./FiltersBody";
 import { useLayoutMode } from "./layout";
-import { getLibraryState, setLibraryState, useLibraryState, type Guide } from "./libraryState";
+import { getLibraryState, getListScroll, setLibraryState, setListScroll, useLibraryState, type Guide } from "./libraryState";
 import { DEFAULT_FILTER, filterCount, filterSummary, filtersOn, KIND_NAMES, plural, shownTitle, visibleTracks } from "./model";
 import { focusSoon, onAirTrackIds, pausedTrackIds, useWriteResult } from "./shared";
 import { UseInDialog } from "./UseInDialog";
@@ -30,6 +30,8 @@ import { useNormaliseSettings } from "./normalise";
 import { NormaliseDialog } from "../../kit/NormaliseChoice";
 import { PopMenuButton, TwoLines, type PopMenuEntry } from "../../kit/PopMenu";
 import { TagSheet } from "./TagSheet";
+import { forgetRemoved, RemoveTracksDialog, type Removal } from "./RemoveTracks";
+import { TYPES, useTypeChange } from "./TypeChange";
 import { TrackDetails } from "./TrackDetails";
 import { TracksTable } from "./TracksTable";
 import { useTrackList } from "./trackStore";
@@ -98,6 +100,14 @@ export function LibraryScreen({ route }: ScreenProps) {
       window.location.hash = hashOf(`library/${id}`);
     },
     [mode],
+  );
+  /** Item 6: a row's Preview or Play on air opens its details (on a narrow window it only moves the keyboard there). */
+  const played = useCallback(
+    (id: string) => {
+      if (mode === "narrow") setLibraryState({ cursor: id });
+      else if (getLibraryState().cursor !== id || route.params.tid !== id) openTrack(id);
+    },
+    [mode, openTrack, route.params.tid],
   );
   const closeTrack = () => {
     const cursor = getLibraryState().cursor;
@@ -186,9 +196,16 @@ export function LibraryScreen({ route }: ScreenProps) {
 
   /** ORG-5: the tracks whose Add to… is open. */
   const [addingTo, setAddingTo] = useState<string[] | null>(null);
+  /** 0.5.2 items 4 and 39: Type for the selection, asking first when it affects a playlist or a scene. */
+  const typeChange = useTypeChange(store, { offerUndo: true });
+  /** 0.5.2 items 1 and 50: the tracks a Remove from library or Delete file from disk… confirmation is open for. */
+  const [removal, setRemoval] = useState<Removal | null>(null);
   const rowMenu = useCallback(
     (t: LibraryTrack): PopMenuEntry[] => {
       const on = getLibraryState().sel.includes(t.id);
+      // As Add to…: a ticked row takes the other ticked rows along.
+      const ids = on ? getLibraryState().sel : [t.id];
+      const many = ids.length > 1 ? ` (${ids.length})` : "";
       return [
         { content: <Item icon="file" text="Open details" />, onSelect: () => openTrack(t.id) },
         { content: <Item icon="check" text={on ? "Deselect" : "Select"} />, onSelect: () => toggleSel(t.id, false) },
@@ -197,6 +214,10 @@ export function LibraryScreen({ route }: ScreenProps) {
         // Round 7 (ORG-5): the keyboard's way to what a drag does; a ticked row takes the other ticked rows along.
         { content: <Item icon="plus" text="Add to…" />, onSelect: () => setAddingTo(on ? getLibraryState().sel : [t.id]) },
         { content: <Item icon="fade" text="Audio profile" />, onSelect: () => (window.location.hash = hashOf(`profile/${t.id}`)) },
+        { separator: true },
+        { content: <Item icon="close" text={`Remove from library${many}`} />, onSelect: () => setRemoval({ how: "remove", ids }) },
+        // Less prominent: last, apart, plain words and a confirmation that names the files.
+        { className: "lb-mi-quiet", content: <Item icon="warn" text={`Delete file from disk${many}…`} />, onSelect: () => setRemoval({ how: "delete", ids }) },
       ];
     },
     [openTrack, toggleSel],
@@ -327,11 +348,32 @@ export function LibraryScreen({ route }: ScreenProps) {
     await store.reload();
     const names = tags.map((x) => x.value);
     const msg = `${how === "add" ? "Added" : "Removed"} ${names.join(", ")} ${how === "add" ? "to" : "from"} ${plural(ids.length, "track")}.`;
-    const stillNew = ids.filter((id) => store.get().byId.get(id)?.isNew).length;
-    setLibraryState({ guide: { kind: "tagged", text: msg, stillNew } });
+    // Item 10: a tag settles a New track, so none is left New after this.
+    setLibraryState({ guide: { kind: "tagged", text: msg } });
     say(msg);
     // w3-ux 10: tagging many tracks at once can be undone from a message (and Ctrl+Z).
     if (result.ok) offer(msg, result.undoLabel);
+  };
+
+  /** 0.5.2: the selection's ⋯: Type (items 4, 39), Remove from library and, last and apart, Delete files from disk…. */
+  const selectionMenu = (): PopMenuEntry[] => {
+    const ids = getLibraryState().sel;
+    const chosen = ids.map((id) => byId.get(id)).filter((t): t is LibraryTrack => !!t);
+    return [
+      { group: "Type" },
+      ...TYPES.map(
+        ([kind, word]): PopMenuEntry => ({
+          role: "menuitemradio",
+          checked: chosen.length > 0 && chosen.every((t) => t.kind === kind),
+          content: word,
+          onSelect: () => typeChange.change(chosen, kind),
+        }),
+      ),
+      { separator: true },
+      { content: <Item icon="close" text="Remove from library" />, onSelect: () => setRemoval({ how: "remove", ids }) },
+      { separator: true },
+      { className: "lb-mi-quiet", content: <Item icon="warn" text={ids.length === 1 ? "Delete file from disk…" : "Delete files from disk…"} />, onSelect: () => setRemoval({ how: "delete", ids }) },
+    ];
   };
 
   const addToPlaylists = async (pids: string[], ids: string[], single: boolean) => {
@@ -374,11 +416,12 @@ export function LibraryScreen({ route }: ScreenProps) {
             type="button"
             className="btn s ghost"
             onClick={() => {
-              setLibraryState({ filter: DEFAULT_FILTER, q: "" });
+              // Item 21: every filter, not the search.
+              setLibraryState({ filter: DEFAULT_FILTER });
               say("Filters cleared");
             }}
           >
-            Clear all
+            Clear all filters
           </button>
         ) : undefined
       }
@@ -456,6 +499,9 @@ export function LibraryScreen({ route }: ScreenProps) {
           <button type="button" className="btn s ghost" onClick={clearSel}>
             Clear selection
           </button>
+          <PopMenuButton label="More for the selected tracks" ariaLabel="More for the selected tracks" title="More" className="btn s icon ghost" items={selectionMenu}>
+            <Icon name="more" size="s" />
+          </PopMenuButton>
         </div>
       )}
       <TracksTable
@@ -470,6 +516,10 @@ export function LibraryScreen({ route }: ScreenProps) {
         missing={missing}
         emptyText={emptyText}
         sort={st.sort}
+        onSort={(sort) => {
+          setLibraryState({ sort });
+          say(`Sorted: ${SORTS.find(([k]) => k === sort)?.[1] ?? ""}`);
+        }}
         onOpen={openTrack}
         onToggle={toggleSel}
         onToggleAll={toggleAll}
@@ -478,6 +528,9 @@ export function LibraryScreen({ route }: ScreenProps) {
         onPreview={preview}
         onPlay={playOnAir}
         rowMenu={rowMenu}
+        onPlayed={played}
+        initialScroll={getListScroll()}
+        onScrolled={setListScroll}
         describedBy="lb-keys"
       />
       {/* Round 6: the keys show only while the keyboard is in the list, and are read out with it. */}
@@ -590,7 +643,8 @@ export function LibraryScreen({ route }: ScreenProps) {
             Tracks
           </button>
         )}
-        <h1>Library</h1>
+        {/* Item 23: the Track library, wherever its name shows (menu, heading, Back, help); the route stays "library". */}
+        <h1>Track library</h1>
         <span className="muted lb-count">{plural(nAll, "track")}</span>
         <span className="grow" />
         <PopMenuButton label="Add tracks" className="btn primary" items={addMenu}>
@@ -598,7 +652,11 @@ export function LibraryScreen({ route }: ScreenProps) {
           Add tracks
           <Icon name="chevdown" size="s" />
         </PopMenuButton>
-        <LibraryMoreMenu onNormalise={() => setNormaliseOpen(true)} />
+        <LibraryMoreMenu
+          onNormalise={() => setNormaliseOpen(true)}
+          // Item 50: every track a filter or search shows, with the count in the confirmation.
+          onRemoveShown={st.q || filtersOn(st.filter) ? { count: list.length, remove: () => setRemoval({ how: "remove", ids: list.map((t) => t.id), shown: true }) } : undefined}
+        />
         {/* 0.5.1 (Nik, 11 Nov): the Prep | Live switch, as on Rooms and a campaign's pages. */}
         <PrepOrLive />
       </div>
@@ -632,6 +690,8 @@ export function LibraryScreen({ route }: ScreenProps) {
         }}
       />
       {addingTo && <AddToDialog what={{ ids: addingTo, from: null }} onClose={() => setAddingTo(null)} />}
+      {typeChange.dialog}
+      {removal && <RemoveTracksDialog removal={removal} tracks={byId} onClose={() => setRemoval(null)} onRemoved={(ids) => forgetRemoved(ids, open?.id)} />}
       {useIn && (
         <UseInDialog
           track={byId.get(useIn)}
@@ -707,13 +767,7 @@ function GuideLine({ guide, onShowNew }: { guide: Guide; onShowNew: () => void }
       break;
     }
     case "tagged":
-      text = (
-        <>
-          {guide.text}
-          {guide.stillNew > 0 &&
-            ` ${plural(guide.stillNew, "track")} ${guide.stillNew === 1 ? "still needs" : "still need"} a title of your own: open ${guide.stillNew === 1 ? "it" : "each one"} to type it.`}
-        </>
-      );
+      text = guide.text;
       break;
     case "playlist-made":
       text = (

@@ -32,7 +32,7 @@ export interface LibraryServiceOptions {
   ffmpegPath?: string | null;
   /** DAT-7: Lyre's own folder for .lyre files ("Documents\Lyre"); files brought in go to "Brought in" inside it. */
   transferFolder?: string | null;
-  /** Work the library asks for: chooseFiles, chooseFolder, showItemInFolder, chooseSaveFile, chooseLyreFile. */
+  /** Work the library asks for: chooseFiles, chooseFolder, showItemInFolder, chooseSaveFile, chooseLyreFile, trashFile. */
   host: Record<string, (...args: unknown[]) => unknown>;
   /** Every LyreApi event, and the library's status, for the Lyre page. */
   onEvent(event: LyreEvent): void;

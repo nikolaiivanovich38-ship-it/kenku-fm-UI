@@ -16,7 +16,7 @@ import {
   trackUsage,
   updateTrack,
 } from "./tracks";
-import { addRoot, listRoots, removeRoot, updateRoot } from "./roots";
+import { addRoot, kindForNewFile, listRoots, removeRoot, removeRootWithTracks, updateRoot } from "./roots";
 import { addMarker, deleteMarker, listMarkers, updateMarker } from "./markers";
 import { addTracksToPlaylist, createPlaylist, getPlaylist, listPlaylistItems } from "./playlists";
 import { addPad, createBoard } from "./boards";
@@ -56,6 +56,34 @@ describe("library roots and file locations (DAT-1, DAT-8)", () => {
     expect(updateRoot(t.store, root.id, { watched: false }).watched).toBe(false);
     expect((await addRoot(t.store, { name: "Fx", path: "H:\\Fx" })).watched).toBe(false);
     expect(() => updateRoot(t.store, root.id, { watched: "yes" as never })).toThrow(ValidationError);
+  });
+
+  it("item 40: a library folder says what kind its new tracks are (null: guessed from the folder name)", async () => {
+    const root = await addRoot(t.store, { name: "Soundtracks", path: "H:\\Audio\\Soundtracks", watched: true });
+    expect(root.newKind).toBeNull();
+    expect(updateRoot(t.store, root.id, { newKind: "amb" }).newKind).toBe("amb");
+    expect(() => updateRoot(t.store, root.id, { newKind: "sting" as never })).toThrow(ValidationError);
+    const inner = await addRoot(t.store, { name: "Rain", path: "H:\\Audio\\Soundtracks\\Rain" });
+    // The deepest folder holding the file decides; one that guesses guesses.
+    expect(kindForNewFile(listRoots(t.store), "H:\\Audio\\Soundtracks\\Dark\\a.flac")).toBe("amb");
+    expect(kindForNewFile(listRoots(t.store), "H:\\audio\\soundtracks\\RAIN\\b.flac")).toBeNull();
+    updateRoot(t.store, inner.id, { newKind: "fx" });
+    expect(kindForNewFile(listRoots(t.store), "H:\\Audio\\Soundtracks\\Rain\\b.flac")).toBe("fx");
+    expect(kindForNewFile(listRoots(t.store), "D:\\Elsewhere\\c.flac")).toBeNull();
+  });
+
+  it("item 20: removes a library folder with its tracks in one undo step; the files are not touched", async () => {
+    const root = await addRoot(t.store, { name: "Soundtracks", path: "H:\\Audio\\Soundtracks", watched: true });
+    const [a, b] = createTracks(t.store, [
+      { title: "A", file: { path: "H:\\Audio\\Soundtracks\\a.mp3" } },
+      { title: "B", file: { path: "H:\\Audio\\Soundtracks\\Sub\\b.mp3" } },
+    ]);
+    const other = createTrack(t.store, { title: "C", file: { path: "D:\\c.mp3" } });
+    expect(await removeRootWithTracks(t.store, root.id)).toEqual([a.id, b.id].sort());
+    expect(listRoots(t.store)).toEqual([]);
+    expect(getTrack(t.store, a.id)).toBeNull();
+    expect(getTrack(t.store, other.id)).not.toBeNull();
+    // Undo puts both back (undo.test.ts, "removeRootWithTracks").
   });
 
   it("moves every track at once when a root's folder moves", async () => {
@@ -382,7 +410,7 @@ describe("markers (DAT-3 data)", () => {
 });
 
 describe("new tracks (EDT-6: the Library's New mark)", () => {
-  it("marks a track New when asked, lists new tracks, and settles it once titled and tagged", async () => {
+  it("marks a track New when asked, lists new tracks, and settles it once tagged (version 8, item 10)", async () => {
     const fresh = createTrack(t.store, { file: { path: "/m/new.flac" }, isNew: true });
     const old = createTrack(t.store, { title: "Old", file: { path: "/m/old.flac" } });
     expect(fresh.isNew).toBe(true);
@@ -390,9 +418,9 @@ describe("new tracks (EDT-6: the Library's New mark)", () => {
     expect(listNewTrackIds(t.store)).toEqual([fresh.id]);
     const tense = listTagGroups(t.store)[0];
     const tag = createTag(t.store, { groupId: tense.id, name: "Brooding" });
-    await tagTracks(t.store, [fresh.id], [tag.id]);
-    expect(getTrack(t.store, fresh.id)?.isNew).toBe(true);
     updateTrack(t.store, fresh.id, { title: "Brooding storm" });
+    expect(getTrack(t.store, fresh.id)?.isNew).toBe(true);
+    await tagTracks(t.store, [fresh.id], [tag.id]);
     expect(getTrack(t.store, fresh.id)?.isNew).toBe(false);
     expect(listNewTrackIds(t.store)).toEqual([]);
     expect(updateTrack(t.store, old.id, { isNew: true }).isNew).toBe(true);

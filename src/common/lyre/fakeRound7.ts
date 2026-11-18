@@ -304,7 +304,16 @@ export function fakeRound7(
         g.tags.splice(g.tags.indexOf(info), 1);
         sortValues(g);
         label = `Delete tag ${quoted(info.name)} from ${plural(count, "track")}`;
-        return { tracks: count };
+        // 0.5.2 item 54: the group's last tag takes the group with it, unless a rule names the group.
+        const ruled = st().playlists.some((p) => p.kind === "dynamic" && p.rule.conds.some((c) => c.group === g.id));
+        const groupRemoved = g.tags.length === 0 && !ruled;
+        if (groupRemoved) {
+          st().tagGroups.splice(st().tagGroups.indexOf(g), 1);
+          for (const t of st().tracks) delete t.tags[g.id];
+          for (const b of st().boards) for (const p of [...b.slots, ...b.spare]) if (p?.sound.tag?.group === g.id) p.sound.tag = null;
+          label += ` and its group ${quoted(g.name)}`;
+        }
+        return { tracks: count, groupRemoved };
       });
     },
     async updateTag(ref, patch) {

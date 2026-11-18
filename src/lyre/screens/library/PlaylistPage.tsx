@@ -34,6 +34,7 @@ import { useNormaliseSettings } from "./normalise";
 import { DestTag } from "../../kit/DestTag";
 import { PlayOrderButton } from "../../kit/PlayOrderButton";
 import { ShapeGlyph } from "../../kit/ShapeGlyph";
+import { matchesShapes, ShapeFilter } from "../../kit/ShapeFilter";
 import { TagStrip } from "../../kit/TagStrip";
 import "./library.css";
 import "./playlists.css";
@@ -807,11 +808,13 @@ function AddPane({
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(ADD_FIRST);
   const [lane, setLaneState] = useState(addLanes.get(pl.id) ?? pl.lane);
+  // 0.5.2 item 17: the Library's Shape filter.
+  const [shapes, setShapes] = useState<TrackShape[]>([]);
   const q = query.trim();
   const hits = useMemo(() => {
-    const pool = data.tracks.filter(laneTest(lane));
+    const pool = data.tracks.filter((t) => laneTest(lane)(t) && matchesShapes(t, shapes));
     return q ? pool.filter((t) => matchesQuery(haystack(t), q)) : pool;
-  }, [data.tracks, lane, q]);
+  }, [data.tracks, lane, q, shapes]);
   const count = q ? `${hits.length} ${hits.length === 1 ? "match" : "matches"}` : plural(hits.length, "track");
   // UX-R7: read out once typing pauses, not on every key.
   useSayWhenSettled(q ? count : null);
@@ -865,6 +868,14 @@ function AddPane({
         </div>
         <span className="muted pl-count">{count}</span>
       </div>
+      <ShapeFilter
+        className="pl-addshapes"
+        value={shapes}
+        onChange={(next) => {
+          setShapes(next);
+          setLimit(ADD_FIRST);
+        }}
+      />
       <div className="pl-scroll">
         {hits.length ? (
           <>
@@ -890,7 +901,7 @@ function AddPane({
             )}
           </>
         ) : (
-          <div className="empty">Nothing in the library matches &quot;{q}&quot;.</div>
+          <div className="empty">{q ? <>Nothing in the library matches &quot;{q}&quot;.</> : "No track of that shape here."}</div>
         )}
       </div>
     </Pane>

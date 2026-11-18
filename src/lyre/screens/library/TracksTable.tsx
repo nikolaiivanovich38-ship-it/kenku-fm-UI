@@ -21,7 +21,7 @@ import { ShapeTag } from "../../kit/ShapeGlyph";
 import { EnergyMeter } from "../../kit/Pills";
 import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
-import { fmt, kindMark, shownTitle } from "./model";
+import { columnSort, fmt, kindMark, playedMs, shownTitle, type SortColumn, type SortKey } from "./model";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 
@@ -55,7 +55,14 @@ export interface TracksTableProps {
   onPreview: (id: string) => void;
   onPlay: (id: string) => void;
   rowMenu: (t: LibraryTrack) => readonly PopMenuEntry[];
-  sort: string;
+  /** Item 6: Preview or Play on air was pressed on this track's row (the Library opens its details). */
+  onPlayed?: (id: string) => void;
+  /** Item 35: where the list starts scrolled, and where it is scrolled to (kept while the screen is drawn afresh). */
+  initialScroll?: number;
+  onScrolled?: (top: number) => void;
+  sort: SortKey;
+  /** Item 25: a click on a column header sorts by it (ascending, then descending). */
+  onSort?: (sort: SortKey) => void;
   /** Round 6: the id of the key legend under the list, read out with it. */
   describedBy?: string;
 }
@@ -63,11 +70,34 @@ export interface TracksTableProps {
 export function TracksTable(props: TracksTableProps) {
   const { list, sel, cursor, sort, describedBy } = props;
   const boxRef = useRef<HTMLDivElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
+  const [scrollTop, setScrollTop] = useState(props.initialScroll ?? 0);
   const [viewHeight, setViewHeight] = useState(UNMEASURED_HEIGHT);
   const [rowHeight, setRowHeight] = useState(ROW_HEIGHT);
   const [headHeight, setHeadHeight] = useState(26);
   const focusAfter = useRef<string | null>(null);
+
+  // Item 35: back where it was before the screen was drawn afresh (opening a track is a new address). Round 8
+  // click-through #5: an open track reached from elsewhere (a playlist's track title) is then scrolled into view.
+  const revealed = useRef(false);
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    if (box && props.initialScroll) box.scrollTop = props.initialScroll;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the list is first drawn
+  }, []);
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    if (revealed.current || !box || !props.openId || list.length === 0) return;
+    revealed.current = true;
+    const index = list.findIndex((t) => t.id === props.openId);
+    if (index < 0) return;
+    const top = index * rowHeight;
+    const visible = (box.clientHeight || UNMEASURED_HEIGHT) - headHeight;
+    if (top >= box.scrollTop && top + rowHeight <= box.scrollTop + visible) return;
+    // In the middle of the list's height, so the rows around it show too.
+    const next = Math.max(0, top - Math.max(0, (visible - rowHeight) / 2));
+    box.scrollTop = next;
+    setScrollTop(next);
+  }, [props.openId, list, rowHeight, headHeight]);
 
   useLayoutEffect(() => {
     const box = boxRef.current;
@@ -180,13 +210,21 @@ export function TracksTable(props: TracksTableProps) {
         missing={props.missing.has(t.id)}
         onOpen={props.onOpen}
         onToggle={props.onToggle}
+        onPlayed={props.onPlayed}
         rowMenu={props.rowMenu}
       />,
     );
   }
 
   return (
-    <div className="lb-scroll" ref={boxRef} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}>
+    <div
+      className="lb-scroll"
+      ref={boxRef}
+      onScroll={(e) => {
+        setScrollTop(e.currentTarget.scrollTop);
+        props.onScrolled?.(e.currentTarget.scrollTop);
+      }}
+    >
       <table className="grid lb-table" role="grid" aria-multiselectable="true" aria-label="Tracks" aria-describedby={describedBy} aria-rowcount={n + 1}>
         <thead>
           <tr aria-rowindex={1}>
@@ -195,14 +233,10 @@ export function TracksTable(props: TracksTableProps) {
                 <input ref={allRef} type="checkbox" aria-label={`Select all ${n} shown`} checked={allOn} onChange={props.onToggleAll} />
               </label>
             </th>
-            <th className="lb-c-title" aria-sort={sort === "title" ? "ascending" : undefined}>
-              Title
-            </th>
-            <th className="lb-c-tags">Tag</th>
-            <th className="lb-c-en">Energy</th>
-            <th className="lb-c-dur" aria-sort={sort === "short" ? "ascending" : sort === "long" ? "descending" : undefined}>
-              Length
-            </th>
+            <SortHeader column="title" className="lb-c-title" label="Title" sort={sort} onSort={props.onSort} />
+            <SortHeader column="tags" className="lb-c-tags" label="Tag" sort={sort} onSort={props.onSort} />
+            <SortHeader column="energy" className="lb-c-en" label="Energy" sort={sort} onSort={props.onSort} />
+            <SortHeader column="length" className="lb-c-dur" label="Length" sort={sort} onSort={props.onSort} />
             <th className="lb-c-pv">
               <span className="sr-only">Preview, play on air, more</span>
             </th>
@@ -246,11 +280,12 @@ interface TrackRowProps {
   missing: boolean;
   onOpen: (id: string) => void;
   onToggle: (id: string, range: boolean) => void;
+  onPlayed?: (id: string) => void;
   rowMenu: (t: LibraryTrack) => readonly PopMenuEntry[];
 }
 
 /** One track's line: drawn again only when that track, its selection or its state changes. */
-const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, tabbable, onAir, previewing, missing, onOpen, onToggle, rowMenu }: TrackRowProps) {
+const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, tabbable, onAir, previewing, missing, onOpen, onToggle, onPlayed, rowMenu }: TrackRowProps) {
   const own = t.title;
   const meta = t.metaTitle;
   const shown = shownTitle(t);
@@ -348,11 +383,16 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
           </span>
         )}
       </td>
-      <td className="lb-c-dur num">{fmt(t.durationMs)}</td>
+      <td className="lb-c-dur num">
+        <LengthCell t={t} />
+      </td>
       <td className="lb-c-pv">
         <div className="lb-rowbtns">
-          <PreviewButton target={{ kind: "track", id: t.id }} name={shown} tabIndex={-1} />
-          <PlayOnAirButton target={{ kind: "track", id: t.id }} name={shown} tabIndex={-1} />
+          {/* Item 6: a click on either play button also opens the track (before the button plays it). */}
+          <span className="lb-play" onClickCapture={() => onPlayed?.(t.id)}>
+            <PreviewButton target={{ kind: "track", id: t.id }} name={shown} tabIndex={-1} />
+            <PlayOnAirButton target={{ kind: "track", id: t.id }} name={shown} tabIndex={-1} />
+          </span>
           <PopMenuButton label={`More for ${shown}`} ariaLabel={`More for ${shown}`} title="More" className="btn s icon ghost" tabIndex={-1} items={() => rowMenu(t)}>
             <Icon name="more" size="s" />
           </PopMenuButton>
@@ -361,3 +401,43 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
     </tr>
   );
 });
+
+/**
+ * Item 7: the file's length, and under it the length its own Audio profile plays (Start to End) when the two differ
+ * as the list writes them. Item 51: both by the one helper (fmt).
+ */
+function LengthCell({ t }: { t: LibraryTrack }) {
+  const file = fmt(t.durationMs);
+  const played = fmt(playedMs(t));
+  if (played === file) return <>{file}</>;
+  return (
+    <span className="lb-len">
+      <span>{file}</span>
+      <span className="lb-played" title={`Plays ${played} with its Audio profile (file ${file})`}>
+        <span className="sr-only">, plays </span>
+        {played}
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Item 25: a column header that sorts. Its button sorts by the column, ascending, then descending on a second click;
+ * the header's aria-sort says which. Without onSort it is a plain header with its aria-sort.
+ */
+function SortHeader({ column, className, label, sort, onSort }: { column: SortColumn; className: string; label: string; sort: SortKey; onSort?: (sort: SortKey) => void }) {
+  const { aria, next } = columnSort(column, sort);
+  return (
+    <th className={className} aria-sort={aria}>
+      {onSort ? (
+        // Out of the Tab order, so the list stays one Tab stop: the Sort box above it has the same sorts for the keys.
+        <button type="button" className="lb-sortbtn" tabIndex={-1} title={aria === "ascending" ? `Sort by ${label.toLowerCase()}, descending` : `Sort by ${label.toLowerCase()}`} onClick={() => onSort(next)}>
+          <span className="ellipsis">{label}</span>
+          {aria && <Icon name={aria === "ascending" ? "chevup" : "chevdown"} size="s" />}
+        </button>
+      ) : (
+        label
+      )}
+    </th>
+  );
+}

@@ -11,7 +11,15 @@
  *   files moved in from the old player that were already missing then), or the
  *   file there has another size (round 5: "Same name, different size: check
  *   it"). The screen asks, and does not tick it.
- * Among several candidates, the one whose folders match the old path most
+ * 0.5.2 item 14 (Nik: "It should match on file name, file checksum/hash, and
+ * sound profile"): a file that sounds the same, the same length (within a
+ * second, or 1 % of a long one) and loudness (within 1 LU) as Lyre measured the
+ * track, counts too: with its name it is "likely" (a re-encoded copy, moved);
+ * without it, "name" (renamed and re-encoded: the screen asks). Lengths are read
+ * once per file and loudness measured only for a file whose length fits. Each
+ * match says why (`reasons`: content, name, sound), and candidates are ranked:
+ * how sure, then how many reasons, then the folders.
+ * Among equally good candidates, the one whose folders match the old path most
  * closely wins ("Witcher/theme.flac" over "Other/theme.flac"); a tie is
  * reported for the game master to choose. A file another track already has is
  * never used, so a file never becomes two tracks.
@@ -43,11 +51,23 @@ export type MissingTrack = {
   fileName: string;
   size: number | null;
   checksum: string | null;
+  /** 0.5.2 item 14: its length, and the loudness Lyre measured from its file while it was there (null: unknown). */
+  durationMs: number | null;
+  lufs: number | null;
 };
 
 export type RelinkConfidence = "sure" | "likely" | "name";
+/** Why a file was taken for a track: the same content (quick checksum), the same name, the same sound (length and loudness). */
+export type RelinkReason = "content" | "name" | "sound";
 
-export type RelinkMatch = { trackId: string; from: string; to: string; confidence: RelinkConfidence; size?: number; mtimeMs?: number; checksum?: string };
+export type RelinkMatch = { trackId: string; from: string; to: string; confidence: RelinkConfidence; reasons: RelinkReason[]; size?: number; mtimeMs?: number; checksum?: string };
+
+/** 0.5.2 item 14: a file's length (its tags) and loudness (ffmpeg's measure), for matching by sound. */
+export interface SoundProbe {
+  durationMs(file: string): Promise<number | null>;
+  /** Absent: loudness cannot be measured here, so nothing matches by sound. */
+  lufs?(file: string): Promise<number | null>;
+}
 
 /**
  * How Lyre looks at files on the computer. The real one reads the disk; a test build of the sample library stands in
@@ -68,8 +88,8 @@ export const diskProbe: FileProbe = {
 
 export type RelinkPlan = {
   matches: RelinkMatch[];
-  /** Missing tracks with several equally good files: the screen asks which. */
-  ambiguous: { trackId: string; candidates: string[] }[];
+  /** Missing tracks with several equally good files: the screen asks which (reasons: why each, in the same order). */
+  ambiguous: { trackId: string; candidates: string[]; reasons: RelinkReason[][] }[];
   notFound: string[];
   summary: string;
 };
@@ -78,15 +98,16 @@ export type RelinkPlan = {
 export async function findMissingTracks(store: Store, options: { concurrency?: number; probe?: FileProbe } = {}): Promise<MissingTrack[]> {
   const probe = options.probe ?? diskProbe;
   const roots = new Map(listRoots(store).map((root) => [root.id, root.path]));
-  const rows = store.all<{ id: string; title: string; root_id: string | null; path: string; file_name: string; file_size: number | null; checksum: string | null }>(
-    `SELECT id, ${SHOWN_TITLE_SQL} AS title, root_id, path, file_name, file_size, checksum FROM tracks
-     WHERE path IS NOT NULL ORDER BY ${SHOWN_TITLE_SQL} COLLATE NOCASE, id`,
+  const rows = store.all<{ id: string; title: string; root_id: string | null; path: string; file_name: string; file_size: number | null; checksum: string | null; duration_ms: number | null; lufs: number | null }>(
+    `SELECT id, ${SHOWN_TITLE_SQL} AS title, root_id, path, file_name, file_size, checksum, duration_ms,
+       (SELECT lufs FROM track_loudness WHERE track_id = tracks.id) AS lufs
+     FROM tracks WHERE path IS NOT NULL ORDER BY ${SHOWN_TITLE_SQL} COLLATE NOCASE, id`,
   );
   const checked = await mapLimit(rows, options.concurrency ?? 16, async (row) => {
     const full = row.root_id === null ? row.path : joinRoot(roots.get(row.root_id) as string, row.path);
     return (await probe.exists(full))
       ? null
-      : { id: row.id, title: row.title, path: full, fileName: row.file_name, size: row.file_size, checksum: row.checksum };
+      : { id: row.id, title: row.title, path: full, fileName: row.file_name, size: row.file_size, checksum: row.checksum, durationMs: row.duration_ms, lufs: row.lufs };
   });
   return checked.filter((entry): entry is MissingTrack => entry !== null);
 }
@@ -101,15 +122,21 @@ function sharedTail(a: string, b: string): number {
 }
 
 const RANK: Record<RelinkConfidence, number> = { sure: 3, likely: 2, name: 1 };
+/** Length within this much (or 1 % of a long track), and loudness within this many LU, sound the same. */
+const SAME_LENGTH_MS = 1000;
+const SAME_LOUDNESS_LU = 1;
+
+type Judged = { file: string; confidence: RelinkConfidence; reasons: RelinkReason[] };
 
 /** Looks for the missing tracks' files under `folder`. Nothing is changed until applyRelink. */
 export async function planRelink(
   store: Store,
   missing: MissingTrack[],
   folder: string,
-  options: { signal?: AbortSignal; probe?: FileProbe } = {},
+  options: { signal?: AbortSignal; probe?: FileProbe; sound?: SoundProbe } = {},
 ): Promise<RelinkPlan> {
   const probe = options.probe ?? diskProbe;
+  const sound = options.sound;
   const known = locationsInLibrary(store);
   const files = (await probe.audioFilesUnder(folder, { signal: options.signal })).filter((p) => !known.has(fileKey(p)));
   const byName = new Map<string, string[]>();
@@ -117,47 +144,73 @@ export async function planRelink(
     const name = baseName(file).toLowerCase();
     byName.set(name, [...(byName.get(name) ?? []), file]);
   }
-  const facts = new Map<string, Promise<ReadFacts | null>>();
-  const factsOf = (file: string) => {
-    if (!facts.has(file)) facts.set(file, probe.facts(file).catch((): null => null));
-    return facts.get(file) as Promise<ReadFacts | null>;
+  /** Each file is read at most once, whichever tracks ask. */
+  const once = <T>(read: (file: string) => Promise<T>) => {
+    const cache = new Map<string, Promise<T | null>>();
+    return (file: string) => {
+      if (!cache.has(file)) cache.set(file, read(file).catch((): null => null));
+      return cache.get(file) as Promise<T | null>;
+    };
+  };
+  const factsOf = once((file) => probe.facts(file));
+  const lengthOf = once((file) => (sound ? sound.durationMs(file) : Promise.resolve(null)));
+  const loudnessOf = once((file) => (sound?.lufs ? sound.lufs(file) : Promise.resolve(null)));
+
+  /** The same length and loudness as Lyre measured the track; loudness is measured only when the length fits. */
+  const soundsTheSame = async (track: MissingTrack, file: string): Promise<boolean> => {
+    if (!sound?.lufs || track.durationMs === null || track.lufs === null) return false;
+    const length = await lengthOf(file);
+    if (length === null || Math.abs(length - track.durationMs) > Math.max(SAME_LENGTH_MS, track.durationMs * 0.01)) return false;
+    const lufs = await loudnessOf(file);
+    return lufs !== null && Math.abs(lufs - track.lufs) <= SAME_LOUDNESS_LU;
   };
 
-  /** How sure a candidate is for `track`, or null when it is a different file. */
-  const judge = async (track: MissingTrack, file: string, sameName: boolean): Promise<RelinkConfidence | null> => {
-    if (track.size === null && track.checksum === null) return sameName ? "name" : null;
-    const found = await factsOf(file);
-    if (!found) return null;
+  /** How sure a candidate is for `track` and why, or null when it is a different file. */
+  const judge = async (track: MissingTrack, file: string, sameName: boolean): Promise<Judged | null> => {
+    const found = track.size === null && track.checksum === null ? null : await factsOf(file);
+    const sizeKnown = track.size !== null && found !== null;
+    const sameSize = sizeKnown && found.size === track.size;
+    const sameContent = track.checksum !== null && found !== null && sameSize && found.checksum === track.checksum;
+    const reasons: RelinkReason[] = [];
+    if (sameContent) reasons.push("content");
+    if (sameName) reasons.push("name");
+    // Sound is asked only where it can change the answer: not for the same content.
+    if (!sameContent && (await soundsTheSame(track, file))) reasons.push("sound");
+    const bySound = reasons.includes("sound");
+    if (sameContent) return { file, confidence: "sure", reasons };
+    if (sameName && bySound) return { file, confidence: "likely", reasons };
+    if (sameName && sameSize && track.checksum === null) return { file, confidence: "likely", reasons };
     // The same name with another size may be a re-encoded copy: offered for the game master to check, never ticked.
-    if (track.size !== null && found.size !== track.size) return sameName ? "name" : null;
-    if (track.checksum !== null) return found.checksum === track.checksum ? "sure" : null;
-    return sameName ? "likely" : null;
+    if (sameName && (!sizeKnown || !sameSize)) return { file, confidence: "name", reasons };
+    // Renamed and re-encoded: only its sound says so; offered to check.
+    if (bySound) return { file, confidence: "name", reasons };
+    return null;
   };
+  const judgeAll = async (track: MissingTrack, list: string[], sameName: boolean) =>
+    (await mapLimit(list, 8, (file) => judge(track, file, sameName))).filter((c): c is Judged => c !== null);
 
   const used = new Set<string>();
   const plan: RelinkPlan = { matches: [], ambiguous: [], notFound: [], summary: "" };
   for (const track of missing) {
     const sameName = (byName.get(track.fileName.toLowerCase()) ?? []).filter((file) => !used.has(file));
-    let scored = (await Promise.all(sameName.map(async (file) => ({ file, confidence: await judge(track, file, true) })))).filter(
-      (c): c is { file: string; confidence: RelinkConfidence } => c.confidence !== null,
-    );
-    if (scored.length === 0 && track.size !== null && track.checksum !== null) {
-      // Renamed: same size and content under another name. Sizes are read once per folder.
-      const others = files.filter((file) => !used.has(file));
-      scored = (await Promise.all(others.map(async (file) => ({ file, confidence: await judge(track, file, false) })))).filter(
-        (c): c is { file: string; confidence: RelinkConfidence } => c.confidence !== null,
-      );
+    let scored = await judgeAll(track, sameName, true);
+    // Renamed: the same content, or the same sound, under another name. Each file is read once per folder.
+    const canFindRenamed = (track.size !== null && track.checksum !== null) || (sound?.lufs && track.durationMs !== null && track.lufs !== null);
+    if (canFindRenamed && !scored.some((c) => c.confidence === "sure")) {
+      const others = files.filter((file) => !used.has(file) && baseName(file).toLowerCase() !== track.fileName.toLowerCase());
+      scored = [...scored, ...(await judgeAll(track, others, false))];
     }
     if (scored.length === 0) {
       plan.notFound.push(track.id);
       continue;
     }
-    const bestRank = Math.max(...scored.map((c) => RANK[c.confidence]));
-    const best = scored.filter((c) => RANK[c.confidence] === bestRank);
-    const closest = Math.max(...best.map((c) => sharedTail(c.file, track.path)));
-    const top = best.filter((c) => sharedTail(c.file, track.path) === closest);
+    // Ranked: how sure, then how many reasons, then how closely its folders match the old path.
+    const score = (c: Judged) => RANK[c.confidence] * 100 + c.reasons.length * 10 + Math.min(9, sharedTail(c.file, track.path));
+    const bestScore = Math.max(...scored.map(score));
+    const top = scored.filter((c) => score(c) === bestScore);
     if (top.length > 1) {
-      plan.ambiguous.push({ trackId: track.id, candidates: top.map((c) => c.file).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })) });
+      const sorted = [...top].sort((a, b) => a.file.localeCompare(b.file, undefined, { numeric: true }));
+      plan.ambiguous.push({ trackId: track.id, candidates: sorted.map((c) => c.file), reasons: sorted.map((c) => c.reasons) });
       continue;
     }
     const chosen = top[0];
@@ -168,6 +221,7 @@ export async function planRelink(
       from: track.path,
       to: chosen.file,
       confidence: chosen.confidence,
+      reasons: chosen.reasons,
       ...(found ? { size: found.size, mtimeMs: found.mtimeMs, checksum: found.checksum } : {}),
     });
   }

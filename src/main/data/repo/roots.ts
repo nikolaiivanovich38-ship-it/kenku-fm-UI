@@ -6,13 +6,14 @@
 import { ValidationError } from "../errors";
 import { isAbsolutePath, joinRoot, normalizePath, relativeToRoot, unsafeFolderReason } from "../paths";
 import type { Store } from "../store";
-import type { LibraryRoot } from "../types";
+import type { LibraryRoot, TrackKind } from "../types";
 import * as v from "../validate";
 import { newId, patchOf, requireRow, toFlag, unique } from "./common";
 
-type RootRow = { id: string; name: string; path: string; watched: number; created_at: number };
+type RootRow = { id: string; name: string; path: string; watched: number; new_kind: TrackKind | null; created_at: number };
 
-const toRoot = (row: RootRow): LibraryRoot => ({ id: row.id, name: row.name, path: row.path, watched: row.watched === 1, createdAt: row.created_at });
+const toRoot = (row: RootRow): LibraryRoot => ({ id: row.id, name: row.name, path: row.path, watched: row.watched === 1, newKind: row.new_kind ?? null, createdAt: row.created_at });
+const KINDS: readonly TrackKind[] = ["music", "amb", "fx"];
 
 function absoluteFolder(value: unknown): string {
   const folder = v.requiredName("path", value, v.MAX_TEXT_LENGTH);
@@ -90,10 +91,15 @@ export function listRoots(store: Store): LibraryRoot[] {
   return store.all<RootRow>("SELECT * FROM library_roots ORDER BY name COLLATE NOCASE").map(toRoot);
 }
 
-/** Renames a root or points it at its new folder (every track under it follows). */
-export function updateRoot(store: Store, id: string, changes: { name?: string; path?: string; watched?: boolean }): LibraryRoot {
-  const patch = patchOf(changes, ["name", "path", "watched"]);
+/**
+ * Renames a root or points it at its new folder (every track under it follows); `newKind` (version 8, item 40) is the
+ * kind its new tracks get, null to guess from the folder names.
+ */
+export function updateRoot(store: Store, id: string, changes: { name?: string; path?: string; watched?: boolean; newKind?: TrackKind | null }): LibraryRoot {
+  const patch = patchOf(changes, ["name", "path", "watched", "newKind"]);
   const watched = patch.watched === undefined ? undefined : toFlag(v.boolean("watched", patch.watched));
+  const newKind = patch.newKind as TrackKind | null | undefined;
+  if (newKind !== undefined && newKind !== null && !KINDS.includes(newKind)) throw new ValidationError("newKind", "New tracks are music, ambience or sound effects, or guessed from the folder name.");
   const rootId = requireRow(store, "library_roots", "library folder", id);
   const name = patch.name === undefined ? undefined : v.requiredName("name", patch.name);
   const folder = patch.path === undefined ? undefined : absoluteFolder(patch.path);
@@ -102,6 +108,7 @@ export function updateRoot(store: Store, id: string, changes: { name?: string; p
       if (name !== undefined) store.run("UPDATE library_roots SET name = ? WHERE id = ?", name, rootId);
       if (folder !== undefined) store.run("UPDATE library_roots SET path = ? WHERE id = ?", folder, rootId);
       if (watched !== undefined) store.run("UPDATE library_roots SET watched = ? WHERE id = ?", watched, rootId);
+      if (newKind !== undefined) store.run("UPDATE library_roots SET new_kind = ? WHERE id = ?", newKind, rootId);
     }),
   );
   return getRoot(store, rootId) as LibraryRoot;
@@ -117,6 +124,44 @@ export function removeRoot(store: Store, id: string): Promise<void> {
     }
     if (last) store.run("DELETE FROM library_roots WHERE id = ?", root.id);
   });
+}
+
+/**
+ * Item 20: removes a library folder and every track under it, as one undo step, in batches when there are many (the
+ * tracks go first, so the folder's RESTRICT never meets one). The files on disk are not touched. Answers the tracks
+ * removed; await it.
+ */
+export function removeRootWithTracks(store: Store, id: string): Promise<string[]> {
+  const root = getRoot(store, requireRow(store, "library_roots", "library folder", id)) as LibraryRoot;
+  const ids = store.all<{ id: string }>(TRACKS_UNDER_ROOT_SQL, root.id).map((row) => row.id).sort();
+  return store
+    .changeInBatches(
+      `Remove library folder "${root.name}" and its tracks`,
+      ids.length ? ids : [null],
+      (batch, last) => {
+        for (const trackId of batch) if (trackId !== null) store.run("DELETE FROM tracks WHERE id = ?", trackId);
+        if (last) store.run("DELETE FROM library_roots WHERE id = ?", root.id);
+      },
+      // A deleted track takes about ten rows with it, as deleteTracks counts.
+      { batchSize: 100 },
+    )
+    .then(() => ids);
+}
+
+/**
+ * Version 8 (item 40): the kind a new file gets from the library folders: the deepest folder holding it decides, and
+ * null (that folder guesses, or none holds it) leaves it to the folder-name guess. Paths compare in any letter case,
+ * either slash, as Windows does.
+ */
+export function kindForNewFile(roots: readonly LibraryRoot[], filePath: string): TrackKind | null {
+  const loose = (p: string) => p.toLowerCase().replace(/\\/g, "/").replace(/\/+$/, "");
+  const file = loose(filePath);
+  let best: LibraryRoot | null = null;
+  for (const root of roots) {
+    const folder = loose(root.path);
+    if (file.startsWith(`${folder}/`) && (!best || folder.length > loose(best.path).length)) best = root;
+  }
+  return best?.newKind ?? null;
 }
 
 /** Every track under a library folder, through tracks_root_path (as TRACK_BY_PATH_SQL.underRoot in tracks.ts). */

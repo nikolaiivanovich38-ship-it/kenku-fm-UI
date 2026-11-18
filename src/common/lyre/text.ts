@@ -12,3 +12,17 @@ export function tagValue(s: string): string {
   const t = trimmed(s);
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
+
+/**
+ * Item 51 (Nik, 14 Nov: a track was 10:00 in the list and 9:59 in Now playing): every length and time on screen is
+ * written by this one helper, with one rule: whole seconds, rounded to the nearest; "m:ss", or "h:mm:ss" from an hour.
+ */
+export function clockTime(seconds: number): string {
+  const s = Math.max(0, Math.round(Number.isFinite(seconds) ? seconds : 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+/** A length in milliseconds, by the same rule (clockTime). */
+export const lengthText = (ms: number): string => clockTime(ms / 1000);

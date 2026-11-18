@@ -10,7 +10,7 @@ import React, { useMemo, useState } from "react";
 import type { SoundRef } from "../../../common/domain";
 import { stepsOf, stepsToKeep, usualPadSteps, usualSceneSteps, type CueStep, type MovesOn } from "../../../common/domain/round7";
 import type { PadBoard, SceneInfo, WriteResult } from "../../../common/lyre/api";
-import { shownTitle } from "../../../common/lyre/text";
+import { lengthText, shownTitle } from "../../../common/lyre/text";
 import { useBoards, useCampaigns, useLyreApi, usePlaylists, useTracks } from "../../api";
 import { useLyreAudio } from "../../audio";
 import { Button, IconButton } from "../../kit/Button";
@@ -47,10 +47,7 @@ export type StepsOwner =
 /** One empty list for every read not answered yet, so the lists made from them are not made anew each time. */
 const NONE: never[] = [];
 
-const fmt = (ms: number) => {
-  const s = Math.round(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-};
+const fmt = lengthText;
 
 export function StepsDialog({ owner, onClose }: { owner: StepsOwner; onClose: () => void }) {
   const api = useLyreApi();

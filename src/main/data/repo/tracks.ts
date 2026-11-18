@@ -479,11 +479,11 @@ const DELETE_BATCH = 100;
  * Deletes tracks from the library and from every list they are in, as one
  * undoable step, in batches when there are many (DB review 1); await the result.
  */
-export function deleteTracks(store: Store, ids: string[]): Promise<void> {
+export function deleteTracks(store: Store, ids: string[], label?: string): Promise<void> {
   const trackIds = v.ids("trackIds", ids).map((id) => requireRow(store, "tracks", "track", id));
   // A deleted track takes its tags, playlist entries, markers and profiles with it: about ten rows each.
   return store.changeInBatches(
-    `Delete ${plural(trackIds.length, "track")}`,
+    label ?? `Delete ${plural(trackIds.length, "track")}`,
     trackIds,
     (batch) => {
       for (const id of batch) store.run("DELETE FROM tracks WHERE id = ?", id);

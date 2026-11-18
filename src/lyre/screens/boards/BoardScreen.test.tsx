@@ -452,6 +452,17 @@ describe("the selected pad's own box", () => {
     expect(toastText()).toBe("2 sounds chosen, so the pad plays them as variants");
   });
 
+  it("0.5.2 item 12: a track the game master makes FX in the Track library is offered here", async () => {
+    const user = userEvent.setup();
+    const { api } = await open("board/abbey");
+    await user.click(within(padBox()).getByRole("button", { name: "Choose from library…" }));
+    expect(within(screen.getByRole("dialog")).queryByRole("checkbox", { name: /^Ashes/ })).toBeNull();
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await api.library.setKind(["t44"], "fx");
+    await user.click(within(padBox()).getByRole("button", { name: "Choose from library…" }));
+    expect(await within(screen.getByRole("dialog")).findByRole("checkbox", { name: /^Ashes/ })).toBeInTheDocument();
+  });
+
   it("Any with a tag lists the effects with that tag", async () => {
     const user = userEvent.setup();
     const { api } = await open("board/abbey");

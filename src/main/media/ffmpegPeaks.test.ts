@@ -5,6 +5,7 @@
  * GitHub's shared runners, with coverage, the 200 ms is multiplied by CUE_DESK_PERF_SLACK as the other timing budgets
  * are (src/main/data/testing/perfBudget.ts); the local run before each release holds it at 200 ms.
  */
+import { execFileSync } from "child_process";
 import { EventEmitter } from "events";
 import fs from "fs";
 import os from "os";
@@ -12,6 +13,7 @@ import path from "path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 import { importAudio, openLibrary, PeakJobs, trackPeaks } from "../data";
+import { musicMetadataTagReader } from "../data/import/musicMetadata";
 import { budget } from "../data/testing/perfBudget";
 import { findBundledFfmpeg } from "./bundledFfmpeg";
 import { FfmpegPeakReader, PEAK_SAMPLE_RATE, peakArgs, type PeakSpawn } from "./ffmpegPeaks";
@@ -196,4 +198,51 @@ describe("peaks never let ffmpeg guess the reader (security review 7)", () => {
     await expect(reader.read("/m/list.m3u8", new AbortController().signal)).rejects.toThrow(/list\.m3u8/);
     expect(spawn).not.toHaveBeenCalled();
   });
+});
+
+describe("the length of a joined MP3 (0.5.2, w52-play item 52)", () => {
+  const ffmpegPath = findBundledFfmpeg(process.cwd()) as string;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-joined-"));
+  afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  /** 3 s with an Xing header that counts its own frames, then 17 s more with none: tags say 3 s, the file plays 20 s. */
+  function joinedMp3(): string {
+    const part = (name: string, args: string[]) => {
+      const out = path.join(dir, name);
+      execFileSync(ffmpegPath, ["-v", "error", "-y", "-f", "lavfi", ...args, "-ac", "2", "-ar", "44100", "-c:a", "libmp3lame", "-q:a", "4", out]);
+      return out;
+    };
+    const head = part("head.mp3", ["-i", "sine=f=440:d=3"]);
+    const tail = part("tail.mp3", ["-i", "sine=f=660:d=17", "-write_xing", "0", "-id3v2_version", "0"]);
+    const file = path.join(dir, "12 - Monster Books.mp3");
+    fs.writeFileSync(file, Buffer.concat([fs.readFileSync(head), fs.readFileSync(tail)]));
+    return file;
+  }
+
+  it("the decode gives the file's real length, where its tags give the first part's", async () => {
+    const file = joinedMp3();
+    const tags = await musicMetadataTagReader.read(file);
+    expect(tags.durationMs).toBeLessThan(5000);
+    const reading = await new FfmpegPeakReader({ ffmpegPath }).readWithLength(file, new AbortController().signal);
+    expect(reading.levels).toHaveLength(1000);
+    expect(reading.durationMs).toBeGreaterThan(19_500);
+    expect(reading.durationMs).toBeLessThan(20_500);
+  });
+
+  it("an import stores the tags' length, and the peaks job then puts it right", async () => {
+    const file = joinedMp3();
+    const library = openLibrary({ folder: path.join(dir, "library") });
+    try {
+      const { trackIds } = await importAudio(library.store, { paths: [file] }, { tagReader: musicMetadataTagReader });
+      const length = () => (library.store.get<{ duration_ms: number }>("SELECT duration_ms FROM tracks WHERE id = ?", trackIds[0]) as { duration_ms: number }).duration_ms;
+      expect(length()).toBeLessThan(5000);
+      const jobs = new PeakJobs(library.store, new FfmpegPeakReader({ ffmpegPath }), { onReady: () => undefined, notifyEveryMs: 0 });
+      jobs.soon(trackIds[0]);
+      await jobs.idle();
+      jobs.close();
+      expect(length()).toBeGreaterThan(19_500);
+    } finally {
+      library.close();
+    }
+  }, 60_000);
 });

@@ -15,7 +15,7 @@ export const HISTORY_MAX = 50;
 export interface Place {
   /** The route, as in the address without "#/": "session/crown/s14". */
   path: string;
-  /** What Back calls it: "Back to <label>" ("Session 14", "Library: Ashes"). */
+  /** What Back calls it: "Back to <label>" ("Session 14", "Track library: Ashes"). */
   label: string;
   /** Scroll positions of the work area's scrolling boxes, by their key (see shell/restore.ts). */
   scrolls: Record<string, number>;
@@ -75,7 +75,7 @@ export class PlaceHistory {
 /** Names of the screens with no name of their own, for Back ("Back to Pad boards"). The prototype's ROUTE_WORDS. */
 const SCREEN_WORDS: Record<string, string> = {
   campaigns: "Campaigns",
-  library: "Library",
+  library: "Track library",
   playlists: "Playlists",
   boards: "Pad boards",
   profile: "Audio profile",
@@ -108,7 +108,7 @@ function partsOf(path: string): string[] {
   return path.replace(/^#?\/?/, "").split("/");
 }
 
-/** What Back calls a place: the campaign's name, "Session 14", a playlist's or board's name, "Library: <track>". */
+/** What Back calls a place: the campaign's name, "Session 14", a playlist's or board's name, "Track library: <track>". */
 export function placeLabel(path: string, names?: PlaceNames): string {
   const [screen, a, b] = partsOf(path);
   if (screen === "campaign") return names?.campaign(a) ?? "Campaign";
@@ -120,7 +120,7 @@ export function placeLabel(path: string, names?: PlaceNames): string {
   if (screen === "board") return names?.board(a) ?? "Pad board";
   if (screen === "library" && a) {
     const t = names?.track(a);
-    return t ? `Library: ${t}` : "Library";
+    return t ? `Track library: ${t}` : "Track library";
   }
   if (screen === "profile") {
     const t = names?.track(a);
@@ -168,11 +168,11 @@ export function trailOf(path: string, names?: PlaceNames): Crumb[] {
       return [{ href: "#/boards", label: "Pad boards" }];
     case "profile":
       // The Library with the track open, as the prototype's profile.js crumbs.
-      return [{ href: `#/library/${a}`, label: "Library" }];
+      return [{ href: `#/library/${a}`, label: "Track library" }];
     case "backup":
     case "moved":
     case "relink":
-      return [{ href: "#/library", label: "Library" }];
+      return [{ href: "#/library", label: "Track library" }];
     default:
       return [];
   }

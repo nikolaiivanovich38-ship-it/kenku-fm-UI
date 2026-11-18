@@ -878,3 +878,73 @@ and did not repeat.
   itself.
 - The Live, Library and other screens redraw on every Now playing tick (`useNowPlaying`). No long task was seen on Live
   or Rooms on the build machine, and redraws no longer touch the sound; worth a look for battery and processor use.
+
+## 0.5.2: w52-lib (the Library, from Nik's play test of 14 November)
+
+Built straight in the app, as 0.5.1's changes were. Each item's unit or component test is in
+`src/lyre/screens/library/library052.test.tsx` unless named, and its on-screen check in `e2e/specs/library.spec.ts`
+(block "0.5.2", `appOnly()`).
+
+- **Lengths (items 7, 51).** One helper writes every length and time: `clockTime` / `lengthText` in
+  `src/common/lyre/text.ts` (whole seconds, rounded; h:mm:ss from an hour). The screens' own `fmt`, `fmtLong`,
+  `formatLength` and the Now playing bar's `clockTime` are that helper (`src/lyre/lengths.test.ts`). The lead's rule
+  (18 Nov): one length everywhere, the library's, and the library's length must be right. Now playing and previews
+  show the library's length (w52-play, `lyreAudio.ts`); the peaks job, which decodes the whole file, stores the
+  decoded length when the stored one is more than half a second off (a joined MP3 whose Xing header counts only its
+  first part), and a saved End at the old length goes back to the file's end (`correctTrackLength` in
+  `src/main/data/repo/peaks.ts`; `PeakReader.readWithLength`; tests in `peaks.test.ts`, `ffmpegPeaks.test.ts` with a
+  real joined MP3, `libraryApi.test.ts`). A track whose peaks are already worked out is put right when they are worked
+  out again (its file changes). The track list shows under the file's
+  length the length its own Audio profile plays, Start to End, when the two differ (`playedMs` in `model.ts`).
+- **Rows (items 6, 35).** Preview or Play on air on a row also opens the track (`onPlayed`; on a narrow window it only
+  moves the keyboard there). The list's scroll is kept in `libraryState.ts` (`getListScroll`, outside the reactive
+  state so scrolling redraws nothing) and put back when the screen is drawn afresh for the opened track.
+- **Filters and sorting (items 21, 25).** Each filter with something chosen has Clear beside its heading
+  (`FilterHeading` in `FiltersBody.tsx`); the box's header has Clear all filters, which leaves the search. The Title,
+  Tag, Energy and Length headers sort ascending, then descending (`COLUMN_SORTS`, `columnSort`), with `aria-sort`;
+  their buttons are out of the Tab order, since the Sort box has the same sorts for the keys.
+- **Names (item 23).** "Track library" in the menu, the heading, Back, the trail, the tour and the help; the route is
+  still `library`.
+- **New (item 10).** Schema version 8 (docs/data-model.md): a track loses New with its first tag.
+- **Library folders (items 20, 40).** A library folder's ⋯ in the Folders filter (`FolderActions.tsx`): New tracks here
+  are guessed from the folder name or always Music, Ambience or FX (`import.setFolderKind`; `library_roots.new_kind`,
+  used by the import, `kindForNewFile`), and Remove folder… (`import.removeFolder`), which keeps the tracks unless the
+  game master ticks to remove them too (`removeRootWithTracks`, one undo step; the files are not touched). The real
+  library has no folder watcher yet: "watched" is a mark, and new files arrive by Add files, Add a folder or a drop;
+  the kind applies to every new file under the folder, however it arrives.
+- **Empty tag groups (item 54).** Deleting a group's last tag removes the group in the same undo step
+  (`deleteTag(store, id, { dropEmptyGroup: true })`; `TagChangeCount.groupRemoved`), and the Tags screen says so. A
+  group a dynamic playlist's rule names stays: removing it would delete that condition and widen the playlist (DB
+  review 2: a rule never widens when a tag goes).
+- **Taking tracks out (items 1, 50).** `RemoveTracks.tsx`: Remove from library (a row's ⋯, the selection's ⋯, and
+  Remove all shown (n)… in the ⋯ beside Add tracks while a filter or search narrows the list) calls
+  `library.removeTracks` (one undo step; the files stay); Delete file from disk… (last in the same menus) calls
+  `library.deleteFiles`, which sends each file to the Recycle Bin through the main process (`trashFile.ts`, see
+  docs/security.md "w52-lib") and then removes the tracks whose files went. Both confirmations name the manual
+  playlists, scenes and pads that use the tracks (`trackUses.ts`). Removed tracks leave the selection, and an open one
+  closes.
+- **Type (items 4, 12, 39).** Details › How it plays › Type, and the selection's ⋯ › Type, call `library.setKind`
+  (one undo step; an effect gets the Effect role when it has none, a track that stops being FX loses it). When the
+  change affects something, a confirmation says what first (`typeChangeEffects`: a manual playlist of another type
+  lists it; a scene's ambience stops being ambience); otherwise it is done at once (`TypeChange.tsx`). The pad
+  editor's sound chooser already lists FX tracks and a scene's Ambience chooser ambience tracks (by kind), so a track
+  made FX or Ambience shows there (`BoardScreen.test.tsx`, `SessionScreen.test.tsx`).
+- **Shape filter (item 17).** Checked where tracks are chosen: the Library's Filters box and a dynamic playlist's rule
+  had it (DAT-13); Add tracks on a manual playlist and the scene pickers (music, ambience; `LibraryPicker`) did not.
+  `kit/ShapeFilter.tsx` (`ShapeFilter`, `matchesShapes`) is the Library's pattern as a kit piece: five chips, any number
+  pressed, Clear while one is. `PickerDialog` takes `shapeOf` to show it (a shape pressed hides what is not a track).
+  The pad editor's sound chooser (FX) was left without: a sound effect's shape says little.
+- **Find missing files (item 14).** `planRelink` (`src/main/data/import/relink.ts`) matches by name, by content (the
+  quick checksum) and by sound: the same length (within a second, or 1 % of a long track) and loudness (within 1 LU)
+  as Lyre measured the track while its file was there (`track_loudness`). The library's process reads a candidate's
+  length from its tags (else ffmpeg) and measures its loudness with ffmpeg only when the length fits (`soundProbe` in
+  `libraryApi.ts`); without ffmpeg nothing matches by sound. Name and sound together are "likely" (ticked); sound
+  alone (renamed and re-encoded) is offered to check, with Preview. Candidates are ranked (how sure, how many reasons,
+  the folders), and each match and choice says why (`RelinkMatch.reasons`; the Find missing files table and its
+  "Which file" list). Tests: `relink.test.ts` (moved, renamed, both, re-encoded, ranking, loudness measured only when
+  the length fits), `transfer/model.test.ts`, `TransferScreens.test.tsx`.
+- **Round 8 click-through findings (lead, 18 Nov).** #2: Pick up where it stopped takes the whole row in the
+  Library's details and the Audio profile (`lb-tg-wide`), so its words no longer wrap to three lines in the 74 px label
+  column. #4: Follow with's line under its list is the list's description and stands 8 px below it, clear of the focus
+  ring (WCAG 2.4.11). #5: the Library opened at a track from elsewhere (a playlist's track title) scrolls the open row
+  into the middle of the list once, when the list is first drawn; a row already in sight (item 35) is left where it is.

@@ -154,7 +154,7 @@ export interface LibraryTrack extends DomainTrack {
   notes: string;
   /** When it was added to the library (ms since 1970). */
   addedAt: number;
-  /** Marked New until it has a title of your own and at least one tag. */
+  /** Marked New until the game master gives it a tag (0.5.2 item 10: a title of its own is not needed too). */
   isNew: boolean;
   /** The address the player loads the audio from (file:// for a file, see media.ts fileAddress); null when unknown. */
   url: string | null;
@@ -186,6 +186,8 @@ export type TrackPatch = Partial<{
 export interface FolderRoot {
   path: string;
   watched: boolean;
+  /** 0.5.2 item 40: the kind new tracks in it get; null guesses from the folder names (Ambience, Effects…). */
+  newKind: TrackKind | null;
 }
 
 export interface SearchRequest {
@@ -285,6 +287,11 @@ export type TagPatch = Partial<Pick<TagInfo, "parent" | "also" | "color">>;
 /** How many tracks a rename, merge or delete changed (the Undo note above the bar says so). */
 export interface TagChangeCount {
   tracks: number;
+  /**
+   * 0.5.2 item 54 (deleteTag): the tag was its group's last, so the group went too, in the same undo step. A group a
+   * dynamic playlist's rule names stays (removing it would take that condition away and widen the playlist).
+   */
+  groupRemoved?: boolean;
 }
 
 /** One tag value of one group, as tracks carry them (DomainTrack.tags). */
@@ -538,16 +545,24 @@ export interface RelinkMatch {
    * are ticked to relink, name is not (the game master listens first).
    */
   confidence: "sure" | "likely" | "name";
+  /**
+   * 0.5.2 item 14: why this file: the same content (its checksum), the same name, the same sound (its length and
+   * loudness as Lyre measured the track). "name" confidence with only "sound" is a renamed, re-encoded copy to check.
+   */
+  reasons: RelinkReason[];
   /** DAT-8: the address the found file plays from, for its Preview before relinking. */
   toUrl: string;
 }
+
+/** 0.5.2 item 14: why Find missing files took a file for a track. */
+export type RelinkReason = "content" | "name" | "sound";
 
 export interface RelinkPlan {
   /** The folder that was searched. */
   folder: string;
   matches: RelinkMatch[];
-  /** Missing tracks with several equally good files: the screen asks which. */
-  ambiguous: { trackId: string; candidates: string[] }[];
+  /** Missing tracks with several equally good files: the screen asks which (0.5.2: `reasons`, why each, same order). */
+  ambiguous: { trackId: string; candidates: string[]; reasons: RelinkReason[][] }[];
   notFound: string[];
   summary: string;
 }
@@ -773,6 +788,20 @@ export interface LyreApi {
     find(request: FindRequest): Promise<FindResult>;
     /** ORG-5: a drop, or Add to… (r7org.js put): one undo step, copying (or with `move`, moving) what was dragged. */
     put(request: PutRequest): Promise<WriteResult<PutResult>>;
+    /**
+     * 0.5.2 items 1 and 50: Remove from library. The tracks leave the library and every playlist, pad and scene that
+     * names them; their files are not touched. One undo step.
+     */
+    removeTracks(trackIds: string[]): Promise<WriteResult<{ removed: string[] }>>;
+    /**
+     * 0.5.2 item 1: Delete file from disk…. Each track's file goes to the Recycle Bin (never deleted outright), then
+     * the tracks whose files went leave the library, as removeTracks, in one undo step (Undo brings the tracks back,
+     * not the files: they are in the Recycle Bin). A file that could not go (missing, a web address, refused) keeps
+     * its track and is named in `problems`.
+     */
+    deleteFiles(trackIds: string[]): Promise<WriteResult<{ removed: string[]; problems: { trackId: string; reason: string }[] }>>;
+    /** 0.5.2 items 4, 12 and 39: Type (Music, Ambience, FX) for one or many tracks, in one undo step. */
+    setKind(trackIds: string[], kind: TrackKind): Promise<WriteResult<LibraryTrack[]>>;
   };
   tags: {
     /** Tag groups and their values. library.js filters, tag combobox and Tag… sheet; playlists.js rule builder (plvaladd). */
@@ -973,6 +1002,16 @@ export interface LyreApi {
     start(source: ImportSource): Promise<WriteResult<ImportSummary>>;
     /** Watches a folder: new audio files there become New tracks; null when the chooser was closed. library.js L.acts.lbwatch. */
     watchFolder(source: { from: "choose-folder" } | { from: "path"; path: string }): Promise<WriteResult<FolderRoot | null>>;
+    /**
+     * 0.5.2 item 40: the kind new tracks in this library folder get (null: guessed from the folder names, as before).
+     * One undo step. The Library's Folders filter › ⋯ › New tracks here.
+     */
+    setFolderKind(path: string, kind: TrackKind | null): Promise<WriteResult<FolderRoot>>;
+    /**
+     * 0.5.2 item 20: Lyre stops watching the folder and forgets it. Its tracks stay, at their full paths, unless
+     * `removeTracks`, which takes them out of the library too; their files are never touched. One undo step.
+     */
+    removeFolder(path: string, options: { removeTracks: boolean }): Promise<WriteResult<{ removedTracks: string[] }>>;
     /** Tracks whose files are gone (DAT-8; the lead's wave 3 brief, no prototype screen yet). */
     findMissing(): Promise<MissingTrack[]>;
     /** Looks for missing files in a folder; nothing changes until applyRelink (DAT-8). */
@@ -1028,7 +1067,7 @@ export interface LyreApi {
 
 /** Method names by area, for the contract tests' "every method is covered" guard and for IPC channel lists. */
 export const LYRE_API_METHODS = {
-  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise", "find", "put"],
+  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise", "find", "put", "removeTracks", "deleteFiles", "setKind"],
   tags: ["listGroups", "tagTracks", "createGroup", "updateGroup", "moveGroup", "deleteGroup", "createTag", "renameTag", "mergeTag", "deleteTag", "updateTag", "moveTag"],
   folders: ["list", "create", "update", "delete", "moveInto"],
   playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise", "trackOrders", "setTrackOrder", "clearTrackOrder", "addDivider", "renameDivider", "removeDivider", "moveItem"],
@@ -1036,7 +1075,7 @@ export const LYRE_API_METHODS = {
   campaigns: ["list", "get", "create", "update", "move", "setOnHand", "usesOf", "setUses"],
   sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName", "setRepeatOne", "setSceneSteps"],
   profiles: ["overrides", "set", "clear"],
-  import: ["start", "watchFolder", "findMissing", "planRelink", "applyRelink", "previewFound", "endRelinkPreview"],
+  import: ["start", "watchFolder", "setFolderKind", "removeFolder", "findMissing", "planRelink", "applyRelink", "previewFound", "endRelinkPreview"],
   transfer: ["estimate", "save", "open", "bringIn", "movedReport"],
   settings: ["get", "setCrossfade", "setShortcut", "resetShortcuts", "setNextSceneGuard", "setComputer"],
   history: ["state", "undo", "redo"],

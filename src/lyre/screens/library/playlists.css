@@ -147,6 +147,8 @@ body .pl-dellist { padding-left: 18px; margin-top: 6px; font-size: var(--fs-s); 
 .view .pl-tr.pl-flash, .view .pl-item.pl-flash > .pl-row { animation: pl-flash 3s ease-out; }
 @media (prefers-reduced-motion: reduce) { .view .pl-tr.pl-flash, .view .pl-item.pl-flash > .pl-row { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); } }
 /* DAT-13: shapes in a dynamic playlist's rules. */
+/* 0.5.2 item 17: the Shape filter under Add tracks' search. */
+.view .pl-addshapes { padding: 0 10px 8px; }
 .view .pl-shapes { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin-top: 8px; font-size: var(--fs-s); }
 .view .pl-shapes > .faint { margin-right: 4px; }
 .view .chip.pl-shape { gap: 5px; }

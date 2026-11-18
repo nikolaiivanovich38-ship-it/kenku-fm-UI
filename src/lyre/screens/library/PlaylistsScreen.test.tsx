@@ -189,6 +189,21 @@ describe("Playlists: a manual playlist", () => {
     await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/^Saved: The Abbess · added Quiet grief/));
   });
 
+  it("0.5.2 item 17: Add tracks has the Library's Shape filter", async () => {
+    openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    const add = within(region("Add tracks"));
+    const user = userEvent.setup();
+    const all = add.getAllByRole("button", { name: /^Add / }).length;
+    // t06 is the sample's chosen "Builds"; t15 "Falls away".
+    await user.click(within(add.getByRole("group", { name: "Shape" })).getByRole("button", { name: "Builds" }));
+    const builds = add.getAllByRole("button", { name: /^Add / }).length;
+    expect(builds).toBeGreaterThan(0);
+    expect(builds).toBeLessThan(all);
+    await user.click(within(add.getByRole("group", { name: "Shape" })).getByRole("button", { name: "Clear Shape" }));
+    expect(add.getAllByRole("button", { name: /^Add / })).toHaveLength(all);
+  });
+
   it("UX-R7: the Add tracks count is read out once typing pauses, not on every key", async () => {
     openAt("playlist/p-abbess");
     await waitFor(() => expect(trackNames()).toHaveLength(5));

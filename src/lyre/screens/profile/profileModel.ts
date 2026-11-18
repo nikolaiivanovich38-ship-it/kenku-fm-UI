@@ -5,6 +5,7 @@
  * The library keeps profiles in milliseconds (src/common/domain AudioProfile); the screen works in seconds because
  * every handle moves in whole seconds and every fade in half seconds. `fromDomain` and `toInput` convert.
  */
+import { clockTime } from "../../../common/lyre/text";
 import { fadeInGain, fadeOutGain, type AfterEnd, type AudioProfile, type AudioProfileInput } from "../../../common/domain";
 
 export interface FadeSec {
@@ -56,11 +57,8 @@ export function isLength(which: Which): boolean {
 
 /* ---------- times in words ---------- */
 
-/** "5:18": minutes and seconds, rounded (the prototype's L.fmt). */
-export function fmt(s: number): string {
-  const r = Math.max(0, Math.round(s));
-  return `${Math.floor(r / 60)}:${String(r % 60).padStart(2, "0")}`;
-}
+/** "5:18": minutes and seconds, rounded (the prototype's L.fmt; item 51: the one helper). */
+export const fmt = clockTime;
 
 /** "5:18.0": with tenths, for the position readouts. */
 export function fmt1(s: number): string {

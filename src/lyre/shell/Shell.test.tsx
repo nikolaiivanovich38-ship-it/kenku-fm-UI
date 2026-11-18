@@ -49,7 +49,7 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual([
       "Live",
       "Campaigns",
-      "Library",
+      "Track library",
       "Playlists",
       "Pad boards",
       "Rooms",
@@ -62,8 +62,8 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     ["campaigns", "Campaigns", "Campaigns"],
     ["campaign/crown", "Campaign", "Campaigns"],
     ["session/crown/s14", "Session", "Campaigns"],
-    ["library", "Library", "Library"],
-    ["library/t44", "Library", "Library"],
+    ["library", "Library", "Track library"],
+    ["library/t44", "Library", "Track library"],
     ["playlists", "Playlists", "Playlists"],
     ["playlist/p-abbess", "Playlist", "Playlists"],
     ["boards", "Pad boards", "Pad boards"],
@@ -96,8 +96,8 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     }
     render(<Shell screens={{ ...SHELL_SCREENS, library: Late }} />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("link", { name: "Library" }));
-    expect(screen.getByRole("link", { name: "Library" })).toHaveFocus();
+    await user.click(screen.getByRole("link", { name: "Track library" }));
+    expect(screen.getByRole("link", { name: "Track library" })).toHaveFocus();
     const h1 = await screen.findByRole("heading", { level: 1, name: "Late" });
     await vi.waitFor(() => expect(h1).toHaveFocus());
   });
@@ -123,7 +123,7 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     }
     render(<Shell screens={{ ...SHELL_SCREENS, library: Late }} />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole("link", { name: "Library" }));
+    await user.click(screen.getByRole("link", { name: "Track library" }));
     screen.getByRole("link", { name: "Playlists" }).focus();
     await screen.findByRole("heading", { level: 1, name: "Late" });
     await new Promise((r) => setTimeout(r, 30));
@@ -147,7 +147,7 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Show icons only" }));
     expect(screen.getByRole("complementary")).toHaveClass("rail", "min");
-    expect(screen.getByRole("link", { name: "Library" })).toHaveAttribute("title", "Library");
+    expect(screen.getByRole("link", { name: "Track library" })).toHaveAttribute("title", "Track library");
     expect(loadShellSettings().rail).toBe("min");
     await user.click(screen.getByRole("button", { name: "Show menu labels" }));
     expect(screen.getByRole("complementary")).not.toHaveClass("min");
@@ -319,7 +319,7 @@ describe("FND-8 the first-run tour", () => {
       if (step === 1) expect(within(box).getByRole("button", { name: "Next" })).toHaveFocus();
       await user.click(within(box).getByRole("button", { name: step === 5 ? "Done" : "Next" }));
     }
-    expect(titles).toEqual(["Lyre's places", "Library", "Scenes", "Live", "Now playing"]);
+    expect(titles).toEqual(["Lyre's places", "Track library", "Scenes", "Live", "Now playing"]);
     expect(tour()).toBeNull();
     expect(loadShellSettings().tour).toBe("done");
   });

@@ -11,7 +11,8 @@ import { v004Loudness } from "./v004-loudness";
 import { v005Round6 } from "./v005-round6";
 import { v006Round7 } from "./v006-round7";
 import { v007StartAt } from "./v007-start-at";
+import { v008NewAndFolderKind } from "./v008-new-and-folder-kind";
 
-export const MIGRATIONS: readonly Migration[] = [v001Library, v002Peaks, v003Round5, v004Loudness, v005Round6, v006Round7, v007StartAt];
+export const MIGRATIONS: readonly Migration[] = [v001Library, v002Peaks, v003Round5, v004Loudness, v005Round6, v006Round7, v007StartAt, v008NewAndFolderKind];
 
 export { migrate, rebuildTable, schemaVersion, type Migration, type MigrationResult } from "./migrate";

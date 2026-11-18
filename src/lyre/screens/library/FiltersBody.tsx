@@ -2,6 +2,7 @@
 import React, { useMemo } from "react";
 import type { FolderRoot, LibraryTrack, TagGroup } from "../../../common/lyre/api";
 import { Icon } from "../../kit/Icon";
+import { focusSoon } from "../../kit/focusSoon";
 import { useAnnounce } from "../../shell/Announcer";
 import { cx } from "../../kit/cx";
 import { getLibraryState, setLibraryState } from "./libraryState";
@@ -9,7 +10,8 @@ import { shapeOf } from "../../../common/domain";
 import { ShapeGlyph } from "../../kit/ShapeGlyph";
 import { tagTreeOf } from "../../../common/lyre/lookup";
 import { trackHasTag } from "../../../common/domain/round7";
-import { folderRows, isNewish, kindOk, SHAPES, visibleTracks, type KindFilter, type LibraryFilter } from "./model";
+import { folderRows, isNewish, KIND_NAMES, kindOk, SHAPES, visibleTracks, type KindFilter, type LibraryFilter } from "./model";
+import { FolderActions } from "./FolderActions";
 
 const KINDS: [KindFilter, string][] = [
   ["all", "All"],
@@ -55,6 +57,11 @@ export function FiltersBody({
   }, [base, groups, tree]);
   const folderList = useMemo(() => folderRows(tracks, folders, filter.folder, filter.kind), [tracks, folders, filter.folder, filter.kind]);
   const setFilter = (change: Partial<LibraryFilter>) => setLibraryState((s) => ({ filter: { ...s.filter, ...change } }));
+  /** Item 21: Clear in one control takes off that control's filter only. */
+  const clear = (change: Partial<LibraryFilter>, what: string) => {
+    setFilter(change);
+    say(`${what} filter cleared. ${shownCount()} tracks shown`);
+  };
   const shownCount = () => {
     const s = getLibraryState();
     return visibleTracks(tracks, s.filter, s.q, s.sort, missing, tree).length;
@@ -100,9 +107,7 @@ export function FiltersBody({
         )}
       </div>
       <div className="lb-fg" role="group" aria-labelledby="lb-fh-shape">
-        <h3 className="lb-fh" id="lb-fh-shape">
-          Shape
-        </h3>
+        <FilterHeading id="lb-fh-shape" name="Shape" onClear={filter.shapes.length ? () => clear({ shapes: [] }, "Shape") : undefined} />
         <div className="chips">
           {SHAPES.map(([shape, word]) => {
             const on = filter.shapes.includes(shape);
@@ -130,9 +135,19 @@ export function FiltersBody({
         const values = g.values.map((v) => [v, counts.get(`${g.id}\u0000${v}`) ?? 0] as const).filter(([v, n]) => n > 0 || ticked.includes(v));
         return (
           <div key={g.id} className="lb-fg" role="group" aria-labelledby={`lb-fh-${g.id}`}>
-            <h3 className="lb-fh" id={`lb-fh-${g.id}`}>
-              {g.name}
-            </h3>
+            <FilterHeading
+              id={`lb-fh-${g.id}`}
+              name={g.name}
+              onClear={
+                ticked.length
+                  ? () => {
+                      const tags = { ...filter.tags };
+                      delete tags[g.id];
+                      clear({ tags }, g.name);
+                    }
+                  : undefined
+              }
+            />
             <div className="chips">
               {values.length ? (
                 values.map(([v, n]) => {
@@ -162,7 +177,7 @@ export function FiltersBody({
         );
       })}
       <div className="lb-fg">
-        <h3 className="lb-fh">Energy</h3>
+        <FilterHeading name="Energy" onClear={filter.emin > 1 || filter.emax < 5 ? () => clear({ emin: 1, emax: 5 }, "energy") : undefined} clearLabel="Clear energy" focusTo='select[aria-label="Lowest energy"]' />
         <div className="lb-erange">
           <label>
             From{" "}
@@ -199,7 +214,7 @@ export function FiltersBody({
         </div>
       </div>
       <div className="lb-fg">
-        <h3 className="lb-fh">Folders</h3>
+        <FilterHeading name="Folders" onClear={filter.folder ? () => clear({ folder: "" }, "folder") : undefined} clearLabel="Clear folder" focusTo=".lb-folders button" />
         <ul className="lb-folders">
           {folderList.map((f) => (
             <li key={`${f.sub ? "s" : "r"}:${f.path}`} className={f.sub ? "sub" : undefined}>
@@ -207,12 +222,35 @@ export function FiltersBody({
                 <Icon name={f.watched ? "eye" : "folder"} size="s" />
                 <span className="ellipsis grow">{f.label}</span>
                 {f.watched && <span className="hint">watched</span>}
+                {f.root?.newKind && <span className="hint">{KIND_NAMES[f.root.newKind]}</span>}
                 <span className="num lb-n">{f.count}</span>
               </button>
+              {f.root && <FolderActions root={f.root} tracks={tracks} />}
             </li>
           ))}
         </ul>
       </div>
+    </div>
+  );
+}
+
+/** A filter's heading, with Clear beside it while something is chosen there (item 21). */
+function FilterHeading({ id, name, onClear, clearLabel, focusTo }: { id?: string; name: string; onClear?: () => void; clearLabel?: string; focusTo?: string }) {
+  return (
+    <div className="lb-fhrow">
+      <h3 className="lb-fh" id={id}>
+        {name}
+      </h3>
+      {onClear && (
+        <button type="button" className="btn s ghost lb-fclear" aria-label={clearLabel ?? `Clear ${name}`} title={clearLabel ?? `Clear ${name}`} onClick={() => {
+            onClear();
+            // UX-R4: Clear goes away, so focus goes to the control it cleared.
+            const to = focusTo ?? (id ? `[aria-labelledby="${id}"] .chips button` : null);
+            if (to) focusSoon([to]);
+          }}>
+          Clear
+        </button>
+      )}
     </div>
   );
 }

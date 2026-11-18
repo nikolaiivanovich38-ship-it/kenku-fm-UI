@@ -104,6 +104,8 @@ export interface FakeLyreOptions {
   choose?: { files?: () => string[] | null; folder?: () => string | null; saveFile?: (suggested: string) => string | null; lyreFile?: () => string | null };
   /** DAT-7: what came across from Kenku FM (default: the prototype's sample report; null: nothing did). */
   moved?: Omit<MoveReport, "missing"> | null;
+  /** 0.5.2 item 1: sending a file to the Recycle Bin; throw to refuse it (default: it goes). */
+  trash?: (path: string) => void;
 }
 
 export interface FakeLyreApi extends LyreApi {
@@ -113,6 +115,8 @@ export interface FakeLyreApi extends LyreApi {
   previewableFiles(): string[];
   /** Files appear in a watched folder: they become New tracks, as the real folder watcher makes them. Returns their ids. */
   arrive(folder: string, fileNames: string[]): Promise<string[]>;
+  /** 0.5.2 item 1: the files sent to the Recycle Bin so far, in order. */
+  trashedFiles(): string[];
 }
 
 /* ---------- state ---------- */
@@ -138,6 +142,10 @@ interface State {
   boardFolders: Round7State["boardFolders"];
   settings: Round7State["settings"];
 }
+
+/** What changes when tracks leave the library: every list that can name a track (as the database's cascades). */
+const TRACKS_GONE: LyreArea[] = ["tracks", "playlists", "boards", "campaigns", "profiles"];
+const KIND_WORDS = { music: "Music", amb: "Ambience", fx: "FX" } as const;
 
 /** Which part of the state each area is: an undo step keeps a copy of the parts its areas name. */
 const SLICES: Record<Exclude<LyreArea, "history">, (keyof State)[]> = {
@@ -255,6 +263,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   const workingOut = new Set<string>();
   let nextId = 1;
   const listeners = new Set<(event: LyreEvent) => void>();
+  /** 0.5.2 item 1: files sent to the Recycle Bin (trashedFiles). */
+  const trashed: string[] = [];
 
   /* ---------- plumbing ---------- */
 
@@ -413,9 +423,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     else if (place.kind === "session") session(place.campaignId, place.sessionId);
     else scene(place);
   }
-  /** Leaves a new track New until it has a title of its own and a tag (the prototype's settle()). */
+  /** Leaves a new track New until the game master gives it a tag (0.5.2 item 10; schema version 8's trigger). */
   function settle(t: LibraryTrack) {
-    if (t.isNew && t.title && Object.values(t.tags).some((v) => v.length > 0)) t.isNew = false;
+    if (t.isNew && Object.values(t.tags).some((v) => v.length > 0)) t.isNew = false;
   }
 
   /**
@@ -550,7 +560,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   }
   function newTrack(path: string): LibraryTrack {
     const { folder, name } = splitPath(path);
-    const kind = guessKind(folder);
+    // 0.5.2 item 40: the deepest library folder holding it may say its kind; else it is guessed from the folder names.
+    const holder = state.folders.filter((f) => isUnder(folder, f.path)).sort((a, b) => b.path.length - a.path.length)[0];
+    const kind = holder?.newKind ?? guessKind(folder);
     return {
       id: newId("track"),
       kind,
@@ -618,6 +630,36 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     progress({ phase: "done", done: files.length, total: files.length, message: summary });
     workOutPeaks(added.map((t) => t.id));
     return { added: added.map((t) => t.id), alreadyInLibrary: already, trackIds, problems, cancelled: false, summary };
+  }
+  /** A library folder by its path, in any letter case (0.5.2 items 20 and 40). */
+  const folderAt = (path: string): FolderRoot => state.folders.find((f) => f.path.toLowerCase() === String(path).toLowerCase()) ?? refuse("not-found", `Lyre has no library folder at ${path}.`);
+  const isUnder = (folder: string, root: string) => folder.toLowerCase() === root.toLowerCase() || folder.toLowerCase().startsWith(`${root.toLowerCase()}\\`);
+  /**
+   * The tracks leave the library and every list (the database's ON DELETE CASCADE): playlists (dividers keep their
+   * place), pads, scenes, what campaigns and sessions keep on hand, names, Repeat ones, orders and own settings.
+   */
+  function dropTracks(ids: readonly string[]) {
+    if (!ids.length) return;
+    const gone = new Set(ids);
+    state.tracks = state.tracks.filter((t) => !gone.has(t.id));
+    state.missing = state.missing.filter((id) => !gone.has(id));
+    for (const pl of state.playlists) if (pl.kind === "manual" && pl.trackIds.some((id) => gone.has(id))) setItems(pl, itemsOf(pl).filter((x) => !("trackId" in x && gone.has(x.trackId))));
+    for (const b of state.boards) for (const p of [...b.slots, ...b.spare]) if (p) p.sound.trackIds = p.sound.trackIds.filter((id) => !gone.has(id));
+    for (const c of state.campaigns) {
+      c.trackIds = c.trackIds.filter((id) => !gone.has(id));
+      for (const s of c.sessions) {
+        s.trackIds = s.trackIds.filter((id) => !gone.has(id));
+        for (const sc of s.scenes) {
+          sc.music = sc.music.filter((m) => !(m.kind === "track" && gone.has(m.id)));
+          if (sc.ambience?.kind === "track" && gone.has(sc.ambience.id)) sc.ambience = null;
+          sc.repeatOnes = sc.repeatOnes.filter((id) => !gone.has(id));
+          for (const id of ids) delete sc.trackNames[id];
+        }
+      }
+    }
+    for (const byTrack of Object.values(state.overrides)) for (const id of ids) delete byTrack[id];
+    for (const byPlaylist of Object.values(state.trackOrders)) for (const [pid, order] of Object.entries(byPlaylist)) byPlaylist[pid] = order.filter((id) => !gone.has(id));
+    for (const id of ids) dropReferences(state, { trackId: id });
   }
   function chooseFolder(): string | null {
     return options.choose?.folder?.() ?? null;
@@ -776,6 +818,58 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           name = shownTitle(t);
           t.normalise = choice;
           return asListed(t);
+        });
+      },
+      async removeTracks(trackIds) {
+        const ids = [...new Set(trackIds)];
+        let label = "";
+        return write(() => label, TRACKS_GONE, () => {
+          const tracks = ids.map(track);
+          label = tracks.length === 1 ? `Remove ${quoted(shownTitle(tracks[0]))} from the library` : `Remove ${plural(tracks.length, "track")} from the library`;
+          dropTracks(ids);
+          return { removed: ids };
+        });
+      },
+      async deleteFiles(trackIds) {
+        const ids = [...new Set(trackIds)];
+        let n = 0;
+        return write(() => `Delete ${plural(n, "file")} and take ${n === 1 ? "its track" : "their tracks"} out of the library`, TRACKS_GONE, () => {
+          const tracks = ids.map(track);
+          const removed: string[] = [];
+          const problems: { trackId: string; reason: string }[] = [];
+          for (const t of tracks) {
+            if (state.missing.includes(t.id)) problems.push({ trackId: t.id, reason: "Its file is not where your library expects it." });
+            else if (!t.url?.startsWith("file:")) problems.push({ trackId: t.id, reason: "It plays from a web address, not a file on this computer." });
+            else {
+              try {
+                options.trash?.(pathOf(t));
+                trashed.push(pathOf(t));
+                removed.push(t.id);
+              } catch (e) {
+                problems.push({ trackId: t.id, reason: e instanceof Error ? e.message : "Lyre could not move its file to the Recycle Bin." });
+              }
+            }
+          }
+          n = removed.length;
+          dropTracks(removed);
+          return { removed, problems };
+        });
+      },
+      async setKind(trackIds, kind) {
+        const ids = [...new Set(trackIds)];
+        let label = "";
+        return write(() => label, ["tracks"], () => {
+          const tracks = ids.map(track);
+          if (!(TRACK_KINDS as readonly string[]).includes(kind)) refuse("invalid", "A track is music, ambience or a sound effect.", "kind");
+          const changing = tracks.filter((t) => t.kind !== kind);
+          for (const t of changing) {
+            // Effect is a sound effect's role: an effect gets it when it has none, and a track that stops being one loses it.
+            if (kind === "fx" && t.role === null) t.role = "effect";
+            else if (kind !== "fx" && t.role === "effect") t.role = null;
+            t.kind = kind;
+          }
+          label = `Type ${KIND_WORDS[kind]} for ${changing.length === 1 ? quoted(shownTitle(changing[0])) : plural(changing.length, "track")}`;
+          return tracks.map(asListed);
         });
       },
       async showInFolder(trackId) {
@@ -1503,8 +1597,26 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           const known = state.folders.find((f) => f.path.toLowerCase() === path.toLowerCase());
           if (known?.watched) refuse("already-watched", `Lyre is already watching ${path}.`);
           if (known) known.watched = true;
-          else state.folders.push({ path, watched: true });
-          return { path: known?.path ?? path, watched: true };
+          else state.folders.push({ path, watched: true, newKind: null });
+          return { path: known?.path ?? path, watched: true, newKind: known?.newKind ?? null };
+        });
+      },
+      async setFolderKind(path, kind) {
+        return write(() => `New tracks in ${path}`, ["folders"], () => {
+          const f = folderAt(path);
+          if (kind !== null && !(TRACK_KINDS as readonly string[]).includes(kind)) refuse("invalid", "New tracks are music, ambience or sound effects, or guessed from the folder name.", "kind");
+          f.newKind = kind;
+          return { ...f };
+        });
+      },
+      async removeFolder(path, { removeTracks }) {
+        const areas: LyreArea[] = removeTracks ? ["folders", "tracks", "playlists", "boards", "campaigns", "profiles"] : ["folders", "tracks"];
+        return write(() => `Remove library folder ${quoted(path)}${removeTracks ? " and its tracks" : ""}`, areas, () => {
+          const f = folderAt(path);
+          state.folders = state.folders.filter((x) => x !== f);
+          const under = removeTracks ? state.tracks.filter((t) => isUnder(t.folder, f.path)).map((t) => t.id) : [];
+          dropTracks(under);
+          return { removedTracks: under.sort() };
         });
       },
       async findMissing() {
@@ -1522,8 +1634,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         for (const m of missing) {
           const name = splitPath(m.path).name.toLowerCase();
           const hits = files.filter((f) => splitPath(f).name.toLowerCase() === name);
-          if (hits.length === 1) plan.matches.push({ trackId: m.id, from: m.path, to: hits[0], confidence: "name", toUrl: fileAddress(hits[0]) });
-          else if (hits.length > 1) plan.ambiguous.push({ trackId: m.id, candidates: hits });
+          if (hits.length === 1) plan.matches.push({ trackId: m.id, from: m.path, to: hits[0], confidence: "name", reasons: ["name"], toUrl: fileAddress(hits[0]) });
+          else if (hits.length > 1) plan.ambiguous.push({ trackId: m.id, candidates: hits, reasons: hits.map(() => ["name"]) });
           else plan.notFound.push(m.id);
         }
         plan.summary = folder
@@ -1766,6 +1878,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     },
     previewableFiles() {
       return previewing ? [previewing] : [];
+    },
+    trashedFiles() {
+      return [...trashed];
     },
     async arrive(folder, fileNames) {
       if (!state.folders.some((f) => f.watched && f.path.toLowerCase() === folder.toLowerCase())) return [];

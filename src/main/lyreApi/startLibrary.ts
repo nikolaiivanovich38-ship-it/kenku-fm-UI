@@ -21,6 +21,7 @@ import { LyreLibraryService, type LibraryChild } from "./libraryService";
 import { LYRE_API_EVENT } from "./lyreIpc";
 import type { LyreEvent } from "../../common/lyre/api";
 import { noConverter } from "./noConverter";
+import { trashAudioFile } from "./trashFile";
 import { SAMPLE_RELINK_FOLDER, SAMPLE_SHARED_FILE } from "./sampleComputer";
 import { standInForMissingFiles, writeStandInTone } from "./seedAudio";
 import { wantsSeededLibrary, wireLyreLibrary, type CallingPage, type WiredLibrary } from "./wiring";
@@ -127,6 +128,8 @@ export function startLyreLibrary(): StartedLibrary {
       showItemInFolder: (file: unknown) => {
         if (typeof file === "string" && path.isAbsolute(file)) shell.showItemInFolder(file);
       },
+      // 0.5.2 item 1: to the Recycle Bin only, after the main process's own check (trashFile.ts).
+      trashFile: (file: unknown) => trashAudioFile(file, (f) => shell.trashItem(f)),
       chooseSaveFile: async (suggested: unknown) => {
         // Only a name is taken from the library, never a folder.
         const name = typeof suggested === "string" ? path.basename(suggested.replace(/\\/g, "/")) || "Lyre.lyre" : "Lyre.lyre";

@@ -233,3 +233,40 @@ body .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
 /* PLY-15: Normalise volume in a track's How it plays, lined up with the rows around it. */
 .view .lb-tg.lb-normrow { display: block; }
 .view .lb-normrow .norm { grid-template-columns: 74px minmax(0, 1fr); gap: 6px; }
+
+/* 0.5.2 item 6: the two play buttons are wrapped (a click opens the track) without changing the row's layout. */
+.view .lb-play { display: contents; }
+
+/* 0.5.2 item 25: column headers sort; Energy and Length are a little wider, so a header keeps its word beside its arrow. */
+.view .lb-table th.lb-c-en { width: 66px; }
+.view .lb-table th.lb-c-dur { width: 62px; }
+.view .lb-table th .lb-sortbtn { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; min-height: 24px; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.view .lb-table th .lb-sortbtn:hover { color: var(--ink); text-decoration: underline; }
+.view .lb-table th .lb-sortbtn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+/* 0.5.2 item 21: Clear beside a filter's heading. */
+.view .lb-fhrow { display: flex; align-items: center; gap: 6px; }
+.view .lb-fhrow .lb-fh { flex: 1; min-width: 0; }
+
+/* 0.5.2 items 20 and 40: a library folder's ⋯ beside its row in the Folders filter. */
+.view .lb-folders li { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.view .lb-folders li > button[aria-pressed] { flex: 1; min-width: 0; }
+.view .lb-folders .lb-fmore { flex: none; width: 24px; height: var(--ctl-s); padding: 0; justify-content: center; }
+.lb-check { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 4px; cursor: pointer; }
+.lb-check input { margin-top: 3px; }
+.lb-uses { margin-top: 8px; padding: 8px 10px; border-radius: var(--r-s); background: var(--surface-2); }
+.lb-uses ul { margin: 4px 0 0; padding-left: 18px; }
+
+/* 0.5.2 item 1: Delete file from disk… is the quiet one in a menu. */
+.lb-mi-quiet { color: var(--ink-2); font-size: var(--fs-s); }
+.lb-files { margin: 6px 0 0; padding-left: 18px; max-height: 12em; overflow: auto; font-family: var(--font-mono, monospace); font-size: var(--fs-s); overflow-wrap: anywhere; }
+
+/* 0.5.2 items 4 and 39: what a Type change affects. */
+.lb-effects { margin: 4px 0 8px; padding-left: 18px; }
+
+/* Round 8 click-through: Pick up where it stopped has the whole row (#2); Follow with's line clears the focus ring (#4). */
+.view .lb-tg.lb-tg-wide { grid-template-columns: minmax(0, 1fr); }
+.lb-follow-hint { margin-top: 8px; }
+
+/* 0.5.2 item 7: the file's length, and under it the length its Audio profile plays. */
+.view .lb-len { display: flex; flex-direction: column; line-height: 1.1; }
+.view .lb-played { font-size: var(--fs-xs); color: var(--ink-3); }

@@ -1228,3 +1228,39 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
 | `src/main/broadcast/OutputManager.test.ts`, `botTokenStore.test.ts` | What `importLegacyToken` answers; a token whose file could not be written is not "remembered" |
 | `src/main/managers/SessionManager.test.ts` | The compare-and-write script in the isolated world |
 | `e2e/upgrade.spec.ts` | In the packaged app: the plain token leaves the old storage and the rest stays; a saved bot logs in at the next start without Connect |
+
+## w52-lib (0.5.2): Delete file from disk, library folders
+
+### In plain language
+
+Lyre can now send a track's file to the Recycle Bin when you choose **Delete file from disk…** and confirm. It never
+deletes a file outright, and it only ever touches a file your library already knows as a track's file: the screen
+names tracks, never paths, and the main process checks the file again before it moves it.
+
+### Technical details
+
+- **No new IPC channel.** `library.removeTracks`, `library.deleteFiles`, `library.setKind`, `import.setFolderKind` and
+  `import.removeFolder` go through `LYRE_API_CALL` (the guard checks their names against `LYRE_API_METHODS` and the
+  call's size). Their arguments are checked in the library before it acts (`argChecks.ts`): lists of ids (at most
+  10,000 for `deleteFiles`), a kind from music, amb, fx, a full path for a folder, `{ removeTracks: boolean }`.
+- **Only files the library knows.** `deleteFiles` takes track ids. The library's process looks up each track's file in
+  its own database (`fullPath` of the track's row): a web address or a file not there keeps its track and is named in
+  `problems`. It asks the main process for one file at a time (`askHost("trashFile", [path])`).
+- **The main process checks again** (`src/main/lyreApi/trashFile.ts`, `trashAudioFile`): a string, a full path, no NUL,
+  an audio file name (`isAudioFile`), and `lstat` says a regular file (not a folder, not a link). Only then
+  `shell.trashItem`. There is no `fs.unlink` or `rm` anywhere on this path; a failure is passed back in plain words
+  and the track stays. Host operations the library may ask for are the host record's own names; `trashFile` is the
+  only one that changes a file.
+- **Undo** brings back the tracks (one undo step), not the files: the confirmation says so, and the files are in the
+  Recycle Bin.
+- **Removing a library folder** (`import.removeFolder`) never touches a file; with `removeTracks` it deletes the
+  tracks' rows only (`removeRootWithTracks`, one undo step).
+
+### Tests
+
+| Test | Covers |
+|---|---|
+| `src/main/lyreApi/trashFile.test.ts` | A relative path, not text, a NUL, a folder, a file that is not audio, a file not there and a link are refused without calling `trashItem`; its failure in plain words |
+| `src/main/lyreApi/libraryApi.test.ts` | The host is handed the file the library has for the track; a host refusal keeps the track; without a Recycle Bin, "unavailable" |
+| `src/common/lyre/contract.ts` (both implementations) | Remove from library and Delete file from disk: one undo step, missing files kept, unknown ids refused with nothing changed |
+| `src/main/lyreApi/argChecks.test.ts` | Every method has a shape (the new ones included) |

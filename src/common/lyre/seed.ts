@@ -468,7 +468,7 @@ export function prototypeSeed(now: number = Date.UTC(2026, 10, 5, 12)): SeedData
     playlists: playlists(),
     boards: boards(),
     campaigns: campaigns((id) => (trackIds.has(id) ? { kind: "track", id } : { kind: "playlist", id })),
-    folders: FOLDERS.map((path) => ({ path, watched: false })),
+    folders: FOLDERS.map((path): FolderRoot => ({ path, watched: false, newKind: null })),
     overrides,
     playOrders: JSON.parse(JSON.stringify(ORDERS)) as PlayOrderOverrides,
     missing: [...MISSING],

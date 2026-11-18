@@ -3,6 +3,7 @@
  * variants, or any effect with a tag), Play mode, Hotkey, Colour, Icon, Volume and Fade out. Every change is saved
  * at once through LyreApi; text is saved as you type.
  */
+import { lengthText } from "../../../common/lyre/text";
 import React, { useEffect, useId, useState } from "react";
 import type { LibraryTrack, Pad, PadBoard, PadColor, PadPatch, TagGroup, TagRef } from "../../../common/lyre/api";
 import { PAD_COLORS } from "../../../common/lyre/api";
@@ -44,10 +45,7 @@ const SOUND_KINDS: [Pad["sound"]["kind"], string][] = [
 ];
 
 /** m:ss, as the prototype's L.fmt. */
-function length(ms: number): string {
-  const s = Math.round(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
+const length = lengthText;
 
 export function PadEditor(props: PadEditorProps) {
   const { board, at, sound, open, onOpenChange, update, onFire, onMenu, menuOpen } = props;

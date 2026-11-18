@@ -67,15 +67,15 @@ export function TagsScreen(_props: ScreenProps) {
   };
 
   /** Rename, merge and delete: one undoable step for every track, said in the Undo note. */
-  const changeEveryTrack = async (write: () => Promise<Awaited<ReturnType<typeof api.tags.renameTag>>>, words: (n: number) => string, focus: string, focusAfterUndo: string) => {
+  const changeEveryTrack = async (write: () => Promise<Awaited<ReturnType<typeof api.tags.renameTag>>>, words: (n: number, groupRemoved: boolean) => string, focus: string | ((groupRemoved: boolean) => string), focusAfterUndo: string) => {
     const result = await write();
     if (isRefused(result)) {
       toast(result.refusal.message);
       return;
     }
     close();
-    thenFocus(focus);
-    const text = words(result.value.tracks);
+    thenFocus(typeof focus === "string" ? focus : focus(result.value.groupRemoved === true));
+    const text = words(result.value.tracks, result.value.groupRemoved === true);
     // UX-R19: Undo puts focus back where the change was made from.
     offer(text, result.undoLabel, `[data-k="${focusAfterUndo}"], [data-k-wrap="${focusAfterUndo}"] button`);
     say(`${text}. Undo is at the bottom right, or press Ctrl+Z.`);
@@ -194,7 +194,15 @@ export function TagsScreen(_props: ScreenProps) {
           onMerge={(g, tag, into) =>
             void changeEveryTrack(() => api.tags.mergeTag(ref(g, tag), into), (n) => `Merged ${tag} into ${into} on ${tracksText(n)}`, tagKey(g.id, into), tagKey(g.id, tag))
           }
-          onDelete={(g, tag) => void changeEveryTrack(() => api.tags.deleteTag(ref(g, tag)), (n) => `Deleted ${tag} from ${tracksText(n)}`, `tg-add-${g.id}`, tagKey(g.id, tag))}
+          onDelete={(g, tag) =>
+            void changeEveryTrack(
+              () => api.tags.deleteTag(ref(g, tag)),
+              // 0.5.2 item 54: a group left with no tags goes too, in the same Undo.
+              (n, groupRemoved) => `Deleted ${tag} from ${tracksText(n)}${groupRemoved ? `. The ${g.name} group had no other tags, so it went too` : ""}`,
+              (groupRemoved) => (groupRemoved ? "tg-newgroup" : `tg-add-${g.id}`),
+              tagKey(g.id, tag),
+            )
+          }
           onDeleteGroup={(g) => void changeEveryTrack(() => api.tags.deleteGroup(g.id), (n) => `Deleted the ${g.name} group from ${tracksText(n)}`, "tg-newgroup", `tg-gmore-${g.id}`)}
           onWrite={async (what, write, focus) => {
             const done = await save(what, write);

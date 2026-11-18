@@ -197,6 +197,36 @@ describe("Find missing files", () => {
     expect((await api.import.findMissing()).length).toBe(3);
   });
 
+  it("0.5.2 item 14: says why each file was found, by content, name or sound, and why each choice was offered", async () => {
+    const { api } = openAt("relink");
+    const missing = await api.import.findMissing();
+    const [a, b, c] = missing.map((m) => m.id);
+    vi.spyOn(api.import, "planRelink").mockResolvedValue({
+      ok: true,
+      changed: [],
+      undoLabel: null,
+      value: {
+        folder: "E:\\New",
+        matches: [
+          { trackId: a, from: missing[0].path, to: "E:\\New\\Renamed.flac", confidence: "sure", reasons: ["content"], toUrl: "file:///E:/New/Renamed.flac" },
+          { trackId: b, from: missing[1].path, to: "E:\\New\\Battle.mp3", confidence: "name", reasons: ["sound"], toUrl: "file:///E:/New/Battle.mp3" },
+        ],
+        ambiguous: [{ trackId: c, candidates: ["E:\\New\\A\\x.flac", "E:\\New\\B\\x.flac"], reasons: [["content", "name"], ["name", "sound"]] }],
+        notFound: [],
+        summary: "",
+      },
+    });
+    const user = userEvent.setup();
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "Missing files" })).getAllByRole("row")).toHaveLength(4));
+    const look = region("Look in a folder");
+    await user.type(within(look).getByRole("textbox", { name: "Look in this folder (and the folders inside it)" }), "E:\\New");
+    await user.click(within(look).getByRole("button", { name: "Look there" }));
+    expect(await within(look).findByText("Same file under another name")).toBeInTheDocument();
+    expect(within(look).getByText("Same length and loudness, another name: check it")).toBeInTheDocument();
+    const which = within(look).getByRole("combobox", { name: /^Which file for / });
+    expect(within(which).getAllByRole("option").map((o) => o.textContent)).toEqual(["Choose a file", "E:\\New\\A\\x.flac (same content and name)", "E:\\New\\B\\x.flac (same name and length and loudness)"]);
+  });
+
   it("Preview on a row to check plays the file Lyre found, not the track's missing one (security review w4, Should 5)", async () => {
     const { audio } = openAt("relink", { folderFiles: { "E:\\Music\\Scores": ["07 The Storm.flac"] } });
     const user = userEvent.setup();

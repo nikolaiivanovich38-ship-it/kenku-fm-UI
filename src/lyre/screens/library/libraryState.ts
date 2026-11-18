@@ -10,7 +10,7 @@ import { DEFAULT_FILTER, type LibraryFilter, type SortKey } from "./model";
 export type Guide =
   /** count: tracks added; alreadyIn: titles of the files that were already in the Library (UX review 6). */
   | { kind: "added"; count: number; how: string; alreadyIn: string[]; problems: string[] }
-  | { kind: "tagged"; text: string; stillNew: number }
+  | { kind: "tagged"; text: string }
   | { kind: "playlist-made"; playlistId: string; name: string; count: number }
   | { kind: "added-to"; count: number; playlists: { id: string; name: string }[] }
   | { kind: "watching"; folder: string }
@@ -53,9 +53,20 @@ export function setLibraryState(change: Partial<LibraryViewState> | ((s: Library
   state = { ...state, ...(typeof change === "function" ? change(state) : change) };
   listeners.forEach((l) => l());
 }
+/**
+ * Item 35: where the track list is scrolled. Kept apart from the state above, so scrolling redraws nothing; opening a
+ * track draws the screen afresh (a new address), and the list comes back at this place.
+ */
+let listScroll = 0;
+export const getListScroll = (): number => listScroll;
+export const setListScroll = (top: number): void => {
+  listScroll = top;
+};
+
 /** Back to a fresh Library (tests). */
 export function resetLibraryState(): void {
   state = INITIAL_LIBRARY_STATE;
+  listScroll = 0;
   listeners.forEach((l) => l());
 }
 function subscribe(listener: () => void) {

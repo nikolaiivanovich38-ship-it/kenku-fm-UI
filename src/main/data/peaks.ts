@@ -21,12 +21,14 @@ import fs from "fs";
 import { LibraryBusyError } from "./errors";
 import type { TrackLoudness } from "../../common/domain";
 import { saveLoudness, trackLoudness, type LoudnessSource } from "./repo/loudness";
-import { savePeaks, trackPeaks, type PeakSource } from "./repo/peaks";
+import { correctTrackLength, savePeaks, trackPeaks, type PeakSource } from "./repo/peaks";
 import type { Store } from "./store";
 
 export interface PeakReader {
   /** The file's levels (one byte per point, repo/peaks.ts); rejects when it cannot be read or `signal` aborts. */
   read(file: string, signal: AbortSignal): Promise<Uint8Array>;
+  /** 0.5.2: the levels and the decoded length in ms, from the same read (used when there is one). */
+  readWithLength?(file: string, signal: AbortSignal): Promise<{ levels: Uint8Array; durationMs: number | null }>;
 }
 
 export interface LoudnessReader {
@@ -39,6 +41,8 @@ export interface PeakJobsOptions {
   loudness?: LoudnessReader;
   /** Tracks whose levels are now ready. */
   onReady(trackIds: string[]): void;
+  /** 0.5.2: tracks whose stored length the decoded file put right (correctTrackLength), one notice per track. */
+  onLengths?(trackIds: string[]): void;
   /** Gather ready tracks into one notice per this many ms (default 500; 0 sends each at once). */
   notifyEveryMs?: number;
   /** Wait between tries while the library is busy (default 250 ms). */
@@ -167,8 +171,10 @@ export class PeakJobs {
     const controller = new AbortController();
     this.current = controller;
     let levels: Uint8Array | null;
+    let durationMs: number | null = null;
     try {
-      levels = await this.reader.read(source.file, controller.signal);
+      if (this.reader.readWithLength) ({ levels, durationMs } = await this.reader.readWithLength(source.file, controller.signal));
+      else levels = await this.reader.read(source.file, controller.signal);
     } catch (error) {
       if (this.closed) return false;
       this.options.log?.(`Could not work out the loudness peaks of ${fileName(source.file)}`, error);
@@ -177,7 +183,10 @@ export class PeakJobs {
       this.current = null;
     }
     if (this.closed) return false;
-    return (await this.save(() => savePeaks(this.store, source, levels))) && levels !== null;
+    const saved = (await this.save(() => savePeaks(this.store, source, levels))) && levels !== null;
+    // 0.5.2: the decoded length puts right a length the file's tags got wrong (a joined MP3).
+    if (saved && durationMs !== null && (await this.save(() => correctTrackLength(this.store, source, durationMs as number)))) this.options.onLengths?.([source.trackId]);
+    return saved;
   }
 
   /** True when the track's loudness was saved (measured, or found silent). */

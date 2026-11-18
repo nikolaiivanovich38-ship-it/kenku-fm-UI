@@ -5,7 +5,7 @@ words: kenku fm import copy moved first start soundboards bookmarks websites tok
 ---
 On its first start, Lyre copies your Kenku FM library. Kenku FM's own files stay as they were, so you can go back to it.
 
-Library › **⋯** beside **Add tracks** › **What came across from Kenku FM** shows:
+Track library › **⋯** beside **Add tracks** › **What came across from Kenku FM** shows:
 
 - what Lyre copied and where it is now: playlists and their tracks, soundboards (now pad boards, their sounds now pads);
 - **Bookmarks**: your Kenku FM bookmarks, each with **Copy**. Websites can't be opened in Lyre for now; paste the address into your browser;
