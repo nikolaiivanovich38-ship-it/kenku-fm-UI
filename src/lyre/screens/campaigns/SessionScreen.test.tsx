@@ -266,6 +266,17 @@ describe("a scene's ambience and pad boards", () => {
     expect(await ambience.findByText("No ambience")).toBeInTheDocument();
   });
 
+  it("0.5.2 item 39: a track the game master makes Ambience in the Track library is offered as a scene's ambience", async () => {
+    const { api } = await openAbbey();
+    const ambience = within(abbey().getByRole("group", { name: "Ambience" }));
+    await userEvent.click(ambience.getByRole("button", { name: "Change…" }));
+    expect(within(screen.getByRole("dialog")).queryByRole("radio", { name: /^Ashes/ })).toBeNull();
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    await api.library.setKind(["t44"], "amb");
+    await userEvent.click(ambience.getByRole("button", { name: "Change…" }));
+    expect(await within(screen.getByRole("dialog")).findByRole("radio", { name: /^Ashes/ })).toBeInTheDocument();
+  });
+
   it("a scene has several pad boards in order, the first shown first; more are added and reordered", async () => {
     const { api } = await openAbbey();
     expect(boardNames()).toEqual(["Drowned Abbey", "Weather and places"]);

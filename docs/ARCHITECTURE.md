@@ -918,3 +918,9 @@ Built straight in the app, as 0.5.1's changes were. Each item's unit or componen
   docs/security.md "w52-lib") and then removes the tracks whose files went. Both confirmations name the manual
   playlists, scenes and pads that use the tracks (`trackUses.ts`). Removed tracks leave the selection, and an open one
   closes.
+- **Type (items 4, 12, 39).** Details › How it plays › Type, and the selection's ⋯ › Type, call `library.setKind`
+  (one undo step; an effect gets the Effect role when it has none, a track that stops being FX loses it). When the
+  change affects something, a confirmation says what first (`typeChangeEffects`: a manual playlist of another type
+  lists it; a scene's ambience stops being ambience); otherwise it is done at once (`TypeChange.tsx`). The pad
+  editor's sound chooser already lists FX tracks and a scene's Ambience chooser ambience tracks (by kind), so a track
+  made FX or Ambience shows there (`BoardScreen.test.tsx`, `SessionScreen.test.tsx`).

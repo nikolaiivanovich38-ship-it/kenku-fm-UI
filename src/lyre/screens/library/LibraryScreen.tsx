@@ -31,6 +31,7 @@ import { NormaliseDialog } from "../../kit/NormaliseChoice";
 import { PopMenuButton, TwoLines, type PopMenuEntry } from "../../kit/PopMenu";
 import { TagSheet } from "./TagSheet";
 import { forgetRemoved, RemoveTracksDialog, type Removal } from "./RemoveTracks";
+import { TYPES, useTypeChange } from "./TypeChange";
 import { TrackDetails } from "./TrackDetails";
 import { TracksTable } from "./TracksTable";
 import { useTrackList } from "./trackStore";
@@ -195,6 +196,8 @@ export function LibraryScreen({ route }: ScreenProps) {
 
   /** ORG-5: the tracks whose Add to… is open. */
   const [addingTo, setAddingTo] = useState<string[] | null>(null);
+  /** 0.5.2 items 4 and 39: Type for the selection, asking first when it affects a playlist or a scene. */
+  const typeChange = useTypeChange(store, { offerUndo: true });
   /** 0.5.2 items 1 and 50: the tracks a Remove from library or Delete file from disk… confirmation is open for. */
   const [removal, setRemoval] = useState<Removal | null>(null);
   const rowMenu = useCallback(
@@ -352,10 +355,21 @@ export function LibraryScreen({ route }: ScreenProps) {
     if (result.ok) offer(msg, result.undoLabel);
   };
 
-  /** 0.5.2: the selection's ⋯: Remove from library and, last and apart, Delete files from disk…. */
+  /** 0.5.2: the selection's ⋯: Type (items 4, 39), Remove from library and, last and apart, Delete files from disk…. */
   const selectionMenu = (): PopMenuEntry[] => {
     const ids = getLibraryState().sel;
+    const chosen = ids.map((id) => byId.get(id)).filter((t): t is LibraryTrack => !!t);
     return [
+      { group: "Type" },
+      ...TYPES.map(
+        ([kind, word]): PopMenuEntry => ({
+          role: "menuitemradio",
+          checked: chosen.length > 0 && chosen.every((t) => t.kind === kind),
+          content: word,
+          onSelect: () => typeChange.change(chosen, kind),
+        }),
+      ),
+      { separator: true },
       { content: <Item icon="close" text="Remove from library" />, onSelect: () => setRemoval({ how: "remove", ids }) },
       { separator: true },
       { className: "lb-mi-quiet", content: <Item icon="warn" text={ids.length === 1 ? "Delete file from disk…" : "Delete files from disk…"} />, onSelect: () => setRemoval({ how: "delete", ids }) },
@@ -676,6 +690,7 @@ export function LibraryScreen({ route }: ScreenProps) {
         }}
       />
       {addingTo && <AddToDialog what={{ ids: addingTo, from: null }} onClose={() => setAddingTo(null)} />}
+      {typeChange.dialog}
       {removal && <RemoveTracksDialog removal={removal} tracks={byId} onClose={() => setRemoval(null)} onRemoved={(ids) => forgetRemoved(ids, open?.id)} />}
       {useIn && (
         <UseInDialog

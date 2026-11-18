@@ -285,3 +285,58 @@ describe("items 1 and 50: Remove from library, Delete file from disk…, Remove 
     await waitFor(async () => expect((await api.library.listTracks()).length).toBe(before - shown));
   });
 });
+
+describe("items 4, 12 and 39: a track's Type, for one track or the selection", () => {
+  it("Details › How it plays › Type changes it at once when nothing is affected", async () => {
+    const { api } = openAt("library/t44");
+    await loaded();
+    const user = userEvent.setup();
+    const type = within(screen.getByRole("region", { name: "Details" })).getByRole("group", { name: "Type" });
+    expect(within(type).getAllByRole("button").map((b) => b.textContent)).toEqual(["Music", "Ambience", "FX"]);
+    expect(within(type).getByRole("button", { name: "Music" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(type).getByRole("button", { name: "FX" }));
+    await waitFor(() => expect(within(type).getByRole("button", { name: "FX" })).toHaveAttribute("aria-pressed", "true"));
+    expect((await api.library.listTracks()).find((t) => t.id === "t44")).toMatchObject({ kind: "fx", role: "effect" });
+    expect(within(rowOf("t44")).getByText("FX")).toBeInTheDocument();
+  });
+
+  it("asks first when the change affects a scene's ambience, naming the scene", async () => {
+    const { api } = openAt("library");
+    const scenes = (await api.campaigns.list()).flatMap((c) => c.sessions.flatMap((s) => s.scenes.map((sc) => ({ sc, n: s.number }))));
+    const used = scenes.find(({ sc }) => sc.ambience?.kind === "track");
+    if (!used || used.sc.ambience?.kind !== "track") throw new Error("the sample has a scene with an ambience track");
+    const id = used.sc.ambience.id;
+    window.location.hash = `#/library/${id}`;
+    await loaded();
+    const user = userEvent.setup();
+    const type = await within(await screen.findByRole("region", { name: "Details" })).findByRole("group", { name: "Type" });
+    await user.click(within(type).getByRole("button", { name: "Music" }));
+    const dialog = screen.getByRole("dialog", { name: /Music\?$/ });
+    expect(dialog).toHaveTextContent(`is the ambience of ${used.sc.name} (Session ${used.n})`);
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect((await api.library.listTracks()).find((t) => t.id === id)?.kind).toBe("amb");
+    await user.click(within(type).getByRole("button", { name: "Music" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Make Music" }));
+    await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === id)?.kind).toBe("music"));
+  });
+
+  it("the selection's ⋯ › Type changes every ticked track in one step, naming a playlist of another type, with Undo", async () => {
+    const { api } = openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    const manual = (await api.playlists.list()).find((p) => p.kind === "manual" && p.lane === "music" && p.trackIds.length > 0);
+    if (!manual || manual.kind !== "manual") throw new Error("the sample has a manual music playlist");
+    const inIt = manual.trackIds[0];
+    await user.click(within(rowOf(inIt)).getByRole("checkbox"));
+    await user.click(screen.getByRole("checkbox", { name: "Select Ashes" }));
+    await user.click(screen.getByRole("button", { name: "More for the selected tracks" }));
+    await user.click(screen.getByRole("menuitemradio", { name: "Ambience" }));
+    const dialog = screen.getByRole("dialog", { name: "Make 2 tracks Ambience?" });
+    expect(dialog).toHaveTextContent(`in ${manual.name}, a Music playlist.`);
+    await user.click(within(dialog).getByRole("button", { name: "Make Ambience" }));
+    await waitFor(async () => expect((await api.library.listTracks()).filter((t) => [inIt, "t44"].includes(t.id)).map((t) => t.kind)).toEqual(["amb", "amb"]));
+    expect((await api.history.state()).undoLabel).toBe("Type Ambience for 2 tracks");
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+    await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t44")?.kind).toBe("music"));
+  });
+});

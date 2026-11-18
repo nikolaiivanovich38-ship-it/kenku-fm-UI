@@ -58,6 +58,7 @@ import { useSave } from "../../shell/useSave";
 import { SAVE_AFTER_MS } from "../../kit/SavedField";
 import { offerTags } from "../../../common/domain/round7";
 import { TrackBehaviour } from "./TrackBehaviour";
+import { TYPES, useTypeChange } from "./TypeChange";
 
 /** Typing in Your title or Notes is saved this long after the last key, as one change. */
 /** UX-19: saved after a second without typing (and on leaving the track), never per key: the kit's rule. */
@@ -148,6 +149,7 @@ export function TrackDetails({
     return done;
   };
 
+  const typeChange = useTypeChange(store, { offerUndo: false });
   const shown = shownTitle({ ...t, title });
   const previewOn = previewing === previewKeyOf({ kind: "track", id: t.id });
   const roles = t.kind === "fx" ? [EFFECT_ROLE, ...ROLES] : ROLES;
@@ -330,6 +332,12 @@ export function TrackDetails({
         <h3 className="lb-h" id="lb-h-play">
           How it plays
         </h3>
+        {/* 0.5.2 items 4, 12 and 39: FX tracks are offered for pads, ambience tracks as a scene's ambience. */}
+        <div className="lb-tg">
+          <div className="lb-tgl">Type</div>
+          <ChoiceChips label="Type" options={TYPES} value={t.kind} onChoose={(v) => typeChange.change([t], v)} />
+        </div>
+        {typeChange.dialog}
         <div className="lb-tg">
           <div className="lb-tgl">Energy</div>
           <div

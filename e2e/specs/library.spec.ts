@@ -765,4 +765,28 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await page.getByRole("button", { name: "Undo" }).click();
     await expect.poll(async () => (await shownTitles(page)).length).toBe(shown);
   });
+
+  test("items 4, 12 and 39: Type in a track's details; an FX track is offered for pads, and the selection's ⋯ changes several at once", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const ashes = row(page, "Ashes");
+    await ashes.locator("td.lb-c-title").click();
+    const type = details(page).getByRole("group", { name: "Type" });
+    await expect(type.getByRole("button", { name: "Music" })).toHaveAttribute("aria-pressed", "true");
+    await type.getByRole("button", { name: "FX" }).click();
+    await expect(type.getByRole("button", { name: "FX" })).toHaveAttribute("aria-pressed", "true");
+    await openRoute(page, "board/abbey");
+    await page.getByRole("region", { name: /^Pad: / }).getByRole("button", { name: "Choose from library…" }).click();
+    await expect(page.getByRole("dialog").getByRole("checkbox", { name: /^Ashes/ })).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+    await openRoute(page, "library");
+    await row(page, "Ashes").getByRole("checkbox").check();
+    await row(page, /^Select Eerie dread/).getByRole("checkbox").check();
+    await page.getByRole("button", { name: "More for the selected tracks" }).click();
+    await page.getByRole("menuitemradio", { name: "Ambience" }).click();
+    const ask = page.getByRole("dialog", { name: "Make 2 tracks Ambience?" });
+    if (await ask.isVisible()) await ask.getByRole("button", { name: "Make Ambience" }).click();
+    await expect(row(page, "Ashes").getByText("Amb", { exact: true })).toBeVisible();
+    await expect(row(page, /^Select Eerie dread/).getByText("Amb", { exact: true })).toBeVisible();
+  });
 });
