@@ -323,6 +323,8 @@
     return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade all: everything fades out over ' + L.FADE + ' seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
       '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
+      // Round 9 (item 44): Arrange moves and sizes the boxes (r9live.js).
+      (L.arrangeButton ? L.arrangeButton() : '') +
       '<span class="lv-keyswrap"><button class="btn s" data-act="lvkeys" data-k="lv-keys" aria-expanded="' + S.keysOpen + '" aria-controls="lv-keys-pop" title="Keyboard keys for the live screen">Keys' + L.icon(S.keysOpen ? 'chevup' : 'chevdown', 's') + '</button>' +
       (S.keysOpen ? keysPop() : '') + '</span></div>';
   }
@@ -395,7 +397,9 @@
     if (!c) return '';
     var shown = L.nameIn(t, L.lanePlace(c)), si = isM && seqItem(c), pos = si ? 'Item ' + (si.item + 1) + ' of ' + si.n : '';
     var h = '<div class="lv-lane ' + (isM ? 'lv-m' : 'lv-a') + '">' +
-      '<div class="lv-lane-l"><span class="lv-lane-n"><span class="lane-dot ' + ln + '"></span>' + word + '</span>' + (c.paused ? '<span class="badge">Paused</span>' : '') + '</div>' +
+      '<div class="lv-lane-l"><span class="lv-lane-n"><span class="lane-dot ' + ln + '"></span>' + word + '</span>' + (c.paused ? '<span class="badge">Paused</span>' : '') +
+        // Round 9 (item 47): while a dipping effect sounds, the music says so in words.
+        (L.dippedIn && L.dippedIn(tg, ln) ? '<span class="badge r9-dipped" title="Quieter while an effect plays; it comes back by itself">' + L.icon('chevdown', 's') + 'Dipped</span>' : '') + '</div>' +
       // The scene position and the end rule are hover text (and read out); the track list shows where it is.
       '<div class="lv-lane-m"><div class="lv-lane-t ellipsis" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
         // Round 8 (Nik, 11 Nov: "click in the tracking bar for the currently playing track and skip to a certain point"):
@@ -435,6 +439,8 @@
       else { label = u.it.name; var left = u.it.ids.length - (u.kind.slice(-3) === 'cur' ? u.it.at + 1 : 0); if (u.it.ids.length > 1 && u.kind !== 'aq') more = left + ' left'; }
       return '<li class="lv-up-i' + (added ? ' added' : '') + (u.kind === 'aq' ? ' amb' : '') + '">' + (added ? icon + '<span class="sr-only">' + (u.kind === 'aq' ? 'Ambience next: ' : u.kind.indexOf('pn') === 0 ? 'Play next: ' : 'Added: ') + '</span>' : '') +
         '<span class="ellipsis grow" title="' + esc(label + (more ? ' (' + more + ')' : '')) + '">' + esc(label) + '</span>' + (more ? '<span class="faint num">' + more + '</span>' : '') +
+        // Round 9 (item 31): a planned track can be played now from Up next; the list carries on from there.
+        (u.e ? '<button class="x r9-upplay" data-act="lvupplay" data-i="' + i + '"' + tga + ' data-k="lv-upp-' + i + kx + '" title="Play it now" aria-label="Play now: ' + esc(label) + '">' + L.icon('play', 's') + '</button>' : '') +
         '<button class="x" data-act="lvupx" data-kind="' + u.kind + '"' + tga + ' data-i="' + (u.i != null ? u.i : '') + '" data-key="' + esc(u.e ? u.e.key : '') + '" data-k="lv-upx-' + i + kx + '" title="Take out of Up next (this evening only)" aria-label="Remove ' + esc(label) + ' from Up next">' + L.icon('close', 's') + '</button>' + (tail || '') + '</li>';
     }
     var all = list.concat(amb.map(function (it, i) { return { kind: 'aq', it: it, i: i }; }));
@@ -474,8 +480,9 @@
       // OUT-7: the bot that plays here, as a button that changes its channel (or the bot) on the page, and Kick.
       // Round 8 (Nik, 11 Nov 20:33: "I can't choose what channel my bots join from the live view"): the bot's button
       // chooses its channel (as since round 6), and its menu now has Kick too.
-      '<button class="btn s lv-botpick" data-act="lvroommenu" data-id="' + b.id + '" data-k="lv-room-' + b.id + '" aria-haspopup="menu" aria-expanded="false" title="' + esc(b.name) + ' plays in ' + esc(name) + ': change the channel or the bot" aria-label="' + esc(b.name) + ' in ' + esc(name) + ': change">' + L.icon('users', 's') + '<span class="ellipsis">' + esc(b.name) + '</span>' + L.icon('chevdown', 's') + '</button>' +
-      '<button class="btn s lv-kick" data-act="lvkick" data-id="' + b.id + '" data-k="lv-kick-' + b.id + '" title="Kick ' + esc(b.name) + ' from ' + esc(name) + ' (Undo for 8 seconds)" aria-label="Kick ' + esc(b.name) + ' from ' + esc(name) + '">' + L.icon('leave', 's') + '<span class="lv-kick-t">Kick</span></button>' : '';
+      // Round 9 (item 56): the room comes first. Its name is the button that moves it (the bot is a quiet line in that
+      // menu and in the hover text); Kick is Leave, the word the Rooms screen used.
+      '<button class="btn s lv-kick" data-act="lvkick" data-id="' + b.id + '" data-k="lv-kick-' + b.id + '" title="' + esc(name) + ' leaves Discord: ' + esc(b.name) + ' leaves the voice channel (Undo for 8 seconds)" aria-label="Leave ' + esc(name) + '">' + L.icon('leave', 's') + '<span class="lv-kick-t">Leave</span></button>' : '';
     // BUG-19: with no bot in a voice channel what plays goes nowhere; the one-click fix is right here.
     var none = '';
     if (nobodyThere(b)) {
@@ -493,7 +500,7 @@
       '<button class="btn s icon" data-act="lvfxstop" data-tg="' + tg + '" data-k="lv-fxstop' + kx + '" title="Stop effects in ' + esc(name) + '" aria-label="Stop effects in ' + esc(name) + '">' + L.icon('stop', 's') + '</button></div>' : '';
     var lanes = laneBlock('music', tg, name) + laneBlock('amb', tg, name) + fxLine, up = m.music || aqOf(tg).length ? upNextBlock(tg) : '';
     return '<div class="lv-rm' + (st.text === 'Playing' ? '' : ' is-silent') + '" role="group" aria-labelledby="' + hid + '" data-room="' + tg + '"' + (rooms().length > 1 ? ' title="To play in ' + esc(name) + ', choose To: ' + esc(name) + ' in a box"' : '') + '>' +
-      '<div class="lv-rm-h">' + (short() ? '<button class="xp-btn" data-act="lvrmopen" data-tg="' + tg + '" data-k="lv-rmopen' + kx + '" aria-expanded="true" title="Show one line for ' + esc(name) + '" aria-label="Show everything in ' + esc(name) + '">' + L.icon('chevdown', 's') + '</button>' : '') + '<h3 id="' + hid + '" class="lv-rm-n ellipsis">' + esc(name) + '</h3><span class="pane-status s-' + st.tone + '">' + esc(st.text) + '</span><span class="grow"></span>' + playedButton(tg, name) + ctl + '</div>' + none + playedList(tg, name) +
+      '<div class="lv-rm-h">' + (short() ? '<button class="xp-btn" data-act="lvrmopen" data-tg="' + tg + '" data-k="lv-rmopen' + kx + '" aria-expanded="true" title="Show one line for ' + esc(name) + '" aria-label="Show everything in ' + esc(name) + '">' + L.icon('chevdown', 's') + '</button>' : '') + (b ? '<h3 id="' + hid + '" class="lv-rm-n r9-rm-n"><button class="r9-roombtn" data-act="lvroommenu" data-id="' + b.id + '" data-k="lv-room-' + b.id + '" aria-haspopup="menu" aria-expanded="false" title="' + esc(name) + ' (via ' + esc(b.name) + '): move it to another voice channel" aria-label="Room ' + esc(name) + ': move or change"><span class="ellipsis">' + esc(name) + '</span>' + L.icon('chevdown', 's') + '</button></h3>' : '<h3 id="' + hid + '" class="lv-rm-n ellipsis">' + esc(name) + '</h3>') + '<span class="pane-status s-' + st.tone + '">' + esc(st.text) + '</span><span class="grow"></span>' + playedButton(tg, name) + ctl + '</div>' + none + playedList(tg, name) +
       (lanes || up ? '<div class="lv-rm-b"><div class="lv-rm-lanes">' + lanes + '</div>' + (up ? '<div class="lv-rm-up">' + up + '</div>' : '') + '</div>' : '') + undoStrip('room:' + tg) + '</div>';
   }
   /* Round 7 part 2 (PLY-1): What played in each room, newest first, opened in the room itself (Live never covers
@@ -516,6 +523,12 @@
     }).join('') : '<li class="lv-in-none">Nothing yet</li>') + '</ol></div>';
   }
   L.acts.lvplayed = function (el) { var tg = el.dataset.tg; S.playedOpen[tg] = !S.playedOpen[tg]; L.render(); focusK(el.dataset.k); };
+  L.acts.lvupplay = function (el) {
+    var tg = el.dataset.tg, u = upcoming(tg)[+el.dataset.i]; if (!u || !u.e) return; touched();
+    var rm = RM(tg); rm.now = 'plan'; rm.ret = null; rm.pnCur = null; rm.playing = u.e.id;
+    L.play(u.e.id, { lane: 'music', playlistId: u.e.pl, place: u.e.place, seq: u.e.seq, fade: 3, target: tg });
+    L.say('Playing now: ' + L.title(L.track(u.e.id)));
+  };
   L.acts.lvplayedagain = function (el) {
     var tg = el.dataset.tg, x = playedOf(tg)[+el.dataset.i]; if (!x) return; touched();
     S.playedOpen[tg] = false; var rm = RM(tg); rm.now = 'plan'; rm.ret = null; rm.pnCur = null;
@@ -530,7 +543,7 @@
     var rs = rooms(), idle = L.freeBots ? L.freeBots() : L.bots().filter(function (b) { return b.status === 'idle'; });
     var parts = rs.length ? rs.map(function (r) { return roomPart(roomTg(r.bots[0]), r.bots[0], r.name); }) : [roomPart('table', null, 'No room')];
     // Round 8: always there; with no free bot its menu offers Add a bot… (the Settings sheet, opened in place).
-    var add = '<button class="btn s icon" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false" aria-label="Add a room" title="Add a room: put ' + (idle.length ? 'another bot' : 'a new bot') + ' in a voice channel">' + L.icon('plus', 's') + '</button>';
+    var add = '<button class="btn s" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false" title="' + (idle.length ? 'Play into another voice channel (' + idle.length + ' bot' + (idle.length === 1 ? '' : 's') + ' free)' : 'Every bot is in a room') + '">' + L.icon('plus', 's') + 'Room</button>';
     var sum = collapsed('lv-onair') ? (rs.length ? rs : [{ name: 'No room', mix: pb }]).map(function (r) { var c = r.mix.music; return esc(r.name) + ': ' + (c ? esc(L.title(L.track(c.id))) : 'silent'); }).join(' · ') : '';
     return '<div class="lv-dock">' + L.pane({ id: 'lv-onair', title: 'On air', icon: 'broadcast', kind: 'onair', size: 'auto', flush: true, noMax: true, keys: 'Alt+1', actions: add, summary: sum,
       body: undoStrip('onair') + '<div class="lv-rooms' + (parts.length > 1 ? ' many' : '') + '">' + parts.join('') + '</div>' }) + '</div>';
@@ -571,7 +584,9 @@
     var details = open ? '<div class="lv-trk-d" id="' + did + '">' +
       '<dl>' + (nm !== ownNm ? '<dt>Name in this scene</dt><dd>' + esc(nm) + '</dd>' : '') + '<dt>Your title</dt><dd>' + (t.title ? esc(t.title) : '<span class="faint">none yet</span>') + '</dd><dt>Title in the file</dt><dd>' + esc(t.metaTitle || '–') + '</dd>' +
       '<dt>File name</dt><dd>' + esc(t.file) + '</dd><dt>From</dt><dd>' + esc(t.artist + ', ' + t.album) + '</dd></dl>' +
-      (L.profileLink ? '<div class="lv-trk-ap">' + L.profileLink(t.id, pk, true) + '<span class="hint">Audio profile' + (pk ? (o.seq ? ' in this scene' : ' here') : '') + '</span></div>' : '') +
+      (L.profileLink ? '<div class="lv-trk-ap">' + L.profileLink(t.id, pk, true) + '<span class="hint">Audio profile' + (pk ? (o.seq ? ' in this scene' : ' here') : '') + '</span>' +
+        // Round 9 (item 16): every detail, in the Track panel beside Live (Live's controls stay in view).
+        (L.openTrackPanel ? '<button class="btn s ghost" data-act="r9tp" data-tid="' + t.id + '" data-k="' + k + '-all">' + L.icon('file', 's') + 'All details</button>' : '') + '</div>' : '') +
       '<div class="chips">' + D.tagGroups.map(function (g) { return L.tagsOn(t, g.id).map(function (v) { return '<span class="chip lv-mood" title="' + esc(g.name) + '">' + esc(v) + '</span>'; }).join(''); }).join('') + (t.role ? '<span class="chip">' + esc((L.roleWord && L.roleWord[t.role]) || t.role) + '</span>' : '') + '</div></div>' : '';
     return '<li class="lv-trk' + (onAirNow ? ' on' : '') + (isAmb ? ' amb' : '') + (open ? ' open' : '') + (o.inner ? ' inner' : '') + '"><div class="lv-trk-r">' +
       (o.num ? '<span class="num lv-num" aria-hidden="true">' + o.num + '</span>' : '') +
@@ -756,7 +771,7 @@
       // BUG-20: every pad says whether it plays (pressed), since pressing a playing pad stops it.
       return '<button class="lv-pad' + (on ? ' on' : '') + '" data-bid="' + b.id + '" data-pid="' + p.id + '" data-mode="' + p.mode + '" data-box="' + box + '"' + (p.mode === 'hold' ? '' : ' data-act="lvpad"') +
         ' data-k="lv-pad-' + box + '-' + b.id + '-' + p.id + '" style="--pad:' + (L.colors[p.color] || L.colors.bone) + '" aria-pressed="' + (many ? onHere : on) + '"' +
-        ' title="' + esc(p.label) + (key ? ' (key ' + String(p.key).toUpperCase() + ')' : '') + ': ' + L.modeName[p.mode] + inWhere(box) + (inRooms.length ? '. Sounding in ' + esc(inRooms.join(' and ')) : '') + '"' + (key ? ' aria-keyshortcuts="' + esc(p.key) + '"' : '') + '>' +
+        ' title="' + esc(p.label) + (key ? ' (key ' + String(p.key).toUpperCase() + ')' : '') + ': ' + L.modeName[p.mode] + (L.padDips && L.padDips(p) ? ', dips the music' : '') + inWhere(box) + (inRooms.length ? '. Sounding in ' + esc(inRooms.join(' and ')) : '') + '"' + (key ? ' aria-keyshortcuts="' + esc(p.key) + '"' : '') + '>' +
         L.icon(p.icon, 's') + '<span class="lv-pad-l ellipsis">' + esc(p.label) + '</span>' +
         (inRooms.length ? '<span class="lv-pad-rm" aria-hidden="true">' + inRooms.map(function (n) { return esc(n.charAt(0)); }).join('') + '</span><span class="sr-only">, sounding in ' + esc(inRooms.join(' and ')) + '</span>' : '') +
         (on && !many ? '<span class="lv-pad-on">On</span>' : p.mode === 'oneshot' || on ? '' : '<span class="lv-pad-mode" title="' + L.modeName[p.mode] + '">' + L.icon(L.modeIcon[p.mode], 's') + '<span class="sr-only">' + L.modeName[p.mode] + '</span></span>') +
@@ -867,7 +882,9 @@
   var LAYOUT = { 1: [['scenes', 'current', 'ssp', 'ssd', 'cpp', 'cpd']], 2: [['scenes', 'ssp', 'ssd', 'cpp', 'cpd'], ['current']], 3: [['scenes'], ['current'], ['ssp', 'ssd', 'cpp', 'cpd']] };
   // The boxes in the order of Alt+1 to Alt+7 and of F6: top to bottom, left to right, the same in every layout.
   var BOXES = ['lv-onair', 'lv-scenes', 'lv-current', 'lv-ssp', 'lv-ssd', 'lv-cpp', 'lv-cpd'];
-  L.f6Order = function () { return onLive() ? BOXES.map(function (id) { return document.querySelector('[data-k="pane-' + id + '"]'); }).filter(Boolean) : null; };
+  // Round 9 (item 44): the boxes in the order they are on screen (top to bottom, left to right), wherever Arrange put them.
+  function boxesOnScreen() { return BOXES.map(function (id) { return document.querySelector('[data-k="pane-' + id + '"]'); }).filter(Boolean).sort(function (a, b) { var ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect(); return Math.round(ra.left / 40) - Math.round(rb.left / 40) || ra.top - rb.top; }); }
+  L.f6Order = function () { return onLive() ? boxesOnScreen() : null; };
   function groups(ids) {
     var out = [];
     ids.forEach(function (id) { var sc = /^ss/.test(id) ? 'ss' : /^cp/.test(id) ? 'cp' : ''; var last = out[out.length - 1]; if (sc && last && last.scope === sc) last.ids.push(id); else out.push({ scope: sc, ids: [id] }); });
@@ -899,13 +916,16 @@
       var lv = live(), key = lv.cid + '/' + lv.sid + '/' + (S.notStarted ? '-' : lv.scene);
       if (key !== S.sceneKey) { S.sceneKey = key; S.board = null; S.notesOpen = false; }
       var mode = layoutFor();
-      return '<div class="lv">' + top() + onAir() + '<div class="lv-cols c' + mode + '" data-scroll="lv-page">' + LAYOUT[mode].map(function (ids) {
+      // Round 9 (item 44, r9live.js): Nik's own arrangement of the boxes for this width, if he made one.
+      var cols = L.liveLayout ? L.liveLayout(mode, LAYOUT[mode]) : LAYOUT[mode];
+      return '<div class="lv' + (L.arranging && L.arranging() ? ' r9-arranging' : '') + '">' + top() + (L.arrangeBar ? L.arrangeBar(mode) : '') + onAir() + '<div class="lv-cols c' + mode + (cols.widths ? ' r9-sized' : '') + '" data-scroll="lv-page"' + (cols.widths ? ' style="grid-template-columns:' + cols.widths + '"' : '') + '>' + cols.map(function (ids, ci) {
         var trays = mode === 3 && /^(ss|cp)/.test(ids[0]);
-        return '<div class="col' + (trays ? ' lv-c-trays' : '') + '">' + groups(ids).map(function (g) {
-          if (!g.scope) return PANES[g.ids[0]](mode === 1);
+        var wrap = L.arrangeWrap || function (id, html) { return html; };
+        return '<div class="col' + (trays ? ' lv-c-trays' : '') + '" data-col="' + ci + '">' + groups(ids).map(function (g) {
+          if (!g.scope) return wrap(g.ids[0], PANES[g.ids[0]](mode === 1), ci, mode);
           // A tray per scope: the session's boxes on a filled tray, the campaign's on an outlined one (Should 6).
-          return '<div class="lv-grp lv-grp-' + g.scope + '"><p class="lv-grp-h" aria-hidden="true">' + (g.scope === 'ss' ? 'This session' : 'Whole campaign') + '</p>' + g.ids.map(function (id) { return PANES[id](mode === 1); }).join('') + '</div>';
-        }).join('') + '</div>';
+          return '<div class="lv-grp lv-grp-' + g.scope + '"><p class="lv-grp-h" aria-hidden="true">' + (g.scope === 'ss' ? 'This session' : 'Whole campaign') + '</p>' + g.ids.map(function (id) { return wrap(id, PANES[id](mode === 1), ci, mode); }).join('') + '</div>';
+        }).join('') + '</div>' + (L.arrangeSplit ? L.arrangeSplit(ci, cols.length, mode) : '');
       }).join('') + '</div></div>';
     }
   });
@@ -1024,11 +1044,12 @@
   L.acts.lvroommenu = function (el) {
     var b = L.bot(el.dataset.id); if (!b) return; var name = L.outputName(b);
     var others = rooms().filter(function (r) { return r.bots[0] !== b && (r.mix.music || r.mix.amb); }), free = L.freeBots ? L.freeBots() : [];
-    L.menu(el, '<div class="group">' + esc(b.name) + ' plays in</div>' + channelItems(b, 'lvbotjoin') +
-      (free.length ? '<div class="sep"></div><div class="group">Another bot for ' + esc(name) + '</div>' + free.map(function (f) { return '<button role="menuitem" data-act="lvbotswap" data-from="' + b.id + '" data-to="' + f.id + '">' + L.icon('users', 's') + esc(f.name) + '</button>'; }).join('') : '') +
-      '<div class="sep"></div>' + others.map(function (r) { return '<button role="menuitem" data-act="lvcopyroom" data-from="' + r.bots[0].id + '" data-to="' + b.id + '">' + L.icon('loop', 's') + 'Copy what ' + esc(r.name) + ' is playing</button>'; }).join('') +
-      '<button role="menuitem" data-act="lvkick" data-id="' + b.id + '">' + L.icon('leave', 's') + 'Kick ' + esc(b.name) + ' from ' + esc(name) + '</button>' +
-      '<div class="sep"></div><a role="menuitem" class="item" href="#/outputs">' + L.icon('users', 's') + 'Rooms</a><a role="menuitem" class="item" href="#/settings">' + L.icon('gear', 's') + 'Bots and tokens</a>', 'Room ' + name);
+    // Round 9 (item 56): only live things here (move, copy, leave); bots and tokens are Settings' business.
+    L.menu(el, '<div class="group">Move ' + esc(name) + ' to</div>' + channelItems(b, 'lvbotjoin') +
+      (others.length ? '<div class="sep"></div>' + others.map(function (r) { return '<button role="menuitem" data-act="lvcopyroom" data-from="' + r.bots[0].id + '" data-to="' + b.id + '">' + L.icon('loop', 's') + 'Copy what ' + esc(r.name) + ' is playing</button>'; }).join('') : '') +
+      '<div class="sep"></div><button role="menuitem" data-act="lvkick" data-id="' + b.id + '">' + L.icon('leave', 's') + 'Leave ' + esc(name) + '</button>' +
+      '<div class="sep"></div><div class="item faint r9-via">' + L.icon('users', 's') + 'via ' + esc(b.name) + '</div>' +
+      free.map(function (f) { return '<button role="menuitem" data-act="lvbotswap" data-from="' + b.id + '" data-to="' + f.id + '">' + L.icon('users', 's') + 'Use ' + esc(f.name) + ' instead</button>'; }).join(''), 'Room ' + name);
   };
   /* Must 2 (b): moving a bot from the room menu takes one click and asks nothing, so it gets the same 8-second Undo
      as Kick when the players there were hearing something. */
@@ -1065,13 +1086,17 @@
   L.acts.lvaddroom = function (el) {
     var idle = L.bots().filter(function (b) { return b.status === 'idle'; });
     // OUT-8: a new bot is made in Settings (the menu's last item).
-    L.menu(el, (idle.map(function (b) { return '<div class="group">' + esc(b.name) + ' joins…</div>' + channelItems(b, 'lvaddjoin'); }).join('') || '<div class="item muted">Every bot is in a room.</div>') +
-      '<div class="sep"></div><button role="menuitem" data-act="lvaddbot">' + L.icon('plus', 's') + 'Add a bot…</button>', 'Add a room');
+    // Round 9 (item 56): + Room lists voice channels; Lyre takes a free bot itself (the one that joins there when Lyre
+    // starts, else the first free). With none free, the list is greyed and one line says where bots are added.
+    var pick = idle[0];
+    L.menu(el, '<div class="group">New room in</div>' + (pick ? channelItems(pick, 'lvaddjoin').replace(/data-id="[^"]*"/g, 'data-id="auto"') :
+      '<p class="item faint r9-nobot">Every bot is in a room. Add a bot in <a href="#/settings" data-k="lv-addbot-link">Settings › Discord bots</a>.</p>'), 'New room');
   };
   // Add a bot… opens Settings' three steps over Live; once connected, the new bot joins from Add a room.
   L.acts.lvaddbot = function () { if (L.acts.stadd) L.acts.stadd(); else L.route('#/settings'); };
   L.acts.lvaddjoin = function (el) {
-    var b = L.bot(el.dataset.id), c = L.channel(el.dataset.g, el.dataset.c); if (!b || !c) return;
+    var idle = L.bots().filter(function (x) { return x.status === 'idle'; });
+    var b = el.dataset.id === 'auto' ? (idle.filter(function (x) { return x.startServer === el.dataset.g && x.startChannel === el.dataset.c; })[0] || idle[0]) : L.bot(el.dataset.id), c = L.channel(el.dataset.g, el.dataset.c); if (!b || !c) return;
     L.botJoin(b.id, el.dataset.g, el.dataset.c);
     // UX-R9: a channel nobody is in says so in the room's own words.
     var msg = c.members.length ? c.name + ' is joining. It starts silent: choose To: ' + c.name + ' in a box to play there.' : c.name + ' is joining: nobody there.'; L.say(msg); L.toast(msg);
@@ -1179,7 +1204,7 @@
   L.f6Taken = function () { return onLive() && S.keys1 && !!padFor('f6'); };
   function focusSearch() { S.findOpen = true; L.render(); var q = document.querySelector('[data-k="lv-q"]'); if (q) { q.focus(); q.select(); } }
   function goBox(n) {
-    var id = BOXES[n], t = document.querySelector('[data-k="pane-' + id + '"]'); if (!t) return false;
+    var t = boxesOnScreen()[n]; if (!t) return false;
     t.focus(); t.scrollIntoView({ block: 'nearest' }); L.say(t.textContent.trim() + (t.getAttribute('aria-expanded') === 'false' ? ', folded' : ''));
     return true;
   }

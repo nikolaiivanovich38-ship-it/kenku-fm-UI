@@ -381,6 +381,8 @@
       fieldset('Play mode', '<div class="pb-modes" role="group" aria-label="Play mode">' + ['oneshot', 'toggle', 'hold', 'retrigger'].map(function (m) {
         return '<button class="btn s" data-act="pbmode" data-v="' + m + '" data-k="pbm-' + m + '" aria-pressed="' + (p.mode === m) + '" aria-describedby="pb-modehelp" title="' + MODE_HELP[m] + '">' + L.icon(L.modeIcon[m], 's') + L.modeName[m] + '</button>';
       }).join('') + '</div><p class="pb-modehelp" id="pb-modehelp">' + MODE_HELP[p.mode] + '</p>') +
+      // Round 9 (item 47): whether the music dips while this pad plays (the usual follows the play mode).
+      (L.padDipHTML ? L.padDipHTML(p) : '') +
       '<div class="field"><span class="label" id="pb-key-l">Hotkey</span><div class="row-flex"><button class="pb-keycap' + (ui.capture ? ' capturing' : '') + '" data-act="pbkeycap" data-k="pb-keycap" aria-labelledby="pb-key-l pb-keycap-t"' + (ui.capture || sel.where === 'spare' ? ' aria-describedby="pb-key-h"' : '') + '>' +
       '<span id="pb-keycap-t">' + (ui.capture ? 'Press a key…' : p.key ? '<span class="kbd">' + esc(String(p.key).toUpperCase()) + '</span> Change' : 'None. Click, then press a key') + '</span></button>' +
       (p.key && !ui.capture ? '<button class="btn s ghost" data-act="pbkeyclear" data-k="pb-keyclear">Clear</button>' : '') + '</div>' +

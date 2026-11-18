@@ -74,6 +74,8 @@
       '<div class="st-bot-2"><span class="st-l">Token</span>' + token + '</div>' +
       (b.login === 'online' ? '<div class="st-bot-2"><span class="st-l">Servers</span>' + (srv.length ? '<span class="ellipsis" title="' + esc(srv.join(', ')) + '">' + esc(srv.join(', ')) + '</span>'
         : '<span class="st-none">' + L.icon('warn', 's') + 'In no server yet</span>' + (b.appId ? '<a class="btn s" href="' + esc(L.inviteURL(b.appId)) + '" target="_blank" rel="noopener" data-act="stinvite" data-id="' + b.id + '" data-k="' + k + '-inv">Invite it…</a>' : '')) + '</div>' : '') +
+      // Round 9 (item 56): all a bot's setup is here: where it joins when Lyre starts, and its starting volume.
+      (L.botStartHTML ? L.botStartHTML(b, k) : '') +
       (b.login === 'error' ? '<p class="st-err" role="alert">' + L.icon('warn', 's') + esc(b.error || 'Discord refused the token') + '</p>' : '') + '</div>';
   }
   L.acts.stconn = function (el) {
@@ -200,7 +202,7 @@
   function soundBody() {
     return '<div class="seg" role="radiogroup" aria-label="Sound to Discord">' + MODES.map(function (m) {
       return '<button role="radio" aria-checked="' + (S.mode === m[0]) + '" data-act="stmode" data-v="' + m[0] + '" data-k="st-mode-' + m[0] + '" title="' + esc(m[2]) + '">' + m[1] + '</button>';
-    }).join('') + '</div>' + xfadeHTML() +
+    }).join('') + '</div>' + xfadeHTML() + (L.dipSettingsHTML ? L.dipSettingsHTML() : '') +
       '<div class="st-cache"><button class="btn s" type="button" data-act="stcache" data-k="st-cache" title="Deletes the copies Lyre made of your music so tracks start at once. Lyre makes them again when it needs them. Your music files, library and settings are kept.">Empty the audio cache</button></div>';
   }
   // Round 7 (PLY-8): the default crossfade, used by Next, a playlist moving on and a scene's play steps.

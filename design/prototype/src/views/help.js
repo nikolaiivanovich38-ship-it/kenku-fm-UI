@@ -80,7 +80,8 @@
       var hits = L.helpSearch(H.q);
       return hits.length ? '<ul class="help-list" aria-label="Found">' + hits.map(item).join('') + '</ul>' : '<p class="muted help-none">Nothing found. Try other words.</p>';
     }
-    return GROUPS.map(function (g, gi) {
+    // Round 9 (r9guide.js, item 19): the screen's own tour and article, then Set up Lyre, then every article.
+    return (L.helpTopHTML ? L.helpTopHTML() : '') + GROUPS.map(function (g, gi) {
       var list = ARTICLES.filter(function (a) { return a.group === g; });
       return list.length ? '<h3 class="help-group" id="help-g' + gi + '">' + esc(g) + '</h3><ul class="help-list" aria-labelledby="help-g' + gi + '">' + list.map(item).join('') + '</ul>' : '';
     }).join('');
