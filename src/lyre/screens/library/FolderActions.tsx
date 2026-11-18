@@ -56,7 +56,8 @@ export function FolderActions({ root, tracks }: { root: FolderRoot; tracks: read
       <PopMenuButton label={`More for ${name}`} ariaLabel={`More for the folder ${root.path}`} title="More" className="btn s icon ghost lb-fmore" items={items}>
         <Icon name="more" size="s" />
       </PopMenuButton>
-      {removing && <RemoveFolderDialog root={root} under={tracks.filter((t) => inFolder(t, root.path))} onClose={() => setRemoving(false)} />}
+      {/* The tracks the library keeps under this folder (review of r052: a path match counted nested library folders too). */}
+      {removing && <RemoveFolderDialog root={root} under={tracks.filter((t) => root.trackIds.includes(t.id))} onClose={() => setRemoving(false)} />}
     </>
   );
 }

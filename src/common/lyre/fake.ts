@@ -123,10 +123,13 @@ export interface FakeLyreApi extends LyreApi {
 
 /* ---------- state ---------- */
 
+/** A library folder as the fake keeps it: the tracks it holds are worked out when it is listed (FolderRoot.trackIds). */
+type FolderRecord = Omit<FolderRoot, "trackIds">;
+
 interface State {
   tracks: LibraryTrack[];
   tagGroups: TagGroup[];
-  folders: FolderRoot[];
+  folders: FolderRecord[];
   playlists: PlaylistInfo[];
   boards: PadBoard[];
   campaigns: CampaignInfo[];
@@ -572,7 +575,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   function newTrack(path: string): LibraryTrack {
     const { folder, name } = splitPath(path);
     // 0.5.2 item 40: the deepest library folder holding it may say its kind; else it is guessed from the folder names.
-    const holder = state.folders.filter((f) => isUnder(folder, f.path)).sort((a, b) => b.path.length - a.path.length)[0];
+    const holder = holderOf(folder);
     const kind = holder?.newKind ?? guessKind(folder);
     return {
       id: newId("track"),
@@ -643,7 +646,12 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     return { added: added.map((t) => t.id), alreadyInLibrary: already, trackIds, problems, cancelled: false, summary };
   }
   /** A library folder by its path, in any letter case (0.5.2 items 20 and 40). */
-  const folderAt = (path: string): FolderRoot => state.folders.find((f) => f.path.toLowerCase() === String(path).toLowerCase()) ?? refuse("not-found", `Lyre has no library folder at ${path}.`);
+  const folderAt = (path: string): FolderRecord => state.folders.find((f) => f.path.toLowerCase() === String(path).toLowerCase()) ?? refuse("not-found", `Lyre has no library folder at ${path}.`);
+  /** The library folder holding a folder: the deepest one it is in (as the database's root_id). */
+  const holderOf = (folder: string) => state.folders.filter((f) => isUnder(folder, f.path)).sort((a, b) => b.path.length - a.path.length)[0];
+  /** Review of r052: the tracks a library folder holds, not those of a library folder inside it. */
+  const tracksOfFolder = (f: FolderRecord): string[] => state.tracks.filter((t) => holderOf(t.folder)?.path.toLowerCase() === f.path.toLowerCase()).map((t) => t.id).sort();
+  const folderOut = (f: FolderRecord): FolderRoot => ({ path: f.path, watched: f.watched, newKind: f.newKind, trackIds: tracksOfFolder(f) });
   const isUnder = (folder: string, root: string) => folder.toLowerCase() === root.toLowerCase() || folder.toLowerCase().startsWith(`${root.toLowerCase()}\\`);
   /**
    * The tracks leave the library and every list (the database's ON DELETE CASCADE): playlists (dividers keep their
@@ -793,7 +801,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         });
       },
       async listFolders() {
-        return copy(state.folders);
+        return state.folders.map(folderOut);
       },
       async peaksOf(trackId) {
         const ready = peaks.get(trackId);
@@ -1644,7 +1652,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           if (known?.watched) refuse("already-watched", `Lyre is already watching ${path}.`);
           if (known) known.watched = true;
           else state.folders.push({ path, watched: true, newKind: null });
-          return { path: known?.path ?? path, watched: true, newKind: known?.newKind ?? null };
+          return folderOut(known ?? { path, watched: true, newKind: null });
         });
       },
       async setFolderKind(path, kind) {
@@ -1652,15 +1660,15 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           const f = folderAt(path);
           if (kind !== null && !(TRACK_KINDS as readonly string[]).includes(kind)) refuse("invalid", "New tracks are music, ambience or sound effects, or guessed from the folder name.", "kind");
           f.newKind = kind;
-          return { ...f };
+          return folderOut(f);
         });
       },
       async removeFolder(path, { removeTracks }) {
         const areas: LyreArea[] = removeTracks ? ["folders", "tracks", "playlists", "boards", "campaigns", "profiles"] : ["folders", "tracks"];
         return write(() => `Remove library folder ${quoted(path)}${removeTracks ? " and its tracks" : ""}`, areas, () => {
           const f = folderAt(path);
+          const under = removeTracks ? tracksOfFolder(f) : [];
           state.folders = state.folders.filter((x) => x !== f);
-          const under = removeTracks ? state.tracks.filter((t) => isUnder(t.folder, f.path)).map((t) => t.id) : [];
           dropTracks(under);
           return { removedTracks: under.sort() };
         });

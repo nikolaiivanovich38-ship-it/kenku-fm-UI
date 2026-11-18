@@ -188,6 +188,11 @@ export interface FolderRoot {
   watched: boolean;
   /** 0.5.2 item 40: the kind new tracks in it get; null guesses from the folder names (Ambience, Effects…). */
   newKind: TrackKind | null;
+  /**
+   * Review of r052: the tracks the library keeps under this folder (not under a library folder inside it), the ones
+   * Remove folder… with its tick takes out. The page's own path match counted nested folders and ignored letter case.
+   */
+  trackIds: readonly string[];
 }
 
 export interface SearchRequest {

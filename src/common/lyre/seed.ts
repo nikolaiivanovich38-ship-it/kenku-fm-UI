@@ -19,7 +19,7 @@ export interface SeedData {
   playlists: PlaylistInfo[];
   boards: PadBoard[];
   campaigns: CampaignInfo[];
-  folders: FolderRoot[];
+  folders: Omit<FolderRoot, "trackIds">[];
   overrides: ProfileOverrides;
   /** Round 5 (PLY-13): play order chosen in one place, by place key then playlist id. */
   playOrders: PlayOrderOverrides;
@@ -470,7 +470,7 @@ export function prototypeSeed(now: number = Date.UTC(2026, 10, 5, 12)): SeedData
     playlists: playlists(),
     boards: boards(),
     campaigns: campaigns((id) => (trackIds.has(id) ? { kind: "track", id } : { kind: "playlist", id })),
-    folders: FOLDERS.map((path): FolderRoot => ({ path, watched: false, newKind: null })),
+    folders: FOLDERS.map((path): Omit<FolderRoot, "trackIds"> => ({ path, watched: false, newKind: null })),
     overrides,
     playOrders: JSON.parse(JSON.stringify(ORDERS)) as PlayOrderOverrides,
     missing: [...MISSING],

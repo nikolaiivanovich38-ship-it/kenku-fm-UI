@@ -131,6 +131,11 @@ export function removeRoot(store: Store, id: string): Promise<void> {
  * tracks go first, so the folder's RESTRICT never meets one). The files on disk are not touched. Answers the tracks
  * removed; await it.
  */
+/** Review of r052: the tracks a library folder holds (its own, not a library folder's inside it), the ones removeRootWithTracks takes. */
+export function trackIdsOfRoot(store: Store, id: string): string[] {
+  return store.all<{ id: string }>(TRACKS_UNDER_ROOT_SQL, id).map((row) => row.id).sort();
+}
+
 export function removeRootWithTracks(store: Store, id: string): Promise<string[]> {
   const root = getRoot(store, requireRow(store, "library_roots", "library folder", id)) as LibraryRoot;
   const ids = store.all<{ id: string }>(TRACKS_UNDER_ROOT_SQL, root.id).map((row) => row.id).sort();

@@ -6,6 +6,7 @@ import userEvent from "@testing-library/user-event";
 vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
 
 import { openAt } from "./testHarness";
+import { valueOf } from "../../../common/lyre/contract";
 import { expectNoAxeViolations } from "../../test/axe";
 
 const grid = () => screen.getByRole("grid", { name: "Tracks" });
@@ -202,6 +203,20 @@ describe("items 20 and 40: a library folder's ⋯ in the Filters box", () => {
     expect(f.queryByRole("button", { name: "More for the folder H:\\Audio\\Ambience" })).toBeNull();
     await user.click(await screen.findByRole("button", { name: "Undo" }));
     await waitFor(async () => expect((await api.library.listTracks()).length).toBe(before));
+  });
+
+  it("Remove folder… counts the tracks the library keeps under that folder, not those of a library folder inside it (review of r052)", async () => {
+    const { api } = openAt("library");
+    await loaded();
+    valueOf(await api.import.watchFolder({ from: "path", path: "H:\\Audio\\Scores\\Bear McCreary" }));
+    const user = userEvent.setup();
+    const scores = (await api.library.listFolders()).find((f) => f.path === "H:\\Audio\\Scores")!;
+    const allUnder = (await api.library.listTracks()).filter((t) => t.folder.startsWith("H:\\Audio\\Scores")).length;
+    expect(scores.trackIds.length).toBeGreaterThan(0);
+    expect(scores.trackIds.length).toBeLessThan(allUnder);
+    await user.click(await within(filters()).findByRole("button", { name: "More for the folder H:\\Audio\\Scores" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove folder…" }));
+    expect(within(screen.getByRole("dialog")).getByRole("checkbox", { name: `Also remove its ${scores.trackIds.length} tracks from the library` })).toBeInTheDocument();
   });
 
   it("Remove folder can be pressed once: the button is busy until the library answers (review of r052)", async () => {

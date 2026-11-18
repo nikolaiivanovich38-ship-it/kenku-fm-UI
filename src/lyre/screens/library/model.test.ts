@@ -117,10 +117,10 @@ describe("the Library's filters (library.js matches and visible)", () => {
   });
 
   it("lists library folders with their counts, and a chosen folder's subfolders under it", () => {
-    const rows = folderRows(tracks, seed.folders, "", "all");
+    const rows = folderRows(tracks, seed.folders.map((f) => ({ ...f, trackIds: [] as string[] })), "", "all");
     expect(rows[0]).toMatchObject({ path: "", label: "All folders", count: 69, sub: false });
     expect(rows.map((r) => r.path)).toContain("H:\\Audio\\Scores");
-    const open = folderRows(tracks, seed.folders, "H:\\Audio\\Scores", "all");
+    const open = folderRows(tracks, seed.folders.map((f) => ({ ...f, trackIds: [] as string[] })), "H:\\Audio\\Scores", "all");
     expect(open.some((r) => r.sub && r.label === "Bear McCreary")).toBe(true);
   });
 });

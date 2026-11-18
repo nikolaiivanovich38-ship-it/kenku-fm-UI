@@ -153,6 +153,8 @@ import {
   updateRoot,
   removeRoot,
   removeRootWithTracks,
+  trackIdsOfRoot,
+  type LibraryRoot,
   deleteTracks,
   updateScene,
   updateSession,
@@ -414,6 +416,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
 
   /** UX-19: failNextWrite was called (test builds and tests). */
   let failNext = false;
+  /** A library folder as the screens see it, with the tracks it holds by the library's own record (review of r052). */
+  const folderOut = (r: LibraryRoot): FolderRoot => ({ path: r.path, watched: r.watched, newKind: r.newKind, trackIds: trackIdsOfRoot(store, r.id) });
   /** Review of r052: Delete file from disk is running (deleteFiles takes one request at a time). */
   let deletingFiles = false;
   async function write<T>(areas: LyreArea[], body: () => T | Promise<T>): Promise<WriteResult<T>> {
@@ -842,7 +846,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         });
       },
       async listFolders() {
-        return listRoots(store).map((r): FolderRoot => ({ path: r.path, watched: r.watched, newKind: r.newKind }));
+        return listRoots(store).map(folderOut);
       },
       async showInFolder(trackId) {
         return writeOutside([], async () => {
@@ -1598,15 +1602,13 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
             },
             { bookkeeping: true },
           );
-          const root = listRoots(store).find((r) => r.path.toLowerCase() === path.toLowerCase());
-          return { path: root.path, watched: true, newKind: root.newKind };
+          return folderOut(listRoots(store).find((r) => r.path.toLowerCase() === path.toLowerCase()) as LibraryRoot);
         });
       },
       async setFolderKind(path, kind) {
         return write(["folders"], () => {
           const root = requireRoot(path);
-          const done = updateRoot(store, root.id, { newKind: kind });
-          return { path: done.path, watched: done.watched, newKind: done.newKind };
+          return folderOut(updateRoot(store, root.id, { newKind: kind }));
         });
       },
       async removeFolder(path, { removeTracks }) {

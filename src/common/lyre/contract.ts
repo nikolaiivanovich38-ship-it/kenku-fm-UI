@@ -869,8 +869,8 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
       });
 
       it("watches a folder once", async () => {
-        expect(valueOf(await api.import.watchFolder({ from: "path", path: fx.folderToWatch }))).toEqual({ path: fx.folderToWatch, watched: true, newKind: null });
-        expect(await api.library.listFolders()).toContainEqual({ path: fx.folderToWatch, watched: true, newKind: null });
+        expect(valueOf(await api.import.watchFolder({ from: "path", path: fx.folderToWatch }))).toEqual({ path: fx.folderToWatch, watched: true, newKind: null, trackIds: [] });
+        expect(await api.library.listFolders()).toContainEqual({ path: fx.folderToWatch, watched: true, newKind: null, trackIds: [] });
         await changedEvent("folders");
         expectRefused(await api.import.watchFolder({ from: "path", path: fx.folderToWatch }), "already-watched");
       });
@@ -905,6 +905,8 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         const scenesUsing = async () => (await api.campaigns.list()).flatMap((c) => c.sessions.flatMap((ss) => ss.scenes)).filter((sc) => sc.ambience?.kind === "track" && under.includes(sc.ambience.id)).length;
         const used = await scenesUsing();
         expect(used).toBeGreaterThan(0);
+        // Review of r052: the folder lists the tracks it holds as the library keeps them, the ones Remove folder takes.
+        expect([...((await api.library.listFolders()).find((f) => f.path === ambience)?.trackIds ?? [])].sort()).toEqual(under);
         expect(valueOf(await api.import.removeFolder(ambience, { removeTracks: true })).removedTracks).toEqual(under);
         expect(await api.library.listTracks()).toHaveLength(before.length - under.length);
         expect(await scenesUsing()).toBe(0);
