@@ -414,6 +414,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
 
   /** UX-19: failNextWrite was called (test builds and tests). */
   let failNext = false;
+  /** Review of r052: Delete file from disk is running (deleteFiles takes one request at a time). */
+  let deletingFiles = false;
   async function write<T>(areas: LyreArea[], body: () => T | Promise<T>): Promise<WriteResult<T>> {
     const before = history.recorded;
     let value: T;
@@ -884,6 +886,9 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         });
       },
       async deleteFiles(trackIds) {
+        // Review of r052: one at a time. A second request while files go to the Recycle Bin (a double press) is refused.
+        if (deletingFiles) return { ok: false, refusal: { code: "busy", message: "Lyre is still sending files to the Recycle Bin. Wait a moment." } };
+        deletingFiles = true;
         return write(TRACKS_GONE, async () => {
           const trash = host.trashFile;
           if (!trash) refuse("unavailable", "Lyre cannot send files to the Recycle Bin here.");
@@ -907,6 +912,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           }
           if (removed.length) await deleteTracks(store, removed, `Delete ${plural(removed.length, "file")} and take ${removed.length === 1 ? "its track" : "their tracks"} out of the library`);
           return { removed, problems };
+        }).finally(() => {
+          deletingFiles = false;
         });
       },
       async setKind(trackIds, kind) {

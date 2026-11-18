@@ -3,7 +3,7 @@
  * name, as before, or always Music, Ambience or FX) and Remove folder… (item 20: Lyre stops watching it and forgets
  * it; its tracks stay unless the game master ticks to remove them too; the files are never touched). Both with Undo.
  */
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import type { TrackKind } from "../../../common/domain";
 import type { FolderRoot, LibraryTrack } from "../../../common/lyre/api";
 import { useBoards, useCampaigns, useLyreApi, usePlaylists } from "../../api";
@@ -75,8 +75,17 @@ function RemoveFolderDialog({ root, under, onClose }: { root: FolderRoot; under:
     under.map((t) => t.id),
     { playlists, campaigns, boards },
   );
+  // Review of r052: one press only, as Delete file.
+  const [busy, setBusy] = useState(false);
+  const running = useRef(false);
   const remove = async () => {
-    const result = await api.import.removeFolder(root.path, { removeTracks: withTracks });
+    if (running.current) return;
+    running.current = true;
+    setBusy(true);
+    const result = await api.import.removeFolder(root.path, { removeTracks: withTracks }).finally(() => {
+      running.current = false;
+      setBusy(false);
+    });
     const done = accept(result);
     if (!done) return;
     onClose();
@@ -94,7 +103,7 @@ function RemoveFolderDialog({ root, under, onClose }: { root: FolderRoot; under:
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => void remove()}>
+          <Button variant="primary" disabled={busy} aria-busy={busy || undefined} onClick={() => void remove()}>
             Remove folder
           </Button>
         </>

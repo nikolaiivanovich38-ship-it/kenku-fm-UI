@@ -9,7 +9,7 @@
  *
  * Both confirmations name where the tracks are used (manual playlists, scenes, pads: trackUses.ts).
  */
-import React from "react";
+import React, { useRef, useState } from "react";
 import type { LibraryTrack } from "../../../common/lyre/api";
 import { useBoards, useCampaigns, useLyreApi, usePlaylists } from "../../api";
 import { Button } from "../../kit/Button";
@@ -45,7 +45,21 @@ export function RemoveTracksDialog({ removal, tracks, onClose, onRemoved }: { re
   const deleting = removal.how === "delete";
   const what = one ? `“${shownTitle(one)}”` : removal.shown ? `all ${n} shown tracks` : plural(n, "track");
 
+  // Review of r052: one press only; a second one while the library works sent the files again.
+  const [busy, setBusy] = useState(false);
+  const running = useRef(false);
   const go = async () => {
+    if (running.current) return;
+    running.current = true;
+    setBusy(true);
+    try {
+      await run();
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  };
+  const run = async () => {
     const ids = list.map((t) => t.id);
     if (deleting) {
       const result = await api.library.deleteFiles(ids);
@@ -80,7 +94,7 @@ export function RemoveTracksDialog({ removal, tracks, onClose, onRemoved }: { re
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant={deleting ? "danger" : "primary"} onClick={() => void go()}>
+          <Button variant={deleting ? "danger" : "primary"} disabled={busy} aria-busy={busy || undefined} onClick={() => void go()}>
             {deleting ? (one ? "Delete file" : `Delete ${plural(n, "file")}`) : one ? "Remove" : `Remove ${plural(n, "track")}`}
           </Button>
         </>

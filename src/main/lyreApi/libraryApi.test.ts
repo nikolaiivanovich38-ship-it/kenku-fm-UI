@@ -115,6 +115,30 @@ describe("main-process LyreApi only", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  it("review of r052: one Delete file from disk at a time; a second while the first works is refused as busy and touches nothing", async () => {
+    const { dir, library, write } = await seededLibrary();
+    const first = write("in/Rain.wav");
+    const second = write("in/Wind.wav");
+    const asked: string[] = [];
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const api = createLibraryApi(library, testHost({ trashFile: async (f) => (asked.push(f), await gate, fs.renameSync(f, `${f}.in-the-bin`)) }));
+    const [a, b] = valueOf(await api.import.start({ from: "paths", paths: [first, second] })).added;
+    const running = api.library.deleteFiles([a]);
+    await vi.waitFor(() => expect(asked).toEqual([first]));
+    const again = await api.library.deleteFiles([b]);
+    expect(isRefused(again) && again.refusal.code).toBe("busy");
+    release();
+    expect(valueOf(await running).removed).toEqual([a]);
+    expect(asked).toEqual([first]);
+    expect(fs.existsSync(second)).toBe(true);
+    // Free again once the first has finished.
+    expect(valueOf(await api.library.deleteFiles([b])).removed).toEqual([b]);
+    api.stopBackgroundWork();
+    library.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   it("0.5.2: a length the decoded file puts right reaches the screens (a tracks change) and listTracks", async () => {
     const { dir, library, write } = await seededLibrary();
     const file = write("new/Joined.mp3");

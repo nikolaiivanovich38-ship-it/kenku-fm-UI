@@ -204,6 +204,25 @@ describe("items 20 and 40: a library folder's ⋯ in the Filters box", () => {
     await waitFor(async () => expect((await api.library.listTracks()).length).toBe(before));
   });
 
+  it("Remove folder can be pressed once: the button is busy until the library answers (review of r052)", async () => {
+    const { api } = openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    let answer: () => void = () => undefined;
+    const real = api.import.removeFolder.bind(api.import);
+    const calls = vi.spyOn(api.import, "removeFolder").mockImplementation((path, options) => new Promise((resolve) => (answer = () => resolve(real(path, options)))));
+    await user.click(within(filters()).getByRole("button", { name: "More for the folder H:\\Audio\\Effects" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove folder…" }));
+    const press = within(screen.getByRole("dialog")).getByRole("button", { name: "Remove folder" });
+    await user.click(press);
+    await user.click(press);
+    expect(calls).toHaveBeenCalledTimes(1);
+    expect(press).toBeDisabled();
+    expect(press).toHaveAttribute("aria-busy", "true");
+    answer();
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
   it("item 20: without the tick the folder goes and its tracks stay", async () => {
     const { api } = openAt("library");
     await loaded();
@@ -268,6 +287,39 @@ describe("items 1 and 50: Remove from library, Delete file from disk…, Remove 
     await waitFor(() => expect(rowOf("t13")).toBeNull());
     // The open track was it: Details closes.
     await waitFor(() => expect(window.location.hash).toBe("#/library"));
+  });
+
+  it("Delete file and Remove can be pressed once: the button is busy until the library answers (review of r052: a second press sent the files again)", async () => {
+    const { api } = openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    let answer: () => void = () => undefined;
+    const real = api.library.deleteFiles.bind(api.library);
+    const calls = vi.spyOn(api.library, "deleteFiles").mockImplementation((ids) => new Promise((resolve) => (answer = () => resolve(real(ids)))));
+    await user.click(within(rowOf("t13")).getByRole("button", { name: /^More for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete file from disk…" }));
+    const press = within(screen.getByRole("dialog")).getByRole("button", { name: "Delete file" });
+    await user.click(press);
+    await user.click(press);
+    expect(calls).toHaveBeenCalledTimes(1);
+    expect(press).toBeDisabled();
+    expect(press).toHaveAttribute("aria-busy", "true");
+    answer();
+    await waitFor(() => expect(rowOf("t13")).toBeNull());
+    expect(api.trashedFiles()).toHaveLength(1);
+    // Remove from library, the same.
+    let answerRemove: () => void = () => undefined;
+    const realRemove = api.library.removeTracks.bind(api.library);
+    const removes = vi.spyOn(api.library, "removeTracks").mockImplementation((ids) => new Promise((resolve) => (answerRemove = () => resolve(realRemove(ids)))));
+    await user.click(within(rowOf("t02")).getByRole("button", { name: /^More for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from library" }));
+    const remove = within(screen.getByRole("dialog")).getByRole("button", { name: "Remove" });
+    await user.click(remove);
+    await user.click(remove);
+    expect(removes).toHaveBeenCalledTimes(1);
+    expect(remove).toBeDisabled();
+    answerRemove();
+    await waitFor(() => expect(rowOf("t02")).toBeNull());
   });
 
   it("item 50: Remove all shown… removes what a filter shows, with the count in the confirmation; it is offered only with a filter on", async () => {
