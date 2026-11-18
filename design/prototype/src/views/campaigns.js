@@ -1,7 +1,7 @@
 /* Campaigns, Campaign and Session views (prefix cp-).
    #/campaigns            the top level: one card per campaign, each shown in its own table theme
    #/campaign/<cid>       one campaign: details, theme, sessions, campaign playlists and pad boards, notes
-   #/session/<cid>/<sid>  the session planner: scenes (Starts when, music: tracks and playlists in any mix,
+   #/session/<cid>/<sid>  the session planner: scenes (Story cue, music: tracks and playlists in any mix,
                           ambience: a track or ambience playlist, pad boards: several, notes),
                           session playlists and pad boards, and a reminder of the campaign's playlists.
    Playlists and pad boards live on the Playlists and Pad boards pages. Round 10: a scene's pickers can make one in
@@ -144,7 +144,7 @@
   L.acts.cprm = function (el) {
     var x = ctx(), target = el.dataset.scope === 'c' ? x.c : x.s, kind = el.dataset.kind, list = kind === 'pl' ? target.playlists : kind === 'tr' ? target.tracks : target.boards, id = el.dataset.id;
     var i = list.indexOf(id); if (i < 0) return; list.splice(i, 1);
-    if (kind === 'tr') { focusK = 'add-' + el.dataset.scope + 'pl'; L.render(); L.toast('Removed "' + L.title(L.track(id)) + '" from this ' + (el.dataset.scope === 'c' ? 'campaign' : 'session') + '. It is still in the Library.'); return; }
+    if (kind === 'tr') { focusK = 'add-' + el.dataset.scope + 'pl'; L.render(); L.toast('Removed "' + L.title(L.track(id)) + '" from this ' + (el.dataset.scope === 'c' ? 'campaign' : 'session') + '. It is still in the Track library.'); return; }
     var o = kind === 'pl' ? L.playlist(id) : L.board(id);
     focusK = list.length ? 'more-' + el.dataset.scope + kind + list[Math.min(i, list.length - 1)] : 'add-' + el.dataset.scope + kind;
     L.render();
@@ -218,7 +218,7 @@
     L.filesFromDrop(e, function (files) {
       if (!files.length) { L.toast('No audio files in what you dropped'); return; }
       var before = D.tracks.length, ids = L.importFiles(files), created = D.tracks.slice(before).map(function (t) { return t.id; }), name = x.sc.name || 'this scene';
-      var lib = created.length ? plural(created.length, 'new track') + ' added to the Library' : '';
+      var lib = created.length ? plural(created.length, 'new track') + ' added to the Track library' : '';
       current = x.sc.id;
       if (where === 'amb') {
         created.forEach(function (id) { L.track(id).kind = 'amb'; });   // dropped on Ambience: new files are ambience beds
@@ -299,7 +299,7 @@
         '<button class="btn primary" data-act="cpnew" data-k="cpnew">' + L.icon('plus', 's') + 'New campaign</button></div>' +
         '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<ol class="cp-grid" aria-label="Campaigns in order">' + D.campaigns.map(card).join('') + '</ol>'
           // A first-time user: what a campaign is and what to do first (w3-ux 9).
-          : '<div class="empty"><b>No campaigns yet.</b> A campaign holds your sessions, the scenes in each, and the music, ambience and pad boards you use in them. Start with <b>New campaign</b>.</div>') + '</div>';
+          : '<div class="empty"><b>No campaigns yet.</b> A campaign contains your sessions, the scenes in each session, and the music, ambience and pad boards you use in them. Start with <b>New campaign</b>.</div>') + '</div>';
     },
     after: afterRender
   });
@@ -498,8 +498,8 @@
     // Round 9 (item 32): a track dragged from a playlist anywhere in the planner can be dropped on a scene's Music list.
     return '<div class="cp-box" data-filedrop="music" data-sc="' + sc.id + '"' + (x.c && x.s ? ' data-dropto="sc:' + x.c.id + ':' + x.s.id + ':' + sc.id + '"' : '') + ' title="Drop audio files or folders here to add them">' +
       (items.length ? '<ol class="cp-items" aria-label="Music in order">' + items.map(function (x, i) { return itemRow(sc, 'music', info(x.id), i, items.length, 'Starts the scene'); }).join('') + '</ol>'
-        : '<p class="faint cp-mnone">No music yet. The first item you add starts the scene.</p>') +
-      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddmusic" data-sc="' + sc.id + '" data-k="am-' + sc.id + '" title="Plays in order; drop audio files on the box to add them">' + L.icon('plus', 's') + 'Add tracks or playlists…</button></div></div>';
+        : '<p class="faint cp-mnone">No music yet. The first item you add plays when the scene starts.</p>') +
+      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddmusic" data-sc="' + sc.id + '" data-k="am-' + sc.id + '" title="The music plays in order. Drop audio files on the box to add them.">' + L.icon('plus', 's') + 'Add tracks or playlists…</button></div></div>';
   }
   function boardList(sc) {
     var bds = L.sceneBoards(sc).filter(function (b) { return L.board(b); });
@@ -650,7 +650,7 @@
       (i < n - 1 ? '<button role="menuitem" data-act="cpmove" data-dir="1" ' + mv + '>' + L.icon('chevdown') + 'Move down</button>' : '') +
       '<button role="menuitem" data-act="cpaddscene" data-id="' + id + '">' + L.icon('plus') + 'Add a scene after this one</button>' +
       // Round 7 (PLY-8, SHW-3): what the scene does when it starts, as steps, and whether it moves on by itself.
-      '<button role="menuitem" data-act="stepsopen" data-what="scene" data-ref="' + ctx().c.id + '/' + ctx().s.id + '/' + id + '">' + L.icon('list') + 'What it does when it starts…</button>' +
+      '<button role="menuitem" data-act="stepsopen" data-what="scene" data-ref="' + ctx().c.id + '/' + ctx().s.id + '/' + id + '">' + L.icon('list') + 'Start…</button>' +
       '<button role="menuitem" data-act="cpdup" data-id="' + id + '">' + L.icon('queue') + 'Duplicate</button><div class="sep"></div>' +
       '<button role="menuitem" data-act="cpdelask" data-id="' + id + '" class="cp-danger">' + L.icon('trash') + 'Delete…</button>', 'Scene actions');
   };
@@ -700,7 +700,7 @@
       'A scene\'s <b>Music</b> is now one ordered list of <b>tracks and playlists in any mix</b>: slot a track between playlists, or use only one kind. It plays from the top and loops; the first item starts the scene, and in play you can start any item. Open <b>The abbey ruins</b> to see one.',
       '<b>Add tracks or playlists…</b> opens a picker with Preview on every row and an arrow to see a playlist\'s tracks before you add it. Move, remove, open and the Audio profile are in each row\'s ⋯ menu.',
       '<b>Ambience</b> can be one track or an ambience playlist, with Preview. <b>Pad boards</b>: a scene can have several; the first shows when the scene starts, and each one can be previewed and opened to see its pads.',
-      '<b>Cleaner:</b> every box has a coloured top edge for its purpose (blue music, lime pads, accent for plans) and at most one status pill (e.g. "Coming later"; round 6 part 5: no scene count, no Ready or Saved). Folded scenes show one line and one chip; hover the scene name for its Starts when, ambience and boards. Rows show Preview and Play on air, then ⋯ for the rest.',
+      '<b>Cleaner:</b> every box has a coloured top edge for its purpose (blue music, lime pads, accent for plans) and at most one status pill (e.g. "Coming later"; round 6 part 5: no scene count, no Ready or Saved). Folded scenes show one line and one chip; hover the scene name for its Story cue, ambience and boards. Rows show Preview and Play on air, then ⋯ for the rest.',
       '<b>Prep | Live</b> and <b>Run this session</b> are both in the header.',
       'Obsidian placeholders (coming later): a <b>Session note</b> in the folded Obsidian pane, and an optional <b>Note link</b> per scene.'
     ],

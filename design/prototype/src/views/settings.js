@@ -64,7 +64,7 @@
     var token = rep
       ? '<div class="st-tok-new"><label class="sr-only" for="st-tok-' + b.id + '">New token for ' + esc(b.name) + '</label><input class="input" type="password" id="st-tok-' + b.id + '" data-input="sttok" data-id="' + b.id + '" data-k="' + k + '-tokin" autocomplete="off" placeholder="Paste the new token">' +
         '<button class="btn s primary" data-act="sttoksave" data-id="' + b.id + '" data-k="' + k + '-toksave">Save</button><button class="btn s ghost" data-act="sttokcancel" data-k="' + k + '-tokx">Cancel</button></div>'
-      : '<span class="st-tok num" title="Kept encrypted on this computer; only the last four characters show">' + (b.token ? '••••••••' + esc(b.token) : '<span class="faint">No token</span>') + '</span>' +
+      : '<span class="st-tok num" title="Kept encrypted on this computer. Only its last four characters are shown.">' + (b.token ? '••••••••' + esc(b.token) : '<span class="faint">No token</span>') + '</span>' +
         '<button class="btn s ghost" data-act="sttokrep" data-id="' + b.id + '" data-k="' + k + '-tokrep" aria-label="Replace the token of ' + esc(b.name) + '">Replace…</button>';
     var on = b.login === 'online' || b.login === 'connecting';
     return '<div class="st-bot" role="group" aria-label="' + esc(b.name) + '">' +
@@ -110,7 +110,7 @@
     if (b.status !== 'idle') L.botLeave(b.id);
     list.splice(i, 1); L.state.sendTo = L.state.sendTo.filter(function (x) { return x !== b.id; });
     L.undoNote('Removed ' + b.name + ' and its token.', function () { list.splice(i, 0, was); });
-    L.render(); L.say('Removed ' + b.name + '. Undo is at the bottom right, or press Ctrl+Z.');
+    L.render(); L.say('Removed ' + b.name + '. To undo this, press Undo, at the bottom right, or Ctrl+Z.');
     var n = document.querySelector('[data-k="st-add"]'); if (n) n.focus();
   };
 
@@ -131,13 +131,13 @@
       '<div class="field"><label for="st-appid">Application ID</label><div class="row-flex"><input class="input num" id="st-appid" data-input="stappid" data-k="st-appid" value="' + esc(a.appId) + '" inputmode="numeric" autocomplete="off" placeholder="Paste it here">' +
         '<a class="btn s primary" href="' + esc(L.inviteURL(a.appId.trim() || '')) + '" target="_blank" rel="noopener" data-act="stopeninv" data-k="st-openinv"' + (/^\d{15,22}$/.test(a.appId.trim()) ? '' : ' aria-disabled="true"') + '>' + L.icon('link', 's') + 'Open the invite</a></div>' +
         '<p class="st-err" id="st-appid-e" hidden>' + L.icon('warn', 's') + '<span></span></p></div>' +
-      '<ol class="st-do"><li>Choose your server, <b>Authorize</b>. You need <b>Manage Server</b> on it.</li></ol>' +
+      '<ol class="st-do"><li>Choose your server and press <b>Authorize</b>. You need <b>Manage Server</b> on it.</li></ol>' +
       '<button class="st-handbtn" data-act="stbyhand" data-k="st-byhand" aria-expanded="' + !!a.byHand + '" aria-controls="st-hand">' + L.icon(a.byHand ? 'chevup' : 'chevdown', 's') + 'Or make the invite by hand</button>' +
       (a.byHand ? '<ol class="st-do" id="st-hand"><li><b>OAuth2</b> › <b>URL Generator</b></li><li>Scopes: <b>bot</b></li><li>Bot Permissions: <b>View Channels</b>, <b>Connect</b>, <b>Speak</b></li>' +
-        '<li>Open the <b>Generated URL</b>, choose your server, <b>Authorize</b></li></ol>' : '');
+        '<li>Open the <b>Generated URL</b>, choose your server and press <b>Authorize</b></li></ol>' : '');
     else body = '<ol class="st-do"><li><b>Bot</b> › <b>Reset Token</b> › <b>Copy</b>. Discord shows it once.</li></ol>' +
       '<div class="field"><label for="st-newtok">Token</label><input class="input" type="password" id="st-newtok" data-input="stnewtok" data-k="st-newtok" autocomplete="off" placeholder="Paste it here" aria-describedby="st-newtok-d">' +
-        '<span class="hint" id="st-newtok-d" title="Lost it? Reset Token again makes a new one">Kept encrypted on this computer.</span></div>' +
+        '<span class="hint" id="st-newtok-d" title="If you lose it, press Reset Token again to make a new one.">Kept encrypted on this computer.</span></div>' +
       '<p class="st-err" id="st-newtok-e" role="alert" hidden>' + L.icon('warn', 's') + 'Paste the token first</p>' +
       (a.result ? '<div class="st-result" role="status">' + a.result + '</div>' : '');
     return '<div class="st-add">' + nav + '<div class="st-stepbody" id="st-stepbody">' + body + '</div></div>';
@@ -176,7 +176,7 @@
   // The prototype cannot open Discord: it notes that the invite was opened (and so the bot will be in a server).
   L.acts.stopeninv = function (el, e) {
     if (el.getAttribute('aria-disabled') === 'true') { var f = document.getElementById('st-appid'); if (f && !f.value.trim()) appIdProblem('Paste the Application ID first (General Information).'); if (f) f.focus(); return; }
-    S.add.opened = true; L.toast('Opens Discord in your browser: choose your server, Authorize'); L.say('Invite opened in your browser');
+    S.add.opened = true; L.toast('Discord opens in your browser. Choose your server and press Authorize.'); L.say('Invite opened in your browser');
   };
   L.inputs.stnewtok = function () {};
   L.acts.stconnew = function () {
@@ -198,7 +198,7 @@
     return '<label class="lv-switch st-sw' + (o.disabled ? ' dis' : '') + '"' + (o.title ? ' title="' + esc(o.title) + '"' : '') + '><input type="checkbox" role="switch" data-input="' + act + '" data-k="st-' + id + '" data-save="setting: ' + esc(label) + '"' + (on ? ' checked' : '') + (o.disabled ? ' disabled aria-describedby="st-' + id + '-why"' : '') + '><span class="lv-switch-t"><b>' + label + '</b></span></label>' +
       (o.disabled && o.why ? '<span class="sr-only" id="st-' + id + '-why">' + esc(o.why) + '</span>' : '');
   }
-  var MODES = [['quality', 'Best sound quality', 'Clearer sound; works the computer a little harder.'], ['light', 'Lighter on the computer', 'Leaves more power for other programs; slightly less clear.']];
+  var MODES = [['quality', 'Best sound quality', 'Clearer sound, but the computer works a little harder.'], ['light', 'Lighter on the computer', 'Leaves more power for other programs, but the sound is slightly less clear.']];
   function soundBody() {
     return '<div class="seg" role="radiogroup" aria-label="Sound to Discord">' + MODES.map(function (m) {
       return '<button role="radio" aria-checked="' + (S.mode === m[0]) + '" data-act="stmode" data-v="' + m[0] + '" data-k="st-mode-' + m[0] + '" title="' + esc(m[2]) + '">' + m[1] + '</button>';
@@ -232,7 +232,7 @@
       // Round 8 (Nik, 11 Nov 20:33: "Splitting headset should only apply if there is a live track playing simultaneously,
       // it shouldn't apply if it would be the only track playing"): split only while On air plays as well.
       sw('split', 'Split one headset', S.split, 'stsplit', { title: 'While On air plays too: the preview in one ear and On air in the other, on one headset' }) +
-      (S.split ? '<p class="hint st-splitnote">Only while something plays on air; a preview on its own plays in both ears.</p>' : '') +
+      (S.split ? '<p class="hint st-splitnote">This works only while something plays on air. A preview on its own plays in both ears.</p>' : '') +
       (S.split ? '<div class="st-ears" role="radiogroup" aria-label="Which ear has the preview">' + [['left', 'Preview in the left ear'], ['right', 'Preview in the right ear']].map(function (e) {
         return '<label class="lk-radio"><input type="radio" name="st-ear" value="' + e[0] + '" data-input="stear" data-k="st-ear-' + e[0] + '"' + (S.pvEar === e[0] ? ' checked' : '') + '><span>' + e[1] + '</span></label>';
       }).join('') + '</div>' : '');
@@ -287,7 +287,7 @@
     return sw('remote', 'Let other devices control Lyre', S.remote, 'stremote', { title: 'The Stream Deck plugin, a phone or another program on this computer or your network' }) +
       (S.remote ? '<div class="st-code" role="group" aria-label="Secret code"><span class="st-l">Code</span><output class="num st-codev">' + esc(S.code) + '</output>' +
         '<button class="btn s" data-act="stcodecopy" data-k="st-codecopy">' + L.icon('file', 's') + 'Copy code</button>' +
-        '<button class="btn s ghost" data-act="stcodenew" data-k="st-codenew" title="The old code stops working at once; type the new one on each device">' + L.icon('restart', 's') + 'Make a new code</button></div>' +
+        '<button class="btn s ghost" data-act="stcodenew" data-k="st-codenew" title="The old code stops working at once. Type the new one on each device.">' + L.icon('restart', 's') + 'Make a new code</button></div>' +
         '<div class="st-listen" role="radiogroup" aria-label="Listens on">' + [['local', 'This computer only'], ['home', 'Your home network']].map(function (x) {
           return '<label class="lk-radio"><input type="radio" name="st-listen" value="' + x[0] + '" data-input="stlisten" data-k="st-listen-' + x[0] + '"' + (S.listen === x[0] ? ' checked' : '') + '><span>' + x[1] + '</span></label>';
         }).join('') + '</div>' +
@@ -339,7 +339,7 @@
       var remote = !SHOW_REMOTE ? '' : L.pane({ id: 'st-remote', title: 'Remote control', icon: 'link', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: remoteBody(), status: S.remote ? { text: 'On', tone: 'on' } : null,
         describe: 'Off until you turn it on. Each device needs the secret code.' });
       var keys = L.pane({ id: 'st-keys', title: 'Keyboard shortcuts', icon: 'grid', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: keysBody(),
-        describe: 'Ctrl+K finds and plays anything. Change any key here.' });
+        describe: 'Press Ctrl+K to find and play anything. You can change any key here.' });
       return head + '<div class="viewbody st-body"><div class="st-split"><div class="col">' + botPane + '</div><div class="col">' + sound + devices + remote + keys + '</div></div></div>';
     }
   });

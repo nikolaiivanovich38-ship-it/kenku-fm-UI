@@ -147,7 +147,7 @@
     pl2.pls.forEach(function (x) { if (hasOwn(t, x.key)) return; var p = L.playlist(x.key.slice(3)), n = p && nextIn(L.playlistTracks(p).map(function (y) { return y.id; }), t); if (n) out.push({ label: 'In the playlist ' + x.label, next: n, place: x.key }); });
     if (!out.length) {
       var same = D.tracks.filter(function (x) { return x.kind === t.kind; }), k = same.indexOf(t);
-      out.push({ label: 'The next track in the Library', next: same[(k + 1) % same.length].id, place: '', lib: true });
+      out.push({ label: 'The next track in the Track library', next: same[(k + 1) % same.length].id, place: '', lib: true });
     }
     return out;
   }
@@ -332,7 +332,7 @@
   function handle(t, which, v, label, cls) {
     var r = range(t, which), ro = !editable(t), len = which.indexOf('fade') === 0;
     return '<div class="ap-h ' + cls + '" role="slider" tabindex="0" data-aph="' + which + '" data-k="ap-h-' + which + '" style="left:' + pct(t, which === 'fadein' ? value(prof(t), 'start') + v : which === 'fadeout' ? value(prof(t), 'end') - v : v) + '" aria-label="' + label + '" aria-orientation="horizontal"' +
-      (ro ? ' aria-readonly="true"' : '') + ' aria-valuemin="' + r[0] + '" aria-valuemax="' + r[1] + '" aria-valuenow="' + v + '" aria-valuetext="' + (len ? secs(v) : L.fmt(v)) + '" title="' + label + ' ' + (len ? secs(v) : L.fmt(v)) + (ro ? ' (the track\'s settings: not editable in this place)' : len ? ': drag along the volume line, or arrow keys to change the length' : ': drag, or use the arrow keys (Shift for 10 s)') + '">' +
+      (ro ? ' aria-readonly="true"' : '') + ' aria-valuemin="' + r[0] + '" aria-valuemax="' + r[1] + '" aria-valuenow="' + v + '" aria-valuetext="' + (len ? secs(v) : L.fmt(v)) + '" title="' + label + ' ' + (len ? secs(v) : L.fmt(v)) + (ro ? ' (the track\'s settings: they cannot be changed here)' : len ? ': drag along the volume line, or arrow keys to change the length' : ': drag, or use the arrow keys (Shift for 10 s)') + '">' +
       (len ? '<span class="ap-knob"></span>' : '<span class="ap-htab">' + L.icon('drag', 's') + (which === 'loop' ? 'Loop' : label) + '</span>') + '</div>';
   }
   function waveHTML(t, p) {
@@ -387,7 +387,7 @@
     var opts = '<fieldset class="ap-opts"' + dis(t) + '><legend class="sr-only">At its end</legend>' +
       radio(t, cur, 'loop', 'loop', 'Loop', 'Back to the loop start: ' + L.fmt(p.loopStart) + ' to ' + L.fmt(p.end)) +
       radio(t, cur, 'xloop', 'loop', 'Loop with a crossfade', 'The same loop, with ' + (p.loopXfade || 3) + ' s of crossfade at the join') +
-      radio(t, cur, 'next', 'next', 'Next track', 'The scene or playlist moves on; played on its own, it stops') +
+      radio(t, cur, 'next', 'next', 'Next track', 'The scene or playlist moves on. Played on its own, the track stops.') +
       radio(t, cur, 'fade', 'fade', 'Fade out', 'Over ' + ((p.fadeOut && p.fadeOut.dur) || 4) + ' s before its end') +
       radio(t, cur, 'stop', 'stop', 'Stop', '') +
       radio(t, cur, 'follow', 'playair', 'Play…', t.follow ? 'Then plays ' + esc(followName(t.follow)) : 'Choose what plays when it ends') + '</fieldset>';
@@ -396,7 +396,7 @@
       nx = '<div class="ap-next"><span class="ap-ro-l">Next track</span>' +
         (cs.length > 1 ? '<label class="sr-only" for="ap-ctx">Hear the hand-over as it plays</label><select id="ap-ctx" class="input" data-input="apctx" data-k="ap-ctx">' + cs.map(function (x, i) { return '<option value="' + i + '"' + (x === c ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</select>' : '<span class="muted">' + esc(c.label) + '</span>') +
         '<div class="row-flex"><span class="grow ellipsis" title="' + esc(L.title(n)) + '"><b>' + esc(L.title(n)) + '</b></span>' + L.profileLink(n.id, c.place, true) + '</div>' +
-        (c.lib ? '<p class="hint">Not in a scene or playlist yet: the preview uses the next Library track.</p>' : '') + '</div>';
+        (c.lib ? '<p class="hint">This track is not in a scene or playlist yet, so the preview uses the next track in the Track library.</p>' : '') + '</div>';
     }
     var fields = '<div class="ap-fields">' + field(t, 'start', p.start, 'Start at playhead', 'I') + field(t, 'end', p.end, 'End at playhead', 'O') +
       (p.after === 'loop' ? field(t, 'loop', p.loopStart, 'Loop from playhead', 'L') : '') + '</div>';
@@ -448,14 +448,14 @@
     if (!S.key) {
       var others = L.profileKeys(t);
       // Round 6: "This track everywhere" in the list already says whose settings these are.
-      st = (others.length ? '<span class="hint ap-place-h">Not used in ' + others.map(function (k) { return esc(placeName(k)); }).join(', ') + ' (own settings)</span>' : '');
+      st = (others.length ? '<span class="hint ap-place-h">Not used in ' + others.map(function (k) { return esc(placeName(k)); }).join(', ') + ' (each has its own settings)</span>' : '');
     } else if (own) {
       st = '<span class="ap-badge own">' + L.icon('edit', 's') + 'Editing own settings for ' + esc(placeName(S.key)) + '</span>' +
         '<button class="btn s" data-act="apclear" data-k="ap-clear" title="Remove the settings for this ' + kind + ' and use the track\'s own settings here">' + L.icon('restart', 's') + 'Back to the track\'s settings</button>';
     } else {
       st = '<div class="seg s ap-choice" role="group" aria-label="Settings in ' + esc(placeName(S.key)) + '">' +
         '<button data-act="apuse" data-k="ap-use" aria-pressed="true">' + L.icon('check', 's') + 'Use the track\'s settings here</button>' +
-        '<button data-act="apown" data-k="ap-own" aria-pressed="false">' + L.icon('edit', 's') + 'Give this place its own settings</button></div>' +
+        '<button data-act="apown" data-k="ap-own" aria-pressed="false">' + L.icon('edit', 's') + 'Use separate settings here</button></div>' +
         (S.undoClear && S.undoClear.key === S.key ? '<button class="btn s ghost" data-act="apundo" data-k="ap-undo">Undo: bring its own settings back</button>' : '');
     }
     return '<div class="ap-place' + (S.key ? (own ? ' is-own' : ' is-ro') : '') + '">' + sel + '<div class="ap-place-st">' + st + '</div></div>';
@@ -509,7 +509,7 @@
     title: function (p) { var t = L.track(p.tid); return t ? 'Audio profile: ' + L.title(t) : 'Audio profile'; },
     render: function (prm) {
       var t = L.track(prm.tid);
-      if (!t) return '<div class="viewhead"><h1>Audio profile</h1></div><div class="empty">That track is not in the library. <a href="#/library">Back to the Library</a></div>';
+      if (!t) return '<div class="viewhead"><h1>Audio profile</h1></div><div class="empty">That track is not in the library. <a href="#/library">Back to Track library</a></div>';
       var key = prm.ctx || '';
       if (S.tid !== t.id || S.key !== key) {
         if (S.tid !== t.id) S.undoClear = null;
@@ -578,7 +578,7 @@
   }
   function fromSec(p, which, sec) { return which === 'fadein' ? sec - p.start : which === 'fadeout' ? p.end - sec : sec; }
   function sayPoint(which) { var p = prof(track()), v = value(p, which); L.say(POINT[which] + ' ' + (which.indexOf('fade') === 0 || which === 'xfade' ? secs(v) : L.fmt(v))); }
-  function readOnlyNote() { L.toast('These are the track\'s settings. Give this place its own settings to change them here.'); }
+  function readOnlyNote() { L.toast('These are the track\'s settings. To change them only here, press Use separate settings here.'); }
   function handleDown(e) {
     if (e.button !== 0) return; e.preventDefault(); var which = e.currentTarget.dataset.aph, t = track(); e.currentTarget.focus();
     if (!editable(t)) { readOnlyNote(); return; }
@@ -651,7 +651,7 @@
   // Places
   function goPlace(key) { L.route('#/profile/' + S.tid + (key ? '/' + key : '')); setTimeout(function () { var s = document.querySelector('[data-k="ap-place"]'); if (s) s.focus(); }, 0); }
   L.inputs.applace = function (el) { goPlace(el.value); L.say('Settings for ' + placeName(el.value)); };
-  L.acts.apown = function () { var t = track(); L.profileStore(t, S.key, true); S.saved = true; S.undoClear = null; S.focusK = 'ap-clear'; L.say('This place now has its own settings, copied from the track\'s'); L.saved('own settings for ' + placeName(S.key).replace(/^the /, ''), { detail: 'copied from the track\'s' }); L.render(); };
+  L.acts.apown = function () { var t = track(); L.profileStore(t, S.key, true); S.saved = true; S.undoClear = null; S.focusK = 'ap-clear'; L.say('Separate settings are now used here, copied from the track\'s'); L.saved('own settings for ' + placeName(S.key).replace(/^the /, ''), { detail: 'copied from the track\'s' }); L.render(); };
   L.acts.apuse = function () { L.say('Using the track\'s settings here'); };
   L.acts.apclear = function () { var t = track(); S.undoClear = { key: S.key, p: D.profiles[S.key][t.id] }; L.clearProfile(t, S.key); S.saved = false; S.focusK = 'ap-own'; L.say('Back to the track\'s settings here'); L.render(); };
   L.acts.apundo = function () { var t = track(), u = S.undoClear; if (!u) return; D.profiles[u.key] = D.profiles[u.key] || {}; D.profiles[u.key][t.id] = u.p; S.undoClear = null; S.focusK = 'ap-clear'; L.say('Own settings brought back'); L.render(); };

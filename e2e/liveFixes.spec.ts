@@ -158,7 +158,7 @@ test("kicking the only bot keeps On air's music; adding the bot back by hand pla
   await lyre.getByRole("button", { name: "Start scene 3: The abbey ruins" }).click();
   const onAir = lyre.getByRole("region", { name: "On air" });
   await expect(onAir.getByRole("group", { name: "Table" }).getByText("Playing")).toBeVisible();
-  await lyre.getByRole("button", { name: "Kick Lyre Table from Table" }).click();
+  await lyre.getByRole("button", { name: "Make Lyre Table leave Table" }).click();
   // Undo is offered (Nik saw none), and No room still shows what plays.
   await expect(onAir.getByRole("group", { name: "Undo" }).filter({ hasText: "Lyre Table left Table" })).toBeVisible();
   const noRoom = onAir.getByRole("group", { name: "No room" });

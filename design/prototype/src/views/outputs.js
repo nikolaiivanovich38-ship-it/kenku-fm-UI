@@ -64,14 +64,14 @@
           return '<button ' + attrs + ' class="op-mi op-mi1' + (here ? ' here' : '') + '"' + (w ? ' title="' + (others.length ? 'Players would hear it twice' : 'Nobody would hear it') + '"' : '') + '>' + mark + '<span class="op-mi-n ellipsis grow">' + esc(c.name) + '</span>' + note + '</button>';
         }
         var sub = [here ? 'Here now' : '', n ? people(n) : ''].filter(Boolean).join(' · ');
-        var warn = others.length ? esc(names(others)) + ' is here: players would hear it twice' : !n ? (here ? 'Nobody is listening' : 'Empty: nobody would hear it') : '';
+        var warn = others.length ? esc(names(others)) + ' is here too, so the players would hear it twice' : !n ? (here ? 'Nobody is listening' : 'Empty: nobody would hear it') : '';
         return '<button ' + attrs + ' class="op-mi' + (here ? ' here' : '') + '">' + mark + '<span class="grow op-mi-t"><span class="op-mi-n">' + esc(c.name) + '</span>' + (sub ? '<span class="op-mi-s">' + sub + '</span>' : '') +
           (warn ? '<span class="op-mi-w">' + ic('alert', 's') + warn + '</span>' : '') + '</span></button>';
       }).join('');
       return '<div class="group' + (compact ? ' op-mg2' : '') + '">' + esc(g.name) + '</div>' + items;
     }).join('');
   }
-  function leaveItem(b) { return inRoom(b) ? '<div class="sep"></div><button role="menuitem" data-act="opleave" data-bot="' + b.id + '">' + ic('off', 's') + 'Kick from ' + esc(chName(b)) + '</button>' : ''; }
+  function leaveItem(b) { return inRoom(b) ? '<div class="sep"></div><button role="menuitem" data-act="opleave" data-bot="' + b.id + '">' + ic('off', 's') + 'Leave ' + esc(chName(b)) + '</button>' : ''; }
   L.botsMenuHTML = function () {
     return '<div class="op-menu">' + L.bots().map(function (b) {
       return '<div role="group" aria-label="' + esc(L.outputName(b)) + '"><div class="group op-mg">' + esc(L.outputName(b)) + (inRoom(b) ? ' <span class="op-mg-bot">' + esc(b.name) + '</span>' : '') + ': ' + esc(pill(b).text) + '</div>' +
@@ -85,15 +85,15 @@
     if (inRoom(b) && b.server === sid && b.channel === cid) { L.toast(b.name + ' is already in ' + c.name); return; }
     var others = roomBots(sid, cid).filter(function (x) { return x !== b; });
     L.botJoin(b.id, sid, cid);
-    if (others.length) L.toast(b.name + ' is joining ' + c.name + ', where ' + names(others) + ' already plays: players will hear it twice');
-    else if (!c.members.length) L.toast(b.name + ' is joining ' + c.name + ': nobody there.');
+    if (others.length) L.toast(b.name + ' is joining ' + c.name + ', where ' + names(others) + ' already plays, so the players will hear it twice');
+    else if (!c.members.length) L.toast(b.name + ' is joining ' + c.name + ', but nobody is there.');
     else L.toast(b.name + ' is joining ' + c.name);
     refocus(b.id);
   };
   // OUT-7: Kick at once; when the players there lose sound, an Undo puts the bot back with what it played.
   L.acts.opleave = function (el) {
     var b = L.bot(el.dataset.bot); if (!b) return; var w = chName(b), k = L.botKick(b.id); if (!k) return;
-    if (k.lost) L.undoNote(b.name + ' left ' + w + ': the players there hear nothing now.', k.restore); else L.toast(b.name + ' left ' + w);
+    if (k.lost) L.undoNote(b.name + ' left ' + w + ', so the players there hear nothing now.', k.restore); else L.toast(b.name + ' left ' + w);
     L.render(); refocus(b.id);
   };
   L.acts.opgo = function () { L.route('#/outputs'); };
@@ -123,7 +123,7 @@
   L.acts.optest = function (el) {
     var b = L.bot(el.dataset.bot); if (!b) return;
     if (b.status !== 'connected') { L.toast(b.name + (b.status === 'connecting' ? ' is still joining. Try again in a moment.' : ' is not in a voice channel. Choose a room first.')); return; }
-    if (b.muted) { L.toast(chName(b) + ' is muted: unmute it to hear the test chime'); return; }
+    if (b.muted) { L.toast(chName(b) + ' is muted. Unmute it to hear the test chime.'); return; }
     var n = L.botListeners(b).length; testUntil[b.id] = Date.now() + 1600;
     // Round 6, part 5: one message, read out once (it was a note and an announcement of the same event).
     L.toast('Test chime in ' + chName(b) + ' only' + (n ? ' (' + people(n).toLowerCase() + ' there)' : ': nobody is there to hear it'));
@@ -162,7 +162,7 @@
   }
   function warnings(b) {
     var out = [], dup = sharing(b);
-    if (dup.length) out.push('<p class="op-warn">' + ic('alert', 's') + '<span class="grow">' + esc(names(dup)) + ' is in ' + esc(chName(b)) + ' too: the players hear both.</span><button class="btn s" data-act="opleave" data-bot="' + b.id + '" data-k="op-wl-' + b.id + '">Kick</button></p>');
+    if (dup.length) out.push('<p class="op-warn">' + ic('alert', 's') + '<span class="grow">' + esc(names(dup)) + ' is in ' + esc(chName(b)) + ' too, so the players hear both.</span><button class="btn s" data-act="opleave" data-bot="' + b.id + '" data-k="op-wl-' + b.id + '" aria-label="Make ' + esc(b.name) + ' leave ' + esc(chName(b)) + '">Leave</button></p>');
     if (b.status === 'error') out.push('<p class="op-warn op-err">' + ic('alert', 's') + '<span class="grow">' + esc(L.botStatusText(b)) + '</span>' + (b.server ? '<button class="btn s" data-act="opretry" data-bot="' + b.id + '" data-k="op-retry-' + b.id + '">Try again</button>' : '') + '</p>');
     return out.join('');
   }
@@ -185,7 +185,7 @@
 
   /* ---------- all voice channels ---------- */
   function kickBtn(b, k) {
-    return '<button class="btn s icon op-kick" data-act="opleave" data-bot="' + b.id + '" data-k="' + k + '" aria-label="Kick ' + esc(b.name) + ' from ' + esc(chName(b)) + '" title="Kick ' + esc(b.name) + ' from ' + esc(chName(b)) + '">' + L.icon('leave', 's') + '</button>';
+    return '<button class="btn s icon op-kick" data-act="opleave" data-bot="' + b.id + '" data-k="' + k + '" aria-label="Make ' + esc(b.name) + ' leave ' + esc(chName(b)) + '" title="Make ' + esc(b.name) + ' leave ' + esc(chName(b)) + '">' + L.icon('leave', 's') + '</button>';
   }
   function channelRow(g, c) {
     var here = roomBots(g.id, c.id), n = c.members.length, list = candidates(g.id, c.id);
@@ -215,7 +215,7 @@
       'One <b>On air</b> box per bot, titled with its room (the voice channel it is in), with one pill saying what it is doing: Playing, Silent, Muted, Joining or Not in a room.',
       'Each box shows what that room is playing now, who hears it, its volume and a level meter. Its red edge shows only while the players there hear something.',
       '<b>Room</b> moves a bot to any voice channel; the list says how many people are there and warns when another bot is there (players would hear it twice) or nobody is. <b>Swap rooms</b> trades two bots\' rooms.',
-      '<b>All voice channels</b> (round 6, OUT-7): who is in each channel and each bot in it with <b>×</b> to kick it. <b>Add bot</b> puts the free bot there in one click (a short choice when there are several). Kicking a bot the players hear shows <b>Undo</b>, not a question. Test (bell) plays a chime in one room only.',
+      '<b>All voice channels</b> (round 6, OUT-7): who is in each channel and each bot in it with <b>×</b> to make it leave. <b>Add bot</b> puts the free bot there in one click (a short choice when there are several). When a bot the players hear leaves, <b>Undo</b> shows, not a question. Test (bell) plays a chime in one room only.',
       'Try it: Add bot on Side room, then × on Lyre Table while it plays.'
     ],
     render: function () {

@@ -18,7 +18,7 @@ const sceneMusic = (page: Page) => page.getByRole("region", { name: /^(Current s
    the page, which finds it in the app's boxes as well. */
 /** Round 9 (item 56): a room's name is the button that moves it, and Kick is Leave; the app's 0.5.1 names are read too. */
 const ROOM_TABLE = /^(Lyre Table in Table: change|Room Table: move or change)/;
-const LEAVE_TABLE = /^(Kick Lyre Table from Table|Leave Table)$/;
+const LEAVE_TABLE = /^Make Lyre Table leave Table$/;
 const room = (page: Page, name: string) => region(page, "On air").getByRole("group", { name, exact: true });
 /** Round 6 part 3: Find a track is a field in the top strip (it was the Off script box); its results open under it. */
 const findField = (page: Page) => page.getByRole("searchbox", { name: /^Find a track/ });
@@ -553,7 +553,7 @@ test.describe("rooms", () => {
     expectFailureUntilBuilt("live", "rooms-settings"); // OUT-7: Kick (×) in the room's header instead of Leave in its ⋯ menu
     await openRoute(page, "live");
     await addSideRoom(page);
-    await page.getByRole("button", { name: /^(Kick Lyre Side from Side room|Leave Side room)$/ }).click();
+    await page.getByRole("button", { name: "Make Lyre Side leave Side room" }).click();
     await expect(room(page, "Side room")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /choose a room/i })).toHaveCount(0);
   });
@@ -906,7 +906,7 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
     await expect(open).toHaveAttribute("aria-expanded", "false");
     await expect(room(page, "Table").getByRole("button", { name: "Pause music" })).toBeVisible();
     await open.click();
-    await expect(room(page, "Table").getByRole("button", { name: /^(Kick|Leave) / })).toBeVisible();
+    await expect(room(page, "Table").getByRole("button", { name: /^Make .+ leave / })).toBeVisible();
   });
 
   test("Should 6: the session's and the campaign's boxes sit under This session and Whole campaign", async ({ page }) => {
@@ -1013,7 +1013,7 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
     expectFailureUntilBuilt("live");
     await openRoute(page, "live");
     // Round 10 (prep review S2): the story note is the Story cue; the app's words until it is built: Starts when.
-    await expect(scenes(page)).toContainText(/(Starts when|Story cue): As the recap starts/);
+    await expect(scenes(page)).toContainText("Story cue: As the recap starts");
   });
 });
 
@@ -1240,7 +1240,7 @@ test.describe("round 7, part 2: Live", () => {
   async function sceneSteps(page: Page, scene: string) {
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: `More for ${scene}`, exact: true }).click();
-    await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
+    await page.getByRole("menuitem", { name: "Start…" }).click();
     return page.getByRole("dialog");
   }
 

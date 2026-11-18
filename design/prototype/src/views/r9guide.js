@@ -47,9 +47,9 @@
   }
   // Round 10 (look D7, prep D12): one Dock menu with words in place of three unlabelled glyphs.
   L.floatTools = function () {
-    return '<span class="r9-fl-tools" role="group" aria-label="Place">' +
-      '<button class="btn s" data-act="r10dockmenu" data-k="r10-dock" aria-haspopup="menu" aria-expanded="false" title="Dock it left or right, or let it float (drag its title to move it, its corner to size it)">Dock' + L.icon('chevdown', 's') + '</button>' +
-      '<button class="btn s icon r9-fl-move" data-r9-move="1" title="Move with the arrow keys; Shift and the arrows change its size" aria-label="Move or size with the arrow keys">' + L.icon('drag', 's') + '</button></span>';
+    return '<span class="r9-fl-tools" role="group" aria-label="Panel position">' +
+      '<button class="btn s" data-act="r10dockmenu" data-k="r10-dock" aria-haspopup="menu" aria-expanded="false" title="Dock it left or right, or let it float. Drag its title bar to move it, or its corner to change its size.">Dock' + L.icon('chevdown', 's') + '</button>' +
+      '<button class="btn s icon r9-fl-move" data-r9-move="1" title="Move it with the arrow keys. Hold Shift and use the arrows to change its size." aria-label="Move or size with the arrow keys">' + L.icon('drag', 's') + '</button></span>';
   };
   L.floatPlace = function (p) {
     var g = geo();
@@ -64,7 +64,7 @@
   L.acts.r9dock = function (el) {
     var p = el.closest('.panel') || document.querySelector('#lyre-sheet .panel'), v = el.dataset.v, cur = cur0(p);
     var g = v === 'float' ? { dock: 'float', left: cur.left - 40, top: cur.top + 40, width: Math.min(cur.width, 720), height: Math.min(cur.height, 560) } : docked(v, p.closest('.r10-docked') ? cur.width : null);
-    apply(p, g); saveGeo(g); L.say(v === 'float' ? 'Floating: drag its title to move it' : 'Docked on the ' + v); var d = p.querySelector('[data-k="r10-dock"]'); if (d) d.focus();
+    apply(p, g); saveGeo(g); L.say(v === 'float' ? 'The panel floats. Drag its title bar to move it.' : 'Docked on the ' + v); var d = p.querySelector('[data-k="r10-dock"]'); if (d) d.focus();
   };
   function cur(p) { var r = p.getBoundingClientRect(); return { dock: 'float', left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) }; }
   function cur0(p) { return cur(p); }
@@ -100,14 +100,14 @@
   function tagged(t) { return D.tagGroups.some(function (g) { return (t.tags[g.id] || []).length; }); }
   var TASKS = [
     { id: 'bot', title: 'Connect a Discord bot', done: function () { return D.discord.bots.some(function (b) { return !b.login || b.login === 'online'; }); }, tour: 'settings' },
-    { id: 'room', title: 'Put it in a room', done: function () { return D.discord.bots.some(function (b) { return b.status === 'connected'; }); }, tour: 'rooms' },
+    { id: 'room', title: 'Put the bot in a room', done: function () { return D.discord.bots.some(function (b) { return b.status === 'connected'; }); }, tour: 'rooms' },
     { id: 'music', title: 'Add your music', done: function () { return D.tracks.length > 0; }, tour: 'library' },
     { id: 'tags', title: 'Tag a few tracks', done: function () { return D.tracks.filter(tagged).length >= 3; }, tour: 'details' },
     { id: 'playlist', title: 'Make a playlist', done: function () { return D.playlists.length > 0; }, tour: 'playlists' },
     { id: 'plan', title: 'Plan a session and its scenes', done: function () { return D.campaigns.some(function (c) { return c.sessions.some(function (s) { return s.scenes.length > 1; }); }); }, tour: 'session' },
     { id: 'pads', title: 'Build a pad board', done: function () { return D.boards.some(function (b) { return L.boardPads(b).filter(Boolean).length; }); }, tour: 'board' },
     { id: 'live', title: 'Run a scene in Live', done: function () { return ranLive; }, tour: 'live' },
-    { id: 'look', title: 'Choose a look (optional)', done: function () { return !!L.state.theme; }, tour: 'look' }
+    { id: 'look', title: 'Choose a theme (optional)', done: function () { return !!L.state.theme; }, tour: 'look' }
   ];
   var hidden = false;
   try { hidden = localStorage.getItem('lyre-r9-setup') === 'hidden'; } catch (e) { /* storage unavailable */ }
@@ -115,46 +115,46 @@
   function firstCampaignSession() { var c = L.campaign(L.state.live.cid) || D.campaigns[0], s = L.nextSession(c); return { c: c, s: s }; }
   var TOURS = {
     settings: { route: '#/settings', name: 'Settings › Discord bots', steps: [
-      ['[data-pane="st-bots"] .pane-actions .btn, [data-act="stadd"]', 'Add a bot', 'Each bot is one voice in Discord. Add a bot walks you through making one in Discord and pasting its token.'],
-      ['.st-bot', 'Your bot', 'Connected means Lyre can use it. Replace… takes a new token; ⋯ renames or removes it.'],
-      ['.r9-botstart input', 'Starting volume', 'The volume a bot has when you join it to a room. Bots join only when you join them, in Live.'],
-      ['[data-k="st-rooms"]', 'Rooms', 'Which bot is in which voice channel, all on one page.']] },
+      ['[data-pane="st-bots"] .pane-actions .btn, [data-act="stadd"]', 'Add a bot', 'Lyre needs one bot for each voice channel it plays into. Press Add a bot to see the steps for making one in Discord and pasting its token.'],
+      ['.st-bot', 'Your bot', 'Connected means Lyre can use it. Press Replace… to paste a new token. Rename and Remove are in the ⋯ menu.'],
+      ['.r9-botstart input', 'Starting volume', 'The volume a bot starts at when it joins a room. Bots join a room only when you add them to it, in Live.'],
+      ['[data-k="st-rooms"]', 'Rooms', 'The Rooms screen shows which bot is in which voice channel.']] },
     rooms: { route: '#/live', name: 'Rooms in Live', steps: [
-      ['[data-k="lv-addroom"]', 'Add a room', 'A room is a Discord voice channel Lyre plays into. Pick a channel here; Lyre uses a free bot.'],
-      ['.r9-roombtn', 'Move a room', 'The room’s name moves it to another channel, copies what another room plays, or makes it leave.'],
+      ['[data-k="lv-addroom"]', 'Add a room', 'A room is a Discord voice channel that Lyre plays into. Pick a channel here, and Lyre uses a bot that is not in a room yet.'],
+      ['.r9-roombtn', 'Move a room', 'Press the room’s name to move it to another channel or make it leave. From the same menu you can copy what another room plays.'],
       ['.lv-mute, .lv-vol', 'Mute and volume', 'Each room has its own volume and mute.']] },
     library: { route: '#/library', name: 'Track library', steps: [
-      ['[data-k="lb-add"]', 'Add tracks', 'Add files, a folder, or watch a folder so new files come in by themselves. You can also drop files on the page.'],
-      ['[data-k="lb-q"]', 'Search', 'Any word of a title, file name, artist or tag.'],
-      ['.lb-filters .pane-body', 'Filters', 'Click a filter once to show only those tracks, twice to hide them. The order button sorts the filters.'],
-      ['[data-k="lb-cols"]', 'Columns', 'Choose what the list shows. Click a column’s name to sort by it; again for the other way.']] },
+      ['[data-k="lb-add"]', 'Add tracks', 'Add files or a folder. With Watch a folder…, new files in that folder are added by themselves. You can also drop files on the page.'],
+      ['[data-k="lb-q"]', 'Search', 'Type any word from a title, file name, artist or tag.'],
+      ['.lb-filters .pane-body', 'Filters', 'Click a filter once to show only those tracks. Click it again to hide them. Use the order button to sort the filters.'],
+      ['[data-k="lb-cols"]', 'Columns', 'Choose which columns the list shows. Click a column’s name to sort by it, and click it again to reverse the order.']] },
     details: { route: '#/library', open: function () { var t = D.tracks.filter(function (x) { return !tagged(x); })[0] || D.tracks[0]; return '#/library/' + t.id; }, name: 'A track’s details', steps: [
-      ['#lb-title', 'Your title', 'A name you will recognise at the table. The file keeps its own.'],
-      ['#lb-h-tags', 'Tags', 'Mood, leitmotif and scene type. Tags make dynamic playlists and help Find.'],
-      ['.r9-use', 'Use it for', 'Background, scene music, a short cue or a lead-in.'],
-      ['.r9-end', 'At its end', 'What happens when it ends: loop, the next track, fade out, stop, or play something else.']] },
+      ['#lb-title', 'Your title', 'Type a name you will recognise at the table. The title in the file does not change.'],
+      ['#lb-h-tags', 'Tags', 'Tag the track by mood, leitmotif and scene type. Dynamic playlists are built from tags, and you can search by them.'],
+      ['.r9-use', 'Use it for', 'Choose what the track is for: background, scene music, a short cue or a lead-in.'],
+      ['.r9-end', 'At its end', 'Choose what happens when the track ends: it can loop, move to the next track, fade out, stop, or play something else.']] },
     playlists: { route: '#/playlists', name: 'Playlists', steps: [
-      ['[data-k="plnew"]', 'New playlist', 'By hand (manual), or from tags (dynamic: it fills itself).'],
-      ['[data-k="pl-sort"]', 'Sort', 'Your order, by name, by size or by use.'],
+      ['[data-k="plnew"]', 'New playlist', 'Pick the tracks yourself for a manual playlist. A dynamic playlist is filled with the tracks whose tags match its rules.'],
+      ['[data-k="pl-sort"]', 'Sort', 'Sort the playlists in your order, by name, by size or by use.'],
       ['.r9-plgrip', 'Your order', 'Drag a playlist by its grip, or use Move up and Move down in its ⋯ menu.']] },
     session: { route: '', open: function () { var x = firstCampaignSession(); return '#/session/' + x.c.id + '/' + x.s.id; }, name: 'Planning a session', steps: [
       ['[data-act="cpaddscene"], .pane-actions [data-act^="cpadd"]', 'Add a scene', 'Each scene has its music, ambience, pad boards and notes.'],
-      ['.cp-scene-toggle', 'Open a scene', 'Click its name to open it; drag the grip to change the order.'],
-      ['[data-pane$="ssp"], [aria-label="Session playlists"]', 'This session’s playlists', 'They are on hand in every scene tonight. Drag a track from any open playlist onto a scene’s music.']] },
+      ['.cp-scene-toggle', 'Open a scene', 'Click a scene’s name to open it. Drag its grip to change the order of the scenes.'],
+      ['[data-pane$="ssp"], [aria-label="Session playlists"]', 'This session’s playlists', 'You can play them from any scene in this session. Drag a track from an open playlist onto a scene’s music.']] },
     board: { route: '#/boards', open: function () { return '#/board/' + D.boards[0].id; }, name: 'A pad board', steps: [
-      ['.pb-grid, [aria-label^="Pads"]', 'Pads', 'Each pad plays a sound: click it to choose it, then set it up on the right.'],
-      ['.pb-modes', 'Play mode', 'Once, a loop you toggle, while held, or restart on each press.'],
-      ['.r9-paddip', 'While it plays', 'Whether the music dips while this pad sounds.']] },
+      ['.pb-grid, [aria-label^="Pads"]', 'Pads', 'Each pad plays a sound. Click a pad to select it, then choose its sound and play mode on the right.'],
+      ['.pb-modes', 'Play mode', 'Choose One-shot, Toggle loop, Hold to play or Restart on press.'],
+      ['.r9-paddip', 'While it plays', 'Choose whether the music gets quieter while this pad plays.']] },
     // Round 10 (table review D-S7): the Live tour covers what matters at the table: what the players hear against
     // what only you hear, pads and their keys, Undo, Fade all and Stop all. Arrange and Keys are in the article.
     live: { route: '#/live', name: 'Live', steps: [
-      ['[data-act="lvnext"], .lv-start, [data-k="lv-nextsc"]', 'Next scene', 'Space starts the next scene. A second press within a second is ignored.'],
-      ['[data-pane="lv-onair"] header, [data-k="pane-lv-onair"]', 'On air: what the players hear', 'Each room, what it plays now and what comes next. The red light is on while they hear something.'],
-      ['.lv-trk-acts [data-act="lvpv"], [data-act="lvpv"]', 'Preview: only you', 'The headphones button plays a track in your headphones only. The last button on a row, Play on air, is for the players.'],
-      ['.lv-cur-pads .lv-pad, .lv-pad', 'Pads and their keys', 'Click a pad or press its key. Stop pads, beside them, stops every pad.'],
-      ['.r10-undo-slot', 'Undo', 'After a change to what the players hear, Undo shows here for 8 seconds. Ctrl+Z does the same.'],
-      ['[data-k="lv-fade"]', 'Fade all and Stop all', 'Fade all (Shift+Esc) fades everything out; Stop all stops it at once, your headphones too. Both have Undo.']] },
-    look: { route: '#/look', name: 'Look and feel', steps: [['#view h1', 'Look and feel', 'Choose a theme, text size and how much moves on screen. A campaign can have its own theme.']] }
+      ['[data-act="lvnext"], .lv-start, [data-k="lv-nextsc"]', 'Next scene', 'Press Space to start the next scene. If you press it twice within a second, the second press is ignored.'],
+      ['[data-pane="lv-onair"] header, [data-k="pane-lv-onair"]', 'On air: what the players hear', 'This box shows each room, what it plays now and what comes next. The red light is on while the players hear something.'],
+      ['.lv-trk-acts [data-act="lvpv"], [data-act="lvpv"]', 'Preview: only you', 'To hear a track in your headphones only, use the headphones button. Play on air, the last button on a row, is for the players.'],
+      ['.lv-cur-pads .lv-pad, .lv-pad', 'Pads and their keys', 'Click a pad or press its key to play it. Press Stop pads, beside them, to stop all pads.'],
+      ['.r10-undo-slot', 'Undo', 'Undo shows here for 8 seconds after you change what the players hear. You can also press Ctrl+Z.'],
+      ['[data-k="lv-fade"]', 'Fade all and Stop all', 'Everything fades out with Fade all (Shift+Esc), or stops at once with Stop all, in your headphones too. You can undo both.']] },
+    look: { route: '#/look', name: 'Look and feel', steps: [['#view h1', 'Look and feel', 'Choose a theme here. You can also change the text size and how much moves on screen. A campaign can have a theme of its own.']] }
   };
   var G = null, guideEl = null;
   function box() { if (!guideEl) { guideEl = document.createElement('div'); guideEl.id = 'r9-guide'; document.body.appendChild(guideEl); guideEl.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); endGuide(); } }); } return guideEl; }

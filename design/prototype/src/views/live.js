@@ -223,7 +223,7 @@
     // Round 7 part 2: a scene's own steps may add to Up next; the scene's Undo (which takes those back too) stays.
     S.undo = sceneUndo; S.undo2 = null;
     rm.playing = M(first).music ? M(first).music.id : '';
-    L.say('Started ' + s.scenes[idx].name + '. Undo is available for 8 seconds, or press Ctrl+Z.');
+    L.say('Started ' + s.scenes[idx].name + '. To undo this, press Undo or Ctrl+Z within 8 seconds.');
   }
   function restoreLane(ln, c, elapsed, tg) {
     if (!c) { L.stopLane(ln, 1.5, tg); return; }
@@ -365,7 +365,7 @@
     function kf(id, def) { return esc(L.keyFor ? L.keyFor(id) : def); }
     function k(key, what, single) { return '<li' + (single ? off : '') + '><span class="kbd">' + key + '</span><span>' + what + '</span></li>'; }
     return '<div class="lv-pop" id="lv-keys-pop" role="group" aria-label="Keys on the live screen">' +
-      '<label class="lv-switch"><input type="checkbox" role="switch" data-input="lvkeys1" data-k="lv-keys1"' + (S.keys1 ? ' checked' : '') + '><span class="lv-switch-t"><b>Single-key shortcuts</b><span class="hint">Space, / and the pad keys. Turn off if they get in the way.</span></span></label>' +
+      '<label class="lv-switch"><input type="checkbox" role="switch" data-input="lvkeys1" data-k="lv-keys1"' + (S.keys1 ? ' checked' : '') + '><span class="lv-switch-t"><b>Single-key shortcuts</b><span class="hint">Space, / and the pad keys. Turn them off if they get in the way.</span></span></label>' +
       '<ul class="lv-keylist">' + k(kf('nextScene', 'Space'), 'Start the next scene', singleKey('nextScene')) + k(kf('find', '/'), 'Find a track or playlist', singleKey('find')) + k(esc(pk), b ? 'Pads on ' + esc(b.name) + ' (Current scene)' : 'Pads of the current scene', 1) +
       k('Alt+1…7', 'Go to a box: On air, Scenes, Current scene, Session playlists, Session pads, Campaign playlists, Campaign pads') + k('F6', 'Next box (Shift+F6: the one before)') +
       k(kf('palette', 'Ctrl+K'), 'Find and play anything') + k(kf('fadeAll', 'Shift+Esc'), 'Fade all (' + L.FADE + ' s)') + k(kf('undo', 'Ctrl+Z'), 'Undo the last change (for 8 s)') + k('Esc', 'Close a menu or clear the search') + '</ul>' +
@@ -523,7 +523,7 @@
       // chooses its channel (as since round 6), and its menu now has Kick too.
       // Round 9 (item 56): the room comes first. Its name is the button that moves it (the bot is a quiet line in that
       // menu and in the hover text); Kick is Leave, the word the Rooms screen used.
-      '<button class="btn s lv-kick" data-act="lvkick" data-id="' + b.id + '" data-k="lv-kick-' + b.id + '" title="' + esc(name) + ' leaves Discord: ' + esc(b.name) + ' leaves the voice channel (Undo for 8 seconds)" aria-label="Leave ' + esc(name) + '">' + L.icon('leave', 's') + '<span class="lv-kick-t">Leave</span></button>' : '';
+      '<button class="btn s lv-kick" data-act="lvkick" data-id="' + b.id + '" data-k="lv-kick-' + b.id + '" title="Make ' + esc(b.name) + ' leave ' + esc(name) + '" aria-label="Make ' + esc(b.name) + ' leave ' + esc(name) + '">' + L.icon('leave', 's') + '<span class="lv-kick-t">Leave</span></button>' : '';
     // BUG-19: with no bot in a voice channel what plays goes nowhere; the one-click fix is right here.
     var none = '';
     if (b && b.lost) {
@@ -1051,12 +1051,12 @@
   };
   L.acts.r10lvplrm = function (el) {
     var p = L.playlist(el.dataset.pid), id = el.dataset.tid, i = p ? p.items.indexOf(id) : -1; if (i < 0) return;
-    var was = p.items.slice(), text = 'Removed from ' + p.name + ': ' + L.title(L.track(id));
+    var was = p.items.slice(), text = 'Removed ' + L.title(L.track(id)) + ' from ' + p.name;
     p.items.splice(i, 1);
     softUndo(text, function () { p.items.splice.apply(p.items, [0, p.items.length].concat(was)); }, 'pl:' + p.id, '');
     L.render(); var next = p.items[i] || p.items[i - 1], b = next && document.querySelector('[data-act="r10lvmore"][data-pid="' + p.id + '"][data-tid="' + next + '"]');
     if (b) b.focus(); else focusK('lv-undo2');
-    L.say(text + '. It is still in the Track library. Undo is available for 8 seconds, or press Ctrl+Z.');
+    L.say(text + '. It is still in the Track library. To undo this, press Undo or Ctrl+Z within 8 seconds.');
   };
   L.acts.lvallsc = function () { S.allScenes = !S.allScenes; L.render(); };
   L.acts.lvsel = function (el) { S.sel = S.sel === el.dataset.sel ? null : el.dataset.sel; L.render(); };
@@ -1084,13 +1084,13 @@
     else { rm.q.splice(i, 1); if (i < rm.qAt) rm.qAt--; }
     softUndo('Taken out of Up next: ' + label, function () { snap.playing = RM(tg).playing; S.rm[tg] = snap; }, 'room:' + tg, 'lv-upx-0' + (tg === 'table' ? '' : '-' + tg));
     L.render(); focusK(document.querySelector('[data-k="' + el.dataset.k + '"]') ? el.dataset.k : 'lv-undo2');
-    L.say('Taken out of Up next: ' + label + '. Undo is available for 8 seconds, or press Ctrl+Z.');
+    L.say('Taken out of Up next: ' + label + '. To undo this, press Undo or Ctrl+Z within 8 seconds.');
   };
   L.acts.lvupopen = function (el) { var tg = tgArg(el); S.upOpen[tg] = !S.upOpen[tg]; L.render(); focusK(el.dataset.k); };
   L.acts.lvqclear = function (el) {
     var tg = tgArg(el), rm = RM(tg), snap = clone(rm); rm.q = []; rm.pn = []; rm.aq = []; rm.qAt = -1;
     softUndo('Cleared what you added', function () { snap.playing = RM(tg).playing; S.rm[tg] = snap; }, 'room:' + tg, 'lv-qclear' + (tg === 'table' ? '' : '-' + tg));
-    L.render(); focusK('lv-undo2'); L.say('Cleared what you added. Undo is available for 8 seconds, or press Ctrl+Z.');
+    L.render(); focusK('lv-undo2'); L.say('Cleared what you added. To undo this, press Undo or Ctrl+Z within 8 seconds.');
   };
   L.acts.lvto = function (el) {
     var box = el.dataset.box, cur = boxTo(box);
@@ -1124,7 +1124,7 @@
     // Round 9 (item 56): only live things here (move, copy, leave); bots and tokens are Settings' business.
     L.menu(el, '<div class="group">Move ' + esc(name) + ' to</div>' + channelItems(b, 'lvbotjoin') +
       (others.length ? '<div class="sep"></div>' + others.map(function (r) { return '<button role="menuitem" data-act="lvcopyroom" data-from="' + r.bots[0].id + '" data-to="' + b.id + '">' + L.icon('loop', 's') + 'Copy what ' + esc(r.name) + ' is playing</button>'; }).join('') : '') +
-      '<div class="sep"></div><button role="menuitem" data-act="lvkick" data-id="' + b.id + '">' + L.icon('leave', 's') + 'Leave ' + esc(name) + '</button>' +
+      '<div class="sep"></div><button role="menuitem" data-act="lvkick" data-id="' + b.id + '">' + L.icon('leave', 's') + 'Make ' + esc(b.name) + ' leave ' + esc(name) + '</button>' +
       '<div class="sep"></div><div class="item faint r9-via">' + L.icon('users', 's') + 'via ' + esc(b.name) + '</div>' +
       free.map(function (f) { return '<button role="menuitem" data-act="lvbotswap" data-from="' + b.id + '" data-to="' + f.id + '">' + L.icon('users', 's') + 'Use ' + esc(f.name) + ' instead</button>'; }).join(''), 'Room ' + name);
   };
@@ -1137,7 +1137,7 @@
     L.botJoin(b.id, g, cid);
     if (lost) {
       softUndo(b.name + ' moved from ' + wasName + ' to ' + c.name, function () { L.botJoin(b.id, from.server, from.channel); }, 'room:' + tg, 'lv-room-' + b.id);
-      L.render(); L.say(b.name + ' is joining ' + c.name + '. Undo is available for 8 seconds, or press Ctrl+Z.');
+      L.render(); L.say(b.name + ' is joining ' + c.name + '. To undo this, press Undo or Ctrl+Z within 8 seconds.');
     }
   }
   /* Kick at once; Undo (8 s, or Ctrl+Z) puts the bot back in its channel with what it played, where it was. Round 8
@@ -1146,7 +1146,7 @@
   L.acts.lvkick = function (el) {
     var b = L.bot(el.dataset.id); if (!b) return; touched(); var room = L.outputName(b), k = L.botKick(b.id); if (!k) return;
     softUndo(b.name + ' left ' + room, function () { k.restore(); }, 'onair', 'lv-room-' + b.id);
-    L.render(); L.say(b.name + ' left ' + room + '. Undo is available for 8 seconds, or press Ctrl+Z.');
+    L.render(); L.say(b.name + ' left ' + room + '. To undo this, press Undo or Ctrl+Z within 8 seconds.');
     focusK('lv-undo2');
   };
   // Another bot takes over this channel: the new one joins, the old one leaves, and what played here goes on.
@@ -1176,7 +1176,7 @@
     var b = el.dataset.id === 'auto' ? (idle.filter(function (x) { return x.startServer === el.dataset.g && x.startChannel === el.dataset.c; })[0] || idle[0]) : L.bot(el.dataset.id), c = L.channel(el.dataset.g, el.dataset.c); if (!b || !c) return;
     L.botJoin(b.id, el.dataset.g, el.dataset.c);
     // UX-R9: a channel nobody is in says so in the room's own words.
-    var msg = c.members.length ? c.name + ' is joining. It starts silent: choose To: ' + c.name + ' in a box to play there.' : c.name + ' is joining: nobody there.'; L.say(msg); L.toast(msg);
+    var msg = c.members.length ? c.name + ' is joining. It starts silent. To play there, choose To: ' + c.name + ' in a box.' : c.name + ' is joining, but nobody is there.'; L.say(msg); L.toast(msg);
   };
   L.acts.lvfxstop = function (el) { var tg = el && el.dataset.tg; if (!tg) { L.stopFx(); return; } L.fxFor(tg).forEach(function (f) { f.fadeOut = .8; }); L.changed(); L.say('Effects stopped in ' + roomName(tg)); };
   L.acts.lvpvstop = function () { L.stopPreview(); L.say('Preview stopped'); };
@@ -1232,7 +1232,7 @@
     var verb = how === 'next' ? 'Plays next' : 'Added to the queue';
     if (added.length) {
       softUndo(verb + ': ' + name, function () { added.forEach(function (a) { a.snap.playing = RM(a.tg).playing; S.rm[a.tg] = a.snap; }); }, 'room:' + added[0].tg, el.dataset.k, items);
-      L.say(verb + (rooms().length > 1 ? ' in ' + toName(box) : '') + ': ' + name + '. Undo is available for 8 seconds, or press Ctrl+Z.');
+      L.say(verb + (rooms().length > 1 ? ' in ' + toName(box) : '') + ': ' + name + '. To undo this, press Undo or Ctrl+Z within 8 seconds.');
     } else if (started) L.say('Playing now: ' + name);
     L.render();
   }
@@ -1249,7 +1249,7 @@
     if (added.length) {
       var verb = how === 'next' ? 'Ambience next' : 'Ambience added to the queue';
       softUndo(verb + ': ' + item.name, function () { added.forEach(function (a) { a.snap.playing = RM(a.tg).playing; S.rm[a.tg] = a.snap; }); }, 'room:' + added[0].tg, el.dataset.k);
-      L.say(verb + (rooms().length > 1 ? ' in ' + toName(box) : '') + ': ' + item.name + '. It plays when you press Next on the ambience. Undo is available for 8 seconds, or press Ctrl+Z.');
+      L.say(verb + (rooms().length > 1 ? ' in ' + toName(box) : '') + ': ' + item.name + '. It plays when you press Next on the ambience. To undo this, press Undo or Ctrl+Z within 8 seconds.');
     } else if (started) L.say('Ambience now: ' + item.name);
     L.render();
   }

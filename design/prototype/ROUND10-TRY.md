@@ -70,7 +70,7 @@ other).
 | # | Try this | You should see |
 |---|---|---|
 | 30 | Track library › a track's **⋯** › **Remove from library**. | Lyre asks first and lists the scenes and playlists that use it, and says its file stays on your computer. **Remove**, then **Undo** at the bottom of the screen brings it back. |
-| 31 | Tick two tracks; the selection bar's **Remove from library**. Then search "battle" and open the **⋯** beside Add tracks. | "Remove 2 tracks from the library?". With the search on, the ⋯ has **Remove all … shown from library…**, with the number of tracks the list shows. |
+| 31 | Tick two tracks; the selection bar's **Remove from library**. Then search "battle" and open the **⋯** beside Add tracks. | "Remove 2 tracks from the library?". With the search on, the ⋯ has **Remove the … tracks shown from the library…**, with the number of tracks the list shows. |
 | 32 | A track's **⋯** › **Delete file from disk…** (last in the menu). | The question names the file and says it goes to the Recycle Bin and that Lyre can't undo that. Undo brings the track back, marked missing until you restore the file. |
 | 33 | Open a track: its details have **Remove from library**. In the list, move to a row with the arrow keys and press `Delete`. | Both ask the same question as row 30. |
 | 34 | Playlists › The Abbess › a track's **⋯**; then `Tab` to another track's ⋯ and press `Delete`. | **Remove from this playlist** takes it out; `Delete` with focus on a row does the same; **Undo** puts it back in its place. The track stays in the Track library. |

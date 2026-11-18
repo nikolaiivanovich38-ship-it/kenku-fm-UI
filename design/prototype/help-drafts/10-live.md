@@ -3,21 +3,19 @@ title: Run a session in Live
 group: Run a session
 words: live run session scene next space undo keys shortcuts find track playlist search on air room rooms pads fade stop leave nobody there back shuffle seek jump position arrange layout move resize connection lost
 ---
-Live is where you run the evening. **Run this session** on a campaign or session page loads it here.
+Press **Run this session** on a campaign or session page to load it into Live.
 
-- **On air**: a part for each room, with what it plays, how it loops and **Up next**. The red light is on while the players hear something. Click a position line to jump in the track. A room's name moves it or makes it leave; **+ Room** adds one.
-- **Scenes**: `Space`, or **Next scene**, starts the next scene.
-- **Current scene**: the running scene's music, its ambience and its pads, which answer to their keys.
+- **On air**: a part for each room, with what it plays, how it loops and **Up next**. The red light is on while the players hear something. Click a position line to jump within the track. Press a room's name to move it or make it leave, and **+ Room** to add a room.
+- **Scenes**: press `Space`, or **Next scene**, to start the next scene.
+- **Current scene**: the running scene's music, its ambience and its pads, which you can play with their keys.
 - **This session** and **Whole campaign**: their playlists and pads.
-- **Find a track or playlist** (`/`): anything not in the plan.
-- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds; **Stop all** stops everything at once, your headphones too. In a narrow window both are icons: point at one for its name.
+- **Find a track or playlist** (`/`): search for anything not in the plan.
+- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds. **Stop all** stops everything at once, in your headphones too. In a narrow window they are icons. Point at one to see its name.
 
-On a row, the headphones play it to you only; the last button, **Play on air**, is for the players.
+Within 8 seconds, you can take back a scene change, Play on air, Fade all or Stop all with **Undo** in the top bar or `Ctrl+Z`. Undo stays when you play a pad or change a volume.
 
-**Undo**, in the top strip, takes back a scene change, Play on air, Fade all or Stop all, within 8 seconds (`Ctrl+Z`). Pads and volume leave it there.
+**Connection lost** means a bot dropped out and the players hear nothing. Lyre tries to reconnect by itself. **Try again** is beside the message, with a button for the other bot. With **No room** or **Nobody there**, press the button beside it to put the bot where the players are.
 
-**Connection lost** means a bot dropped out: the players hear nothing. Lyre tries again by itself; **Try again** or the other bot is beside it. **No room** or **Nobody there**: the button beside it puts the bot where the players are.
+To move and resize the boxes, press **Arrange**. Drag a box by its header to move it or by its bottom edge to resize it, or use **Move…**. Press **Done** to keep the layout for this window size.
 
-**Arrange** moves and sizes the boxes: drag a box by its head, drag its foot, or use **Move…**. **Done** keeps the layout for this window size.
-
-**‹** (Back) goes back one step (`Alt+Left`). `Alt+1` to `Alt+7` jump to the boxes. **Keys** lists every key.
+To go back one step, press **‹** (Back) or `Alt+Left`. **Keys** lists every key.

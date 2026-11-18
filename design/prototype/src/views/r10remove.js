@@ -18,7 +18,7 @@
   L.acts.r10xpmore = function (el) {
     var p = L.playlist(el.dataset.pid), id = el.dataset.tid; if (!p || !L.track(id)) return;
     L.menu(el, '<button role="menuitem" data-act="r10xprm" data-pid="' + esc(p.id) + '" data-tid="' + esc(id) + '">' + L.icon('close', 's') + 'Remove from this playlist</button>' +
-      '<div class="sep"></div><button role="menuitem" data-act="r10xplib" data-tid="' + esc(id) + '">' + L.icon('library', 's') + 'Open in the Track library</button>', 'More for ' + title(id));
+      '<div class="sep"></div><button role="menuitem" data-act="r10xplib" data-tid="' + esc(id) + '">' + L.icon('library', 's') + 'Open in Track library</button>', 'More for ' + title(id));
   };
   L.acts.r10xplib = function (el) { L.route('#/library/' + el.dataset.tid); };
   L.acts.r10xprm = function (el) {
@@ -26,7 +26,7 @@
     var text = 'Removed “' + title(id) + '” from the playlist "' + p.name + '". It is still in the Track library.';
     L.undoNote(text, L.snapshot(['playlists']));
     p.items.splice(i, 1);
-    L.render(); L.say(text + ' Undo is at the bottom of the screen, or press Ctrl+Z.'); L.saved(p.name, { detail: 'removed ' + title(id), key: 'pl-' + p.id });
+    L.render(); L.say(text + ' To undo this, press Undo, at the bottom of the screen, or Ctrl+Z.'); L.saved(p.name, { detail: 'removed ' + title(id), key: 'pl-' + p.id });
     var next = p.items[i] || p.items[i - 1], row = next && document.querySelector('[data-act="r10xpmore"][data-pid="' + p.id + '"][data-tid="' + next + '"]');
     if (row) row.focus(); else { var h = document.querySelector('#view h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus(); } }
   };
@@ -51,7 +51,7 @@
   withUndo('cpclearamb', function (el) { var sc = scene(el.dataset.sc); return sc && sc.amb ? 'Removed “' + itemName(sc.amb) + '” from this scene.' : ''; });
   withUndo('cprm', function (el) {
     var where = el.dataset.scope === 'c' ? 'campaign' : 'session', kind = el.dataset.kind;
-    return 'Removed “' + itemName(el.dataset.id) + '” from this ' + where + '. ' + (kind === 'tr' ? 'It is still in the Track library.' : kind === 'pl' ? 'It is still on the Playlists page.' : 'It is still on the Pad boards page.');
+    return 'Removed “' + itemName(el.dataset.id) + '” from this ' + where + '. ' + (kind === 'tr' ? 'It is still in the Track library.' : kind === 'pl' ? 'It is still on the Playlists page.' : 'It is still in Pad boards.');
   });
 
   /* ---------- the Delete key on a focused row ---------- */

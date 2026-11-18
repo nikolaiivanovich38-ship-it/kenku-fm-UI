@@ -153,7 +153,7 @@
       (nMissing ? '<button class="btn s lb-newbtn lb-missbtn" data-act="lbmissing" data-k="lb-missing" aria-pressed="' + st.missing + '">' + (st.missing ? L.icon('check', 's') : L.icon('warn', 's')) + '<span class="grow lb-l">Missing</span><span class="badge warn">' + nMissing + '</span></button>' : '') + '</div>';
     // DAT-13: shape, the GM's choice or else the suggestion.
     // Round 9 (items 27, 34): one line says how the chips work; each chip is off, Show (✓) or Hide (struck out).
-    h += '<p class="hint r9-fhint" id="r9-fhint">Click a filter once to show only those, twice to hide them.</p>';
+    h += '<p class="hint r9-fhint" id="r9-fhint">Click a filter once to show only those tracks, and again to hide them.</p>';
     var shapes = orderVals(L.SHAPES.map(function (x) { return [x[0], base.filter(function (t) { return L.shapeOf(t) === x[0]; }).length, x[1]]; }));
     h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-shape"><h3 class="lb-fh" id="lb-fh-shape">Shape</h3><div class="chips">' + shapes.map(function (x) {
       var state = st.shapes.indexOf(x[0]) > -1 ? 'show' : st.hideShapes.indexOf(x[0]) > -1 ? 'hide' : 'off';
@@ -416,7 +416,7 @@
     var n = L.profileKeys ? L.profileKeys(t).length : 0;
     // Round 6: the usual (whole track, then the next one, no fades, no own settings) goes without saying.
     if (!cut && p.after !== 'loop' && p.after !== 'stop' && !fades.length && !n) return '';
-    return esc(parts.join(' · ')) + '.' + (n ? ' <span class="muted">Has its own settings in ' + plural(n, 'place') + '.</span>' : '');
+    return esc(parts.join(' · ')) + '.' + (n ? ' <span class="muted">Has its own settings in ' + (n === 1 ? '1 playlist or scene' : n + ' playlists and scenes') + '.</span>' : '');
   }
   function emptyDetails() {
     var nNew = D.tracks.filter(newish).length;
@@ -629,9 +629,9 @@
     removal = { how: how, ids: list.map(function (t) { return t.id; }) };
     var files = list.map(function (t) { return t.file; });
     var body = deleting
-      ? '<p>' + (one ? 'This file goes' : 'These files go') + ' to the Recycle Bin, and ' + (one ? 'its track leaves' : 'their tracks leave') + ' the library. <b>This can\'t be undone in Lyre</b>: to get ' + (one ? 'it' : 'them') + ' back, restore ' + (one ? 'it' : 'them') + ' from the Recycle Bin.</p>' +
+      ? '<p>' + (one ? 'This file goes' : 'These files go') + ' to the Recycle Bin, and ' + (one ? 'its track leaves' : 'their tracks leave') + ' the library. <b>This can\'t be undone in Lyre.</b> To get ' + (one ? 'it' : 'them') + ' back, restore ' + (one ? 'it' : 'them') + ' from the Recycle Bin.</p>' +
         '<ul class="r10-files">' + files.slice(0, NAMED_FILES).map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + (files.length > NAMED_FILES ? '<li class="hint">and ' + plural(files.length - NAMED_FILES, 'more file') + '</li>' : '') + '</ul>'
-      : '<p>' + (one ? 'It leaves' : 'They leave') + ' Lyre, and every playlist, pad and scene. ' + (one ? 'Its file stays' : 'Their files stay') + ' on your computer, and Undo puts ' + (one ? 'it' : 'them') + ' back.</p>';
+      : '<p>' + (one ? 'It leaves' : 'They leave') + ' Lyre, and every playlist, pad and scene. ' + (one ? 'Its file stays' : 'Their files stay') + ' on your computer, and you can bring ' + (one ? 'it' : 'them') + ' back with Undo.</p>';
     if (uses.length) body += '<div class="r10-uses" role="note"><p>' + (one ? 'It is' : 'They are') + ' used in:</p><ul>' + uses.map(function (u) { return '<li>' + esc(u) + '</li>'; }).join('') + '</ul></div>';
     L.sheet({ title: deleting ? 'Delete ' + (one ? 'its file' : plural(n, 'file')) + ' from disk?' : 'Remove ' + what + ' from the library?', body: body,
       footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn ' + (deleting ? 'danger' : 'primary') + '" data-act="r10rmdo">' + (deleting ? (one ? 'Delete file' : 'Delete ' + plural(n, 'file')) : one ? 'Remove' : 'Remove ' + plural(n, 'track')) + '</button>' });
@@ -656,7 +656,7 @@
     L.closeSheet();
     var open = L.current().name === 'library' && L.current().p.tid;
     if (open && gone.indexOf(open) > -1) L.route('#/library'); else L.render();
-    L.say(text + ' Undo is at the bottom of the screen, or press Ctrl+Z.');
+    L.say(text + ' To undo this, press Undo, at the bottom of the screen, or Ctrl+Z.');
     var q = document.querySelector('[data-k="lb-q"]'); if (q && L.current().name === 'library') q.focus();
   };
 
@@ -860,7 +860,7 @@
       // Round 7 (DAT-10): the tag vocabulary has its own screen.
       '<button role="menuitem" data-act="lbgo" data-href="#/tags">' + L.icon('tag', 's') + 'Tags and groups…</button>' +
       // Round 10 fixes (R10-FIX §1, item 50): with a search or a filter on, every track the list shows, counted.
-      (st.q || filtersOn() ? '<div class="sep"></div><button role="menuitem" data-act="r10rmask" data-how="remove" data-shown="1" data-ids="' + visible().map(function (t) { return t.id; }).join(',') + '"' + (visible().length ? '' : ' disabled') + '>' + L.icon('close', 's') + 'Remove all ' + visible().length + ' shown from library…</button>' : ''), 'More for the library');
+      (st.q || filtersOn() ? '<div class="sep"></div><button role="menuitem" data-act="r10rmask" data-how="remove" data-shown="1" data-ids="' + visible().map(function (t) { return t.id; }).join(',') + '"' + (visible().length ? '' : ' disabled') + '>' + L.icon('close', 's') + 'Remove the ' + plural(visible().length, 'track') + ' shown from the library…</button>' : ''), 'More for the library');
   };
   L.acts.lbgo = function (el) { L.route(el.dataset.href); };
   L.acts.lbaddmenu = function (el) {
@@ -904,7 +904,7 @@
       if (!files.length) { L.toast('Lyre plays audio files (FLAC, MP3, WAV, OGG). Nothing was added.'); return; }
       var before = {}; D.tracks.forEach(function (t) { before[t.id] = 1; });
       var ids = L.importFiles(files), now = Date.now(), fresh = ids.filter(function (id, i) { if (before[id]) return false; L.track(id).addedAt = now - i; return true; }).length;
-      arrive(ids.map(L.track).filter(Boolean), 'by dropping' + (fresh < ids.length ? ' (' + (ids.length - fresh) + ' already in your Library)' : ''), true);
+      arrive(ids.map(L.track).filter(Boolean), 'by dropping' + (fresh < ids.length ? ' (' + (ids.length - fresh) + ' already in the Track library)' : ''), true);
     });
   });
 

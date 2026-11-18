@@ -4,7 +4,7 @@
    UX design, flow, layout, look and feel and anything else they can improve."
 
    Most of round 10 is in the files it changes (each change marked "Round 10"). This file holds what is new:
-     - the scene's "When it starts" line under its Story cue (prep review P4)
+     - the scene's "Start" line under its Story cue (prep review P4)
      - Rooms under Settings: its trail (Nik, 18 Nov 03:14, answer 2)
      - Connection lost and Try again (table review M3; 0.5.2 built it), and the prototype strip's way to show it
      - the warning pop-up, and pads with no sound marked before they are pressed (table review S3)
@@ -15,11 +15,11 @@
   /* ---------- the scene's start, in words, with Change… ---------- */
   L.sceneStartLine = function (ref, sc) {
     var w = L.stepsWords ? L.stepsWords('scene', ref) : '';
-    var then = sc.then === 'end' ? 'then the next scene when its music ends' : sc.then === 'after' ? 'then the next scene after ' + (sc.afterMin || 5) + ' minutes' : 'then it waits for Next scene';
+    var then = sc.then === 'end' ? 'then the next scene when its music ends' : sc.then === 'after' ? 'then the next scene after ' + (sc.afterMin || 5) + ' minutes' : 'then it waits until you press Next scene';
     var text = ((w ? w.charAt(0).toUpperCase() + w.slice(1) + ', ' : '') + then).replace(/, then (\w)/g, function (m, c) { return ', then ' + c.toLowerCase(); });
-    return '<div class="field cp-span r10-start" role="group" aria-labelledby="r10-st-' + sc.id + '"><span class="label" id="r10-st-' + sc.id + '">When it starts</span>' +
+    return '<div class="field cp-span r10-start" role="group" aria-labelledby="r10-st-' + sc.id + '"><span class="label" id="r10-st-' + sc.id + '">Start</span>' +
       '<div class="r10-start-row"><span class="grow r10-start-w">' + esc(text) + '</span>' +
-      '<button class="btn s" data-act="stepsopen" data-what="scene" data-ref="' + esc(ref) + '" data-k="scstart-' + sc.id + '" aria-label="Change what ' + esc(sc.name || 'the scene') + ' does when it starts">Change…</button></div></div>';
+      '<button class="btn s" data-act="stepsopen" data-what="scene" data-ref="' + esc(ref) + '" data-k="scstart-' + sc.id + '" aria-label="Change the start of ' + esc(sc.name || 'the scene') + '">Change…</button></div></div>';
   };
 
   /* ---------- Rooms, under Settings ---------- */
@@ -29,7 +29,7 @@
   L.acts.r10retry = function (el) {
     var b = L.bot(el.dataset.id); if (!b || b.lost === 'retry') return;
     b.lost = 'retry'; L.render(); L.say('Trying again to reach ' + L.outputName(b));
-    setTimeout(function () { b.lost = false; L.render(); L.toast(L.outputName(b) + ' hears the music again'); }, 1200);
+    setTimeout(function () { b.lost = false; L.render(); L.toast(L.outputName(b) + ' is connected again, and the players can hear the music'); }, 1200);
   };
   var swap0 = L.acts.lvbotswap;
   if (swap0) L.acts.lvbotswap = function (el) { var a = L.bot(el.dataset.from); if (a) a.lost = false; swap0(el); };
@@ -56,7 +56,7 @@
   var fire0 = L.firePad;
   L.firePad = function (bid, pid, phase, target) {
     var b = L.board(bid), p = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === pid; })[0];
-    if (noSound(p) && phase !== 'up') { L.warn(p.label + ' has no sound: give it one on its pad board'); return; }
+    if (noSound(p) && phase !== 'up') { L.warn(p.label + ' has no sound. Choose one on its pad board.'); return; }
     return fire0.apply(L, arguments);
   };
   // A missing track is marked "Missing" on its row before Nik presses (live.js); what the room does with it is the

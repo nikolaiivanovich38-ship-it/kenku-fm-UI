@@ -75,9 +75,9 @@
       radio('off', 'No repeat', kind === 'scene' ? 'After its last track the scene moves on' : 'Stops after its last track', 'right') +
       radio('all', 'Repeat all', 'Starts again after its last track', 'loop') +
       radio('one', 'Repeat one', 'The track playing repeats until you press Next', 'repeat1') +
-      '<div class="sep"></div>' + (key ? '<div class="item hint ord-note">' + (o.source === 'place' ? 'Only ' + esc(whereWords(key)) + '. Elsewhere: ' + esc(L.orderWords(ownO)) + '.' : 'Uses the playlist\'s own order. A change here applies only ' + esc(whereWords(key)) + '.') + '</div>' +
+      '<div class="sep"></div>' + (key ? '<div class="item hint ord-note">' + (o.source === 'place' ? 'This order is used only ' + esc(whereWords(key)) + '. Elsewhere the order is: ' + esc(L.orderWords(ownO)) + '.' : 'Uses the playlist\'s own order. A change here applies only ' + esc(whereWords(key)) + '.') + '</div>' +
         (o.source === 'place' ? '<button role="menuitem" data-act="ordclear" ' + d.replace(' data-keep-menu="1"', '') + '>' + L.icon('restart', 's') + 'Use the playlist\'s own order here</button>' : '')
-        : '<div class="item hint ord-note">Scenes, sessions and campaigns can have their own.</div>');
+        : '<div class="item hint ord-note">A scene, session or campaign can have its own play order.</div>');
   }
   L.acts.ordmenu = function (el) { L.menu(el, orderMenu(el.dataset.pid, el.dataset.key || ''), 'Play order'); };
   L.acts.ordset = function (el) {
@@ -282,14 +282,14 @@
     if (pk.namingBoard) return '<label class="r10-mkpl" for="pk-bdname" title="An empty 4 × 3 board; you give it pads, and change its size, on its own page"><span>New board</span><input class="input" id="pk-bdname" data-k="pk-bdname" autocomplete="off" value="' + esc(pk.namingBoard) + '"></label>' +
       '<span class="grow"></span><button class="btn" data-act="pkbdcancel" data-k="pk-bdcancel">Back</button><button class="btn primary" data-act="pkbdok" data-k="pk-bdok">Make it and add it</button>';
     return '<span id="pk-count" class="muted grow">' + count() + '</span>' +
-      (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="A manual playlist of the ticked tracks, in the order ticked; the scene gets the playlist in their place">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
+      (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in their place.">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
       (pk.makeBoard ? '<button class="btn" data-act="pkmkbd" data-k="pk-mkbd" title="An empty pad board, made here and put in this scene; you give it pads on its own page">' + L.icon('plus', 's') + 'New board…</button>' : '') +
       '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="pkdone">' + esc(pk.okLabel) + '</button>';
   }
   function paintFooter(k) { var f = document.querySelector('#lyre-sheet footer'); if (!f) return; f.innerHTML = footer(); var n = k && f.querySelector('[data-k="' + k + '"]'); if (n) { n.focus(); if (n.select) n.select(); } }
   function tickedTracks() { return pk.sel.filter(function (id) { return !L.playlist(id) && L.track(id); }); }
   L.acts.pkmkpl = function () {
-    var ts = tickedTracks(); if (!ts.length) { L.toast('Tick the tracks first; they go into the new playlist'); return; }
+    var ts = tickedTracks(); if (!ts.length) { L.toast('Tick the tracks first. They go into the new playlist.'); return; }
     var n = 1; while (D.playlists.some(function (p) { return p.name === 'New playlist ' + n; })) n++;
     pk.naming = 'New playlist ' + n; paintFooter('pk-plname');
   };

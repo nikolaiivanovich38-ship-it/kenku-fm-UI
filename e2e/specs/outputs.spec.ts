@@ -49,7 +49,7 @@ test.describe("moving a bot between rooms", () => {
     await openRoute(page, "outputs");
     await room(page, "Lyre Side").getByRole("button", { name: "Room Choose a room…" }).click();
     const menu = page.getByRole("menu", { name: "Room for Lyre Side" });
-    await expect(menu.getByRole("menuitemradio", { name: /^Table 5 people Lyre Table is here: players would hear it twice/ })).toBeVisible();
+    await expect(menu.getByRole("menuitemradio", { name: /^Table 5 people Lyre Table is here too, so the players would hear it twice/ })).toBeVisible();
     await expect(menu.getByRole("menuitemradio", { name: /^Whispers Empty: nobody would hear it/ })).toBeVisible();
     await menu.getByRole("menuitemradio", { name: /^Side room/ }).click();
     await expect(room(page, "Side room")).toBeVisible({ timeout: 5000 });
@@ -96,7 +96,7 @@ test.describe("moving a bot between rooms", () => {
   test("Leave takes a bot out of its room and gives it a Not in a room box again", async ({ page }) => {
     await openRoute(page, "outputs");
     // Round 6 (OUT-7): Leave is Kick (×); this check reads either.
-    await room(page, "Table").getByRole("button", { name: /^(Lyre Table: leave Table|Kick Lyre Table from Table)$/ }).click();
+    await room(page, "Table").getByRole("button", { name: /^(Lyre Table: leave Table|Make Lyre Table leave Table)$/ }).click();
     await expect(room(page, "Table")).toHaveCount(0);
     await expect(room(page, "Lyre Table").getByText("Not in a room")).toBeVisible();
   });
@@ -160,7 +160,7 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
     expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "outputs");
     await expect(channels(page).getByRole("button", { name: /^Bring/ })).toHaveCount(0);
-    await expect(channels(page).getByRole("button", { name: "Kick Lyre Table from Table" })).toBeVisible();
+    await expect(channels(page).getByRole("button", { name: "Make Lyre Table leave Table" })).toBeVisible();
     await expect(channels(page).getByRole("button", { name: "Add bot to Table" })).toHaveCount(0);
     await expect(channels(page).getByRole("button", { name: "Add bot to Side room" })).toBeVisible();
   });
@@ -171,7 +171,7 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
     await channels(page).getByRole("button", { name: "Add bot to Side room" }).click();
     await expect(page.getByRole("menu")).toHaveCount(0);
     await expect(room(page, "Side room")).toContainText("via Lyre Side", { timeout: 5000 });
-    await channels(page).getByRole("button", { name: "Kick Lyre Side from Side room" }).click();
+    await channels(page).getByRole("button", { name: "Make Lyre Side leave Side room" }).click();
     await expect(room(page, "Side room")).toHaveCount(0);
     await expect(room(page, "Lyre Side").getByText("Not in a room")).toBeVisible();
   });
@@ -179,7 +179,7 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
   test("OUT-7: with two free bots, Add bot offers a short choice of them", async ({ page }) => {
     expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "outputs");
-    await channels(page).getByRole("button", { name: "Kick Lyre Table from Table" }).click();
+    await channels(page).getByRole("button", { name: "Make Lyre Table leave Table" }).click();
     await channels(page).getByRole("button", { name: "Add bot to Whispers" }).click();
     const menu = page.getByRole("menu", { name: "Add a bot to Whispers" });
     await expect(menu.getByRole("menuitem")).toHaveCount(2);
@@ -193,7 +193,7 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
     await page.getByRole("region", { name: "Campaign playlists", exact: true }).getByRole("button", { name: "Play on air: The Company themes" }).click();
     // Round 10 (Nik, 18 Nov 03:14, answer 2): Rooms is under Settings in the menu; either place is found.
     await page.getByRole("link", { name: /^(Outputs|Rooms) \(/ }).click();
-    await channels(page).getByRole("button", { name: "Kick Lyre Table from Table" }).click();
+    await channels(page).getByRole("button", { name: "Make Lyre Table leave Table" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(room(page, "Table")).toHaveCount(0);
     await page.getByRole("group", { name: "Undo" }).getByRole("button", { name: "Undo" }).click();
@@ -243,7 +243,7 @@ test.describe("Rooms at 200 % text", () => {
     const column = (await room(page, "Table").locator("xpath=..").boundingBox())!;
     expect((await channels(page).boundingBox())!.y).toBeGreaterThanOrEqual(column.y + column.height - 1);
     // The first room's Kick, reached with Tab, is the element on top where it is drawn.
-    const kick = room(page, "Table").getByRole("button", { name: /^Kick/ }).first();
+    const kick = room(page, "Table").getByRole("button", { name: /^Make .+ leave / }).first();
     await kick.focus();
     expect(await kick.evaluate((el) => { el.scrollIntoView({ block: "nearest" }); const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return !!top && (top === el || el.contains(top)); })).toBe(true);
   });

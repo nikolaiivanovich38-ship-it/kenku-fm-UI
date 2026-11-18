@@ -111,7 +111,7 @@ test.describe("Add a bot, in the order Discord needs", () => {
     await expect(sheet(page)).toContainText("OAuth2 › URL Generator");
     await expect(sheet(page)).toContainText("Scopes: bot");
     await expect(sheet(page)).toContainText("Bot Permissions: View Channels, Connect, Speak");
-    await expect(sheet(page)).toContainText("Open the Generated URL, choose your server, Authorize");
+    await expect(sheet(page)).toContainText("Open the Generated URL, choose your server and press Authorize");
   });
 
   test("the last step takes the token from Bot › Reset Token, connects, and says which servers the bot is in", async ({ page }) => {
@@ -347,7 +347,7 @@ test.describe("0.5.1: a split headset only while On air plays too", () => {
     const box = await unfold(page, "Headphones and speakers");
     const split = box.getByRole("switch", { name: "Split one headset" });
     await split.check();
-    await expect(box).toContainText("Only while something plays on air; a preview on its own plays in both ears.");
+    await expect(box).toContainText("This works only while something plays on air. A preview on its own plays in both ears.");
   });
 });
 

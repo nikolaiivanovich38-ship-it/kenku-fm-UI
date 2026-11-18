@@ -26,7 +26,7 @@
   function trackTip(t) {
     var tags = []; D.tagGroups.forEach(function (g) { tags = tags.concat(L.tagsOn(t, g.id)); });
     return L.title(t) + (t.title && t.metaTitle && t.metaTitle !== t.title ? '\nIn the file: ' + t.metaTitle : '') + (t.title ? '' : '\nNo title of your own yet') + '\nFile: ' + t.file +
-      (tags.length ? '\nTags: ' + tags.join(', ') : '') + (t.energy ? '\nEnergy ' + t.energy + ' of 5' : '') + '\nClick to open in the Library';
+      (tags.length ? '\nTags: ' + tags.join(', ') : '') + (t.energy ? '\nEnergy ' + t.energy + ' of 5' : '') + '\nClick to open in the Track library';
   }
   function cur() { var r = L.current(); return r.name === 'playlist' ? L.playlist(r.p.pid) : null; }
   function haystack(t) {
@@ -102,7 +102,7 @@
     var rows = L.playlistSorted ? L.playlistSorted(filtered()) : filtered(), all = D.playlists.length, anyFilter = filt.lane !== 'all' || filt.kind !== 'all' || filt.used !== 'all' || filt.q;
     var table = rows.length ? '<div class="pl-grid pl-colhead" aria-hidden="true"><span>Name</span><span class="pl-c">Tracks</span><span class="pl-c">Length</span><span></span></div>' +
       '<ul class="pl-list" aria-label="Playlists">' + L.inFolders('playlists', rows, listRow) + '</ul>'
-      : !all ? '<div class="empty"><b>No playlists yet.</b> A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with <b>New playlist</b>, or tick tracks in the Library and choose <b>New playlist from these</b>.</div>'
+      : !all ? '<div class="empty"><b>No playlists yet.</b> A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with <b>New playlist</b>, or tick tracks in the Track library and choose <b>New playlist from these</b>.</div>'
       : '<div class="empty">No playlists match these filters. <button class="btn s" data-act="plclear" data-k="plclear">Show all playlists</button></div>';
     return '<div class="viewhead"><h1>Playlists</h1><span class="muted">' + plural(all, 'playlist') + '</span><span class="grow"></span>' +
       '<button class="btn primary" data-act="plnew" data-k="plnew" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'New playlist' + L.icon('chevdown', 's') + '</button></div>' +
@@ -172,7 +172,7 @@
       (el.dataset.manual ? '<button role="menuitem" data-act="divadd" data-pid="' + pl.id + '" data-before="' + t.id + '">' + L.icon('list', 's') + 'Add a divider above</button>' : '') + '<div class="sep"></div>';
     h += '<button role="menuitem" data-act="plprofile" data-tid="' + t.id + '">' + L.icon('wave', 's') + 'Audio profile in this playlist</button>' +
       '<button role="menuitem" data-act="pltusein" data-tid="' + t.id + '">' + L.icon('link', 's') + 'Use in…</button>' +
-      '<button role="menuitem" data-act="pllib" data-tid="' + t.id + '">' + L.icon('library', 's') + 'Open in the Track library</button>';
+      '<button role="menuitem" data-act="pllib" data-tid="' + t.id + '">' + L.icon('library', 's') + 'Open in Track library</button>';
     L.menu(el, h, 'More for ' + L.title(t));
   };
   L.acts.plprofile = function (el) { L.route('#/profile/' + el.dataset.tid + '/pl:' + cur().id); };
@@ -436,9 +436,9 @@
       out(c.playlists); c.sessions.forEach(function (s) { out(s.playlists); s.scenes.forEach(function (sc) { out(sc.music); if (sc.amb === id) sc.amb = ''; }); });
     });
     D.playlists.splice(D.playlists.indexOf(pl), 1);
-    L.undoNote('Deleted the playlist "' + pl.name + '" and took it out of the places that used it. Its tracks are still in the Track library.', restore);
+    L.undoNote('Deleted the playlist "' + pl.name + '" and took it out of the scenes, sessions and campaigns that used it. Its tracks are still in the Track library.', restore);
     L.closeSheet(); if (L.current().name === 'playlists') L.render(); else L.route('#/playlists');
-    L.say('Deleted "' + pl.name + '". Undo is at the bottom of the screen, or press Ctrl+Z.'); focusK('plfq');
+    L.say('Deleted "' + pl.name + '". To undo this, press Undo, at the bottom of the screen, or Ctrl+Z.'); focusK('plfq');
   };
 
   /* ---------- dropping files and folders from the computer ----------
@@ -457,7 +457,7 @@
     if (pending && pending.where === where) {
       var n = pending.files.length, pl = pending.pid && L.playlist(pending.pid), lead = '<b>' + (n === 1 ? '1 audio file' : n + ' audio files') + '</b> dropped. ';
       if (pl) return '<div class="pl-notice pl-ask" role="group" aria-label="Dropped files">' + L.icon('tag', 's') + '<span class="grow">' + lead + '"' + esc(pl.name) + '" is a Dynamic playlist: tracks appear in it only when their tags match its rules, and new files have no tags yet.</span>' +
-        '<button class="btn s primary" data-act="pldropdo" data-k="pldropdo">Add to the Library anyway</button><button class="btn s" data-act="pldropno" data-k="pldropno">Cancel</button></div>';
+        '<button class="btn s primary" data-act="pldropdo" data-k="pldropdo">Add to Track library anyway</button><button class="btn s" data-act="pldropno" data-k="pldropno">Cancel</button></div>';
       var opts = ['music', 'amb', 'fx'].map(function (l) {
         var ps = D.playlists.filter(function (p) { return p.kind === 'manual' && p.lane === l; });
         return ps.length ? '<optgroup label="' + laneName(l) + '">' + ps.map(function (p) { return '<option value="' + p.id + '">' + esc(p.name) + '</option>'; }).join('') + '</optgroup>' : '';
@@ -471,7 +471,7 @@
     if (!notice || notice.where !== where) return '';
     return '<div class="pl-notice" role="status">' + L.icon('check', 's') + '<span class="grow">' + notice.text + '</span>' +
       (notice.open ? '<a class="btn s" href="#/playlist/' + notice.open + '" data-k="pldropopen">Open ' + esc((L.playlist(notice.open) || {}).name || 'playlist') + '</a>' : '') +
-      '<button class="btn s" data-act="plshownew" data-k="plshownew">' + L.icon('library', 's') + 'Open new tracks in the Library</button>' +
+      '<button class="btn s" data-act="plshownew" data-k="plshownew">' + L.icon('library', 's') + 'Open new tracks in Track library</button>' +
       '<button class="closer" data-act="plnoticex" data-k="plnoticex" title="Dismiss" aria-label="Dismiss this message">' + L.icon('close') + '</button></div>';
   }
   function flashSoon() { setTimeout(function () { flash = []; flashPl = null; document.querySelectorAll('#view .pl-flash').forEach(function (x) { x.classList.remove('pl-flash'); }); }, 3200); }
@@ -481,14 +481,14 @@
     var at = index == null || index < 0 ? pl.items.length : Math.min(index, pl.items.length);
     pl.items.splice.apply(pl.items, [at, 0].concat(fresh));
     flash = fresh; flashSoon();
-    var text = fresh.length ? '<b>' + tracksWord(fresh.length) + '</b> added to ' + esc(pl.name) + ' and your Library' + (index != null && index >= 0 && at < pl.items.length - fresh.length ? ', at position ' + (at + 1) : '') + '. Give them titles and tags in the Library.'
+    var text = fresh.length ? '<b>' + tracksWord(fresh.length) + '</b> added to ' + esc(pl.name) + ' and the Track library' + (index != null && index >= 0 && at < pl.items.length - fresh.length ? ', at position ' + (at + 1) : '') + '. Give them titles and tags there.'
       : 'Those tracks are already in ' + esc(pl.name) + '.';
     if (fresh.length && dup) text += ' ' + (dup === 1 ? '1 was' : dup + ' were') + ' already in it.';
     return text;
   }
   function libraryOnly(ids, pl) {
     flashSoon();
-    return '<b>' + tracksWord(ids.length) + '</b> added to your Library.' + (pl ? ' They appear in ' + esc(pl.name) + ' once their tags match its rules.' : '') + ' Give them titles and tags in the Library.';
+    return '<b>' + tracksWord(ids.length) + '</b> added to the Track library.' + (pl ? ' They appear in ' + esc(pl.name) + ' once their tags match its rules.' : '') + ' Give them titles and tags in the Track library.';
   }
   function plain(html) { var d = document.createElement('div'); d.innerHTML = html; return d.textContent; }
   function dropTarget(e) {
@@ -511,11 +511,11 @@
     clearTimeout(dragTimer); dragTimer = setTimeout(function () { dragUI(false); }, 400);   // dragover repeats while over the page
     var t = dropTarget(e); clearMarks(); if (!t) return;
     if (t.page) {
-      if (t.dyn) dropMsg('Drop to add to your Library. They appear in ' + t.page.name + ' only when their tags match its rules.');
-      else if (t.row) { t.row.classList.add(t.after ? 'pl-drop-after' : 'pl-drop-before'); dropMsg('Drop to add to ' + t.page.name + ' at position ' + (t.index + 1) + '. They also go into your Library.'); }
-      else dropMsg('Drop to add to ' + t.page.name + ' (at the end). They also go into your Library.');
-    } else if (t.li) { t.li.classList.add('pl-droptarget'); dropMsg(t.list.kind === 'manual' ? 'Drop to add to ' + t.list.name + '. They also go into your Library.' : t.list.name + ' is Dynamic: drop to choose what to do.'); }
-    else dropMsg('Drop on a playlist to add the files to it, or here to choose one. They also go into your Library.');
+      if (t.dyn) dropMsg('Drop to add them to the Track library. They appear in ' + t.page.name + ' only when their tags match its rules.');
+      else if (t.row) { t.row.classList.add(t.after ? 'pl-drop-after' : 'pl-drop-before'); dropMsg('Drop to add to ' + t.page.name + ' at position ' + (t.index + 1) + '. They are added to the Track library too.'); }
+      else dropMsg('Drop to add to ' + t.page.name + ' (at the end). They are added to the Track library too.');
+    } else if (t.li) { t.li.classList.add('pl-droptarget'); dropMsg(t.list.kind === 'manual' ? 'Drop to add to ' + t.list.name + '. They are added to the Track library too.' : t.list.name + ' is Dynamic: drop to choose what to do.'); }
+    else dropMsg('Drop on a playlist to add the files to it, or here to choose one. They are added to the Track library too.');
   });
   document.addEventListener('dragleave', function (e) { if (isMine() && hasFiles(e) && !e.relatedTarget) dragUI(false); });
   document.addEventListener('drop', function (e) {

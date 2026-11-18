@@ -28,7 +28,7 @@
   // Lyre starts". The starting volume stays: it is the volume a bot has when Nik joins it to a room.
   L.botStartHTML = function (b, k) {
     var vol = b.startVolume != null ? b.startVolume : 85;
-    return '<div class="st-bot-2 r9-botstart"><label class="st-l" for="' + k + '-svol">Starting volume</label><input type="range" min="0" max="100" step="5" id="' + k + '-svol" value="' + vol + '" data-input="r9botvol" data-id="' + b.id + '" data-k="' + k + '-svol" aria-valuetext="' + vol + ' percent" title="Its volume when you join it to a room"><span class="num faint">' + vol + '%</span></div>';
+    return '<div class="st-bot-2 r9-botstart"><label class="st-l" for="' + k + '-svol">Starting volume</label><input type="range" min="0" max="100" step="5" id="' + k + '-svol" value="' + vol + '" data-input="r9botvol" data-id="' + b.id + '" data-k="' + k + '-svol" aria-valuetext="' + vol + ' percent" title="The bot’s volume when it joins a room"><span class="num faint">' + vol + '%</span></div>';
   };
   L.inputs.r9botstart = function (el) {
     var b = L.bot(el.dataset.id); if (!b) return; var v = el.value.split('/');
@@ -59,7 +59,7 @@
     return '<fieldset class="r9-dip"><legend>Dip the music under effects</legend><div class="st-xf">' +
       pick('r9-dipamt', 'How far', AMOUNTS, D.dip.amount, 'r9dipamt') + pick('r9-dipback', 'Comes back', BACKS, D.dip.back, 'r9dipback') + '</div>' +
       '<label class="r9-dip-row"><input type="checkbox" data-input="r9dipamb" data-k="r9-dipamb"' + (D.dip.amb ? ' checked' : '') + '>Ambience dips too</label>' +
-      '<p class="hint">Effects with Dip the music on make the music quieter while they play.</p></fieldset>';
+      '<p class="hint">The music gets quieter while an effect with Dip the music on is playing.</p></fieldset>';
   };
   L.inputs.r9dipamt = function (el) { D.dip.amount = el.value; L.saved('dip the music: ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dip' }); };
   L.inputs.r9dipback = function (el) { D.dip.back = el.value; L.saved('the music comes back ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dipb' }); };
@@ -103,7 +103,7 @@
       var head = i === 0 && q.at > 0 ? '<li class="r9-q-h">Played</li>' : i === q.at ? '<li class="r9-q-h">Now playing</li>' : i === q.at + 1 ? '<li class="r9-q-h">Up next</li>' : '';
       return head + (divs[id] ? divs[id].map(function (d) { return L.dividerHeading(d); }).join('') : '') +
         '<li class="r9-q-' + cls + '"' + (i === q.at ? ' aria-current="true"' : '') + '><span class="num faint">' + (i + 1) + '</span><span class="ellipsis grow" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</span><span class="num faint">' + L.fmt(t.dur) + '</span>' +
-        (i === q.at ? '<span class="badge">Now</span>' : '<button class="btn s icon" data-act="r9qplay" data-i="' + i + '" data-k="r9q-' + i + '" aria-label="Play ' + esc(L.title(t)) + ' now" title="Play it now; the queue carries on from there">' + L.icon('play', 's') + '</button>') + '</li>';
+        (i === q.at ? '<span class="badge">Now</span>' : '<button class="btn s icon" data-act="r9qplay" data-i="' + i + '" data-k="r9q-' + i + '" aria-label="Play ' + esc(L.title(t)) + ' now" title="Play it now. The queue continues from there.">' + L.icon('play', 's') + '</button>') + '</li>';
     }).join('');
     return '<section id="r9-queue" class="r9-queue" aria-label="Queue: ' + esc(q.name) + '"><header><b>Queue</b><span class="faint ellipsis">' + esc(q.name) + (a[0] === 'preview' ? ' · only you' : '') + '</span><span class="grow"></span>' +
       '<button class="closer" data-act="r9qclose" data-k="r9q-x" title="Close (Esc)" aria-label="Close the queue">' + L.icon('close') + '</button></header><ol class="r9-q-list">' + rows + '</ol></section>';
@@ -159,7 +159,7 @@
   };
   L.arrangeBar = function (mode) {
     if (!A.on) return '';
-    return '<div class="r9-arrbar" role="region" aria-label="Arrange"><span class="grow"><b>Arrange the boxes</b> <span class="faint">· drag a box by its head, its foot to size it, or use Move…. Kept for ' + (mode === 3 ? 'a whole window' : mode === 2 ? 'half a screen' : 'a narrow window') + '.</span></span>' +
+    return '<div class="r9-arrbar" role="region" aria-label="Arrange"><span class="grow"><b>Arrange the boxes</b> <span class="faint">· drag a box by its header to move it, drag its bottom edge to resize it, or use Move…. The layout is kept for ' + (mode === 3 ? 'a whole window' : mode === 2 ? 'half a screen' : 'a narrow window') + '.</span></span>' +
       '<button class="btn s ghost" data-act="r9arrreset" data-k="r9-arr-reset">' + L.icon('restart', 's') + 'Put back the usual layout</button><button class="btn s primary" data-act="r9arrange" data-k="r9-arr-done">Done</button></div>';
   };
   L.arrangeWrap = function (id, html, ci, mode) {
@@ -185,7 +185,7 @@
   function where(s, id) { for (var ci = 0; ci < s.cols.length; ci++) { var i = s.cols[ci].indexOf(id); if (i > -1) return { ci: ci, i: i }; } return null; }
   function boxEl(id) { return document.querySelector('.r10-box[data-box="' + id + '"] .r9-boxin') || document.querySelector('[data-box="' + id + '"]'); }
   function focusMove(id) { var b = document.querySelector('[data-k="r10m-' + id + '"]'); if (b) b.focus(); }
-  L.acts.r9arrange = function () { A.on = !A.on; L.render(); var b = document.querySelector('[data-k="lv-arrange"]'); if (b) b.focus(); L.say(A.on ? 'Arranging the boxes. Drag a box by its head, or use its Move… button; press Done when finished.' : 'Layout kept'); if (!A.on) L.saved('layout of Live for this window size'); };
+  L.acts.r9arrange = function () { A.on = !A.on; L.render(); var b = document.querySelector('[data-k="lv-arrange"]'); if (b) b.focus(); L.say(A.on ? 'Arranging the boxes. Drag a box by its header, or use its Move… button. Press Done when you have finished.' : 'Layout kept'); if (!A.on) L.saved('layout of Live for this window size'); };
   L.acts.r9arrreset = function () { delete A.saved[MODES[mode()]]; save(); L.render(); L.say('The usual layout is back'); var b = document.querySelector('[data-k="r9-arr-done"]'); if (b) b.focus(); };
   L.acts.r10move = function (el) {
     var id = el.dataset.box, m = mode(), c = current(m), p = where(c, id), cols = c.cols.filter(function (x) { return x.length; }), real = p ? p.ci : -1;
@@ -197,7 +197,7 @@
       if (m > 1) h += it('left', 'Column left', 'left', real <= 0) + it('right', 'Column right', 'right', real < 0 || real >= c.cols.length - 1);
       if (id === 'onair') h += it('top', 'To the top, the whole width', 'chevup');
     }
-    h += '<div class="sep" role="separator"></div>' + it('taller', 'Taller', 'plus') + it('shorter', 'Shorter (it scrolls inside)', 'minus') + it('fit', 'Fit: as tall as what it holds', 'restart', !c.heights[id]);
+    h += '<div class="sep" role="separator"></div>' + it('taller', 'Taller', 'plus') + it('shorter', 'Shorter (it scrolls inside)', 'minus') + it('fit', 'Fit to its contents', 'restart', !c.heights[id]);
     if (m > 1 && p) h += it('narrower', 'Narrower', 'chevleft', cols.length < 2) + it('wider', 'Wider', 'chevright', cols.length < 2);
     L.menu(el, h, 'Move or size ' + NAMES[id]);
   };
@@ -211,7 +211,7 @@
       if (d === 'top' && p) { col.splice(p.i, 1); said = 'On air is at the top again'; }
       if (/^into/.test(d)) { var ci = +d.slice(4); while (s.cols.length <= ci) s.cols.push([]); s.cols[ci].unshift(id); said = 'On air moved into column ' + (ci + 1); }
       if (d === 'taller' || d === 'shorter') { var box = boxEl(id), now = s.heights[id] || (box ? Math.round(box.getBoundingClientRect().height) : 300); s.heights[id] = Math.max(120, Math.min(1200, Math.round((now + (d === 'taller' ? 60 : -60)) / 10) * 10)); said = NAMES[id] + ' ' + s.heights[id] + ' pixels high'; }
-      if (d === 'fit') { delete s.heights[id]; said = NAMES[id] + ' as tall as what it holds'; }
+      if (d === 'fit') { delete s.heights[id]; said = NAMES[id] + ' now fits its contents'; }
       if ((d === 'narrower' || d === 'wider') && p) {
         var n = s.cols.length, base = (s.widths || s.cols.map(function (x, i) { return (m === 3 ? [27, 43, 30, 25][i] : [38, 62, 30][i]) || 30; })).slice(0, n); while (base.length < n) base.push(25);
         var nb = p.ci < n - 1 ? p.ci + 1 : p.ci - 1, step = (d === 'wider' ? 4 : -4);

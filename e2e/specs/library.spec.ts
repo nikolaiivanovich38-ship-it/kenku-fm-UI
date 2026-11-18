@@ -671,7 +671,7 @@ test.describe("round 10: removing tracks from the Track library", () => {
     const n = (await shownTitles(page)).length;
     expect(n).toBeGreaterThan(1);
     await page.getByRole("button", { name: "More for the library" }).click();
-    await page.getByRole("menuitem", { name: `Remove all ${n} shown from library…` }).click();
+    await page.getByRole("menuitem", { name: `Remove the ${n} tracks shown from the library…` }).click();
     const dialog = page.getByRole("dialog", { name: `Remove all ${n} shown tracks from the library?` });
     await dialog.getByRole("button", { name: `Remove ${n} tracks` }).click();
     expect(await shownTitles(page)).toEqual([]);

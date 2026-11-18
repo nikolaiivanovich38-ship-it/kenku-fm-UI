@@ -167,7 +167,7 @@
   }
   function splitBody(t) {
     var ps = parts(t);
-    return '<p>Each part becomes a track that plays its part of the same file. <b>Your file is not changed</b>, and the whole track stays in your library.</p>' +
+    return '<p>Each part becomes a track that plays its part of the same file. Your file is not changed, and the whole track stays in your library.</p>' +
       '<fieldset class="r9-sp-cuts"><legend>Split at</legend>' + SP.cuts.map(function (c, i) {
         return '<label class="r9-sp-cut"><input type="checkbox" data-input="r9spcut" data-i="' + i + '" data-k="r9sp-cut-' + i + '"' + (c.on ? ' checked' : '') + '>' + esc(c.label) + ' <span class="num faint">' + L.fmt(c.at) + '</span></label>';
       }).join('') + '</fieldset>' +
@@ -206,7 +206,7 @@
       t.parts = (t.parts || []).filter(function (x) { return made.indexOf(x) < 0; });
       D.playlists.forEach(function (p) { if (p.items) p.items = p.items.filter(function (x) { return made.indexOf(x) < 0; }); });
     });
-    L.render(); L.saved(made.length + ' parts of ' + L.title(t) + ' in the Library');
+    L.render(); L.saved(made.length + ' parts of ' + L.title(t) + ' in the Track library');
   };
   // A part's details say what it is part of; the whole track's list its parts.
   L.partLine = function (t) {

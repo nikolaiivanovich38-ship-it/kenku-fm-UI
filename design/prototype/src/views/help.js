@@ -147,11 +147,11 @@
   /* ---------- the tour ---------- */
   function railTarget(k) { return function () { return document.querySelector('#rail [data-k="' + k + '"]'); }; }
   var STEPS = [
-    { title: "Lyre's places", text: 'Everything is a click away here. Help is at the foot, or press F1.', target: function () { return document.querySelector('#rail nav'); } },
+    { title: "The menu", text: 'Lyre’s main screens are in this menu. Help is at the bottom, or press F1.', target: function () { return document.querySelector('#rail nav'); } },
     { title: 'Track library', text: 'Add your music here and tag it.', target: railTarget('rail-library') },
-    { title: 'Scenes', text: 'Scenes are in Campaigns: a campaign holds its sessions, a session its scenes.', target: railTarget('rail-campaigns') },
-    { title: 'Live', text: 'Run the session here. Space starts the next scene.', target: railTarget('rail-live') },
-    { title: 'Now playing', text: 'What plays shows down here. On air: the players hear it. Only you: your headphones.', bottom: true,
+    { title: 'Scenes', text: 'Scenes are planned in Campaigns. A campaign has sessions, and each session has scenes.', target: railTarget('rail-campaigns') },
+    { title: 'Live', text: 'Run the session here. Press Space to start the next scene.', target: railTarget('rail-live') },
+    { title: 'Now playing', text: 'What is playing is shown here, at the bottom. On air means the players hear it. Only you means it plays in your headphones and nobody else hears it.', bottom: true,
       target: function () { return document.querySelector('#view .onairbar') || document.getElementById('view'); } }
   ];
   var T = { step: -1, replay: false }, tourEl = null;
