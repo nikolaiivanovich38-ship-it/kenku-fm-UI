@@ -29,6 +29,7 @@ import {
   setRoomRepeat,
   setRoomShuffle,
   shuffledOrder,
+  lastOfRound,
   shownRepeat,
   undoLast,
   addPlayed,
@@ -44,6 +45,7 @@ import {
   type ListItem,
   type ListPick,
   type PlanView,
+  type PlanStep,
   type Repeat,
   type RoomList,
   type RoomRepeat,
@@ -207,6 +209,8 @@ export class RoomPlayer {
    * deal it follows (`after`, the plan's own seed then).
    */
   private round: { after: number | undefined; seed: number } | null = null;
+  /** Review of r052 (finding 6): the room's Shuffle deal for the plan's next round, drawn ahead for the deal it follows. */
+  private roomRound: { after: string; deal: readonly string[] } | null = null;
 
   constructor(
     readonly roomId: string,
@@ -458,7 +462,10 @@ export class RoomPlayer {
       // 45: the plan goes round again in the deal Up next showed for its next round.
       const plan = this.plan;
       if (pick.round === "next" && plan && plan.origin.kind === "playlist") {
+        const view = this.planView(false);
         this.plan = { ...plan, origin: { ...plan.origin, seed: this.nextRoundSeed(plan.origin.seed) } };
+        // The room's Shuffle deals the new round in the order Up next showed (finding 6).
+        if (this.list.shuffle && view.nextShuffle) this.list = setRoomShuffle(this.list, view.nextShuffle);
       }
       const item = this.planItemAt(pick.at);
       if (item) this.startPlan(item, fadeSeconds);
@@ -504,17 +511,50 @@ export class RoomPlayer {
     const loops = origin.kind === "scene" ? !this.deps.playsOnce?.(origin.scene) : repeat === "all";
     // 45: a playlist that starts again is dealt ahead for its next round (a shuffle gets a new order), so Up next can
     // name what comes round and that is what plays.
-    const nextRound =
-      loops && origin.kind === "playlist"
-        ? sequenceOf({ ...origin, seed: this.nextRoundSeed(origin.seed) }, lib).map((step) => ({ trackId: step.trackId, playlistId: step.playlistId, key: `t:${step.trackId}` }))
-        : null;
-    return { steps, at, inner, loops, keepAdded: repeat === "all", nextRound };
+    const view: PlanView = { steps, at, inner, loops, keepAdded: repeat === "all" };
+    if (!loops || origin.kind !== "playlist") return { ...view, nextRound: null };
+    // Never two of the same track in a row across the turn: a new deal that would start with the track this round
+    // ends on is dealt again (46; review of r052: turning it instead left its first track unplayed).
+    const ending = lastOfRound(this.list, view);
+    const nextRound = sequenceOf({ ...origin, seed: this.nextRoundSeed(origin.seed, ending) }, lib).map((step) => ({ trackId: step.trackId, playlistId: step.playlistId, key: `t:${step.trackId}` }));
+    const nextShuffle = this.list.shuffle ? this.nextRoomDeal(this.list.shuffle, nextRound, ending) : null;
+    return { ...view, nextRound, nextShuffle };
   }
 
-  /** 45, 46: the seed of the round after the deal `after` (drawn once per deal). */
-  private nextRoundSeed(after: number | undefined): number {
-    if (!this.round || this.round.after !== after) this.round = { after, seed: this.deps.newSeed?.() ?? (after ?? 0) + 1 };
+  /** Draws a deal again (a few times at most) while it starts with `avoid`. */
+  private dealAvoiding<T>(deal: (seed: number) => T, firstTrack: (dealt: T) => string | undefined, avoid: string | undefined, fallback: number): T {
+    let dealt = deal(this.deps.newSeed?.() ?? fallback);
+    // "+ tries": a fresh deal even when the random numbers repeat themselves.
+    for (let tries = 1; tries < 16 && avoid !== undefined && firstTrack(dealt) === avoid; tries++) dealt = deal((this.deps.newSeed?.() ?? fallback) + tries);
+    return dealt;
+  }
+
+  /** 45, 46: the seed of the round after the deal `after` (drawn once per deal), whose first track is not `ending`. */
+  private nextRoundSeed(after: number | undefined, ending?: string): number {
+    if (!this.round || this.round.after !== after) {
+      const origin = this.plan?.origin;
+      const lib = this.deps.library;
+      const seed = this.dealAvoiding(
+        (s) => s,
+        (s) => (origin?.kind === "playlist" ? sequenceOf({ ...origin, seed: s }, lib)[0]?.trackId : undefined),
+        ending,
+        (after ?? 0) + 1,
+      );
+      this.round = { after, seed };
+    }
     return this.round.seed;
+  }
+
+  /** Finding 6: the room's Shuffle deal for the next round, a new order each round, not starting with `ending`. */
+  private nextRoomDeal(current: readonly string[], round: readonly PlanStep[], ending: string | undefined): readonly string[] {
+    const after = current.join("\n");
+    if (!this.roomRound || this.roomRound.after !== after) {
+      const keys = round.map((step) => step.key);
+      const trackOf = new Map(round.map((step) => [step.key, step.trackId]));
+      const deal = this.dealAvoiding((seed) => shuffledOrder(keys, seed), (dealt) => trackOf.get(dealt[0]), ending, Date.now());
+      this.roomRound = { after, deal };
+    }
+    return this.roomRound.deal;
   }
 
   /** PLY-17: the Repeat that applies to what plays now: the room's, else the scene track's saved one, else its playlist's. */

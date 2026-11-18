@@ -991,11 +991,15 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const ahead = seq.findIndex((step, i) => i >= at && step.trackId !== item.trackId);
     if (ahead > -1) return itemAt(item, seq, ahead);
     if (order.repeat !== "all") return null;
-    // 46: the next round is dealt again; it does not start with the track just heard.
-    const origin = { ...item.origin, seed: this.newSeed() };
-    const round = sequenceOf(origin, this.show);
-    const first = Math.max(0, round.findIndex((step) => step.trackId !== item.trackId));
-    return round.length ? itemAt({ ...item, origin }, round, first) : null;
+    // 46: the next round is dealt again, and again (a few times at most) while it would start with the track just
+    // heard; it then plays from its first track (review of r052: starting further in left that track out of the round).
+    let origin = { ...item.origin, seed: this.newSeed() };
+    let round = sequenceOf(origin, this.show);
+    for (let tries = 1; tries < 16 && round.length > 1 && round[0].trackId === item.trackId; tries++) {
+      origin = { ...item.origin, seed: this.newSeed() + tries };
+      round = sequenceOf(origin, this.show);
+    }
+    return round.length ? itemAt({ ...item, origin }, round, 0) : null;
   }
 
   /** A seed to deal a shuffled preview with (46: from cryptographic random numbers unless a test gives its own). */

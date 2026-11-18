@@ -108,6 +108,17 @@ describe("30: previewing a playlist plays it as its play order says", () => {
     for (let i = 1; i < heard.length; i++) expect(heard[i]).not.toBe(heard[i - 1]);
   });
 
+  it.each([0.31, 0.52, 0.9, 0.13, 0.44])("shuffled, every round plays each track once: a new deal that would start with the track just heard is dealt again (review of r052: it skipped that deal's first track), seed %s", async (start) => {
+    let r = start;
+    rig = lyreAudioOnFakes(makeData(), { random: () => (r = (r * 9301 + 0.49297) % 1) });
+    rig.data.playlists[0].order = { shuffle: true, repeat: "all" };
+    rig.audio.previewPlaylist("P");
+    const heard = (await previewsThrough(119.5)).filter((t): t is string => t !== null);
+    expect(heard.length).toBeGreaterThanOrEqual(12);
+    for (let i = 0; i < 12; i += 3) expect([...heard.slice(i, i + 3)].sort(), heard.join(" ")).toEqual(["m1", "m2", "m3"]);
+    for (let i = 1; i < heard.length; i++) expect(heard[i]).not.toBe(heard[i - 1]);
+  });
+
   it("previewed in a session, the session's own play order and track order apply", async () => {
     rig.data.playOrders = { [keyOfPlace(SESSION)]: { P: { shuffle: false, repeat: "off" } } };
     rig.data.trackOrders = { [keyOfPlace(SESSION)]: { P: ["m3", "m1", "m2"] } };

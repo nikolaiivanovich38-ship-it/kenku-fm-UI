@@ -711,6 +711,41 @@ describe("45: what plays is what Up next said, round after round", () => {
     expect(director.report()[0].list.filter((e) => e.kind === "plan").map((e) => (e.kind === "plan" ? e.trackId : ""))).toEqual(["a1", "a2", "a3", "a4"]);
   });
 
+  it.each([0.31, 0.07, 0.52, 0.66, 0.9, 0.13, 0.44, 0.71])("46, review of r052: a new round that would start with the track just played is dealt again, so every track plays once a round (a turned round dropped one), seed %s", async (start) => {
+    // Seeds that deal the next round of PA starting with the track the round ended on, again and again, before others.
+    const engine = new PlaybackEngine({ context, scheduler: context.clock, loader: new SourceLoader({ context, createElement: () => context.createMediaElement(), fetchBytes: async () => null }) });
+    let r = start;
+    director = new Director({ engine, rooms, library: staticLibrary(data), random: () => (r = (r * 9301 + 0.49297) % 1) });
+    data.playOrders = {};
+    data.playlists.find((p) => p.id === "PA")!.order = { shuffle: true, repeat: "all" };
+    await run({ type: "playPlaylist", playlistId: "PA", target: table, fadeMs: 0 });
+    const first = music();
+    const changes = await followUpNext(40 * 10 - 1);
+    for (const c of changes) expect(c.to, `after ${c.from} Up next said ${c.said}`).toBe(c.said);
+    const order = [first, ...changes.map((c) => c.to)];
+    expect(order).toHaveLength(40);
+    for (let i = 0; i < 40; i += 4) expect([...order.slice(i, i + 4)].sort(), `round ${i / 4 + 1}: ${order.join(" ")}`).toEqual(["a1", "a2", "a3", "a4"]);
+    for (let i = 1; i < order.length; i++) expect(order[i]).not.toBe(order[i - 1]);
+  });
+
+  it("6, review of r052: the room's Shuffle deals a new order each round of a playlist that repeats, every track once a round", async () => {
+    const engine = new PlaybackEngine({ context, scheduler: context.clock, loader: new SourceLoader({ context, createElement: () => context.createMediaElement(), fetchBytes: async () => null }) });
+    let r = 0.52;
+    director = new Director({ engine, rooms, library: staticLibrary(data), random: () => (r = (r * 9301 + 0.49297) % 1) });
+    data.playOrders = {};
+    await run({ type: "playPlaylist", playlistId: "PA", target: table, fadeMs: 0 });
+    director.toggleShuffle(table);
+    const first = music();
+    const changes = await followUpNext(24 * 10 - 1);
+    for (const c of changes) expect(c.to, `after ${c.from} Up next said ${c.said}`).toBe(c.said);
+    const order = [first, ...changes.map((c) => c.to)];
+    expect(order).toHaveLength(24);
+    const rounds = Array.from({ length: 6 }, (_, i) => order.slice(i * 4, i * 4 + 4));
+    for (const round of rounds) expect([...round].sort(), order.join(" ")).toEqual(["a1", "a2", "a3", "a4"]);
+    expect(new Set(rounds.slice(1).map((round) => round.join())).size, order.join(" ")).toBeGreaterThan(1);
+    for (let i = 1; i < order.length; i++) expect(order[i]).not.toBe(order[i - 1]);
+  });
+
   it("46: a shuffled playlist deals a new order each round, never starting with the track just played, and still plays what Up next said", async () => {
     let r = 0.123;
     const engine = new PlaybackEngine({ context, scheduler: context.clock, loader: new SourceLoader({ context, createElement: () => context.createMediaElement(), fetchBytes: async () => null }) });
@@ -857,7 +892,7 @@ describe("43: ambience loops by default, unless its settings say not to", () => 
 
 describe("43 stays in the ambience lane (review of r052)", () => {
   it("an Ambience-type track in a music playlist plays once there and the playlist moves on", async () => {
-    data.playlists.find((p) => p.id === "P")!.trackIds = ["amb1", "m3"];
+    (data.playlists.find((p) => p.id === "P") as { trackIds: string[] }).trackIds = ["amb1", "m3"];
     await run({ type: "playPlaylist", playlistId: "P", target: table, fadeMs: 0 });
     await context.advance(1);
     expect(music()).toBe("amb1");

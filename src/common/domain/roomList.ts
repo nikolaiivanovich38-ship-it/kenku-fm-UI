@@ -69,6 +69,11 @@ export interface PlanView {
    * (a scene), the plan starts again at its own top and Up next stops at the bottom, as before.
    */
   nextRound?: readonly PlanStep[] | null;
+  /**
+   * Review of r052 (finding 6): with the room's Shuffle on, its deal for the next round (a new order each round, dealt
+   * ahead like `nextRound` so Up next shows it). Not given: the room's deal again.
+   */
+  nextShuffle?: readonly string[] | null;
 }
 
 /** What plays now: the plan, a Play next item (taken off `pn`), or an added item (it stays in `q` while it plays). */
@@ -240,16 +245,21 @@ function planEnd(list: RoomList, plan: PlanView, loops: boolean): { list: RoomLi
 }
 
 /**
- * 45: the next round's steps in the order they will play (skips left out), never starting with the track the plan
- * ends on: a round that would is turned so it starts with the first other track (unless nothing else is left).
+ * 45: the next round's steps in the order they will play (skips left out). The deal itself does not start with the
+ * track the plan ends on (the room player deals again until it does not: RoomPlayer nextRoundSeed and nextRoomDeal);
+ * turning a round here instead left its first step unplayed (review of r052, finding 3).
  */
 function roundOrder(list: RoomList, plan: PlanView): number[] {
   const round = plan.nextRound ?? [];
-  const lastKey = plan.steps[playOrder(list, plan).filter((i) => !list.skips.includes(plan.steps[i].key)).pop() ?? -1]?.trackId;
   const own = round.map((_, i) => i).filter((i) => !list.skips.includes(round[i].key));
-  const order = list.shuffle ? playOrder(list, { ...plan, steps: round }).filter((i) => own.includes(i)) : own;
-  const firstOther = order.findIndex((i) => round[i].trackId !== lastKey);
-  return firstOther > 0 ? [...order.slice(firstOther), ...order.slice(0, firstOther)] : order;
+  if (!list.shuffle) return own;
+  return playOrder({ ...list, shuffle: plan.nextShuffle ?? list.shuffle }, { ...plan, steps: round }).filter((i) => own.includes(i));
+}
+
+/** The track the plan's round ends on, in its play order (skips left out); undefined for an empty plan. */
+export function lastOfRound(list: RoomList, plan: PlanView): string | undefined {
+  const order = playOrder(list, plan).filter((i) => !list.skips.includes(plan.steps[i].key));
+  return order.length ? plan.steps[order[order.length - 1]].trackId : undefined;
 }
 
 /** The queue goes on: the rest of the added item, the next one, then back to the plan's top (or stop). */

@@ -297,11 +297,18 @@ describe("45: a plan that starts again shows its next round in Up next, and play
     expect(upNext(emptyRoomList(), looping(1)).map((e) => (e.kind === "plan" ? e.trackId : ""))).toEqual(["c", "d", "c", "a", "d", "b"]);
   });
 
-  it("the next round never starts with the track that just played; it goes to the end of the round", () => {
-    const sameFirst = ["d", "a", "b", "c"].map((t): PlanStep => ({ trackId: t, playlistId: null, key: `t:${t}` }));
-    const r = pickNext(emptyRoomList(), looping(3, sameFirst), { ended: true, repeat: "all" });
-    expect(r.pick).toEqual({ from: "plan", at: 1, round: "next" });
-    expect(upNext(emptyRoomList(), looping(3, sameFirst)).map((e) => (e.kind === "plan" ? e.trackId : ""))).toEqual(["a", "b", "c", "d"]);
+  it("the next round plays as dealt, from its first step (the room player deals it so it does not start with the track that just played: turning it here left that step unplayed, review of r052)", () => {
+    const dealt = ["d", "a", "b", "c"].map((t): PlanStep => ({ trackId: t, playlistId: null, key: `t:${t}` }));
+    const r = pickNext(emptyRoomList(), looping(3, dealt), { ended: true, repeat: "all" });
+    expect(r.pick).toEqual({ from: "plan", at: 0, round: "next" });
+    expect(upNext(emptyRoomList(), looping(3, dealt)).map((e) => (e.kind === "plan" ? e.trackId : ""))).toEqual(["d", "a", "b", "c"]);
+  });
+
+  it("with the room's Shuffle on, the next round follows its own deal when one is given (finding 6), else the room's", () => {
+    const list = { ...emptyRoomList(), shuffle: ["t:b", "t:a", "t:d", "t:c"] };
+    expect(upNext(list, { ...looping(3), at: 2 }).filter((e) => e.kind === "plan" && e.round === "next").map((e) => (e.kind === "plan" ? e.trackId : ""))).toEqual(["b", "a", "d", "c"]);
+    const next = { ...looping(3), at: 2, nextShuffle: ["t:c", "t:d", "t:a", "t:b"] };
+    expect(upNext(list, next).filter((e) => e.kind === "plan" && e.round === "next").map((e) => (e.kind === "plan" ? e.trackId : ""))).toEqual(["c", "d", "a", "b"]);
   });
 
   it("a skipped track stays skipped in the next round", () => {
