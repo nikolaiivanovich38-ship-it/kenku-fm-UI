@@ -511,7 +511,8 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
   });
 
   test("each screen with a parent has its trail right after Back: every part a link, the screen's title last", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "rooms-settings"); // it opens Settings
+    // Round 10 (Nik, 18 Nov 03:14, answer 2): Rooms is under Settings, so its trail is Settings › Rooms.
+    expectFailureUntilBuilt("shell", "rooms-settings", "r10"); // it opens Settings
     // 0.5.2 item 23: the app calls the Library the Track library; the prototype "Library".
     const cases: [string, (string | RegExp)[], RegExp][] = [
       ["session/crown/s14", ["Campaigns", "The Sunken Crown"], /Session 14/],
@@ -521,6 +522,7 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
       // 0.5.2 (Nik's item 3) and round 9: the Audio profile's trail goes up to the track's details too.
       ["profile/t13", ["Track library", "Track details"], /Audio profile/],
       ["backup", [/^(Track l|L)ibrary$/], /Back up, move or share/],
+      ["outputs", ["Settings"], /Rooms/],
     ];
     for (const [route, links, title] of cases) {
       await openRoute(page, route);
@@ -534,7 +536,7 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
       expect(h.x, route).toBeGreaterThan(n.x);
       await expect(page.getByRole("heading", { level: 1 }), route).toContainText(title);
     }
-    for (const route of ["campaigns", "library", "playlists", "boards", "outputs", "settings"]) {
+    for (const route of ["campaigns", "library", "playlists", "boards", "settings"]) {
       await openRoute(page, route);
       await expect(trail(page), route).toHaveCount(0);
     }
@@ -595,7 +597,8 @@ test.describe("round 6, part 7: Back is one history across the whole app", () =>
     await menu(page, /^Live/).click();
     const crypt = scenes(page).getByRole("button", { name: "Scene 4: Crypt ambush", exact: true });
     await crypt.click();
-    await menu(page, /^Rooms/).click();
+    // Round 10 (Nik, 18 Nov 03:14, answer 2): Rooms is under Settings at the foot of the menu.
+    await page.getByRole("link", { name: /^Rooms \(/ }).click();
     await expect(h1(page)).toHaveText("Rooms");
 
     await back(page).click();

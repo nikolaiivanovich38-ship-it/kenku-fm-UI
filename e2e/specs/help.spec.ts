@@ -89,7 +89,8 @@ test.describe("FND-8 the Help entry", () => {
     await page.keyboard.press("F1");
     const run = helpPanel(page).getByRole("list", { name: "Run a session" });
     await expect(run.getByRole("button", { name: "Play next, Add to queue and Repeat" })).toBeVisible();
-    await expect(helpPanel(page).getByRole("listitem")).toHaveCount(15);
+    // Round 9 added articles (16 to 21) and Set up Lyre's list: fifteen or more items now.
+    expect(await helpPanel(page).getByRole("listitem").count()).toBeGreaterThanOrEqual(15);
   });
 
   test("an article opens in the panel with Back; Back returns to the list with focus on that article", async ({ page }) => {
@@ -109,7 +110,8 @@ test.describe("FND-8 the Help entry", () => {
     await openRoute(page, "campaigns");
     await page.keyboard.press("F1");
     const panel = helpPanel(page);
-    const titles = await panel.getByRole("listitem").getByRole("button").allTextContents();
+    // Round 9: only the articles' lists (each named by its group), not Set up Lyre's Show me buttons.
+    const titles = await panel.getByRole("list", { name: /\S/ }).getByRole("listitem").getByRole("button").allTextContents();
     // 14 articles in 0.4.1; round 6 adds a fifteenth (checked above).
     expect(titles.length).toBeGreaterThanOrEqual(14);
     for (const title of titles) {
@@ -167,9 +169,11 @@ test.describe("FND-8 the Help entry", () => {
       await openRoute(page, "playlists", { theme });
       await page.keyboard.press("F1");
       const panel = helpPanel(page);
-      // Tab moves from the search box through the articles to the foot.
-      await page.keyboard.press("Tab");
-      await expect(panel.getByRole("button", { name: "Connect Discord and add a bot to a room" })).toBeFocused();
+      // Tab moves from the search box through the articles to the foot. Round 9: On this screen and Set up Lyre come
+      // before the articles, so Tab goes on until the first article.
+      const first = panel.getByRole("button", { name: "Connect Discord and add a bot to a room" });
+      for (let i = 0; i < 30 && !(await first.evaluate((b) => b === document.activeElement)); i++) await page.keyboard.press("Tab");
+      await expect(first).toBeFocused();
       await page.keyboard.press("Enter");
       await expect(panel.getByRole("heading", { level: 3, name: "Connect Discord and add a bot to a room" })).toBeFocused();
       expect(await axeProblems(page)).toEqual([]);
@@ -321,7 +325,7 @@ test.describe("0.5.1: help for Lyre as one window", () => {
     await openRoute(page, "campaigns");
     await page.keyboard.press("F1");
     const panel = helpPanel(page);
-    for (const title of await panel.getByRole("listitem").getByRole("button").allTextContents()) {
+    for (const title of await panel.getByRole("list", { name: /\S/ }).getByRole("listitem").getByRole("button").allTextContents()) {
       await panel.getByRole("button", { name: title, exact: true }).click();
       await expect(panel.getByRole("article"), title).not.toContainText(/Lyre Player|Player tab|website tab|remote control/i);
       await panel.getByRole("button", { name: "Back", exact: true }).click();

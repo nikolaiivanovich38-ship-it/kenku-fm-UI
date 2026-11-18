@@ -215,7 +215,8 @@ test.describe("a scene's music: tracks and playlists mixed, in order", () => {
     expect(names.indexOf("New theme") + 1).toBe(names.indexOf("Second"));
     expect(names).toHaveLength(6);
     // The note is shown, and read out a moment later from a hidden region (UX-R6): check the one on screen.
-    await expect(page.getByText(/2 new tracks added to the Library/).filter({ visible: true })).toBeVisible();
+    // The Saved pop-up (its status role), not the hidden live region that reads it out too (ROUND9.md, Specs).
+    await expect(page.getByRole("status").filter({ hasText: /2 new tracks added to the Library/ })).toBeVisible();
   });
 
   test("something that is not a file dragged over the music is ignored", async ({ page }) => {

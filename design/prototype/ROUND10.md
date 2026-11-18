@@ -37,7 +37,7 @@ Built = drawn in the prototype this round. Later = kept for a later round, not d
 | P7 | Watched folders shown and managed | Keep as 0.5.2 built it | 0.5.2 put kind and Remove folder in Filters › Folders ⋯; the prototype follows its words. |
 | P8 | No "Coming later" anywhere | Change, built | The campaign's Obsidian box stays (approved placeholder, spec'd); the line in **every scene** and the session's box go, which is where the reading load was. |
 | P9 | Pad editor: Sound first; Fill empty pads… | Later | The board editor is not touched by this round's items; queued with Nik's next board changes. |
-| P10 | Track panel under the top strip; File folded; trail collapses only when it must; one At its end | Keep, built | All three reviewers: the panel's × sat beside the window's buttons (WCAG 2.5.8). |
+| P10 | Track panel under the top strip; File folded; trail collapses only when it must; one At its end | Keep: panel, At its end and the box's name built; File folded and the trail rule Later | All three reviewers: the panel's × sat beside the window's buttons (WCAG 2.5.8). |
 | P11 | One scene open at a time, Open all | Drop | Nik 18 Nov, 2b: each scene stays open until closed, no Open all. **Open all scenes is removed.** |
 | P12 | New session ▾ copy last session | Drop | Nik 18 Nov, 3b: a new session starts empty. |
 | P13 | One add-tracks panel for scenes and playlist pages | Later | Same panel in the app (one component); not redrawn now. |
@@ -55,7 +55,7 @@ Built = drawn in the prototype this round. Later = kept for a later round, not d
 | T1 | One Undo place, fixed in the top strip | Keep, built | The Undo strip pushed the scene rows down and back. |
 | T1 | Stop pads always in the board's row, greyed when nothing sounds | Keep, built | Its appearing moved the pads 7 px. |
 | T1 | Up next as one line with a popover | Change | Up next stays folded to its first line; it unfolds only when Nik clicks "n more", which his rule allows (it moves because he moved it). |
-| T1 | Current scene's pads never scroll away | Change, built | With a height given in Arrange, Current scene scrolls its rows and keeps its pads at its foot. |
+| T1 | Current scene's pads never scroll away | Later | Arrange now sizes Current scene; a pad strip pinned at its foot needs the app's box layout and is drawn in the build. |
 | T2 | Preview first, Play on air last after a gap, "Players hear this now" / "Only you" | Keep, built | What players hear rested on two small icons. |
 | T2 | The preview queue at the right like Help | Keep, built | It covered the middle of Live. |
 | T3 | Arrange: grip, edges, one Move menu per box; On air movable and resizable | Keep, built | Nik 18 Nov, 6: dynamic per window size; every box movable and resizable, On air too, top by default. |
@@ -65,13 +65,13 @@ Built = drawn in the prototype this round. Later = kept for a later round, not d
 | T5 | Bots join only when Nik joins them; "Joins when Lyre starts" goes | Keep, built | Nik 18 Nov, 3. |
 | T5 | Missing file or empty pad marked before pressing; a warning pop-up | Keep, built | Nik learnt of it after the moment had passed (WCAG 1.4.1, 4.1.3). |
 | T5 | Double-click on Next scene starts one scene | Keep, built | 0.5.2 built it; the prototype matches. |
-| T6 | Fade all and Stop all keep their words at every width | Keep, built | They became 24 px icons at half a screen, Nik's normal layout. |
-| T6 | Leave only in the room menu at half a screen | Keep, built | Leave sat 14 px from the volume. |
+| T6 | Fade all and Stop all keep their words at every width | Change, built | Words from 1000 px of app (a whole window, half a 2560 screen); at half a 1920 screen the strip has no room beside Back, the trail, the session, Prep \| Live, Find, Undo and the window's buttons, so they stay icons there, named on hover and read out. |
+| T6 | Leave only in the room menu at half a screen | Drop | Round 8's approved check: Leave is beside the room's button and in its menu. It moves 8 px further from the volume instead. |
 | T6 | Transport: Pause first, Stop after a gap | Change, built | Merged with K: see "Where the three disagree". |
 | T7 | First start: the tour, then Set up Lyre; a Live tour of six steps; Set up folds when done | Keep, built | Nik 18 Nov, 5b. The Live tour now covers what the players hear, Undo and Fade all. |
 | T7 | F1 opens at the screen's article | Change | On this screen is already first in Help, one click from the article. |
 | T8 | Rooms screen under Settings, as it is | Keep, built | Nik 18 Nov, 2. |
-| T9 | Pad names wrap at spaces; dip mark; What played as a popover; one Esc closes Find | Keep (built except What played, Later) | What played is rare mid-game. |
+| T9 | Pad names wrap at spaces; dip mark; What played as a popover; one Esc closes Find | Keep: pad names and the dip mark built; What played and Find's Esc Later | Both are rare mid-game. |
 
 ### Look
 
@@ -82,7 +82,7 @@ Built = drawn in the prototype this round. Later = kept for a later round, not d
 | K2 | Status colours for status, the accent for one primary | Keep, built | Connected and Nobody there were both gold. |
 | K3 | One header grammar; sentence case; the trays as plain headings | Keep, built | ALL CAPS labels and dashed/solid trays meant nothing. |
 | K4 | Display face for the screen's title and campaign names only | Keep, built | Cinzel and Cormorant at 15 px were the hardest text on screen. |
-| K5 | Boxes take their content's height | Keep (Live and the campaign page) | Already the rule in Live (Nik 6 Nov). |
+| K5 | Boxes take their content's height | Keep; Live already does (Nik 6 Nov); the campaign page Later | |
 | K6 | Row buttons greyed at rest everywhere | Keep, built | Nik's Live rule (6 Nov), now on every list. |
 | K | Fern's ground green that reads | Keep, built | The five themes read as three. |
 | K | 12 px floor for text | Keep, built | Badges at 10 px. |
@@ -91,11 +91,11 @@ Built = drawn in the prototype this round. Later = kept for a later round, not d
 | K | Playing title on two lines with its loop setting under it | Keep, built | Long titles were cut where Nik needs them; 0.5.2 shows the loop setting on air. |
 | K | Transport hierarchy | Keep, built | Merged with T6. |
 | K | Dipped as a status, no mark on the pad's face | Keep, built | ⌄ read as "opens a menu". |
-| K | Preview strip with headphones and "Only you"; the on-air bar says "Players hear" | Keep, built | Two identical bars, one slip apart. |
+| K | Preview strip with headphones and "Only you"; the on-air bar says "Players hear" | Change, built | The bars keep their chips (On air · Table, Only you); the preview row is slimmer with a purple edge and tint, the on-air row a red edge. |
 | K | Audio profile: "Audio profile" as its first box; one At its end | Keep, built | Two lists for one setting. The h1 stays the track's name (Back and the trail name the track). |
 | K | Add music: one Dock menu with words | Keep, built | Four unlabelled glyphs. |
 | K | Look and feel: one card per theme, no menu | Later | Approved in round 7 with its menu; not a reading problem at the table. |
-| K | Settings: version to Help's foot | Keep, built | |
+| K | Settings: version to Help's foot | Drop | The approved check UX-R16 puts it at the top right of Settings. |
 
 ### Where the three disagree
 
@@ -117,17 +117,17 @@ Built = drawn in the prototype this round. Later = kept for a later round, not d
 
 **Every screen.** Track library (0.5.2's name) in the menu, heading, Back and help. Sentence-case labels, no ALL CAPS.
 Box titles in the body face; the display face for the screen's h1 and campaign names. Text 12 px or more. Row buttons
-greyed at rest, full on hover, focus and the selected row. Side panels (Track panel, Help, Queue, Add music) open
-below the top strip.
+greyed at rest, full on hover, focus and the selected row. The Track panel and Help open below the top strip, × at
+the Track panel's left; the queue opens at the right.
 
 **Rail.** Live, Campaigns, Track library, Playlists, Pad boards; at the foot Settings with **Rooms (1/2)** under it
 (Nik: "keep the room screen as an option as it stands under settings"), Look and feel, Help.
 
 **Live.**
-- Top strip: Back, trail, session, Prep | Live, Find (shrinks first), **Undo place**, Fade all, Stop all (words at
-  every width), Keys, Arrange.
-- On air: a red lamp in its head, lit while any room plays; no tinted band. Each room: name ▾ (Leave is in its menu;
-  beside the volume only at a whole window), status, mute, volume. Then Music and Ambience, each with a title of up to
+- Top strip: Back, trail, session, Prep | Live, Find (shrinks first), **Undo place**, Fade all, Stop all (words from
+  1000 px of app), Keys, Arrange.
+- On air: a red lamp in its head, lit while any room plays; no tinted band. Each room: name ▾ (move, copy, Leave), status, mute,
+  volume, Leave. Then Music and Ambience, each with a title of up to
   two lines, its bar and time, and one quiet line (where it comes from · how it loops); then the Effects line, always
   there, with Stop effects greyed until something sounds. Transport: Previous · **Pause** (filled) · Next | Stop |
   Shuffle · Repeat · Fade. A lost connection says "Connection lost · players hear nothing" with Try again and the
@@ -135,11 +135,11 @@ below the top strip.
 - Undo covers starting a scene, Next scene, Play on air, Play next, Add to queue, removing from Up next, Leave, moving a
   room, Fade all and Stop all (every room back where it was). Pads, previews, volume, mute, menus and Find leave it.
   Stop all stops the preview too.
-- Rows: Preview · Play next · Add to queue, a gap, **Play on air** (room colour on hover and focus; "Players hear this
-  now"). Empty pads and missing tracks are dashed with "No sound" or "Missing", and pressing one shows a warning
-  pop-up (amber, stays 10 s), not the Saved one.
-- Arrange: each box gets a grip in its head (drag to move; a line shows where it lands) and edges to drag for height
-  and width; one **Move…** menu per box does the same from the keyboard (Up, Down, Column left, Column right, Taller,
+- Rows: Preview · Play next · Add to queue, a gap, **Play on air** (on-air colour on hover and focus; "Players hear
+  this now"). A pad with no sound is dashed with "No sound" and pressing it shows a warning pop-up (amber, stays
+  10 s), not the Saved one; a missing track says "Missing" on its row (the room skips it, as 0.5.2 built).
+- Arrange: each box gets a grip in its head (drag to move; a line shows where it lands) a foot to drag for height and a bar
+  between columns for width; one **Move…** menu per box does the same from the keyboard (Up, Down, Column left, Column right, Taller,
   Shorter, Fit, Narrower, Wider, and for On air: To the top). On air moves and sizes like the rest, top by default.
   Kept per window size; Put back the usual layout.
 - The Live tour: Next scene · On air: what players hear · Preview: only you · Pads and their keys · Undo · Fade all and
@@ -153,14 +153,14 @@ in its foot (asks a name; the scene gets the new playlist in place of the ticked
 
 **Playlists.** A → Open button on every playlist row. Row buttons greyed at rest.
 
-**Track panel.** Opens under the top strip; File details folded; Open in Library is an ordinary button.
+**Track panel.** Opens under the top strip, × at its head's left; Open in Track library is an ordinary button.
 
-**Audio profile.** First box "Audio profile"; At its end with the same six ends as the Track panel; the trail
-collapses only when it does not fit.
+**Audio profile.** First box "Audio profile"; At its end with the same six ends as the Track panel (Play… opens the
+same picker).
 
 **Settings.** Discord bots: no Joins when Lyre starts; Starting volume stays (used when Nik joins the bot). A
-**Rooms** line opens the Rooms screen. Connected in green. "Each pad board has its own pad keys." The version is at
-Help's foot.
+**Rooms** line opens the Rooms screen. Connected in green. "Each pad board has its own pad keys." The version stays
+at the top right (UX-R16).
 
 **Rooms.** As 0.5.1 had it; its trail says Settings › Rooms; reached from the rail under Settings and from Settings.
 
@@ -168,7 +168,8 @@ Help's foot.
 Parchment as they were. On air is the same red family in all five.
 
 **Help.** First start: the short tour, then Set up Lyre. Set up Lyre folds to one line when all nine are done, and its
-badge never shows while Live has a scene running.
+badge, a quiet outline chip, never shows while Live has a scene running. New campaign: with something typed, the first
+Esc says a second one throws it away.
 
 ## Specs and checks
 See the end of this file once the run is done.

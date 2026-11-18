@@ -8,7 +8,6 @@
      - Rooms under Settings: its trail (Nik, 18 Nov 03:14, answer 2)
      - Connection lost and Try again (table review M3; 0.5.2 built it), and the prototype strip's way to show it
      - the warning pop-up, and pads with no sound marked before they are pressed (table review S3)
-     - a missing track says so when played, instead of playing (0.5.2: the room skips it)
      - the first-start tour ends in Set up Lyre (Nik, 18 Nov 03:14, answer 5b) */
 (function () {
   var esc = L.esc, D = L.data;
@@ -49,9 +48,9 @@
   L.warn = function (text) {
     L.toast(text, { key: 'warn:' + text });
     var t = document.getElementById('lyre-toast'); if (!t) return;
-    t.classList.add('t-warn'); t.setAttribute('role', 'alert');
+    t.classList.add('t-warn');
     var first = t.firstElementChild; if (first && !t.querySelector('.r10-warn-i')) t.insertAdjacentHTML('afterbegin', '<span class="r10-warn-i" aria-hidden="true">' + L.icon('warn', 's') + '</span>');
-    clearTimeout(L.warn.timer); L.warn.timer = setTimeout(function () { var x = document.getElementById('lyre-toast'); if (x && x.classList.contains('t-warn')) { x.classList.remove('t-warn'); x.removeAttribute('role'); x.innerHTML = ''; x.className = 'toast'; } }, 10000);
+    clearTimeout(L.warn.timer); L.warn.timer = setTimeout(function () { var x = document.getElementById('lyre-toast'); if (x && x.classList.contains('t-warn')) { x.innerHTML = ''; x.className = 'toast'; } }, 10000);
   };
   function noSound(p) { var s = p && p.sound; return !!p && (!s || (!(s.files || []).length && !s.tag)); }
   var fire0 = L.firePad;
@@ -60,12 +59,8 @@
     if (noSound(p) && phase !== 'up') { L.warn(p.label + ' has no sound: give it one on its pad board'); return; }
     return fire0.apply(L, arguments);
   };
-  var play0 = L.acts.lvplay;
-  if (play0) L.acts.lvplay = function (el) {
-    var t = L.track(el.dataset.id);
-    if (t && t.missing) { L.warn('Lyre cannot find the file of ' + L.title(t) + ': Find missing files in the Track library'); return; }
-    return play0(el);
-  };
+  // A missing track is marked "Missing" on its row before Nik presses (live.js); what the room does with it is the
+  // engine's (0.5.2 skips it and says so), so the prototype does not imitate it.
 
   /* ---------- the first start: the tour, then Set up Lyre ---------- */
   var next0 = L.acts.tournext;
@@ -90,6 +85,9 @@
   L.render = function () {
     render0.apply(L, arguments);
     stripButton();
+    // The queue sits at the right, just above the Now playing bar, whatever the bar's height (one row or two).
+    var q = document.getElementById('r9-queue'), bar = document.querySelector('#view .onairbar');
+    if (q && bar && q.offsetParent) q.style.bottom = Math.max(8, Math.round(q.offsetParent.getBoundingClientRect().bottom - bar.getBoundingClientRect().top + 8)) + 'px';
     // Pads with no sound are dashed and say so on their face; pressing one explains in the warning pop-up.
     document.querySelectorAll('.lv-pad[data-bid]').forEach(function (el) {
       var b = L.board(el.dataset.bid), p = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === el.dataset.pid; })[0];

@@ -45,11 +45,15 @@
 /* ---------- One Undo place in the strip (table M1, T1) ---------- */
 .r10-undo-slot { flex: 0 1 260px; min-width: 0; display: flex; align-items: center; height: 28px; }
 .r10-undo-slot:empty { flex: 0 1 200px; } /* the place is kept, so nothing in the strip moves when Undo shows */
+/* At half a screen the strip has no room to keep: the place opens when Undo shows, and only Find gives way. */
+@container app (max-width: 1100px) { .r10-undo-slot:empty { flex-basis: 0; } .r10-undo-slot { flex-shrink: 2; } }
 .r10-undo-slot .lv-undo { margin: 0; flex: 1; min-width: 0; height: 28px; box-sizing: border-box; padding: 0 2px 0 8px; position: relative; display: flex; align-items: center; gap: 6px; border: 1px solid var(--accent); border-radius: var(--r-m); background: var(--accent-soft); font-size: var(--fs-s); }
 .r10-undo-slot .lv-undo-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; }
-/* Fade all and Stop all keep their words down to 720 px of app (table S2): Find shrinks first. */
-@container app (min-width: 720px) {
-  .lv-top .lv-btxt { display: inline !important; }
+/* Fade all and Stop all keep their words down to 1000 px of app (table S2; half a 2560 screen and up). At half a 1920
+   screen there is no room for them beside Back, the trail, the session, Prep | Live, Find, Undo and the window's buttons:
+   they are icons there, with their names read out and on hover, as round 6 had them. */
+@container app (min-width: 1000px) {
+  .lv-top [data-act="lvfade"] .lv-btxt, .lv-top [data-act="lvstop"] .lv-btxt { display: inline !important; }
   .lv-top [data-act="lvfade"], .lv-top [data-act="lvstop"] { width: auto !important; padding: 0 8px !important; }
 }
 .lv-top [data-act="lvstop"] { margin-left: 6px; }
@@ -90,7 +94,7 @@
 #lyre-help::before { content: ""; display: block; flex: none; height: 44px; border-bottom: 1px solid var(--line); background: var(--bg); -webkit-app-region: drag; app-region: drag; }
 .help-head { padding-right: 8px; }
 /* The queue: a narrow panel at the right like Help, not over the middle of Live (table D-S5). */
-.r9-queue { position: absolute; right: 8px; bottom: var(--r10-qbottom, 56px); width: min(380px, calc(100% - 16px)); margin: 0; border-radius: var(--r-l); border-bottom: 1px solid var(--line-strong); box-shadow: inset 4px 0 0 var(--preview), var(--shadow); }
+.r9-queue { position: absolute; right: 8px; bottom: var(--r10-qbottom, 56px); width: min(380px, calc(100% - 16px)); margin: 0; border-radius: var(--r-l); border-bottom: 1px solid var(--line-strong); box-shadow: inset 4px 0 0 var(--preview), var(--shadow); z-index: 30; }
 
 /* ---------- The planner: When it starts; Add music's foot ---------- */
 .r10-start-row { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r-m); background: var(--surface-2); }
@@ -118,3 +122,8 @@
 /* Music and ambience lanes keep one height, playing or not, so starting a scene moves nothing. */
 .lv-lane.lv-m { min-height: 110px; }
 .lv-lane.lv-a { min-height: 92px; }
+/* While Undo shows, its place is at least as wide as its button; the words before it give way first. */
+.r10-undo-slot:not(:empty) { min-width: 104px; }
+.r10-undo-slot .lv-undo > .ellipsis { min-width: 0; }
+.r10-undo-slot .lv-undo .btn { flex: none; }
+@container app (max-width: 1100px) { .r10-undo-slot .lv-undo > .ellipsis { display: none; } .r10-undo-slot:not(:empty) { min-width: 0; flex: none; } }

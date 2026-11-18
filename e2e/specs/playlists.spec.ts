@@ -72,7 +72,8 @@ test.describe("all playlists", () => {
     await page.getByRole("button", { name: "More for The Company themes" }).click();
     const menu = page.getByRole("menu", { name: "More for The Company themes" });
     // Round 7 (ORG-4) adds Move to folder… in the prototype.
-    await expect(menu.getByRole("menuitem").filter({ hasNotText: "Move to folder…" })).toHaveText(["Open", "Use in…"]);
+    // Round 9 (item 38): the menu starts with Move up, Move down and Move to the top (Your order); they are left out here.
+    await expect(menu.getByRole("menuitem").filter({ hasNotText: /^Move / })).toHaveText(["Open", "Use in…"]);
     await expect(menu.getByRole("menuitem", { name: /duplicate/i })).toHaveCount(0);
   });
 
@@ -233,8 +234,8 @@ test.describe("one dynamic playlist", () => {
     await expect(rules.getByRole("group", { name: "Condition 3" })).toBeVisible();
     await rules.getByRole("button", { name: "Remove condition 3" }).click();
     await expect(rules.getByRole("group", { name: "Condition 3" })).toHaveCount(0);
-    await rules.getByRole("checkbox", { name: "Leave out stings" }).check();
-    await expect(rules.getByText(/not stings/).first()).toBeVisible();
+    await rules.getByRole("checkbox", { name: /^Leave out (stings|short cues)$/ }).check();
+    await expect(rules.getByText(/not (stings|short cues)/).first()).toBeVisible();
   });
 
   test("energy limits are chosen from two lists", async ({ page }) => {
