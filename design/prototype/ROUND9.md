@@ -185,8 +185,8 @@ The prototype project's acceptance specs, run after these changes (`npx playwrig
 --project=prototype`, through `yarn heavy`): 762 passed, 34 failed, 13 skipped. The sweeps (no sideways scroll, no
 overlap or cut-off text, axe, keyboard, the window's buttons, every screen fits) all pass. The 34 that fail check what
 this round changes on purpose, and need new words when the build stream takes the design:
-- the Rooms screen and its menu item (outputs.spec 9 checks; campaigns.spec Back through Rooms, 2);
-- Kick and the bot's button in On air ("Lyre Table in Table: change") (live.spec 11);
+- the Rooms screen and its menu item (outputs.spec 7 checks; campaigns.spec Back through Rooms, 2);
+- Kick and the bot's button in On air ("Lyre Table in Table: change") (live.spec 10);
 - Role, Looping, Ending, Then and the old Follow with list (library.spec 5); "Leave out stings" (playlists.spec 1);
 - the Audio profile's trail now ends with Track details (campaigns.spec 1);
 - Help: the menu item shows the setup progress ("Help8/9" as text), On this screen and Set up Lyre come before the
