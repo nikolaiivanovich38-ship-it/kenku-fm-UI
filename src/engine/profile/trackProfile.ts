@@ -83,3 +83,12 @@ function chosenInput(track: DomainTrack, places: readonly ProfilePlace[], overri
   }
   return track.profile ?? {};
 }
+
+/**
+ * 52: whether a profile's End is the end of the track (its length as the library has it, or past it). Then End means
+ * the end of the file (VoiceOptions.endAtFileEnd), because the library's length can be wrong: an MP3 whose header
+ * counts too few frames is read as a few seconds long. A track with no length known (0) also plays its whole file.
+ */
+export function endsAtFileEnd(track: Pick<DomainTrack, "durationMs">, profile: Pick<AudioProfile, "endMs">): boolean {
+  return profile.endMs >= Math.max(0, track.durationMs || 0);
+}

@@ -108,10 +108,12 @@ export function plainPlan(
  * A track's audio profile (milliseconds) as a pass plan (seconds), fitted to
  * the media's real length when it is known. `startAt` (seconds) starts the
  * first pass elsewhere, e.g. where a scene was when Undo brings it back.
+ * `toFileEnd` (52): End is wherever the file really ends (Infinity while a stream does not say).
  */
-export function profilePlan(input: AudioProfile, duration: number, startAt?: number): PassPlan {
+export function profilePlan(input: AudioProfile, duration: number, startAt?: number, toFileEnd = false): PassPlan {
   const lengthMs = Number.isFinite(duration) ? duration * 1000 : Infinity;
-  const endMs = Math.min(input.endMs, lengthMs);
+  // 52: an End at the track's length in the library is the end of the file, whatever length the library has.
+  const endMs = toFileEnd ? lengthMs : Math.min(input.endMs, lengthMs);
   const startMs = Math.min(input.startMs, endMs);
   const span = endMs - startMs;
   const profile: AudioProfile = {

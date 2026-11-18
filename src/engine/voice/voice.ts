@@ -65,6 +65,25 @@ export interface VoiceOptions {
   crossfadeInSeconds?: number;
   /** PLY-15: the track's normalising gain in dB (normalisedGainDb), applied under its volume and fades. Default 0. */
   gainDb?: number;
+  /**
+   * 52: the profile's End is the track's length as the library has it, so it means the end of the file: the voice
+   * plays until the file really ends, which may be later (a wrong length read from the file) or sooner. Default false.
+   */
+  endAtFileEnd?: boolean;
+}
+
+/** 52: how a voice finished, for Save diagnostics (a track that stopped too soon says why). */
+export interface VoiceEnding {
+  /** "end": at its profile's End; "file end": the file ran out; "stopped": stopped; "failed": could not go on. */
+  how: "end" | "file end" | "stopped" | "failed";
+  /** Where in the file it was, in seconds. */
+  atSeconds: number;
+  /** The file's length as it played (null when the file never said). */
+  fileSeconds: number | null;
+  /** Its End, when it stopped there. */
+  endSeconds: number | null;
+  /** Why it failed. */
+  message: string | null;
 }
 
 export interface VoiceDeps {
@@ -107,6 +126,8 @@ export class Voice extends TypedEmitter<VoiceEvents> {
   readonly bus: BusId | null;
   /** The room this voice plays in, when it was sent to one (PLY-8). */
   readonly room: string | null;
+  /** 52: the library track it plays, when it plays one (for Save diagnostics). */
+  readonly trackId: string | null;
   state: VoiceState = "loading";
   /** Length in seconds; NaN until loaded or when a stream does not say. */
   duration = NaN;
@@ -114,11 +135,13 @@ export class Voice extends TypedEmitter<VoiceEvents> {
   errorMessage: string | null = null;
   /** How it plays once loaded: decoded into memory, or streamed from the file. */
   sourceKind: "buffer" | "stream" | null = null;
+  /** 52: how it finished, once it has. */
+  ending: VoiceEnding | null = null;
 
   private readonly context: EngineContext;
   private readonly scheduler: Scheduler;
   private readonly options: Required<Omit<VoiceOptions, "profile">>;
-  private readonly profile: AudioProfile | null;
+  private profile: AudioProfile | null;
   private plan: PassPlan | null = null;
   private readonly volume: GainLike;
   private readonly level: GainLike;
@@ -138,12 +161,13 @@ export class Voice extends TypedEmitter<VoiceEvents> {
     deps: VoiceDeps,
     source: Promise<PlayableSource>,
     options: VoiceOptions,
-    meta: { id?: string; bus?: BusId; room?: string } = {},
+    meta: { id?: string; bus?: BusId; room?: string; trackId?: string } = {},
   ) {
     super();
     this.id = meta.id ?? `voice-${++voiceCounter}`;
     this.bus = meta.bus ?? null;
     this.room = meta.room ?? null;
+    this.trackId = meta.trackId ?? null;
     this.context = deps.context;
     this.scheduler = deps.scheduler;
     this.profile = options.profile ?? null;
@@ -155,6 +179,7 @@ export class Voice extends TypedEmitter<VoiceEvents> {
       startAt: Math.max(0, options.startAt ?? (this.profile ? this.profile.startMs / 1000 : 0)),
       crossfadeInSeconds: Math.max(0, options.crossfadeInSeconds ?? 0),
       gainDb: finiteDb(options.gainDb),
+      endAtFileEnd: options.endAtFileEnd ?? false,
     };
     this.volume = this.context.createGain();
     this.level = this.context.createGain();
@@ -214,6 +239,24 @@ export class Voice extends TypedEmitter<VoiceEvents> {
     if (this.plan) {
       this.plan = this.makePlan();
     }
+    this.current?.layer?.setNativeLoop(this.loopsNatively());
+    this.reshape();
+    this.armPassTimers();
+  }
+
+  /**
+   * 28: play as this profile says from now on, from where it is (End, the fades and the loop move at once; the file
+   * is not opened again). An End before where it is goes on to what happens at End straight away.
+   */
+  setProfile(profile: AudioProfile, endAtFileEnd = this.options.endAtFileEnd): void {
+    if (this.isFinal()) return;
+    this.profile = profile;
+    this.options.loop = profile.after === "loop";
+    this.options.endAtFileEnd = endAtFileEnd;
+    if (!this.plan) return;
+    this.cancelTransition();
+    this.releaseOutgoing();
+    this.plan = this.makePlan();
     this.current?.layer?.setNativeLoop(this.loopsNatively());
     this.reshape();
     this.armPassTimers();
@@ -315,7 +358,7 @@ export class Voice extends TypedEmitter<VoiceEvents> {
     if (this.profile) {
       // setLoop can switch a profile's loop on or off; "next" and "stop" both end the voice at End.
       const after = this.options.loop ? "loop" : this.profile.after === "loop" ? "next" : this.profile.after;
-      return profilePlan({ ...this.profile, after }, this.duration, this.options.startAt);
+      return profilePlan({ ...this.profile, after }, this.duration, this.options.startAt, this.options.endAtFileEnd);
     }
     return plainPlan(this.options, this.duration);
   }
@@ -333,6 +376,7 @@ export class Voice extends TypedEmitter<VoiceEvents> {
       layer = await this.source!.openLayer(pass.gain, {
         onEnded: () => this.onPassEnded(pass),
         onError: (message) => this.fail(message),
+        onDuration: (seconds) => this.onDuration(pass, seconds),
       });
     } catch (error) {
       if (this.current === pass || this.next === pass) {
@@ -501,6 +545,22 @@ export class Voice extends TypedEmitter<VoiceEvents> {
     this.armPassTimers();
   }
 
+  /**
+   * 52: the file's length changed while it plays (Chromium guesses an MP3's length from its bit rate when its header
+   * is missing or wrong, and finds the real one near the end): End, the fades and the loop follow the new length.
+   */
+  private onDuration(pass: Pass, seconds: number) {
+    if (pass !== this.current || this.isFinal() || seconds === this.duration) return;
+    this.duration = seconds;
+    if (!this.plan) return;
+    this.plan = this.makePlan();
+    this.emit("loaded", seconds);
+    if (this.state === "playing") {
+      this.reshape();
+      this.armPassTimers();
+    }
+  }
+
   private onPassEnded(pass: Pass) {
     if (pass === this.outgoing) {
       this.releaseOutgoing();
@@ -572,6 +632,7 @@ export class Voice extends TypedEmitter<VoiceEvents> {
     if (this.isFinal()) {
       return;
     }
+    this.ending = this.endingFor(state);
     for (const timer of this.timers) {
       this.scheduler.clearTimeout(timer);
     }
@@ -595,6 +656,18 @@ export class Voice extends TypedEmitter<VoiceEvents> {
     }
     this.resolveStop?.();
     this.resolveStop = null;
+  }
+
+  /** 52: how it finished, read before its passes are let go. */
+  private endingFor(state: "stopped" | "ended" | "failed"): VoiceEnding {
+    const atEnd = state === "ended" && this.endsInsideMedia();
+    return {
+      how: state === "ended" ? (atEnd ? "end" : "file end") : state,
+      atSeconds: this.current?.layer?.position() ?? this.options.startAt,
+      fileSeconds: Number.isFinite(this.duration) ? this.duration : null,
+      endSeconds: atEnd && this.plan ? this.plan.endAt : null,
+      message: state === "failed" ? this.errorMessage : null,
+    };
   }
 
   private setState(state: VoiceState) {

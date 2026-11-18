@@ -30,6 +30,8 @@ export interface PlayRequest extends VoiceOptions {
    * its input for this bus (from the Rooms stream's `getRoomBus`).
    */
   room?: { id: string; input: NodeLike };
+  /** 52: the library track it plays (default: the media's own), so Save diagnostics can name it. */
+  trackId?: string;
 }
 
 export interface VoiceProgress {
@@ -82,12 +84,12 @@ export class PlaybackEngine extends TypedEmitter<EngineEvents> {
   }
 
   play(request: PlayRequest): Voice {
-    const { bus, media, id, room, ...options } = request;
+    const { bus, media, id, room, trackId, ...options } = request;
     const voice = new Voice(
       { context: this.context, scheduler: this.scheduler, destination: room?.input ?? this.mixer.input(bus) },
       this.sourceFor(media, options),
       options,
-      { id, bus, room: room?.id },
+      { id, bus, room: room?.id, trackId: trackId ?? (isMediaRequest(media) ? media.trackId : undefined) },
     );
     this.live.push(voice);
     voice.on("state", (state) => {

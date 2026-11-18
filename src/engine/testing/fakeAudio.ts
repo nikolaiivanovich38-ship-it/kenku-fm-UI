@@ -218,6 +218,8 @@ export class FakeMediaSource extends FakeNode {
  * "ended" fires at the end. URLs listed in `context.failingUrls` fire "error".
  */
 export class FakeMediaElement implements MediaElementLike {
+  /** How long before its guessed length runs out an element finds the real one (Chromium: about 2.5 s). */
+  static readonly REVEAL_BEFORE_SECONDS = 2.5;
   src = "";
   preload = "";
   loop = false;
@@ -233,8 +235,14 @@ export class FakeMediaElement implements MediaElementLike {
   }
 
   get duration() {
-    return this.loaded ? (this.context.mediaDurations.get(this.src) ?? NaN) : NaN;
+    if (!this.loaded) return NaN;
+    const real = this.context.mediaDurations.get(this.src) ?? NaN;
+    const guess = this.context.mediaEstimates.get(this.src);
+    return guess !== undefined && !this.revealed ? guess : real;
   }
+
+  /** 52: the real length is known (Chromium found it near the end of an MP3 with no right header). */
+  private revealed = false;
 
   get paused() {
     return !this.playing;
@@ -245,7 +253,8 @@ export class FakeMediaElement implements MediaElementLike {
   }
 
   set currentTime(value: number) {
-    this.time = Math.max(0, Math.min(value, Number.isFinite(this.duration) ? this.duration : value));
+    const real = this.context.mediaDurations.get(this.src) ?? this.duration;
+    this.time = Math.max(0, Math.min(value, Number.isFinite(real) ? real : value));
   }
 
   play() {
@@ -262,6 +271,7 @@ export class FakeMediaElement implements MediaElementLike {
 
   load() {
     this.loaded = false;
+    this.revealed = false;
     this.playing = false;
     this.time = 0;
     if (this.src) {
@@ -319,10 +329,18 @@ export class FakeMediaElement implements MediaElementLike {
       return;
     }
     this.time += seconds;
-    if (this.loop && this.time >= this.duration) {
-      this.time %= this.duration;
-    } else if (this.time >= this.duration) {
-      this.time = this.duration;
+    // 52: as Chromium with an MP3 whose header is wrong or missing, the guessed length grows to the real one a few
+    // seconds before the guess runs out ("durationchange"); "ended" comes at the real end.
+    const guess = this.context.mediaEstimates.get(this.src);
+    if (guess !== undefined && !this.revealed && this.time >= guess - FakeMediaElement.REVEAL_BEFORE_SECONDS) {
+      this.revealed = true;
+      this.emit("durationchange");
+    }
+    const length = this.context.mediaDurations.get(this.src) ?? this.duration;
+    if (this.loop && this.time >= length) {
+      this.time %= length;
+    } else if (this.time >= length) {
+      this.time = length;
       this.playing = false;
       this.emit("ended");
     }
@@ -377,6 +395,11 @@ export class FakeAudioContext implements EngineContext {
   readonly pendingLoads = new Set<FakeMediaElement>();
   /** Duration in seconds of each media URL, as an element would report once loaded. */
   readonly mediaDurations = new Map<string, number>();
+  /**
+   * 52: a length an element reports at first for a URL, shorter than its real one in `mediaDurations`, as Chromium
+   * guesses it from the bit rate for an MP3 with no Xing header or a wrong one; the real one comes near the end.
+   */
+  readonly mediaEstimates = new Map<string, number>();
   /** URLs whose media element fires "error" or whose decode fails. */
   readonly failingUrls = new Set<string>();
   /** The context's own output; tests connect outputs here to "listen". */
