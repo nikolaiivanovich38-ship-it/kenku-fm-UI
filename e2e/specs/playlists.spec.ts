@@ -154,7 +154,8 @@ test.describe("one manual playlist", () => {
     await page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Alien, unknowable/ }).click();
     await page.getByRole("menuitem", { name: "Remove from this playlist" }).click();
     expect(await trackNames(page)).toHaveLength(4);
-    await page.getByRole("link", { name: "Track library", exact: true }).first().click();
+    // The menu's link: Library in the prototype, Track library in the app since 0.5.2 (item 23).
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
     await expect(page.getByText("Alien, unknowable voices - ancient magic, a ghost speaks").first()).toBeVisible();
   });
 
