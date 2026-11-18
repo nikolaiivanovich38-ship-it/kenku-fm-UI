@@ -1556,3 +1556,29 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await expect(table.getByRole("button", { name: "Pause music" })).toHaveCount(0);
   });
 });
+
+/* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.2: Live's empty boxes, loop settings and track names", () => {
+  test("Session 15 keeps nothing on hand: This session and its boxes are not shown; the campaign's are (item 49)", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: /The Sunken Crown Session 14/ }).click();
+    await page.getByRole("menuitemradio", { name: /Session 15: Black sails/ }).click();
+    await expect(page.getByRole("button", { name: /The Sunken Crown Session 15/ })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Session playlists", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Session pads", exact: true })).toHaveCount(0);
+    await expect(region(page, "Campaign playlists")).toBeVisible();
+  });
+
+  test("the music on air shows its loop setting and leads to its details in the Library (items 53, 3 and 11)", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const table = room(page, "Table");
+    await expect(table.getByRole("img", { name: /^(Loop|Crossfade loop|Don't loop)$/ }).first()).toBeVisible();
+    await table.getByRole("link", { name: /^Eerie dread/ }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(/Library/);
+    await expect(page.getByRole("region", { name: "Details", exact: true }).getByRole("textbox", { name: "Your title" })).toBeVisible();
+  });
+});
+
