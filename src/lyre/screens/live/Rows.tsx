@@ -30,7 +30,7 @@ import { useSave } from "../../shell/useSave";
 import { formatLength } from "../campaigns/model";
 import { addToList, playOnAir, type PlayWhat } from "./liveActions";
 import { playedMs, playlistInPlace, sameRef, sceneRefOf, scenePlace, sceneSteps, seedOfScene, showLibraryOf, useBoxTarget, useLive, type LiveData } from "./liveData";
-import type { LiveBox } from "./liveModel";
+import { LOOP_WORDS, loopSettingAt, type LiveBox, type LoopSetting } from "./liveModel";
 import { touched, updateLive } from "./liveState";
 
 const KIND_WORDS = { amb: "Ambience", fx: "FX" } as const;
@@ -131,6 +131,16 @@ function RepeatOne({ scene, sceneName, trackId, name, dataLv, shown }: { scene: 
   );
 }
 
+/** 0.5.2 (Nik's item 53): a track's loop setting as a small icon, its name on hover and for screen readers. */
+export function LoopMark({ setting }: { setting: LoopSetting }) {
+  const words = LOOP_WORDS[setting];
+  return (
+    <span className={cx("lv-loop", `lv-loop-${setting}`)} role="img" aria-label={words} title={words}>
+      <Icon name={setting === "none" ? "next" : setting === "crossfade" ? "fade" : "loop"} size="s" />
+    </span>
+  );
+}
+
 export interface TrackRowProps {
   track: LibraryTrack;
   /** Unique among the screen's rows: which list, then the track ("sc2:t42"). */
@@ -209,6 +219,7 @@ export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on,
             {!layered && track.energy !== null && <EnergyMeter value={track.energy} />}
           </>
         )}
+        {place?.kind === "scene" && <LoopMark setting={loopSettingAt(track, place, playlistId, overrides)} />}
         <span className="num lv-dur" title={Math.round(len / 1000) !== Math.round(track.durationMs / 1000) ? `Plays ${formatLength(len)} of the file's ${formatLength(track.durationMs)}` : `Length ${formatLength(track.durationMs)}`}>
           {formatLength(len)}
         </span>

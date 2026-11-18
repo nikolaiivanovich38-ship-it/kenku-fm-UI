@@ -6,7 +6,7 @@
  *
  * What plays is the audio host's (getNowPlaying); Live only reads it here.
  */
-import { isFx, SHORTCUT_ACTIONS, type AudioProfile, type ProfileSource, type RoomTarget } from "../../../common/domain";
+import { isFx, placeKey, profilePlacesFor, resolveProfile, SHORTCUT_ACTIONS, type AudioProfile, type ProfileOverrides, type ProfileSource, type RoomTarget, type UsePlace } from "../../../common/domain";
 import type { CampaignInfo, LibraryTrack, Pad, PadBoard, PlaylistInfo, SceneInfo, SessionInfo } from "../../../common/lyre/api";
 import type { LyreBot, LyreOutputs } from "../../../common/lyreOutputs";
 import type { NowPlaying, RoomNowPlaying, UpNextEntryNow } from "../../audio/lyreAudio";
@@ -349,6 +349,22 @@ const AFTER_WORDS = { scene: "scene", session: "session list", playlist: "playli
 export function endWords(profile: AudioProfile, source: ProfileSource): string {
   const then = profile.after === "loop" ? `loops from ${formatLength(profile.loopStartMs)}` : profile.after === "stop" ? "then stops" : "then next";
   return `Ends ${formatLength(profile.endMs)}, ${then}${source === "track" ? "" : ` (${AFTER_WORDS[source]} setting)`}`;
+}
+
+/**
+ * 0.5.2 (Nik's item 53): a track's loop setting where it plays (Loop, Crossfade loop, Don't loop): its audio profile
+ * there (the place's own, else the track's), else its own choice in the Library. A profile that loops with a crossfade
+ * time is Crossfade loop; one that loops without saying is the track's choice.
+ */
+export type LoopSetting = "loop" | "crossfade" | "none";
+export const LOOP_WORDS: Record<LoopSetting, string> = { loop: "Loop", crossfade: "Crossfade loop", none: "Don't loop" };
+export function loopSettingAt(track: LibraryTrack, place: UsePlace | null, playlistId: string | null, overrides: ProfileOverrides): LoopSetting {
+  const places = profilePlacesFor(place, playlistId);
+  const { profile } = resolveProfile(track, places, overrides);
+  if (profile.after !== "loop") return "none";
+  if (profile.loopCrossfadeMs > 0) return "crossfade";
+  const own = places.map((p) => overrides[placeKey(p)]?.[track.id]).find(Boolean) ?? track.profile ?? {};
+  return own.loopCrossfadeMs === undefined && track.loop === "crossfade" ? "crossfade" : "loop";
 }
 
 /* ---------- keys ---------- */

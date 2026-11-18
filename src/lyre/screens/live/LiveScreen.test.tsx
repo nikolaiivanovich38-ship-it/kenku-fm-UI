@@ -974,6 +974,35 @@ describe("0.5.2 (Nik's item 49): tray boxes with nothing in them", () => {
   });
 });
 
+/*
+ * 0.5.2 (Nik's item 53: "On the live screen I need to be able to see what loop setting has been set for a track (Loop,
+ * Crossfade Loop, Do Not Loop)"): a small icon beside the track on air and on a scene's tracks, named for screen readers.
+ */
+describe("a track's loop setting in Live", () => {
+  it("the music on air shows its loop setting, and so does each of the running scene's tracks", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    // The abbey ruins gives Eerie dread its own audio profile, which goes on to the next track (the track itself
+    // crossfades its loop elsewhere).
+    const expected = "Don't loop";
+    const lane = roomEl("Table").querySelector(".lv-m")!;
+    expect(within(lane as HTMLElement).getByRole("img", { name: expected })).toHaveAttribute("title", expected);
+    const row = within(current().getByRole("list", { name: /music in the order it plays$/ })).getAllByRole("listitem")[0];
+    expect(within(row).getByRole("img", { name: expected })).toBeInTheDocument();
+  });
+
+  it("a track whose scene profile loops with a crossfade says Crossfade loop there", async () => {
+    const { api } = await openLive();
+    await act(async () => {
+      await api.profiles.set("t13", { kind: "scene", campaignId: "crown", sessionId: "s14", sceneId: "sc3" }, { after: "loop", loopCrossfadeMs: 3000 });
+    });
+    await startAbbey();
+    const row = within(current().getByRole("list", { name: /music in the order it plays$/ })).getAllByRole("listitem")[0];
+    expect(await within(row).findByRole("img", { name: "Crossfade loop" })).toBeInTheDocument();
+  });
+});
+
 describe("rooms", () => {
   it("a room has Mute, shown as the one status Muted, and a volume slider that works from the keyboard", async () => {
     const { outputs } = await openLive();

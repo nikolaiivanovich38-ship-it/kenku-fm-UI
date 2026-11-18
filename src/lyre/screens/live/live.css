@@ -610,3 +610,8 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv .lv-trk-r:is(:hover, :focus-within) .rep1, .lv .rep1:focus-visible { opacity: 1; }
 @media (hover: none) { .lv .rep1 { opacity: 1 !important; } }
 .lv .rep1[aria-pressed="true"], .lv .rep.on { color: var(--accent-text) !important; }
+
+/* 0.5.2 (Nik's item 53): a track's loop setting, a small quiet icon (LoopMark); its name is on hover. */
+.lv-loop { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; color: var(--ink-3); vertical-align: -3px; }
+.lv-lane-t .lv-loop { margin-right: 4px; }
+.lv-loop-none { opacity: .7; }

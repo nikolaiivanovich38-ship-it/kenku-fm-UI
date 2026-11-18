@@ -24,6 +24,7 @@ import {
   LIVE_KEYS,
   liveKey,
   liveRooms,
+  loopSettingAt,
   moodsByUse,
   offScriptSearch,
   padForKey,
@@ -202,6 +203,26 @@ describe("0.5.2 (Nik's item 49): a tray box shows only when it has something in 
     expect(trayShown("ssp", { ...s15, trackIds: ["t13"] }, crown, index)).toBe(true);
     expect(trayShown("ssp", { ...s15, playlistIds: [amb] }, crown, index)).toBe(false);
     expect(trayShown("cpd", s15, { ...crown, boardIds: ["gone"] }, index)).toBe(false);
+  });
+});
+
+describe("0.5.2 (Nik's item 53): a track's loop setting where it plays", () => {
+  const t = (loop: "yes" | "crossfade" | "no" | null, profile?: object) => ({ ...index.track("t13")!, loop, profile: (profile ?? null) as never });
+  const scene = { kind: "scene" as const, campaignId: "crown", sessionId: "s14", sceneId: "sc3" };
+  it("follows the track's own choice while no audio profile says otherwise", () => {
+    expect(loopSettingAt(t("yes"), null, null, {})).toBe("loop");
+    expect(loopSettingAt(t("crossfade"), null, null, {})).toBe("crossfade");
+    expect(loopSettingAt(t("no"), null, null, {})).toBe("none");
+    expect(loopSettingAt(t(null), null, null, {})).toBe("none");
+  });
+  it("an audio profile's After and loop crossfade win, the place's own before the track's", () => {
+    expect(loopSettingAt(t("no", { after: "loop" }), null, null, {})).toBe("loop");
+    expect(loopSettingAt(t("no", { after: "loop", loopCrossfadeMs: 2000 }), null, null, {})).toBe("crossfade");
+    expect(loopSettingAt(t("crossfade", { after: "loop", loopCrossfadeMs: 0 }), null, null, {})).toBe("loop");
+    expect(loopSettingAt(t("yes", { after: "stop" }), null, null, {})).toBe("none");
+    const overrides = { "sc:crown:s14:sc3": { t13: { after: "next" as const } } };
+    expect(loopSettingAt(t("yes"), scene, null, overrides)).toBe("none");
+    expect(loopSettingAt(t("yes"), null, null, overrides)).toBe("loop");
   });
 });
 

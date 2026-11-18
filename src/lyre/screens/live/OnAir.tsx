@@ -28,7 +28,8 @@ import { formatLength } from "../campaigns/model";
 import { busiestChannel as moveToChannel, moveLosesSound, roomToRestore, viewOf } from "../outputs/outputsModel";
 import { clearAdded, FADE_BUTTON_MS, LIVE_FADE_MS, nextInRoom, takeOut } from "./liveActions";
 import { laneProfile, sceneSteps, showLibraryOf, useLive, type LiveData } from "./liveData";
-import { addRoomChoices, busiestChannel, channelChoices, endWords, noRoomStatus, roomStatus, TABLE, UNDO_MS, upNextRows, type LiveRoom } from "./liveModel";
+import { LoopMark } from "./Rows";
+import { addRoomChoices, busiestChannel, channelChoices, endWords, noRoomStatus, roomStatus, TABLE, UNDO_MS, loopSettingAt, upNextRows, type LiveRoom } from "./liveModel";
 import { offerSoftUndo, touched, updateLive } from "./liveState";
 import { focusLive, focusLiveSoon } from "./focus";
 import { useFoldedSummary } from "./Scenes";
@@ -587,6 +588,8 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
       </div>
       <div className="lv-lane-m">
         <div className="lv-lane-t ellipsis" title={title}>
+          {/* 0.5.2 (Nik's item 53): its loop setting first, so a long name never hides it. */}
+          {track && <LoopMark setting={loopSettingAt(track, playing.place, playing.playlistId, overrides)} />}
           {/* 0.5.2 (Nik's items 3 and 11): the name leads to the track's details in the Library. */}
           <TrackNameLink trackId={playing.trackId} title={shown.name}>
             {shown.name}
