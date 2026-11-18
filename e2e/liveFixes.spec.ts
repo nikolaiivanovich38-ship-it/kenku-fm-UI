@@ -58,8 +58,11 @@ test("Ctrl+Z on the keyboard after a click into Live (as Nik does) undoes Live's
   });
   // The first scene (Recap and the coast road), then the next one, which offers Undo.
   await lyre.getByRole("button", { name: /^Start: / }).first().click();
+  await expect(lyre.getByRole("button", { name: "Restart scene 1: Recap and the coast road" })).toBeVisible();
+  // 0.5.2 (round 9 review M2): Start and Next scene are one button, whose guard ignores a second press within a second.
+  await lyre.waitForTimeout(1100);
   await lyre.getByRole("button", { name: /^Next scene: / }).first().click();
-  await expect(lyre.getByRole("group", { name: "Undo" }).filter({ hasText: /^Started / })).toBeVisible();
+  await expect(lyre.getByRole("group", { name: "Undo" }).filter({ hasText: /^Started Greyhollow inn/ })).toBeVisible();
   // A real click on the page's heading, then Ctrl+Z on the keyboard: the app menu's Undo must not take it.
   pressOnKeyboard(["Control_L+z"], { click: await screenPointOf(launched.app, lyre, lyre.getByRole("heading", { level: 1 })) });
   await expect(lyre.getByRole("button", { name: "Restart scene 1: Recap and the coast road" })).toBeVisible();
