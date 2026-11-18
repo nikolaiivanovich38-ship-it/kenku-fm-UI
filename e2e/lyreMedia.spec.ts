@@ -75,14 +75,21 @@ test("new tracks get their file-tag title, artist, album and length, then their 
   expect(Math.min(...(levels as number[]).slice(550))).toBeGreaterThan(0.9);
 });
 
-test("52: an MP3 whose header counts too few frames is read as 3 s long, yet plays all 20 s, and the log says why", async ({ mainWindow, userDataDir, errors }) => {
+test("52: an MP3 whose header counts too few frames is read as 3 s long; the decoded file puts the library right, and it plays all 20 s", async ({ mainWindow, userDataDir, errors }) => {
   test.setTimeout(90_000);
   // Nik's play test (14 Nov): "12 - Monster Books / Boggarts! only plays a few seconds".
   const file = writeJoinedMp3(path.join(userDataDir, "sounds"), "12 - Monster Books.mp3", "Monster Books");
   const lyre = await openLyreTab(mainWindow);
   const [track] = await importFiles(lyre, [file]);
-  // The cause: the tag reader trusts the header, so the library has about 3 s for it.
+  // The cause: the tag reader trusts the header, so the library has about 3 s for it at first.
   expect(track.durationMs).toBeLessThan(3500);
+  // 0.5.2 (the lead's rule, one length and the right one): the peaks job decodes the whole file and stores its length.
+  // So the "library's length is wrong" line in Save diagnostics (playbackLog.ts) is not expected here: by the time the
+  // preview ends the library is right. That line is for a library whose length was not put right (playbackLog.test.ts).
+  await expect
+    .poll(async () => (await lyreCall<Track[]>(lyre, "library", "listTracks")).find((t) => t.id === track.id)?.durationMs, { message: "the decoded length", timeout: 15_000 })
+    .toBeGreaterThan(19_000);
+  expect((await lyreCall<Track[]>(lyre, "library", "listTracks")).find((t) => t.id === track.id)?.durationMs).toBeLessThan(21_000);
   await lyre.evaluate(() => {
     window.location.hash = "#/library";
   });
@@ -90,10 +97,12 @@ test("52: an MP3 whose header counts too few frames is read as 3 s long, yet pla
   await row.getByRole("button", { name: /^Preview/ }).click();
   const you = lyre.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ });
   await expect(you).toBeVisible();
+  // One length everywhere: the bar shows the library's, now the file's 0:20.
+  await expect(you).toContainText(/\/ 0:(19|20)(?!\d)/);
   const started = Date.now();
-  // It plays on past the 3 s the library has, to the end of the file.
+  // It plays to the end of the file.
   await expect(you).toBeHidden({ timeout: 30_000 });
   expect(Date.now() - started).toBeGreaterThan(15_000);
-  // Save diagnostics' log says the library's length is wrong (the page's warnings go into log.txt).
-  expect(errors.console.map((entry) => entry.text)).toContainEqual(expect.stringMatching(/^Lyre playback: "Monster Books" \(12 - Monster Books\.mp3, streamed\) in preview played to the end of its file at 0:(19|20)\.\d; .*the library has 0:03\.\d, so the library's length is wrong\.$/));
+  // Nothing says it failed or ended early.
+  expect(errors.console.map((entry) => entry.text).filter((text) => text.startsWith("Lyre playback:"))).toEqual([]);
 });
