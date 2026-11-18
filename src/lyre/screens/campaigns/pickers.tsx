@@ -145,6 +145,8 @@ export function LibraryPicker({ open, kind, index, title, intro, selected, onDon
       selected={selected}
       multi={kind !== "ambience"}
       filters={filters}
+      // 0.5.2 item 17: the Library's Shape filter, for the tracks of a scene's music and ambience.
+      shapeOf={kind === "music" || kind === "ambience" ? (item) => byId.get(item.id)?.track ?? null : undefined}
       hint={null}
       renderContents={(item, ticks) => {
         const e = byId.get(item.id);

@@ -592,6 +592,18 @@ describe("round 5 in the session planner", () => {
     expect(single.closest("li")).toHaveTextContent("Single track");
   }, 40_000);
 
+  it("0.5.2 item 17: the music picker has the Library's Shape filter; a shape hides playlists", async () => {
+    await openAbbey();
+    await userEvent.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
+    const sheet = within(screen.getByRole("dialog", { name: 'Music for "The abbey ruins"' }));
+    const boxes = () => sheet.getAllByRole("checkbox").length;
+    const all = boxes();
+    await userEvent.click(within(sheet.getByRole("group", { name: "Shape" })).getByRole("button", { name: "Builds" }));
+    expect(boxes()).toBeGreaterThan(0);
+    expect(boxes()).toBeLessThan(all);
+    expect(sheet.queryByRole("checkbox", { name: /^Coast road travel/ })).toBeNull();
+  });
+
   it("ORG-10: an open playlist in the music picker has a box per track, to add just that track", async () => {
     const user = userEvent.setup();
     await openAbbey();

@@ -924,3 +924,8 @@ Built straight in the app, as 0.5.1's changes were. Each item's unit or componen
   lists it; a scene's ambience stops being ambience); otherwise it is done at once (`TypeChange.tsx`). The pad
   editor's sound chooser already lists FX tracks and a scene's Ambience chooser ambience tracks (by kind), so a track
   made FX or Ambience shows there (`BoardScreen.test.tsx`, `SessionScreen.test.tsx`).
+- **Shape filter (item 17).** Checked where tracks are chosen: the Library's Filters box and a dynamic playlist's rule
+  had it (DAT-13); Add tracks on a manual playlist and the scene pickers (music, ambience; `LibraryPicker`) did not.
+  `kit/ShapeFilter.tsx` (`ShapeFilter`, `matchesShapes`) is the Library's pattern as a kit piece: five chips, any number
+  pressed, Clear while one is. `PickerDialog` takes `shapeOf` to show it (a shape pressed hides what is not a track).
+  The pad editor's sound chooser (FX) was left without: a sound effect's shape says little.

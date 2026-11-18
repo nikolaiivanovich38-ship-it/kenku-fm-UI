@@ -1,3 +1,6 @@
+import type { TrackShape } from "../../common/domain";
+import { matchesShapes, ShapeFilter } from "./ShapeFilter";
+import type { ShapedTrack } from "./ShapeGlyph";
 import React, { useState } from "react";
 import { Button, Segmented } from "./Button";
 import { Dialog } from "./Dialog";
@@ -64,6 +67,11 @@ export interface PickerDialogProps {
   fold?: boolean;
   /** With fold: the groups open at the start (the campaign in hand), by their key (groupId, else name). */
   openGroups?: readonly string[];
+  /**
+   * 0.5.2 item 17: a Shape filter under the search, as the Library's: the item's track (null: not a track, hidden
+   * while a shape is pressed).
+   */
+  shapeOf?: (item: PickerItem) => ShapedTrack | null;
   /** The ticked ids, in the order they were ticked (items already ticked first). */
   onDone: (ids: string[]) => void;
   onClose: () => void;
@@ -93,9 +101,11 @@ function PickerBody({
   okLabel = "Done",
   fold = false,
   openGroups = [],
+  shapeOf,
   onDone,
   onClose,
 }: PickerDialogProps) {
+  const [shapes, setShapes] = useState<TrackShape[]>([]);
   const [chosen, setChosen] = useState<string[]>([...selected]);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState(filters?.[0]?.id ?? "");
@@ -116,7 +126,11 @@ function PickerBody({
   const visible = items.filter(
     (item) =>
       (!needle || `${item.label} ${item.sub ?? ""} ${item.search ?? ""}`.toLowerCase().includes(needle)) &&
-      (!activeFilter || activeFilter.test(item)),
+      (!activeFilter || activeFilter.test(item)) &&
+      (!shapes.length || (() => {
+        const track = shapeOf?.(item);
+        return !!track && matchesShapes(track, shapes);
+      })()),
   );
   const groups: { key: string; name: string; items: PickerItem[] }[] = [];
   for (const item of visible) {
@@ -162,6 +176,8 @@ function PickerBody({
         <SearchField className="grow" label="Search the list" value={query} onChange={setQuery} />
         {filters && <Segmented label="Show" value={filter} onChange={setFilter} options={filters.map((f) => ({ value: f.id, label: f.label }))} />}
       </div>
+      {shapeOf && <ShapeFilter className="pk-shapes" value={shapes} onChange={setShapes} />}
+
       <div className="pk-list" role="group" aria-label={title} title={typeof intro === "string" ? intro : undefined}>
         {groups.length === 0 && <p className="empty">Nothing matches{needle ? ` "${query.trim()}"` : " this filter"}.</p>}
         {groups.map((group) => {

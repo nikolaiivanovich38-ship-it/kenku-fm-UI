@@ -4,7 +4,7 @@
  * Music, Ambience and FX; expanders in the list; Preview and Play on air; no Duplicate; drop files in.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { appOnly, expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -506,5 +506,20 @@ test.describe("round 6 cuts on a playlist", () => {
     await expect(how).toBeHidden();
     await page.getByRole("list", { name: "Tracks in order" }).getByRole("button").first().focus();
     await expect(how).toBeVisible();
+  });
+});
+
+test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
+  test("item 17: Add tracks has the Library's Shape filter", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "playlist/p-abbess");
+    const add = page.getByRole("region", { name: "Add tracks", exact: true });
+    const adds = add.getByRole("button", { name: /^Add / });
+    await expect(adds.first()).toBeVisible();
+    const all = await adds.count();
+    await add.getByRole("group", { name: "Shape" }).getByRole("button", { name: "Builds" }).click();
+    await expect.poll(() => adds.count()).toBeLessThan(all);
+    await add.getByRole("group", { name: "Shape" }).getByRole("button", { name: "Clear Shape" }).click();
+    await expect.poll(() => adds.count()).toBe(all);
   });
 });
