@@ -218,8 +218,8 @@ export function libraryApiRound7(cx: Round7Context): Methods {
       return write(changes, async () => {
         const { tag } = tagOf(ref);
         const count = tracksWith(tag.id);
-        await deleteTag(store, tag.id);
-        return { tracks: count };
+        const { groupRemoved } = await deleteTag(store, tag.id, { dropEmptyGroup: true });
+        return { tracks: count, groupRemoved };
       });
     },
     async updateTag(ref, patch) {

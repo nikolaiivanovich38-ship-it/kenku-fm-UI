@@ -306,13 +306,22 @@ export function tagUsage(store: Store, id: string): TagUsage {
  * Deletes a tag; tracks and dynamic rules lose it (ON DELETE CASCADE), and tags
  * below it move up a level, under its own parent. The tracks lose it in batches (DB review 1).
  */
-export function deleteTag(store: Store, id: string): Promise<void> {
+export function deleteTag(store: Store, id: string, options: { dropEmptyGroup?: boolean } = {}): Promise<{ groupRemoved: boolean }> {
   const tag = getTag(store, requireRow(store, "tags", "tag", id)) as Tag;
-  return untagInBatches(store, `Delete tag "${tag.name}"`, [tag.id], () => {
+  // 0.5.2 item 54: its group's last tag takes the group with it, unless a rule names the group (deleting the group
+  // would delete that condition, and a rule never widens when a tag goes: DB review 2).
+  const dropGroup =
+    options.dropEmptyGroup === true &&
+    !store.get("SELECT 1 FROM tags WHERE group_id = ? AND id <> ? LIMIT 1", tag.groupId, tag.id) &&
+    !store.get("SELECT 1 FROM rule_conditions WHERE group_id = ? LIMIT 1", tag.groupId);
+  const group = dropGroup ? (getTagGroup(store, tag.groupId) as TagGroup) : null;
+  const label = group ? `Delete tag "${tag.name}" and its group "${group.name}"` : `Delete tag "${tag.name}"`;
+  return untagInBatches(store, label, [tag.id], () => {
     // DAT-10 (r7tags.js tgdelok): the tags that were inside it move up a level, to where it was.
     store.run("UPDATE tags SET parent_id = ? WHERE parent_id = ?", tag.parentId, tag.id);
     store.run("DELETE FROM tags WHERE id = ?", tag.id);
-  });
+    if (group) store.run("DELETE FROM tag_groups WHERE id = ?", group.id);
+  }).then(() => ({ groupRemoved: group !== null }));
 }
 
 export function setTagSynonyms(store: Store, id: string, synonyms: string[]): Tag {

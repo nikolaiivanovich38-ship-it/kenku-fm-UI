@@ -6,7 +6,7 @@
  * so every check here is expected to fail there until "tags" is in support/built.ts.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { appOnly, expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 /** 0.5.2 item 23: the app calls the Library the Track library in its menu, heading and Back; the prototype "Library". */
 const LIBRARY = /^(Track l|L)ibrary$/;
@@ -150,5 +150,23 @@ test.describe("tags where you use them", () => {
     // Mood › Melancholy holds Grief: "Release after loss" is tagged Grief, not Melancholy, and is found.
     await page.getByRole("region", { name: "Filters", exact: true }).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Melancholy/ }).click();
     await expect(page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Release after loss/ })).toBeVisible();
+  });
+});
+
+test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
+  test("item 54: deleting a group's last tag removes the group too, and Undo brings both back", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "tags");
+    await page.getByRole("button", { name: "New group" }).click();
+    await dialog(page).getByRole("textbox", { name: "Name" }).fill("Faction");
+    await dialog(page).getByRole("button", { name: "Add group" }).click();
+    await group(page, "Faction").getByRole("button", { name: "Add tag" }).click();
+    await dialog(page).getByRole("textbox", { name: "Name" }).fill("Harpers");
+    await dialog(page).getByRole("button", { name: "Add tag" }).click();
+    await tagMenu(page, "Faction", "Harpers", "Delete…");
+    await dialog(page).getByRole("button", { name: "Delete" }).click();
+    await expect(group(page, "Faction")).toHaveCount(0);
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(group(page, "Faction").getByText("Harpers", { exact: true })).toBeVisible();
   });
 });

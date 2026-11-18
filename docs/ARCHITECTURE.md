@@ -907,3 +907,7 @@ Built straight in the app, as 0.5.1's changes were. Each item's unit or componen
   game master ticks to remove them too (`removeRootWithTracks`, one undo step; the files are not touched). The real
   library has no folder watcher yet: "watched" is a mark, and new files arrive by Add files, Add a folder or a drop;
   the kind applies to every new file under the folder, however it arrives.
+- **Empty tag groups (item 54).** Deleting a group's last tag removes the group in the same undo step
+  (`deleteTag(store, id, { dropEmptyGroup: true })`; `TagChangeCount.groupRemoved`), and the Tags screen says so. A
+  group a dynamic playlist's rule names stays: removing it would delete that condition and widen the playlist (DB
+  review 2: a rule never widens when a tag goes).

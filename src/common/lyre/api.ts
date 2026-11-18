@@ -287,6 +287,11 @@ export type TagPatch = Partial<Pick<TagInfo, "parent" | "also" | "color">>;
 /** How many tracks a rename, merge or delete changed (the Undo note above the bar says so). */
 export interface TagChangeCount {
   tracks: number;
+  /**
+   * 0.5.2 item 54 (deleteTag): the tag was its group's last, so the group went too, in the same undo step. A group a
+   * dynamic playlist's rule names stays (removing it would take that condition away and widen the playlist).
+   */
+  groupRemoved?: boolean;
 }
 
 /** One tag value of one group, as tracks carry them (DomainTrack.tags). */

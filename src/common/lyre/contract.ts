@@ -1216,6 +1216,24 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.tags.deleteTag({ group: "mood", value: "Nope" }), "not-found");
       });
 
+      it("0.5.2 item 54: deleting a group's last tag removes the group too, in the same undo step, unless a rule names the group", async () => {
+        const g = valueOf(await api.tags.createGroup("Faction"));
+        valueOf(await api.tags.createTag(g.id, "Harpers"));
+        valueOf(await api.tags.tagTracks({ trackIds: ["t02"], add: [{ group: g.id, value: "Harpers" }] }));
+        const gone = valueOf(await api.tags.deleteTag({ group: g.id, value: "Harpers" }));
+        expect(gone).toMatchObject({ tracks: 1, groupRemoved: true });
+        expect((await api.tags.listGroups()).map((x) => x.id)).not.toContain(g.id);
+        valueOf(await api.history.undo());
+        expect((await api.tags.listGroups()).find((x) => x.id === g.id)?.values).toEqual(["Harpers"]);
+        expect((await track("t02")).tags[g.id]).toEqual(["Harpers"]);
+        // A rule that names the group keeps it: removing it would take the condition away and widen the playlist.
+        valueOf(await api.playlists.create({ kind: "dynamic", lane: "music", name: "Harper songs", rule: { conds: [{ group: g.id, match: "any", values: ["Harpers"] }] } }));
+        expect(valueOf(await api.tags.deleteTag({ group: g.id, value: "Harpers" }))).toMatchObject({ groupRemoved: false });
+        expect((await api.tags.listGroups()).find((x) => x.id === g.id)?.values).toEqual([]);
+        // A group with other tags stays, as before.
+        expect(valueOf(await api.tags.deleteTag({ group: "mood", value: "Wistful" }))).toMatchObject({ groupRemoved: false });
+      });
+
       it("DAT-10: a track lists its tags in vocabulary order, as the Tags screen lists them; a merge leaves the merged tag in its place", async () => {
         const moods = async (id: string) => (await api.library.listTracks()).find((t) => t.id === id)?.tags.mood;
         // The sample tags t13 Dread, then Eerie; the vocabulary has Eerie first.
