@@ -14,8 +14,8 @@ Live is where you run the evening. **Run this session** on a campaign or session
 
 A room is a voice channel with one of your bots in it (see Rooms and bots). Scenes always start in the first room. With two rooms or more, **To:** on a box chooses where it plays. **No room** or **Nobody there** means the players hear nothing: the button beside it puts the bot where the players are.
 
-**‹** (Back), top left on every screen, goes back one step through everywhere you have been, each as you left it. `Alt+Left` does the same. `Alt+1` to `Alt+7` jump to the boxes, from On air down.
+**‹** (Back), top left, goes back one step (`Alt+Left`). `Alt+1` to `Alt+7` jump to the boxes, from On air down.
 
-**Arrange** moves and sizes the boxes: drag a box by its grip, or use its arrows; **Done** keeps the layout for this window size, and **Put back the usual layout** undoes it.
+**Arrange** moves and sizes the boxes; **Done** keeps the layout for this window size.
 
 **Keys** lists every key. If single keys get in your way, turn **Single-key shortcuts** off there.

@@ -28,8 +28,9 @@ Library's own details: the same controls, so editing is the same. **Open in Libr
 focus returns to the title that opened it. The row of the track it shows is marked. Below 1000 px of app it lies over
 the screen's right side, as Help does. In Live the panel docks as a column, so Live's controls stay in view.
 The Audio profile's **trail follows the route**: *Playlists › Crypt ambush ›* from a playlist, *The Sunken Crown ›
-Session 14 › Crypt ambush ›* from a scene; the track's name in the heading is a link back to its details there
-(`#/playlist/<pid>/<tid>`, `#/session/<cid>/<sid>/<tid>` open the place with the panel open). A scene in a track's
+Session 14 › Crypt ambush ›* from a scene, and its last part, **Track details**, goes back to the track's details
+there (item 3: `#/playlist/<pid>/<tid>` and `#/session/<cid>/<sid>/<tid>` open the place with the panel open; from the
+Library it is the Library's details). A scene in a track's
 **Used in** opens the session with that scene unfolded and focused.
 **For the app.** One `TrackPanel` reusing `TrackDetails`; routes take an optional track. Item 36 (the Library scrolls to
 the open row) is 0.5.2 and Open in Library depends on it.

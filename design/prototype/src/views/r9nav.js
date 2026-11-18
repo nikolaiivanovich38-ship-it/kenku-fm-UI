@@ -56,6 +56,8 @@
       '<button class="closer" data-act="r9tpclose" data-k="r9-tp-x" title="Close (Esc)" aria-label="Close the track details">' + L.icon('close') + '</button></div>' +
       '<h2 id="r9-tp-title" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</h2></header>' +
       '<div class="r9-tp-body" data-scroll="r9-tp-' + t.id + '">' + L.trackDetailsHTML(t) + '</div>');
+    // Over the screen (narrow windows), the panel stops above the Now playing bar, which stays in view.
+    var bar = document.querySelector('#view .onairbar'); a.style.setProperty('--r9-bar', bar ? bar.offsetHeight + 'px' : '0px');
   }
 
   /* A track title that links to the Library opens the panel instead, outside the Library. "Open in Library" and the
@@ -93,14 +95,14 @@
   if (prof) prof.crumbs = function (p) {
     var t = L.track(p.tid); if (!t) return null;
     var me = { label: L.title(t) + ' › Audio profile' }, a = (p.ctx || '').split(':');
-    if (a[0] === 'pl' && L.playlist(a[1])) return [{ href: '#/playlists', label: 'Playlists' }, { href: '#/playlist/' + a[1], label: L.playlist(a[1]).name }, me];
+    if (a[0] === 'pl' && L.playlist(a[1])) return [{ href: '#/playlists', label: 'Playlists' }, { href: '#/playlist/' + a[1], label: L.playlist(a[1]).name }, { href: L.trackHrefFor(t.id, p.ctx), label: 'Track details' }, me];
     var s = (a[0] === 'sc' || a[0] === 'ss') && L.session(a[1], a[2]), c = s && L.campaign(a[1]);
     if (s) {
       var sc = a[0] === 'sc' && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
       return [{ href: '#/campaign/' + c.id, label: c.name }, { href: '#/session/' + c.id + '/' + s.id, label: 'Session ' + s.n }]
-        .concat(sc ? [{ href: '#/session/' + c.id + '/' + s.id, label: sc.name }] : []).concat([me]);
+        .concat(sc ? [{ href: '#/session/' + c.id + '/' + s.id, label: sc.name }] : []).concat([{ href: L.trackHrefFor(t.id, p.ctx), label: 'Track details' }, me]);
     }
-    return [{ href: '#/library', label: 'Library' }, me];
+    return [{ href: '#/library', label: 'Library' }, { href: '#/library/' + t.id, label: 'Track details' }, me];
   };
 
   var render0 = L.render;

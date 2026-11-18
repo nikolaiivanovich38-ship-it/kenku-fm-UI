@@ -512,7 +512,7 @@
       // the screen's title, so it is not a crumb as well (it would show twice).
       backHTML(t);
       var head = '<div class="viewhead ap-head"><div class="ap-id"><div class="ap-titlerow"><!--lead-->' +
-        '<h1 title="' + esc(L.title(t)) + ' › Audio profile">' + (L.trackHrefFor ? '<a class="ap-h1-t r9-h1link" href="' + L.trackHrefFor(t.id, S.key) + '" data-k="ap-h1-track" title="' + esc(L.title(t)) + ': its details">' + esc(L.title(t)) + '</a>' : '<span class="ap-h1-t">' + esc(L.title(t)) + '</span>') + '<span class="ap-h1-k"><span aria-hidden="true">›</span> Audio profile</span></h1></div>' +
+        '<h1 title="' + esc(L.title(t)) + ' › Audio profile"><span class="ap-h1-t">' + esc(L.title(t)) + '</span>' + '<span class="ap-h1-k"><span aria-hidden="true">›</span> Audio profile</span></h1></div>' +
         // Round 6: the file's names are in the Library's details and on hover here; length and shape stay.
         '<p class="ap-meta" title="' + esc('Title in the file: ' + (t.metaTitle || 'none') + ' · File name: ' + t.file) + '"><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + normHTML(t) + '</div>' +
         '<div class="ap-headacts">' +

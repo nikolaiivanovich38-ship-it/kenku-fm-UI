@@ -181,6 +181,6 @@
     render0.apply(L, arguments);
     var b = document.querySelector('#rail [data-k="rail-help"]'), p = L.setupProgress(); if (!b) return;
     var old = b.querySelector('.r9-help-ring'); if (old) old.remove();
-    if (!p.hidden && p.n < p.of) b.insertAdjacentHTML('beforeend', '<span class="r9-help-ring" title="Set up Lyre: ' + p.n + ' of ' + p.of + ' done"><span class="sr-only">, set up ' + p.n + ' of ' + p.of + ' done</span><span aria-hidden="true">' + p.n + '/' + p.of + '</span></span>');
+    if (!p.hidden && p.n < p.of) b.insertAdjacentHTML('beforeend', '<span class="r9-help-ring" aria-hidden="true" title="Set up Lyre: ' + p.n + ' of ' + p.of + ' done">' + p.n + '/' + p.of + '</span>');
   };
 })();
