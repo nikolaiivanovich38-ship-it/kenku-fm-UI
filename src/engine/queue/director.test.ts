@@ -776,6 +776,18 @@ describe("37: Repeat one uses the track's loop setting and crossfade", () => {
     expect(director.report()[0].music?.positionSeconds).toBeLessThan(4.5);
   });
 
+  it("a library reload while it goes round (a crossfade under way) leaves the playing sound alone", async () => {
+    add(track("cf", 10, { loop: "crossfade", profile: { loopStartMs: 1000 } }));
+    await run({ type: "playTrack", trackId: "cf", target: table, fadeMs: 0 });
+    director.setRepeat("one", table);
+    await context.advance(9);
+    const passes = () => context.elements.filter((e) => e.holdsMedia && !e.paused).length;
+    expect(passes()).toBe(2);
+    director.libraryChanged();
+    expect(passes()).toBe(2);
+    expect(rooms.hear("table", "music")).toBeCloseTo(1, 1);
+  });
+
   it("Do not loop: Repeat one plays it again from Start", async () => {
     add(track("dn", 10, { loop: "no", profile: { startMs: 1000 } }));
     await run({ type: "playTrack", trackId: "dn", target: table, fadeMs: 0 });

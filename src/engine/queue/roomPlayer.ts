@@ -165,6 +165,8 @@ interface LaneVoice {
   profile: AudioProfile;
   /** 37: its profile where it plays, before Repeat one made it go round. */
   base: AudioProfile;
+  /** 37: it goes round because Repeat one applies (its profile is repeatProfile of `base`). */
+  repeating: boolean;
 }
 
 /** What a screen adds to a room's list: one track (with where it came from) or a playlist's tracks in its order there. */
@@ -285,8 +287,11 @@ export class RoomPlayer {
     const lane = this.musicVoice;
     const track = lane ? this.deps.library.track(lane.item.trackId) : undefined;
     if (!lane || !track || lane.voice.isFinal()) return;
-    const profile = (this.shownRepeat() === "one" ? repeatProfile(track, lane.base) : null) ?? lane.base;
-    if (profile === lane.profile) return;
+    const looped = this.shownRepeat() === "one" ? repeatProfile(track, lane.base) : null;
+    // Only a change of Repeat touches the voice (a library reload must not cut a loop's crossfade short).
+    if (!!looped === lane.repeating) return;
+    const profile = looped ?? lane.base;
+    lane.repeating = !!looped;
     lane.profile = profile;
     lane.after = profile.after;
     lane.voice.setProfile(profile, endsAtFileEnd(track, profile));
@@ -848,13 +853,14 @@ export class RoomPlayer {
     const startAt = resume ? positionAfter(profile, resume.at, resume.elapsed) : (fromSeconds ?? picked ?? byDefault);
     if (lane === "music") this.musicLevel = 1;
     // 37: music that Repeat one applies to goes round by the track's loop setting.
-    const heard = (lane === "music" && this.shownRepeat() === "one" ? repeatProfile(found.track, profile) : null) ?? profile;
+    const looped = lane === "music" && this.shownRepeat() === "one" ? repeatProfile(found.track, profile) : null;
+    const heard = looped ?? profile;
     const voice = this.play(lane, found, heard, {
       gainDb: this.gainOf(found.track, item.playlistId),
       crossfadeInSeconds: fadeSeconds,
       startAt,
     });
-    return { voice, item, after: heard.after, profile: heard, base: profile };
+    return { voice, item, after: heard.after, profile: heard, base: profile, repeating: !!looped };
   }
 
   /** PLY-4: where a "Pick up where it stopped" track was stopped (near its end: from the top next time). */
