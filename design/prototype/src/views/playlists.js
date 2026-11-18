@@ -125,7 +125,9 @@
   L.acts.plrowmore = function (el) {
     var p = L.playlist(el.dataset.id);
     L.menu(el, (L.playlistMoveItems ? L.playlistMoveItems(p) : '') + '<button role="menuitem" data-act="plrow" data-id="' + p.id + '">' + L.icon('right', 's') + 'Open</button>' +
-      '<button role="menuitem" data-act="pluse" data-id="' + p.id + '">' + L.icon('link', 's') + 'Use in…</button>' + L.moveToFolderItem('playlists', p.id, p.name), 'More for ' + p.name);
+      '<button role="menuitem" data-act="pluse" data-id="' + p.id + '">' + L.icon('link', 's') + 'Use in…</button>' + L.moveToFolderItem('playlists', p.id, p.name) +
+      // Round 10 fixes (R10-FIX §2): delete it from here, without opening it (it asks first, then Undo).
+      '<div class="sep"></div><button role="menuitem" data-act="r10pldelask" data-id="' + p.id + '">' + L.icon('trash', 's') + 'Delete playlist…</button>', 'More for ' + p.name);
   };
   L.acts.plnew = function (el) {
     function item(kind, lane, sub) { return '<button role="menuitem" data-act="plcreate" data-kind="' + kind + '" data-lane="' + lane + '">' + L.icon(KIND[kind].icon, 's') + '<span class="grow"><span style="display:block">' + KIND[kind].name + '</span><span class="hint" style="display:block">' + sub + '</span></span></button>'; }
@@ -333,6 +335,8 @@
   });
   L.acts.plrm = function (el) {
     var pl = cur(), tid = el.dataset.tid, i = pl.items.indexOf(tid); if (i < 0) return;
+    // Round 10 fixes (R10-FIX §1): with Undo; the track stays in the Track library.
+    L.undoNote('Removed “' + L.title(L.track(tid)) + '” from this playlist. It is still in the Track library.', L.snapshot(['playlists']));
     pl.items.splice(i, 1); var next = pl.items[i] || pl.items[i - 1];
     L.render(); focusK(next ? 'm-more-' + next : 'pladdopen');
     L.say('Removed ' + L.title(L.track(tid)) + '. ' + plural(pl.items.length, 'track') + ' left.'); L.saved(pl.name, { detail: 'removed ' + L.title(L.track(tid)), key: 'pl-' + pl.id });
@@ -413,22 +417,28 @@
   };
 
   // Delete
-  L.acts.pldel = function () {
-    var pl = cur(), uses = L.usesOfPlaylist(pl.id);
+  // Round 10 fixes (R10-FIX §2): the same question from a row on the Playlists page (its ⋯, or Delete on the row),
+  // without opening the playlist; Delete playlist then offers Undo.
+  L.acts.pldel = function () { askDelete(cur()); };
+  L.acts.r10pldelask = function (el) { var p = L.playlist(el.dataset.id); if (p) askDelete(p); };
+  function askDelete(pl) {
+    var uses = L.usesOfPlaylist(pl.id);
     L.sheet({ title: 'Delete "' + (pl.name || 'Untitled playlist') + '"?',
       body: (uses.length ? '<p>It is used in ' + esc(usedText(uses)) + '. Deleting it takes it out of these:</p><ul class="pl-dellist">' + uses.map(function (u) { return '<li>' + esc(u.label) + '</li>'; }).join('') + '</ul>'
         : '<p>It is not used in any campaign, session or scene.</p>') +
         '<p class="muted" style="margin-top:8px">The tracks stay in your library.</p>',
-      footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="pldeldo">' + L.icon('trash', 's') + 'Delete playlist</button>' });
-  };
-  L.acts.pldeldo = function () {
-    var pl = cur(), id = pl.id;
+      footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="pldeldo" data-id="' + pl.id + '">' + L.icon('trash', 's') + 'Delete playlist</button>' });
+  }
+  L.acts.pldeldo = function (el) {
+    var pl = L.playlist(el && el.dataset.id) || cur(), id = pl.id, restore = L.snapshot(['playlists', 'campaigns']);
     D.campaigns.forEach(function (c) {
       function out(a) { var i = a.indexOf(id); if (i > -1) a.splice(i, 1); }
       out(c.playlists); c.sessions.forEach(function (s) { out(s.playlists); s.scenes.forEach(function (sc) { out(sc.music); if (sc.amb === id) sc.amb = ''; }); });
     });
     D.playlists.splice(D.playlists.indexOf(pl), 1);
-    L.closeSheet(); L.route('#/playlists'); L.toast('Deleted "' + pl.name + '"');
+    L.undoNote('Deleted the playlist "' + pl.name + '" and took it out of the places that used it. Its tracks are still in the Track library.', restore);
+    L.closeSheet(); if (L.current().name === 'playlists') L.render(); else L.route('#/playlists');
+    L.say('Deleted "' + pl.name + '". Undo is at the bottom of the screen, or press Ctrl+Z.'); focusK('plfq');
   };
 
   /* ---------- dropping files and folders from the computer ----------

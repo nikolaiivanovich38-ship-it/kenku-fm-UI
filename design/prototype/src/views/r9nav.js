@@ -8,7 +8,8 @@
      Live's row details) opens the Track panel at the right of the work area, beside what Nik is doing, instead of
      leaving for the Library. It shows the Library's own Details (L.trackDetailsHTML, the same words and controls), so
      editing is the same. Its header has Open in Library and Close (Esc). Focus goes into the panel and back to the
-     title that opened it. Below 1000 px of app it lies over the screen's right side, like Help.
+     title that opened it. Round 10: it sits beside the screen at every width from 760 px (the screen narrows); below
+     that it takes the whole window until closed.
      L.openTrackPanel(tid, backK)   open it (backK: the data-k to focus when it closes)
      L.panelTrack()                 the track it shows ('' when closed); the Library's actions use it (library.js cur())
    Used in
@@ -41,8 +42,9 @@
     var a = document.getElementById('r9-tp');
     if (!a) {
       a = document.createElement('aside'); a.id = 'r9-tp'; a.className = 'r9-tp'; a.hidden = true; a.setAttribute('aria-labelledby', 'r9-tp-title');
-      var app = document.getElementById('app'), view = document.getElementById('view');
-      app.insertBefore(a, view.nextSibling);
+      // Round 10 (R10-FIX §3): beside the screen in #work, so the screen narrows instead of being covered.
+      var work = document.getElementById('work'), app = document.getElementById('app');
+      if (work) work.insertBefore(a, app.nextSibling); else app.insertBefore(a, document.getElementById('view').nextSibling);
       a.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !e.defaultPrevented && !document.querySelector('.menu')) { e.preventDefault(); e.stopPropagation(); closePanel(); } });
     }
     return a;

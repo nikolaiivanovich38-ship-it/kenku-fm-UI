@@ -116,7 +116,7 @@
 
 /* Help's setup progress: an outline chip, drawn by CSS so Help's name stays Help (look D12). */
 .r9-help-ring { background: transparent; border-color: var(--line-strong); }
-.r9-help-ring::after { content: attr(data-progress); }
+.r9-help-ring::after { content: attr(data-count); } /* Round 10 fixes: not data-progress, which the playing bars use (core.js tick set the chip to 0 px wide) */
 .r10-esc { font-size: var(--fs-s); color: var(--warn); font-weight: 700; }
 .r9-tp-bar a.btn { text-decoration: none; }
 /* Music and ambience lanes keep one height, playing or not, so starting a scene moves nothing. */

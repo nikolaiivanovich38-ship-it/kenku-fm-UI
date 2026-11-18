@@ -206,6 +206,9 @@
       '<button class="btn s primary" data-act="lbbtag" data-k="lb-btag">' + L.icon('tag', 's') + 'Tag…</button>' +
       '<button class="btn s" data-act="lbbpl" data-k="lb-bpl">' + L.icon('playlist', 's') + 'Add to playlist…</button>' +
       '<button class="btn s" data-act="lbbnew" data-k="lb-bnew">' + L.icon('plus', 's') + 'New playlist from these</button>' +
+      // Round 10 fixes (R10-FIX §1): Remove from library for the selection, in words; Delete files from disk… in its ⋯.
+      '<button class="btn s" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '" data-k="lb-brm">' + L.icon('close', 's') + 'Remove from library</button>' +
+      '<button class="btn s icon" data-act="r10selmore" data-k="lb-bmore" aria-haspopup="menu" aria-expanded="false" aria-label="More for the selected tracks" title="More">' + L.icon('more', 's') + '</button>' +
       '<button class="btn s ghost" data-act="lbbclear" data-k="lb-bclear">Clear selection</button></div>';
     var allOn = list.length && shownSel === list.length;
     var cols = COLS.filter(function (c) { return st.cols.indexOf(c[0]) > -1; });
@@ -333,7 +336,9 @@
       (L.namesOfTrack(t).length ? '<dt>Names in scenes</dt><dd><ul class="lb-scnames">' + L.namesOfTrack(t).map(function (x) { return '<li><b>' + esc(x.name) + '</b> <span class="hint">in ' + esc(x.label) + '</span></li>'; }).join('') + '</ul></dd>' : '') + '</dl>';
     h += '<div class="lb-acts"><button class="btn s lb-pvbtn" data-act="lbprev" data-tid="' + t.id + '" data-k="lb-dprev" aria-pressed="' + !!prev + '">' + L.icon(prev ? 'stop' : 'headphones', 's') + (prev ? 'Stop preview' : 'Preview') + '</button>' +
       '<button class="btn s" data-act="lbonair" data-k="lb-onair">' + L.icon('broadcast', 's') + 'Play on air</button>' + (L.profileLink ? L.profileLink(t.id) : '')  +
-      '<button class="btn s" data-act="lbusein" data-k="lb-usein">' + L.icon('link', 's') + 'Use in…</button></div>' +
+      '<button class="btn s" data-act="lbusein" data-k="lb-usein">' + L.icon('link', 's') + 'Use in…</button>' +
+      // Round 10 fixes (R10-FIX §1): Remove from library in a track's details too (its file stays; Undo).
+      '<button class="btn s" data-act="r10rmask" data-how="remove" data-ids="' + t.id + '" data-k="lb-drm">' + L.icon('close', 's') + 'Remove from library</button></div>' +
       (profileSummary(t) ? '<p class="lb-prof">' + L.icon('fade', 's') + '<span>' + profileSummary(t) + '</span></p>' : '');
     h += '<section class="lb-sec" aria-labelledby="lb-h-tags"><h3 class="lb-h" id="lb-h-tags">Tags</h3>' + D.tagGroups.map(function (g) { return tagRow(t, g); }).join('') + '</section>';
     h += '<section class="lb-sec" aria-labelledby="lb-h-play"><h3 class="lb-h" id="lb-h-play">How it plays</h3>' +
@@ -560,7 +565,11 @@
       '<button role="menuitem" data-act="lbrmpl" data-tid="' + id + '">' + L.icon('playlist', 's') + 'Add to playlist…</button>' +
       '<button role="menuitem" data-act="addto" data-ids="' + (sel ? st.sel.join(',') : id) + '">' + L.icon('plus', 's') + 'Add to…</button>' +
       '<button role="menuitem" data-act="lbusein" data-tid="' + id + '">' + L.icon('link', 's') + 'Use in…</button>' +
-      (L.profileLink ? '<button role="menuitem" data-act="lbrmprof" data-tid="' + id + '">' + L.icon('fade', 's') + 'Audio profile</button>' : ''), 'More for ' + L.title(t));
+      (L.profileLink ? '<button role="menuitem" data-act="lbrmprof" data-tid="' + id + '">' + L.icon('fade', 's') + 'Audio profile</button>' : '') +
+      // Round 10 fixes (R10-FIX §1; 0.5.2 items 1 and 50): a ticked row takes the other ticked rows along, as Add to… does.
+      // Delete file from disk… is last, apart and plain, with a confirmation that names the files.
+      '<div class="sep"></div><button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + (sel ? st.sel.join(',') : id) + '">' + L.icon('close', 's') + 'Remove from library' + (sel && st.sel.length > 1 ? ' (' + st.sel.length + ')' : '') + '</button>' +
+      '<div class="sep"></div><button role="menuitem" class="r10-mi-quiet" data-act="r10rmask" data-how="delete" data-ids="' + (sel ? st.sel.join(',') : id) + '">' + L.icon('warn', 's') + 'Delete file from disk' + (sel && st.sel.length > 1 ? ' (' + st.sel.length + ')' : '') + '…</button>', 'More for ' + L.title(t));
   };
   L.acts.lbrmopen = function (el) { openTrack(el.dataset.tid, true); };
   L.acts.lbusein = function (el) { L.assignSheet('track', el.dataset.tid || cur().id); };
@@ -588,8 +597,68 @@
     if (k === ' ') { toggleSel(id, e.shiftKey); return true; }
     if ((k === 'p' || k === 'P') && !e.ctrlKey && !e.metaKey && !e.altKey) { L.preview(id); return true; }
     if ((k === 'a' || k === 'A') && !e.ctrlKey && !e.metaKey && !e.altKey) { onAir(L.track(id)); return true; }
+    // Round 10 fixes (R10-FIX §1): Delete asks to remove the track (the ticked tracks, when this row is ticked).
+    if (k === 'Delete' && !e.ctrlKey && !e.metaKey && !e.altKey) { askRemove('remove', st.sel.indexOf(id) > -1 ? st.sel.slice() : [id]); return true; }
     return false;
   }
+
+  /* ---------- Round 10 fixes (R10-FIX §1): taking tracks out of the Track library ----------
+     Nik, 18 Nov 13:00: "There's still no way to remove tracks". As 0.5.2 built it in the app (items 1 and 50,
+     src/lyre/screens/library/RemoveTracks.tsx), with the app's words:
+       Remove from library     the tracks leave Lyre, and every playlist, pad and scene; their files stay. It asks
+                               first and names where they are used; Undo puts them back.
+       Delete file from disk…  the files go to the Recycle Bin and their tracks leave Lyre. The confirmation names the
+                               files; Undo brings the tracks back (missing until the files are restored). */
+  var NAMED_FILES = 10, removal = null;
+  function usesOf(ids) {
+    var on = function (id) { return ids.indexOf(id) > -1; }, out = [];
+    D.playlists.forEach(function (p) { if (p.kind === 'manual' && p.items.some(on)) out.push('Playlist: ' + p.name); });
+    D.campaigns.forEach(function (c) {
+      if ((c.tracks || []).some(on)) out.push(c.name + ' (whole campaign)');
+      c.sessions.forEach(function (s) {
+        if ((s.tracks || []).some(on)) out.push(c.name + ' › Session ' + s.n);
+        s.scenes.forEach(function (sc) { if ((sc.music || []).some(on) || on(sc.amb)) out.push(c.name + ' › Session ' + s.n + ' › ' + sc.name); });
+      });
+    });
+    return out;
+  }
+  function askRemove(how, ids, shown) {
+    var list = ids.map(L.track).filter(Boolean), n = list.length; if (!n) return;
+    var one = n === 1 ? list[0] : null, deleting = how === 'delete', uses = usesOf(list.map(function (t) { return t.id; }));
+    var what = one ? '“' + L.title(one) + '”' : shown ? 'all ' + n + ' shown tracks' : plural(n, 'track');
+    removal = { how: how, ids: list.map(function (t) { return t.id; }) };
+    var files = list.map(function (t) { return t.file; });
+    var body = deleting
+      ? '<p>' + (one ? 'This file goes' : 'These files go') + ' to the Recycle Bin, and ' + (one ? 'its track leaves' : 'their tracks leave') + ' the library. <b>This can\'t be undone in Lyre</b>: to get ' + (one ? 'it' : 'them') + ' back, restore ' + (one ? 'it' : 'them') + ' from the Recycle Bin.</p>' +
+        '<ul class="r10-files">' + files.slice(0, NAMED_FILES).map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + (files.length > NAMED_FILES ? '<li class="hint">and ' + plural(files.length - NAMED_FILES, 'more file') + '</li>' : '') + '</ul>'
+      : '<p>' + (one ? 'It leaves' : 'They leave') + ' Lyre, and every playlist, pad and scene. ' + (one ? 'Its file stays' : 'Their files stay') + ' on your computer, and Undo puts ' + (one ? 'it' : 'them') + ' back.</p>';
+    if (uses.length) body += '<div class="r10-uses" role="note"><p>' + (one ? 'It is' : 'They are') + ' used in:</p><ul>' + uses.map(function (u) { return '<li>' + esc(u) + '</li>'; }).join('') + '</ul></div>';
+    L.sheet({ title: deleting ? 'Delete ' + (one ? 'its file' : plural(n, 'file')) + ' from disk?' : 'Remove ' + what + ' from the library?', body: body,
+      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn ' + (deleting ? 'danger' : 'primary') + '" data-act="r10rmdo">' + (deleting ? (one ? 'Delete file' : 'Delete ' + plural(n, 'file')) : one ? 'Remove' : 'Remove ' + plural(n, 'track')) + '</button>' });
+  }
+  L.acts.r10rmask = function (el) { if (el.disabled) return; askRemove(el.dataset.how, (el.dataset.ids || '').split(',').filter(Boolean), !!el.dataset.shown); };
+  L.acts.r10selmore = function (el) {
+    L.menu(el, '<button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '">' + L.icon('close', 's') + 'Remove from library</button>' +
+      '<div class="sep"></div><button role="menuitem" class="r10-mi-quiet" data-act="r10rmask" data-how="delete" data-ids="' + st.sel.join(',') + '">' + L.icon('warn', 's') + (st.sel.length === 1 ? 'Delete file from disk…' : 'Delete files from disk…') + '</button>', 'More for the selected tracks');
+  };
+  L.acts.r10rmdo = function () {
+    var r = removal; if (!r) return; removal = null;
+    var gone = r.ids, list = gone.map(L.track), one = gone.length === 1 ? list[0] : null, restore = L.snapshot(['tracks', 'playlists', 'campaigns']);
+    var out = function (a) { for (var i = a.length - 1; i >= 0; i--) if (gone.indexOf(a[i]) > -1) a.splice(i, 1); };
+    for (var i = D.tracks.length - 1; i >= 0; i--) if (gone.indexOf(D.tracks[i].id) > -1) D.tracks.splice(i, 1);
+    D.playlists.forEach(function (p) { if (p.items) out(p.items); });
+    D.campaigns.forEach(function (c) { out(c.tracks || []); c.sessions.forEach(function (s) { out(s.tracks || []); s.scenes.forEach(function (sc) { out(sc.music || []); if (gone.indexOf(sc.amb) > -1) sc.amb = ''; }); }); });
+    st.sel = st.sel.filter(function (x) { return gone.indexOf(x) < 0; }); if (gone.indexOf(st.cursor) > -1) st.cursor = null;
+    var text = r.how === 'delete'
+      ? plural(gone.length, 'file') + ' sent to the Recycle Bin, and ' + (one ? 'its track' : 'their tracks') + ' removed from the library. Undo brings ' + (one ? 'the track' : 'the tracks') + ' back; ' + (one ? 'the file stays' : 'the files stay') + ' in the Recycle Bin.'
+      : 'Removed ' + (one ? '“' + L.title(one) + '”' : plural(gone.length, 'track')) + ' from the library. ' + (one ? 'Its file is' : 'Their files are') + ' still on your computer.';
+    L.undoNote(text, function () { restore(); if (r.how === 'delete') gone.forEach(function (id) { var t = L.track(id); if (t) t.missing = true; }); });
+    L.closeSheet();
+    var open = L.current().name === 'library' && L.current().p.tid;
+    if (open && gone.indexOf(open) > -1) L.route('#/library'); else L.render();
+    L.say(text + ' Undo is at the bottom of the screen, or press Ctrl+Z.');
+    var q = document.querySelector('[data-k="lb-q"]'); if (q && L.current().name === 'library') q.focus();
+  };
 
   /* ---------- details actions ---------- */
   // Round 9 (r9nav.js): outside the Library the Track panel shows these same details, for L.panelTrack().
@@ -789,7 +858,9 @@
       // PLY-15: the library's normalisation setting (off until turned on), in a small dialog.
       '<div class="sep"></div><button role="menuitem" data-act="normopen">' + L.icon('volume', 's') + 'Normalise volume…</button>' +
       // Round 7 (DAT-10): the tag vocabulary has its own screen.
-      '<button role="menuitem" data-act="lbgo" data-href="#/tags">' + L.icon('tag', 's') + 'Tags and groups…</button>', 'More for the library');
+      '<button role="menuitem" data-act="lbgo" data-href="#/tags">' + L.icon('tag', 's') + 'Tags and groups…</button>' +
+      // Round 10 fixes (R10-FIX §1, item 50): with a search or a filter on, every track the list shows, counted.
+      (st.q || filtersOn() ? '<div class="sep"></div><button role="menuitem" data-act="r10rmask" data-how="remove" data-shown="1" data-ids="' + visible().map(function (t) { return t.id; }).join(',') + '"' + (visible().length ? '' : ' disabled') + '>' + L.icon('close', 's') + 'Remove all ' + visible().length + ' shown from library…</button>' : ''), 'More for the library');
   };
   L.acts.lbgo = function (el) { L.route(el.dataset.href); };
   L.acts.lbaddmenu = function (el) {

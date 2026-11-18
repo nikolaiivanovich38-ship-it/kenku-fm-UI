@@ -282,7 +282,8 @@ test.describe("tagging many tracks at once", () => {
     await selectTwoNew(page);
     const bar = page.getByRole("toolbar", { name: "Selected tracks" });
     await expect(bar).toContainText("2 selected");
-    await expect(bar.getByRole("button")).toHaveText(["Tag…", "Add to playlist…", "New playlist from these", "Clear selection"]);
+    // Round 10 fixes (R10-FIX §1) add Remove from library and a ⋯ (Delete files from disk…); they are left out here.
+    await expect(bar.getByRole("button").filter({ hasText: /\S/ }).filter({ hasNotText: "Remove from library" })).toHaveText(["Tag…", "Add to playlist…", "New playlist from these", "Clear selection"]);
     await bar.getByRole("button", { name: "Clear selection" }).click();
     await expect(bar).toHaveCount(0);
   });
@@ -609,5 +610,83 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
     await modes.getByRole("button", { name: "Live" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Live" })).toBeAttached();
+  });
+});
+
+/* Round 10 fixes (R10-FIX §1, from Nik's first look, 18 Nov 13:00: "There's still no way to remove tracks"). Items 1
+   and 50, as 0.5.2 built them in the app (src/lyre/screens/library/RemoveTracks.tsx): Remove from library for one
+   track, a selection and every track a filter shows, asking first and naming where the tracks are used, with Undo;
+   the files stay. Delete file from disk… only in a row's ⋯, with a confirmation that names the files and the Recycle
+   Bin. Not built in this branch's app yet. */
+test.describe("round 10: removing tracks from the Track library", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  const eerie = "Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)";
+
+  test("a row's ⋯ has Remove from library: it asks first, names the scene that uses it, and Undo brings it back", async ({ page }) => {
+    await openRoute(page, "library");
+    await row(page, eerie).getByRole("button", { name: `More for ${eerie}` }).click();
+    await page.getByRole("menuitem", { name: "Remove from library", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: `Remove “${eerie}” from the library?` });
+    await expect(dialog).toContainText("Its file stays on your computer");
+    await expect(dialog).toContainText("The abbey ruins");
+    await dialog.getByRole("button", { name: "Remove", exact: true }).click();
+    await expect(row(page, eerie)).toHaveCount(0);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(row(page, eerie)).toHaveCount(1);
+  });
+
+  test("Delete file from disk… is in the row's ⋯ only, last: its confirmation names the file and the Recycle Bin", async ({ page }) => {
+    await openRoute(page, "library");
+    await row(page, "Abbess screams").getByRole("button", { name: "More for Abbess screams" }).click();
+    const items = await page.getByRole("menu").getByRole("menuitem").allTextContents();
+    expect(items.at(-1)?.trim()).toBe("Delete file from disk…");
+    await page.getByRole("menuitem", { name: "Delete file from disk…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Delete its file from disk?" });
+    await expect(dialog).toContainText("abbess_scream.wav");
+    await expect(dialog).toContainText("Recycle Bin");
+    await dialog.getByRole("button", { name: "Delete file", exact: true }).click();
+    await expect(row(page, "Abbess screams")).toHaveCount(0);
+    // Undo brings the track back; its file stays in the Recycle Bin, so it is missing until restored.
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(row(page, "Abbess screams")).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Delete file from disk…" })).toHaveCount(0);
+  });
+
+  test("the selection bar has Remove from library for the selected tracks", async ({ page }) => {
+    await openRoute(page, "library");
+    await row(page, eerie).getByRole("checkbox").check();
+    await row(page, "Abbess screams").getByRole("checkbox").check();
+    const bar = page.getByRole("toolbar", { name: "Selected tracks" });
+    await bar.getByRole("button", { name: "Remove from library" }).click();
+    const dialog = page.getByRole("dialog", { name: "Remove 2 tracks from the library?" });
+    await dialog.getByRole("button", { name: "Remove 2 tracks" }).click();
+    await expect(row(page, eerie)).toHaveCount(0);
+    await expect(row(page, "Abbess screams")).toHaveCount(0);
+    await expect(bar).toHaveCount(0);
+  });
+
+  test("with a search on, the ⋯ beside Add tracks removes every track it shows, after saying how many", async ({ page }) => {
+    await openRoute(page, "library");
+    await page.getByRole("searchbox", { name: "Search tracks" }).fill("battle");
+    const n = (await shownTitles(page)).length;
+    expect(n).toBeGreaterThan(1);
+    await page.getByRole("button", { name: "More for the library" }).click();
+    await page.getByRole("menuitem", { name: `Remove all ${n} shown from library…` }).click();
+    const dialog = page.getByRole("dialog", { name: `Remove all ${n} shown tracks from the library?` });
+    await dialog.getByRole("button", { name: `Remove ${n} tracks` }).click();
+    expect(await shownTitles(page)).toEqual([]);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect(await shownTitles(page)).toHaveLength(n);
+  });
+
+  test("a track's details have Remove from library, and Delete on a focused row asks the same", async ({ page }) => {
+    await openRoute(page, "library");
+    await openTrack(page, "Abbess screams");
+    await details(page).getByRole("button", { name: "Remove from library" }).click();
+    await expect(page.getByRole("dialog", { name: "Remove “Abbess screams” from the library?" })).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+    await row(page, eerie).focus();
+    await page.keyboard.press("Delete");
+    await expect(page.getByRole("dialog", { name: `Remove “${eerie}” from the library?` })).toBeVisible();
   });
 });

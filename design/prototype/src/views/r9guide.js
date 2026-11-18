@@ -21,8 +21,23 @@
   function saveGeo(g) { try { localStorage.setItem(GEO_KEY, JSON.stringify(g)); } catch (e) { /* storage unavailable */ } }
   // The work area under the screen's top strip (so the window's own buttons are never covered) and above the Now playing bar.
   function area() { var v = document.getElementById('view').getBoundingClientRect(), head = document.querySelector('#view .viewhead, #view .lv-top'), bar = document.querySelector('#view .onairbar'); return { left: v.left, top: head ? head.getBoundingClientRect().bottom : v.top, right: v.right, bottom: bar ? bar.getBoundingClientRect().top : v.bottom }; }
-  function docked(side) { var a = area(), w = Math.max(360, Math.round((a.right - a.left) * 0.45)); return { dock: side, left: side === 'left' ? a.left + 8 : a.right - w - 8, top: a.top + 8, width: w, height: a.bottom - a.top - 16 }; }
+  // Round 10 (R10-FIX §3): docked, the panel is a side panel beside the screen (r10fix.css), which narrows; its width
+  // is kept (null: the usual width, 36 % of the window between 360 and 560 px).
+  function docked(side, width) { var g = geo(); return { dock: side, width: width || (g && g.dock !== 'float' && g.width) || null }; }
+  function workEl() { return document.getElementById('work'); }
+  function dockIn(p, g) {
+    var s = p.closest('.sheet'), w = workEl(); if (!s || !w) return;
+    s.classList.add('r10-docked'); s.classList.toggle('r10-dock-left', g.dock === 'left'); s.classList.toggle('r10-dock-right', g.dock !== 'left');
+    var max = Math.max(320, w.getBoundingClientRect().width - 600);
+    if (g.width) { g.width = Math.max(320, Math.min(g.width, max)); s.style.setProperty('--r10-dock-w', g.width + 'px'); } else s.style.removeProperty('--r10-dock-w');
+    p.removeAttribute('style'); p.dataset.dock = g.dock;
+    if (s.parentElement !== w) { var a = document.activeElement, had = s.contains(a); w.appendChild(s); L.render(); if (had && document.contains(a)) a.focus(); }
+  }
   function apply(p, g) {
+    p.querySelectorAll('[data-act="r9dock"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === (g.dock || 'float'))); });
+    if (g.dock === 'left' || g.dock === 'right') { dockIn(p, g); return; }
+    var s = p.closest('.sheet');
+    if (s && s.classList.contains('r10-docked')) { var a0 = document.activeElement, had0 = s.contains(a0); s.classList.remove('r10-docked', 'r10-dock-left', 'r10-dock-right'); s.style.removeProperty('--r10-dock-w'); document.body.appendChild(s); L.render(); if (had0 && document.contains(a0)) a0.focus(); }
     var vw = window.innerWidth, vh = window.innerHeight;
     g.width = Math.max(320, Math.min(g.width, vw - 16)); g.height = Math.max(240, Math.min(g.height, vh - 16));
     g.left = Math.max(8, Math.min(g.left, vw - g.width - 8)); g.top = Math.max(8, Math.min(g.top, vh - g.height - 8));
@@ -47,26 +62,36 @@
       return '<button role="menuitemradio" aria-checked="' + (cur === x[0]) + '" data-act="r9dock" data-v="' + x[0] + '">' + (cur === x[0] ? L.icon('check', 's') : '<span style="width:14px"></span>') + x[1] + '</button>'; }).join(''), 'Dock');
   };
   L.acts.r9dock = function (el) {
-    var p = el.closest('.panel') || document.querySelector('#lyre-sheet .panel'), v = el.dataset.v, cur = { left: p.offsetLeft, top: p.offsetTop, width: p.offsetWidth, height: p.offsetHeight };
-    var g = v === 'float' ? { dock: 'float', left: cur.left - 40, top: cur.top + 40, width: Math.min(cur.width, 720), height: Math.min(cur.height, 560) } : docked(v);
+    var p = el.closest('.panel') || document.querySelector('#lyre-sheet .panel'), v = el.dataset.v, cur = cur0(p);
+    var g = v === 'float' ? { dock: 'float', left: cur.left - 40, top: cur.top + 40, width: Math.min(cur.width, 720), height: Math.min(cur.height, 560) } : docked(v, p.closest('.r10-docked') ? cur.width : null);
     apply(p, g); saveGeo(g); L.say(v === 'float' ? 'Floating: drag its title to move it' : 'Docked on the ' + v); var d = p.querySelector('[data-k="r10-dock"]'); if (d) d.focus();
   };
-  function cur(p) { return { dock: 'float', left: p.offsetLeft, top: p.offsetTop, width: p.offsetWidth, height: p.offsetHeight }; }
+  function cur(p) { var r = p.getBoundingClientRect(); return { dock: 'float', left: Math.round(r.left), top: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) }; }
+  function cur0(p) { return cur(p); }
   // Move by dragging the title bar; resize by the corner grip.
   document.addEventListener('pointerdown', function (e) {
     var head = e.target.closest && e.target.closest('.r9-float .r9-fl-head'), grip = e.target.closest && e.target.closest('.r9-fl-grip');
     if (!head && !grip) return; if (head && e.target.closest('button, input, a')) return;
     var p = (head || grip).closest('.panel'), g0 = cur(p), x0 = e.clientX, y0 = e.clientY; e.preventDefault();
+    // Round 10: docked, the edge changes its width only and the panel stays docked; dragging its title lets it float.
+    var side = p.closest('.r10-docked') ? p.dataset.dock : '';
     p.classList.add('r9-moving');
-    function move(ev) { var dx = ev.clientX - x0, dy = ev.clientY - y0, g = Object.assign({}, g0); if (head) { g.left += dx; g.top += dy; } else { g.width += dx; g.height += dy; } apply(p, g); }
-    function up() { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); p.classList.remove('r9-moving'); saveGeo(cur(p)); }
+    function move(ev) {
+      var dx = ev.clientX - x0, dy = ev.clientY - y0, g = Object.assign({}, g0);
+      if (side && grip) { apply(p, { dock: side, width: g0.width + (side === 'left' ? dx : -dx) }); return; }
+      if (head) { g.left += dx; g.top += dy; } else { g.width += dx; g.height += dy; } apply(p, g);
+    }
+    function up() { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); p.classList.remove('r9-moving'); var c = cur(p); if (side && grip) { c.dock = side; } saveGeo(c); }
     document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
   });
   document.addEventListener('keydown', function (e) {
     var b = e.target.closest && e.target.closest('[data-r9-move]'); if (!b || !/^Arrow/.test(e.key)) { if (b && e.key === 'Home') { e.preventDefault(); var pp = b.closest('.panel'), dg = docked('right'); apply(pp, dg); saveGeo(dg); } return; }
     e.preventDefault(); var p = b.closest('.panel'), g = cur(p), d = 20, dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0, dy = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
+    // Round 10: docked, Shift and the arrows change its width and it stays docked; the arrows alone let it float.
+    var side = p.closest('.r10-docked') ? p.dataset.dock : '';
+    if (side && e.shiftKey) { var dg = { dock: side, width: g.width + (side === 'left' ? dx : -dx) }; apply(p, dg); saveGeo(dg); b.focus(); return; }
     if (e.shiftKey) { g.width += dx; g.height += dy; } else { g.left += dx; g.top += dy; }
-    apply(p, g); saveGeo(cur(p));
+    apply(p, g); saveGeo(cur(p)); b.focus();
   });
 
   /* ---------- §4 the guide ---------- */
@@ -195,8 +220,8 @@
     var b = document.querySelector('#rail [data-k="rail-help"]'), p = L.setupProgress(); if (!b) return;
     var old = b.querySelector('.r9-help-ring'); if (old) old.remove();
     var running = L.current().name === 'live' && !!(L.pb.music || L.pb.amb);
-    // Round 10: the progress is drawn by CSS (data-progress), so the button's name and text stay "Help"; a quiet
+    // Round 10: the progress is drawn by CSS (data-count; round 10 fixes: data-progress was the playing bars' attribute), so the button's name and text stay "Help"; a quiet
     // outline chip, not the accent fill (look D12).
-    if (!p.hidden && p.n < p.of && !running) b.insertAdjacentHTML('beforeend', '<span class="r9-help-ring" aria-hidden="true" title="Set up Lyre: ' + p.n + ' of ' + p.of + ' done" data-progress="' + p.n + '/' + p.of + '"></span>');
+    if (!p.hidden && p.n < p.of && !running) b.insertAdjacentHTML('beforeend', '<span class="r9-help-ring" aria-hidden="true" title="Set up Lyre: ' + p.n + ' of ' + p.of + ' done" data-count="' + p.n + '/' + p.of + '"></span>');
   };
 })();

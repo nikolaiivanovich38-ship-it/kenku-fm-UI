@@ -12,9 +12,13 @@
   <div class="proto" id="proto" role="region" aria-label="Prototype controls (not part of Lyre)"></div>
   <div class="notes" id="notes" role="region" aria-label="Design notes (not part of Lyre)"></div>
   <div id="stagewrap">
-    <div id="app">
-      <aside id="rail" class="rail"></aside>
-      <main id="view" class="view"></main>
+    <!-- Round 10 (R10-FIX §3): #work is the window; side panels sit beside #app (the menu and the screen), so the
+         screen narrows and reflows when one opens instead of being covered. -->
+    <div id="work">
+      <div id="app">
+        <aside id="rail" class="rail"></aside>
+        <main id="view" class="view"></main>
+      </div>
     </div>
   </div>
 </div>

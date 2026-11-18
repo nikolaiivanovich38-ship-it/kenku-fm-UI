@@ -73,7 +73,8 @@ test.describe("all playlists", () => {
     const menu = page.getByRole("menu", { name: "More for The Company themes" });
     // Round 7 (ORG-4) adds Move to folder… in the prototype.
     // Round 9 (item 38): the menu starts with Move up, Move down and Move to the top (Your order); they are left out here.
-    await expect(menu.getByRole("menuitem").filter({ hasNotText: /^Move / })).toHaveText(["Open", "Use in…"]);
+    // Round 10 fixes (R10-FIX §2): Delete playlist… at the end; left out here as well.
+    await expect(menu.getByRole("menuitem").filter({ hasNotText: /^(Move |Delete playlist)/ })).toHaveText(["Open", "Use in…"]);
     await expect(menu.getByRole("menuitem", { name: /duplicate/i })).toHaveCount(0);
   });
 
@@ -507,5 +508,54 @@ test.describe("round 6 cuts on a playlist", () => {
     await expect(how).toBeHidden();
     await page.getByRole("list", { name: "Tracks in order" }).getByRole("button").first().focus();
     await expect(how).toBeVisible();
+  });
+});
+
+/* Round 10 fixes (R10-FIX §1 and §2, Nik, 18 Nov 13:00: "There's still no way to remove tracks, or to delete playlists
+   in line"). A track comes out of a playlist from its row's ⋯ or with Delete on its row, on the playlist's page and
+   wherever its tracks are shown unfolded, with Undo; a playlist is deleted from its row on the Playlists page. */
+test.describe("round 10: taking tracks out and deleting playlists in line", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+
+  test("Delete on a focused track row takes it out of the playlist; Undo puts it back where it was", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    const before = await trackNames(page);
+    await page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Alien, unknowable/ }).focus();
+    await page.keyboard.press("Delete");
+    expect(await trackNames(page)).toHaveLength(before.length - 1);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect(await trackNames(page)).toEqual(before);
+  });
+
+  test("a row on the Playlists page has Delete playlist… in its ⋯: it names the scenes that use it, then Undo", async ({ page }) => {
+    await openRoute(page, "playlists");
+    await page.getByRole("button", { name: "More for The Abbess", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Delete playlist…" }).click();
+    const dialog = page.getByRole("dialog", { name: 'Delete "The Abbess"?' });
+    await expect(dialog).toContainText("The abbey ruins");
+    await dialog.getByRole("button", { name: "Delete playlist" }).click();
+    await expect(rowOf(page, "The Abbess")).toHaveCount(0);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Playlists");
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(rowOf(page, "The Abbess")).toHaveCount(1);
+  });
+
+  test("Delete on a focused playlist row opens the same question", async ({ page }) => {
+    await openRoute(page, "playlists");
+    await page.getByRole("button", { name: "More for The Abbess", exact: true }).focus();
+    await page.keyboard.press("Delete");
+    await expect(page.getByRole("dialog", { name: 'Delete "The Abbess"?' })).toBeVisible();
+  });
+
+  test("a manual playlist shown unfolded has Remove from this playlist in each track's ⋯", async ({ page }) => {
+    await openRoute(page, "playlists");
+    await page.getByRole("button", { name: "Show contents of The Abbess" }).click();
+    const tracks = page.getByRole("list", { name: /^Tracks in The Abbess/ });
+    const n = await tracks.getByRole("listitem").count();
+    await tracks.getByRole("button", { name: /^More for Alien, unknowable/ }).click();
+    await page.getByRole("menuitem", { name: "Remove from this playlist" }).click();
+    await expect(tracks.getByRole("listitem")).toHaveCount(n - 1);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(tracks.getByRole("listitem")).toHaveCount(n);
   });
 });

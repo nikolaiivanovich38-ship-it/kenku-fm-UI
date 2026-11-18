@@ -1721,3 +1721,18 @@ test.describe("round 10: Nik's answers on the strip at half a screen and on Room
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Rooms");
   });
 });
+
+/* Round 10 fixes (R10-FIX §1): Up next keeps its × on each row; Delete on a focused row does the same, with Undo. */
+test("round 10: Delete on a focused Up next row takes it out, as its × does", async ({ page }) => {
+  expectFailureUntilBuilt("r10");
+  await openRoute(page, "live");
+  await startAbbey(page);
+  const track = "Haunted sea shanty, grey and slow - the drowned bells";
+  await sceneMusic(page).getByRole("button", { name: `Add to queue: ${track}` }).click();
+  const upNext = room(page, "Table").getByRole("list", { name: "Up next" });
+  const added = upNext.getByRole("listitem").filter({ hasText: `Added: ${track}` });
+  await added.getByRole("button", { name: `Remove ${track} from Up next` }).focus();
+  await page.keyboard.press("Delete");
+  await expect(upNext.getByRole("listitem").filter({ hasText: `Added: ${track}` })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Undo", exact: true })).toBeVisible();
+});

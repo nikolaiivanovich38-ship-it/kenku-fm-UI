@@ -921,12 +921,13 @@
   document.addEventListener('focusin', function (e) {
     if (!onLive() || !S.findOpen) return;
     // Round 10: the Undo place beside Find does not close it (a re-render would take the button from under the click).
-    var t = e.target; if (!(t.closest && (t.closest('.lv-find') || t.closest('.menu') || t.closest('.r10-undo-slot')))) closeFind(false);
+    // Round 10 fixes: Find's results sit in a side panel (#r10-find, r10fix.js), which counts as part of Find.
+    var t = e.target; if (!(t.closest && (t.closest('.lv-find') || t.closest('#r10-find') || t.closest('.menu') || t.closest('.r10-undo-slot')))) closeFind(false);
   });
   document.addEventListener('pointerdown', function (e) {
     if (!onLive() || !e.target.closest) return;
     if (e.target.closest('[data-k="lv-q"]')) { setTimeout(openFind, 0); return; }
-    if (S.findOpen && !(e.target.closest('.lv-find') || e.target.closest('.menu') || e.target.closest('.r10-undo-slot'))) closeFind(false);
+    if (S.findOpen && !(e.target.closest('.lv-find') || e.target.closest('#r10-find') || e.target.closest('.menu') || e.target.closest('.r10-undo-slot'))) closeFind(false);
   });
 
   /* ---------- layout ---------- */

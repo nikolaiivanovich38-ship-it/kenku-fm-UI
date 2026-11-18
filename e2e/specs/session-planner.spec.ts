@@ -758,3 +758,42 @@ test.describe("round 10: the planner", () => {
     await expect(page.getByRole("main")).not.toContainText("New board 1");
   });
 });
+
+/* Round 10 fixes (R10-FIX §1 and §2): a scene's music and the session's lists. Delete on a focused row takes it out of
+   the scene or session, as its ⋯'s "Remove from this scene / session" does, with Undo; the track or playlist stays. */
+test.describe("round 10: taking things out of a scene and a session", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+
+  test("Delete on a focused music row takes it out of the scene; Undo puts it back", async ({ page }) => {
+    await openAbbey(page);
+    const before = await linkNames(musicOf(abbey(page)));
+    const second = musicOf(abbey(page)).getByRole("listitem").nth(1);
+    await second.getByRole("button", { name: /^More for / }).first().focus();
+    await page.keyboard.press("Delete");
+    expect(await linkNames(musicOf(abbey(page)))).toEqual([before[0], ...before.slice(2)]);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect(await linkNames(musicOf(abbey(page)))).toEqual(before);
+  });
+
+  test("a playlist row's ⋯ in a scene says Remove from this scene, and it has Undo", async ({ page }) => {
+    await openAbbey(page);
+    const before = await linkNames(musicOf(abbey(page)));
+    await musicOf(abbey(page)).getByRole("listitem").filter({ hasText: "The Abbess" }).first().getByRole("button", { name: /^More for / }).first().click();
+    await expect(page.getByRole("menuitem", { name: /^Delete/ })).toHaveCount(0);
+    await page.getByRole("menuitem", { name: "Remove from this scene" }).click();
+    expect(await linkNames(musicOf(abbey(page)))).not.toContain("The Abbess");
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect(await linkNames(musicOf(abbey(page)))).toEqual(before);
+  });
+
+  test("a session playlist comes out of the session from its ⋯, with Undo", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    const box = page.getByRole("region", { name: "Session playlists", exact: true });
+    const n = await box.getByRole("listitem").count();
+    await box.getByRole("button", { name: /^More for / }).first().click();
+    await page.getByRole("menuitem", { name: "Remove from this session" }).click();
+    await expect(box.getByRole("listitem")).toHaveCount(n - 1);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(box.getByRole("listitem")).toHaveCount(n);
+  });
+});

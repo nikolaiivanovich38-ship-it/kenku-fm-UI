@@ -54,7 +54,7 @@
     if (aside) return aside;
     aside = document.createElement('aside');
     aside.id = 'lyre-help'; aside.className = 'helpsheet'; aside.hidden = true; aside.setAttribute('aria-labelledby', 'help-title');
-    document.getElementById('app').appendChild(aside);
+    (document.getElementById('work') || document.getElementById('app')).appendChild(aside); // Round 10: beside the screen, never over it
     aside.addEventListener('keydown', function (e) {
       keepKeys(e);
       if (e.key !== 'Escape' || e.shiftKey || e.defaultPrevented) return;

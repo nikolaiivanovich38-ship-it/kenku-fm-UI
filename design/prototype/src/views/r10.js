@@ -85,9 +85,7 @@
   L.render = function () {
     render0.apply(L, arguments);
     stripButton();
-    // The queue sits at the right, just above the Now playing bar, whatever the bar's height (one row or two).
-    var q = document.getElementById('r9-queue'), bar = document.querySelector('#view .onairbar');
-    if (q && bar && q.offsetParent) q.style.bottom = Math.max(8, Math.round(q.offsetParent.getBoundingClientRect().bottom - bar.getBoundingClientRect().top + 8)) + 'px';
+    // Round 10 fixes (r10fix.css): the queue is a side panel beside the screen, so it needs no place above the bar.
     // Pads with no sound are dashed and say so on their face; pressing one explains in the warning pop-up.
     document.querySelectorAll('.lv-pad[data-bid]').forEach(function (el) {
       var b = L.board(el.dataset.bid), p = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === el.dataset.pid; })[0];

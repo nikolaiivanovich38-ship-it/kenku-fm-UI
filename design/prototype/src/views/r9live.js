@@ -281,12 +281,17 @@
   /* ---------- painting what lives outside the view ---------- */
   var render0 = L.render;
   L.render = function () {
+    // Round 10 (R10-FIX §3): the queue is a side panel beside the screen (r10fix.css), no longer over its lists; a
+    // redraw keeps focus on the queue's control that had it.
+    var was = document.getElementById('r9-queue'), ak = was && was.contains(document.activeElement) && document.activeElement.dataset ? document.activeElement.dataset.k : '';
     render0.apply(L, arguments);
     var r = L.current();
-    // The queue panel sits just above the Now playing bar.
-    var bar = document.querySelector('#view .onairbar'), old = document.getElementById('r9-queue');
+    var bar = document.querySelector('#view .onairbar'), old = document.getElementById('r9-queue'), work = document.getElementById('work');
     if (old) old.remove();
-    if (Q.open && bar) bar.insertAdjacentHTML('beforebegin', queueHTML()); else if (Q.open && !bar) Q.open = null;
+    if (Q.open && bar) {
+      if (work) work.insertAdjacentHTML('beforeend', queueHTML()); else bar.insertAdjacentHTML('beforebegin', queueHTML());
+      var back = ak && document.querySelector('#r9-queue [data-k="' + ak + '"]'); if (back) back.focus({ preventScroll: true });
+    } else if (Q.open && !bar) Q.open = null;
     if (L.placeToasts) L.placeToasts();
     // Round 10 (look D6, table D-S9): no mark on a pad's face for dipping; its name and hover say it (live.js, boards.js).
   };
