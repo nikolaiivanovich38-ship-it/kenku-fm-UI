@@ -24,7 +24,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   { title: "Live", text: "Run the session here. Press Space to start the next scene.", target: railLink("live") },
   {
     title: "Now playing",
-    text: "What is playing is shown here, at the bottom of the screen. On air means the players hear it. Only you means it plays in your headphones and nobody else hears it.",
+    text: "What is playing is shown here, at the bottom. On air means the players hear it. Only you means it plays in your headphones and nobody else hears it.",
     target: () => document.querySelector("#view .onairbar") ?? document.getElementById("view"),
     bottom: true,
   },

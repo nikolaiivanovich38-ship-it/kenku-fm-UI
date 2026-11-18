@@ -334,9 +334,9 @@ test.describe("0.5.1: help for Lyre as one window", () => {
     await helpPanel(page).getByRole("button", { name: "What came across from Kenku FM", exact: true }).click();
     const article = helpPanel(page).getByRole("article");
     await expect(article).toContainText("Copy");
-    await expect(article).toContainText("Websites can't be opened in Lyre for now");
+    await expect(article).toContainText("Lyre cannot open websites for now");
     await expect(article).toContainText("encrypted");
-    await expect(article).toContainText("Lyre is one window");
+    await expect(article).toContainText("Lyre has one window");
   });
 
   test("Connect Discord says a token from Kenku FM comes across encrypted", async ({ page }) => {
@@ -357,5 +357,5 @@ test("0.5.1: Run a session in Live says Fade all takes 5 seconds; Preview or pla
   await expect(helpPanel(page).getByRole("article")).toContainText("fades everything out over 5 seconds");
   await helpPanel(page).getByRole("button", { name: "Back", exact: true }).click();
   await helpPanel(page).getByRole("button", { name: "Preview or play on air", exact: true }).click();
-  await expect(helpPanel(page).getByRole("article")).toContainText("a preview on its own plays in both ears");
+  await expect(helpPanel(page).getByRole("article")).toContainText("A preview on its own plays in both ears");
 });
