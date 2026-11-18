@@ -94,10 +94,10 @@ test("music started on one screen keeps playing, with the Now playing bar, on th
   const from = "The Company themes";
   await expect(onAirBar(lyre)).toContainText(from);
   await expectSound(launched.app, lyre, "music on air on Playlists");
-  // Through the rail, as a person goes: Library, Pad boards, Campaigns, then Live. In Live the room boxes show what is on
+  // Through the rail, as a person goes: Track library, Pad boards, Campaigns, then Live. In Live the room boxes show what is on
   // air, so the bar there shows previews only (UX-16) and the track is in the room's On air box.
   for (const [link, heading] of [
-    ["Library", "Library"],
+    ["Track library", "Track library"],
     ["Pad boards", "Pad boards"],
     ["Campaigns", "Campaigns"],
     [/^Live/, "Live"],
@@ -113,7 +113,7 @@ test("music started on one screen keeps playing, with the Now playing bar, on th
     }
     await expectSound(launched.app, lyre, `music on air on ${heading}`);
   }
-  await lyre.getByRole("navigation").getByRole("link", { name: "Library" }).first().click();
+  await lyre.getByRole("navigation").getByRole("link", { name: "Track library" }).first().click();
   await onAirBar(lyre).getByRole("button", { name: "Stop", exact: true }).click();
   await expect(onAirBar(lyre)).toHaveCount(0);
   // Stopped: after the fade, Table receives nothing more.
