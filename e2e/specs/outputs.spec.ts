@@ -191,7 +191,8 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
     expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "campaign/crown");
     await page.getByRole("region", { name: "Campaign playlists", exact: true }).getByRole("button", { name: "Play on air: The Company themes" }).click();
-    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: /^(Outputs|Rooms)/ }).click();
+    // Round 10 (Nik, 18 Nov 03:14, answer 2): Rooms is under Settings in the menu; either place is found.
+    await page.getByRole("link", { name: /^(Outputs|Rooms) \(/ }).click();
     await channels(page).getByRole("button", { name: "Make Lyre Table leave Table" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(room(page, "Table")).toHaveCount(0);
@@ -215,7 +216,7 @@ test.describe("round 6, part 4: the screen is Rooms", () => {
   test("the menu, the screen's title and Back say Rooms", async ({ page }) => {
     expectFailureUntilBuilt("shell", "rooms-settings");
     await openRoute(page, "outputs");
-    await expect(page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Rooms (1/2)" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Rooms (1/2)" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Rooms");
     await page.getByRole("link", { name: "Tokens and new bots" }).click();
     await expect(page.getByRole("button", { name: "Back to Rooms" })).toBeVisible();

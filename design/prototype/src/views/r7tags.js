@@ -80,7 +80,7 @@
     return n;
   }
   function tracks(n) { return n + ' track' + (n === 1 ? '' : 's'); }
-  function done(text, undo, focusK) { L.undoNote(text, undo); L.closeSheet(); L.render(); L.say(text + '. Undo is at the bottom right, or press Ctrl+Z.'); var f = focusK && document.querySelector('[data-k="' + focusK + '"]'); if (f) f.focus(); }
+  function done(text, undo, focusK) { L.undoNote(text, undo); L.closeSheet(); L.render(); L.say(text + '. To undo this, press Undo, at the bottom right, or Ctrl+Z.'); var f = focusK && document.querySelector('[data-k="' + focusK + '"]'); if (f) f.focus(); }
   function field(id, label, value, extra) { return '<div class="field"><label for="' + id + '">' + label + '</label><input class="input" id="' + id + '" value="' + esc(value || '') + '" autocomplete="off"' + (extra || '') + '></div>'; }
   function val(id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; }
   function sheet(title, body, okLabel, act, data) {
@@ -96,7 +96,7 @@
   L.acts.tgrename = function (el) { var v = el.dataset.v; sheet('Rename ' + v, field('tg-name', 'Name', v), 'Rename', 'tgrenameok', d(el)); };
   L.acts.tgrenameok = function (el) {
     var g = el.dataset.g, v = el.dataset.v, to = val('tg-name'); if (!to || to === v) { L.closeSheet(); return; }
-    if ((D.tagValues[g] || []).indexOf(to) > -1) { L.toast(to + ' is already a tag here: use Merge into… instead'); return; }
+    if ((D.tagValues[g] || []).indexOf(to) > -1) { L.toast(to + ' is already a tag here. Use Merge into… instead.'); return; }
     var undo = snapshot(), n = retag(g, v, to), vals = D.tagValues[g]; vals[vals.indexOf(v)] = to;
     if (D.tagMeta[g] && D.tagMeta[g][v]) { D.tagMeta[g][to] = D.tagMeta[g][v]; delete D.tagMeta[g][v]; }
     done('Renamed ' + v + ' to ' + to + ' on ' + tracks(n), undo, 'tg-more-' + g + '-' + to);
@@ -127,7 +127,7 @@
     var g = el.dataset.g, v = el.dataset.v, p = val('tg-in'), m = meta(g, v, true); if (p) m.parent = p; else delete m.parent;
     L.closeSheet(); L.render(); L.saved(p ? v + ' inside ' + p : v + ' as a tag of its own');
   };
-  L.acts.tgalso = function (el) { var g = el.dataset.g, v = el.dataset.v; sheet('Other words for ' + v, field('tg-also', 'Other words, separated by commas', L.tagAlso(g, v).join(', '), ' placeholder="For example sad, sorrowful"') + '<p class="hint">Typing one of them while tagging offers ' + esc(v) + '.</p>', 'Done', 'tgalsook', d(el)); };
+  L.acts.tgalso = function (el) { var g = el.dataset.g, v = el.dataset.v; sheet('Other words for ' + v, field('tg-also', 'Other words, separated by commas', L.tagAlso(g, v).join(', '), ' placeholder="For example sad, sorrowful"') + '<p class="hint">If you type one of them while tagging, Lyre offers ' + esc(v) + '.</p>', 'Done', 'tgalsook', d(el)); };
   L.acts.tgalsook = function (el) {
     var g = el.dataset.g, v = el.dataset.v, words = val('tg-also').split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean);
     meta(g, v, true).also = words; L.closeSheet(); L.render(); L.saved('other words for ' + v);

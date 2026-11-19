@@ -215,7 +215,8 @@ test.describe("a scene's music: tracks and playlists mixed, in order", () => {
     expect(names.indexOf("New theme") + 1).toBe(names.indexOf("Second"));
     expect(names).toHaveLength(6);
     // The note is shown, and read out a moment later from a hidden region (UX-R6): check the one on screen.
-    await expect(page.getByText(/2 new tracks added to the Track library/).filter({ visible: true })).toBeVisible();
+    // The Saved pop-up (its status role), not the hidden live region that reads it out too (ROUND9.md, Specs).
+    await expect(page.getByRole("status").filter({ hasText: /2 new tracks added to the Track library/ })).toBeVisible();
   });
 
   test("something that is not a file dragged over the music is ignored", async ({ page }) => {
@@ -447,7 +448,8 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
 
   test("PLY-14: a track in a scene opens its waveform, end and fades for that scene, and Back returns to the scene", async ({ page }) => {
     await openAbbey(page);
-    await musicOf(abbey(page)).getByRole("link", { name: /^Waveform, end and fades in this scene: Eerie dread/ }).click();
+    // Round 10 (prep review S1): one name for it everywhere, Audio profile; the app's words until built read either.
+    await musicOf(abbey(page)).getByRole("link", { name: /^(Waveform, end and fades|Audio profile) in this scene: Eerie dread/ }).click();
     await expect(page.getByRole("heading", { level: 1 })).toContainText("Eerie dread, low cello and choir");
     await expect(page.getByRole("combobox", { name: "Settings for" })).toHaveValue("sc:crown:s14:sc3");
     await expect(page.getByText(/Editing own settings for the scene The abbey ruins/)).toBeVisible();
@@ -707,3 +709,113 @@ test.describe("0.5.2: dragging in a scene's music (items 41 and 36)", () => {
   });
 });
 
+/* Round 10 (design/prototype/ROUND10.md). Not built yet. */
+test.describe("round 10: the planner", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+
+  test("no Open all: each scene stays open until it is closed (Nik, 18 Nov, answer 2b)", async ({ page }) => {
+    await openAbbey(page);
+    await expect(page.getByRole("button", { name: /^(Open|Fold) all scenes$/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "Scene 2: Greyhollow inn" }).click();
+    await expect(page.getByRole("button", { name: "Scene 3: The abbey ruins" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("an open scene says what it does when it starts, under its Story cue, with Change… (prep review S2)", async ({ page }) => {
+    await openAbbey(page);
+    const start = abbey(page).getByRole("group", { name: "Start" });
+    await expect(start).toContainText("then it waits until you press Next scene");
+    await start.getByRole("button", { name: "Change the start of The abbey ruins" }).click();
+    await expect(dialog(page)).toHaveAccessibleName("Start of The abbey ruins");
+  });
+
+  test("a track inside an open playlist opens the Track panel from its title (prep review D1)", async ({ page }) => {
+    await openAbbey(page);
+    await musicOf(abbey(page)).getByRole("button", { name: "Show contents of Abbey: eerie, low energy" }).click();
+    const nested = abbey(page).getByRole("list", { name: /^Tracks in Abbey: eerie, low energy/ }).getByRole("link").first();
+    const title = (await nested.innerText()).trim();
+    await nested.click();
+    await expect(page.getByRole("complementary").getByRole("heading", { level: 2 })).toContainText(title.slice(0, 12));
+  });
+
+  test("Add music: Make a playlist of these… makes a playlist of the ticked tracks and puts it in the scene (Nik, 18 Nov, answer 1a)", async ({ page }) => {
+    await openAbbey(page);
+    await abbey(page).getByRole("button", { name: "Add tracks or playlists…" }).click();
+    const panel = dialog(page);
+    await panel.getByRole("searchbox", { name: "Search the list" }).fill("Brutal battle");
+    await panel.getByRole("checkbox", { name: /Brutal battle/ }).first().check();
+    await panel.getByRole("button", { name: "Make a playlist of these…" }).click();
+    await panel.getByRole("textbox", { name: "New playlist" }).fill("Abbey fight");
+    await panel.getByRole("button", { name: "Make it and add it" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    expect(await linkNames(musicOf(abbey(page)))).toContain("Abbey fight");
+  });
+
+  test("Add pad boards: New board… makes a board and puts it in the scene, as Make a playlist of these… does (Nik, 18 Nov, round 10 answer 4)", async ({ page }) => {
+    await openAbbey(page);
+    const boards = abbey(page).getByRole("list", { name: "Pad boards in order" });
+    const before = await linkNames(boards);
+    await abbey(page).getByRole("button", { name: "Add pad boards… to The abbey ruins" }).click();
+    const panel = dialog(page);
+    await panel.getByRole("button", { name: "New board…" }).click();
+    await panel.getByRole("textbox", { name: "New board" }).fill("Abbey bells");
+    await panel.getByRole("button", { name: "Make it and add it" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    expect(await linkNames(boards)).toEqual([...before, "Abbey bells"]);
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Pad boards" }).click();
+    await expect(page.getByRole("main")).toContainText("Abbey bells");
+  });
+
+  test("New board… with Back keeps the ticks; the board is made only with Make it and add it", async ({ page }) => {
+    await openAbbey(page);
+    await abbey(page).getByRole("button", { name: "Add pad boards… to The abbey ruins" }).click();
+    const panel = dialog(page);
+    const ticked = await panel.getByRole("checkbox", { checked: true }).count();
+    await panel.getByRole("button", { name: "New board…" }).click();
+    await expect(panel.getByRole("textbox", { name: "New board" })).toBeFocused();
+    await panel.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(panel.getByRole("button", { name: "New board…" })).toBeFocused();
+    await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(ticked);
+    await panel.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Pad boards" }).click();
+    await expect(page.getByRole("main")).not.toContainText("New board 1");
+  });
+});
+
+/* Round 10 fixes (R10-FIX §1 and §2): a scene's music and the session's lists. Delete on a focused row takes it out of
+   the scene or session, as its ⋯'s "Remove from this scene / session" does, with Undo; the track or playlist stays. */
+test.describe("round 10: taking things out of a scene and a session", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+
+  test("Delete on a focused music row takes it out of the scene; Undo puts it back", async ({ page }) => {
+    await openAbbey(page);
+    const before = await linkNames(musicOf(abbey(page)));
+    const second = musicOf(abbey(page)).getByRole("listitem").nth(1);
+    await second.getByRole("button", { name: /^More for / }).first().focus();
+    await page.keyboard.press("Delete");
+    expect(await linkNames(musicOf(abbey(page)))).toEqual([before[0], ...before.slice(2)]);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect(await linkNames(musicOf(abbey(page)))).toEqual(before);
+  });
+
+  test("a playlist row's ⋯ in a scene says Remove from this scene, and it has Undo", async ({ page }) => {
+    await openAbbey(page);
+    const before = await linkNames(musicOf(abbey(page)));
+    await musicOf(abbey(page)).getByRole("listitem").filter({ hasText: "The Abbess" }).first().getByRole("button", { name: /^More for / }).first().click();
+    await expect(page.getByRole("menuitem", { name: /^Delete/ })).toHaveCount(0);
+    await page.getByRole("menuitem", { name: "Remove from this scene" }).click();
+    expect(await linkNames(musicOf(abbey(page)))).not.toContain("The Abbess");
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    expect(await linkNames(musicOf(abbey(page)))).toEqual(before);
+  });
+
+  test("a session playlist comes out of the session from its ⋯, with Undo", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    const box = page.getByRole("region", { name: "Session playlists", exact: true });
+    const n = await box.getByRole("listitem").count();
+    await box.getByRole("button", { name: /^More for / }).first().click();
+    await page.getByRole("menuitem", { name: "Remove from this session" }).click();
+    await expect(box.getByRole("listitem")).toHaveCount(n - 1);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(box.getByRole("listitem")).toHaveCount(n);
+  });
+});

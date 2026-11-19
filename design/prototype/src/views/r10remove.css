@@ -1,0 +1,11 @@
+/* Round 10 fixes (R10-FIX §1 and §2, r10remove.js and library.js): taking tracks out, deleting in line. */
+/* Delete file from disk… is last in its menu and plainer than the items above it. */
+.menu .r10-mi-quiet { color: var(--ink-2); }
+.menu .r10-mi-quiet:hover, .menu .r10-mi-quiet:focus-visible { color: var(--ink); }
+/* The confirmations: the files it names, and where the tracks are used. */
+.r10-files { margin: 8px 0 0; padding-left: 20px; font-size: var(--fs-s); overflow-wrap: anywhere; }
+.r10-uses { margin-top: 10px; padding: 6px 8px; border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); }
+.r10-uses p { margin: 0 0 4px; }
+.r10-uses ul { margin: 0; padding-left: 20px; }
+/* A manual playlist's track shown unfolded: its ⋯ greyed at rest like the other row buttons. */
+.xp-row .r10-xpmore:not(:hover):not(:focus-visible):not([aria-expanded="true"]) { opacity: .62; }

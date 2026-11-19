@@ -1,0 +1,95 @@
+/* Round 10 fixes (R10-FIX.md §3): nothing drawn on top of anything else.
+   Nik, 18 Nov 13:00: "there are a lot of overlapping features in the visual design" (he meant panels, menus or buttons
+   covering or cutting off other parts of the screen).
+
+   #work is the window. #app (the menu and the screen) and the side panels sit in it side by side: Help, the Track
+   panel, the queue, Find's results in Live and Add music docked left or right. A panel takes its width from the
+   screen, which narrows and reflows (its container queries and Live's columns follow #app's width). Only Add music
+   set to Float lies over the screen, and it can be moved. Below 760 px of window a side panel takes the whole window
+   until it is closed, so it still covers nothing in part. */
+#work { flex: 1; min-height: 0; min-width: 0; width: 100%; display: flex; position: relative; background: var(--bg);
+  container-type: inline-size; container-name: work; --wco-w: calc(138px / var(--zoom, 1)); --wco-h: calc(36px / var(--zoom, 1)); }
+#stagewrap.half #work { max-width: var(--frame-w); box-shadow: 0 0 0 1px var(--line-strong), 0 0 40px rgb(0 0 0 / .5); }
+#stagewrap.half #app { max-width: none; box-shadow: none; }
+#app { flex: 1 1 0; min-width: 0; width: auto; grid-template-columns: auto minmax(0, 1fr); }
+
+/* The side panels: beside #app, in this order from left to right. */
+#work > .r10-side, #work > .helpsheet, #work > .r9-tp, #work > .r9-queue { position: relative; inset: auto; flex: none; min-height: 0; z-index: auto; box-shadow: none;
+  display: flex; flex-direction: column; background: var(--surface); border-left: 1px solid var(--line-strong); }
+#work > [hidden] { display: none !important; }
+#work > .r10-dock-left { order: -1; border-left: 0; border-right: 1px solid var(--line-strong); }
+#work > .helpsheet { order: 5; width: 340px; }
+#work > .r9-tp { order: 3; width: 380px; }
+#work > .r9-queue { order: 2; width: 340px; max-height: none; margin: 0; border: 0; border-left: 1px solid var(--line-strong); border-radius: 0; box-shadow: inset 4px 0 0 var(--preview); }
+#work > #r10-find { order: 1; width: 400px; }
+#work > .r10-dock-right { order: 4; }
+@container work (max-width: 1099px) { #work > .r9-tp { width: 340px; } #work > #r10-find { width: 360px; } }
+
+/* Each panel at the right starts under a strip as tall as the screen's top strip, so the window's own buttons sit over
+   that strip and never over the panel's head; the strip drags the window, as the top strip does. */
+#work > .r9-queue::before, #work > #r10-find::before, #work > .r10-dock-right::before { content: ""; display: block; flex: none; height: 44px; border-bottom: 1px solid var(--line); background: var(--bg); -webkit-app-region: drag; app-region: drag; }
+/* With a panel beside it, the screen's own strip no longer reaches the window's buttons. */
+/* (From 760 px of window: below that a panel takes the whole window and the strip keeps its room.) */
+@container work (min-width: 760px) {
+  #work:has(> :is(.helpsheet, .r9-tp, .r9-queue, #r10-find, .r10-dock-right):not([hidden])) .viewhead { padding-right: 12px; }
+  #work:has(> :is(.helpsheet, .r9-tp, .r9-queue, #r10-find, .r10-dock-right):not([hidden])) .lv-top { padding-right: 8px; }
+}
+
+/* Narrow windows: a side panel takes the whole window until it is closed. */
+@container work (max-width: 759px) {
+  #work > .r10-side, #work > .helpsheet, #work > .r9-tp, #work > .r9-queue { position: absolute; top: 0; bottom: 0; left: 0; right: 0; width: auto; z-index: 35; border: 0; }
+  #work > .r9-tp, #work > .helpsheet { padding-top: 0; }
+}
+
+/* Add music docked: a side panel, no longer a box over the screen. Float keeps it over the screen, movable. */
+#work > .sheet.r10-docked { position: relative; inset: auto; z-index: auto; display: flex; flex-direction: column; padding: 0; background: var(--surface); pointer-events: auto;
+  width: var(--r10-dock-w, clamp(360px, 36cqw, 560px)); flex: none; }
+#work > .sheet.r10-docked > .panel { position: relative; left: auto !important; top: auto !important; width: 100% !important; height: auto !important; flex: 1; min-height: 0;
+  max-height: none; border: 0; border-radius: 0; box-shadow: none; }
+#work > .sheet.r10-docked .r9-fl-head { cursor: default; }
+#work > .sheet.r10-docked .r9-fl-grip { left: -3px; right: auto; top: 0; bottom: 0; width: 6px; height: auto; background: none; cursor: ew-resize; }
+#work > .sheet.r10-dock-left .r9-fl-grip { left: auto; right: -3px; }
+
+/* The queue in its side panel: the whole height, the list scrolls. */
+#work > .r9-queue .r9-q-list { flex: 1; min-height: 0; }
+
+/* Find's results in Live: a side panel at the right, the whole height, the list scrolls inside it. */
+#r10-find .lv-found { position: static; width: auto !important; left: auto !important; max-height: none; flex: 1; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+
+/* Arrange: the grip and Move… on a row of their own above the box, not over its head. */
+.r10-arr { position: static; height: auto; margin: 4px 4px 0; pointer-events: auto; }
+
+/* Playlists: the row's buttons (Preview, Play on air, play order, ⋯, Open) need 143 px; the column had 128, so the
+   first button lay over the length. */
+.pl-grid { grid-template-columns: minmax(0, 1fr) 48px 56px 152px; }
+
+/* The Undo note sits at the bottom of the screen, above the Now playing bar, in the flow: the list above it gets
+   shorter, so its last row is never under the note. */
+#view > .undo-note { position: relative; right: auto !important; bottom: auto !important; max-width: none !important; margin: 0 8px 6px; box-shadow: none; z-index: auto; }
+
+/* The Help button's Set up progress in the folded menu: a dot inside the button (its hover text gives the count); the
+   "8/9" chip stuck out of the menu over the screen's names. */
+.rail.min .nav { position: relative; }
+.rail.min .r9-help-ring { position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; padding: 0; margin: 0; transform: none; border: 2px solid var(--accent); background: var(--surface); }
+.rail.min .r9-help-ring::after { content: none; }
+
+/* A search field's glyph lies inside the field: the pointer goes through it to the field. */
+.search > svg.i { pointer-events: none; }
+
+/* The row of buttons at the bottom of a panel wraps when the panel is narrow (Add music docked at half a screen): "4 chosen" ran under its buttons. */
+.sheet > .panel > footer { flex-wrap: wrap; row-gap: 6px; }
+#pk-count { min-width: 6em; overflow-wrap: anywhere; }
+
+/* In a narrow panel (Add music docked at half a screen) a track's tags in the list give way to its name: they had
+   pushed the row wider than the panel, over its tick box. The tags stay in the row's hover text and the Track panel. */
+.sheet > .panel { container-type: inline-size; container-name: sheetpanel; }
+@container sheetpanel (max-width: 480px) { .pk-row > .tagstrip, .pk-item .tagstrip { display: none; } .pk-item input { flex: none; } }
+/* The open menu's Help with its "8/9" chip was 3 px wider than the menu: a little less space around the chip. */
+.rail:not(.min) button.nav:has(.r9-help-ring) { gap: 6px; padding-right: 4px; }
+.rail:not(.min) .r9-help-ring { flex: none; padding: 0 4px; }
+
+/* Live's rows keep their height when a control in them takes focus: the name used to grow to its full length then,
+   moving the row's buttons between press and release, so the click was lost (seen at half a 1920 screen on the ⋯ of a
+   playlist's track). The full name is in the hover text, which keyboard focus shows as well (UX-6); a row opened for
+   its details keeps its whole name, as before. */
+.lv-trk-r:focus-within .lv-trk-t:not([aria-expanded="true"]) > span, .lv-trk-r:focus-within .lv-pli-n > b.ellipsis { display: -webkit-box; -webkit-line-clamp: 2; }

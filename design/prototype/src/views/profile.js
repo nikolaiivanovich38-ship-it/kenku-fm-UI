@@ -147,7 +147,7 @@
     pl2.pls.forEach(function (x) { if (hasOwn(t, x.key)) return; var p = L.playlist(x.key.slice(3)), n = p && nextIn(L.playlistTracks(p).map(function (y) { return y.id; }), t); if (n) out.push({ label: 'In the playlist ' + x.label, next: n, place: x.key }); });
     if (!out.length) {
       var same = D.tracks.filter(function (x) { return x.kind === t.kind; }), k = same.indexOf(t);
-      out.push({ label: 'The next track in the Library', next: same[(k + 1) % same.length].id, place: '', lib: true });
+      out.push({ label: 'The next track in the Track library', next: same[(k + 1) % same.length].id, place: '', lib: true });
     }
     return out;
   }
@@ -332,7 +332,7 @@
   function handle(t, which, v, label, cls) {
     var r = range(t, which), ro = !editable(t), len = which.indexOf('fade') === 0;
     return '<div class="ap-h ' + cls + '" role="slider" tabindex="0" data-aph="' + which + '" data-k="ap-h-' + which + '" style="left:' + pct(t, which === 'fadein' ? value(prof(t), 'start') + v : which === 'fadeout' ? value(prof(t), 'end') - v : v) + '" aria-label="' + label + '" aria-orientation="horizontal"' +
-      (ro ? ' aria-readonly="true"' : '') + ' aria-valuemin="' + r[0] + '" aria-valuemax="' + r[1] + '" aria-valuenow="' + v + '" aria-valuetext="' + (len ? secs(v) : L.fmt(v)) + '" title="' + label + ' ' + (len ? secs(v) : L.fmt(v)) + (ro ? ' (the track\'s settings: not editable in this place)' : len ? ': drag along the volume line, or arrow keys to change the length' : ': drag, or use the arrow keys (Shift for 10 s)') + '">' +
+      (ro ? ' aria-readonly="true"' : '') + ' aria-valuemin="' + r[0] + '" aria-valuemax="' + r[1] + '" aria-valuenow="' + v + '" aria-valuetext="' + (len ? secs(v) : L.fmt(v)) + '" title="' + label + ' ' + (len ? secs(v) : L.fmt(v)) + (ro ? ' (the track\'s settings: they cannot be changed here)' : len ? ': drag along the volume line, or arrow keys to change the length' : ': drag, or use the arrow keys (Shift for 10 s)') + '">' +
       (len ? '<span class="ap-knob"></span>' : '<span class="ap-htab">' + L.icon('drag', 's') + (which === 'loop' ? 'Loop' : label) + '</span>') + '</div>';
   }
   function waveHTML(t, p) {
@@ -377,18 +377,26 @@
       (S.keys1 ? '<span class="hint keys-on-focus" title="Space play or pause · I Start · O End · L loop start · M marker · arrows move the playhead 1 s (Shift: 10 s). Keys do nothing while you type."><span class="kbd">Space</span> <span class="kbd">I</span> <span class="kbd">O</span> <span class="kbd">L</span> <span class="kbd">M</span> <span class="kbd">←</span><span class="kbd">→</span> play, Start, End, loop, marker, playhead</span>' : '') + '</div>';
     return waveHTML(t, p) + '<div class="ap-listen">' + tr + ro + air + '</div>' + ev + keys;
   }
+  function endChoice(p) { return p.after === 'loop' ? (p.loopXfade > 0 ? 'xloop' : 'loop') : p.after === 'follow' ? 'follow' : p.after === 'stop' && p.fadeOut && p.fadeOut.dur > 0 ? 'fade' : p.after; }
+  function followName(id) { var pl = L.playlist(id), tr = !pl && L.track(id); return pl ? pl.name : tr ? L.title(tr) : ''; }
   function endHTML(t, p) {
     var cs = contexts(t), c = ctxOf(t), n = L.track(c.next);
-    var opts = '<fieldset class="ap-opts"' + dis(t) + '><legend class="sr-only">At the end</legend>' +
-      radio(t, p.after, 'loop', 'loop', 'Loop back to loop start', 'Repeats ' + L.fmt(p.loopStart) + ' to ' + L.fmt(p.end)) +
-      radio(t, p.after, 'next', 'next', 'Move to the next track', 'The scene or playlist moves on; played on its own, it stops') +
-      radio(t, p.after, 'stop', 'stop', 'Stop', '') + '</fieldset>';
+    // Round 10 (prep review D5, look D8): the same six ends, in the same words and order, as At its end in the track's
+    // details (r9track.js). Here they apply to this place; Loop and Loop with a crossfade use the loop start below.
+    var cur = endChoice(p); if (cur === 'next' && t.follow) cur = 'follow';
+    var opts = '<fieldset class="ap-opts"' + dis(t) + '><legend class="sr-only">At its end</legend>' +
+      radio(t, cur, 'loop', 'loop', 'Loop', 'Back to the loop start: ' + L.fmt(p.loopStart) + ' to ' + L.fmt(p.end)) +
+      radio(t, cur, 'xloop', 'loop', 'Loop with a crossfade', 'The same loop, with ' + (p.loopXfade || 3) + ' s of crossfade at the join') +
+      radio(t, cur, 'next', 'next', 'Next track', 'The scene or playlist moves on. Played on its own, the track stops.') +
+      radio(t, cur, 'fade', 'fade', 'Fade out', 'Over ' + ((p.fadeOut && p.fadeOut.dur) || 4) + ' s before its end') +
+      radio(t, cur, 'stop', 'stop', 'Stop', '') +
+      radio(t, cur, 'follow', 'playair', 'Play…', t.follow ? 'Then plays ' + esc(followName(t.follow)) : 'Choose what plays when it ends') + '</fieldset>';
     var nx = '';
     if (p.after === 'next') {
       nx = '<div class="ap-next"><span class="ap-ro-l">Next track</span>' +
         (cs.length > 1 ? '<label class="sr-only" for="ap-ctx">Hear the hand-over as it plays</label><select id="ap-ctx" class="input" data-input="apctx" data-k="ap-ctx">' + cs.map(function (x, i) { return '<option value="' + i + '"' + (x === c ? ' selected' : '') + '>' + esc(x.label) + '</option>'; }).join('') + '</select>' : '<span class="muted">' + esc(c.label) + '</span>') +
         '<div class="row-flex"><span class="grow ellipsis" title="' + esc(L.title(n)) + '"><b>' + esc(L.title(n)) + '</b></span>' + L.profileLink(n.id, c.place, true) + '</div>' +
-        (c.lib ? '<p class="hint">Not in a scene or playlist yet: the preview uses the next Library track.</p>' : '') + '</div>';
+        (c.lib ? '<p class="hint">This track is not in a scene or playlist yet, so the preview uses the next track in the Track library.</p>' : '') + '</div>';
     }
     var fields = '<div class="ap-fields">' + field(t, 'start', p.start, 'Start at playhead', 'I') + field(t, 'end', p.end, 'End at playhead', 'O') +
       (p.after === 'loop' ? field(t, 'loop', p.loopStart, 'Loop from playhead', 'L') : '') + '</div>';
@@ -440,14 +448,14 @@
     if (!S.key) {
       var others = L.profileKeys(t);
       // Round 6: "This track everywhere" in the list already says whose settings these are.
-      st = (others.length ? '<span class="hint ap-place-h">Not used in ' + others.map(function (k) { return esc(placeName(k)); }).join(', ') + ' (own settings)</span>' : '');
+      st = (others.length ? '<span class="hint ap-place-h">Not used in ' + others.map(function (k) { return esc(placeName(k)); }).join(', ') + ' (each has its own settings)</span>' : '');
     } else if (own) {
       st = '<span class="ap-badge own">' + L.icon('edit', 's') + 'Editing own settings for ' + esc(placeName(S.key)) + '</span>' +
         '<button class="btn s" data-act="apclear" data-k="ap-clear" title="Remove the settings for this ' + kind + ' and use the track\'s own settings here">' + L.icon('restart', 's') + 'Back to the track\'s settings</button>';
     } else {
       st = '<div class="seg s ap-choice" role="group" aria-label="Settings in ' + esc(placeName(S.key)) + '">' +
         '<button data-act="apuse" data-k="ap-use" aria-pressed="true">' + L.icon('check', 's') + 'Use the track\'s settings here</button>' +
-        '<button data-act="apown" data-k="ap-own" aria-pressed="false">' + L.icon('edit', 's') + 'Give this place its own settings</button></div>' +
+        '<button data-act="apown" data-k="ap-own" aria-pressed="false">' + L.icon('edit', 's') + 'Use separate settings here</button></div>' +
         (S.undoClear && S.undoClear.key === S.key ? '<button class="btn s ghost" data-act="apundo" data-k="ap-undo">Undo: bring its own settings back</button>' : '');
     }
     return '<div class="ap-place' + (S.key ? (own ? ' is-own' : ' is-ro') : '') + '">' + sel + '<div class="ap-place-st">' + st + '</div></div>';
@@ -459,7 +467,7 @@
     var a = S.key.split(':'), s = (a[0] === 'sc' || a[0] === 'ss') && L.session(a[1], a[2]);
     var sc = s && a[0] === 'sc' && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
     L._backFallback = s ? { route: '#/session/' + a[1] + '/' + a[2], label: sc ? sc.name : 'Session ' + s.n, open: sc ? sc.id : '', k: sc ? 'prof-' + sc.id + '-music-' + t.id : '' }
-      : { route: '#/library/' + t.id, label: 'Library', k: '' };
+      : { route: '#/library/' + t.id, label: 'Track library', k: '' };
     return '<!--back-->';
   }
   function sceneNameHTML(t) {
@@ -486,7 +494,7 @@
   function afterText(t, p) { return p.after === 'loop' ? 'Loops back to ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on to ' + L.title(L.track(ctxOf(t).next)) : 'Stops'; }
 
   L.view('profile', {
-    crumbs: function (p) { var t = L.track(p.tid); return t ? [{ href: '#/library/' + t.id, label: 'Library' }, { label: L.title(t) + ' › Audio profile' }] : null; },
+    crumbs: function (p) { var t = L.track(p.tid); return t ? [{ href: '#/library/' + t.id, label: 'Track library' }, { label: L.title(t) + ' › Audio profile' }] : null; },
     nav: 'library',
     notesTitle: 'Audio profile: where a track ends, how it fades, and what comes next',
     notes: [
@@ -501,7 +509,7 @@
     title: function (p) { var t = L.track(p.tid); return t ? 'Audio profile: ' + L.title(t) : 'Audio profile'; },
     render: function (prm) {
       var t = L.track(prm.tid);
-      if (!t) return '<div class="viewhead"><h1>Audio profile</h1></div><div class="empty">That track is not in the library. <a href="#/library">Back to the Library</a></div>';
+      if (!t) return '<div class="viewhead"><h1>Audio profile</h1></div><div class="empty">That track is not in the library. <a href="#/library">Back to Track library</a></div>';
       var key = prm.ctx || '';
       if (S.tid !== t.id || S.key !== key) {
         if (S.tid !== t.id) S.undoClear = null;
@@ -512,7 +520,7 @@
       // the screen's title, so it is not a crumb as well (it would show twice).
       backHTML(t);
       var head = '<div class="viewhead ap-head"><div class="ap-id"><div class="ap-titlerow"><!--lead-->' +
-        '<h1 title="' + esc(L.title(t)) + ' › Audio profile"><span class="ap-h1-t">' + esc(L.title(t)) + '</span><span class="ap-h1-k"><span aria-hidden="true">›</span> Audio profile</span></h1></div>' +
+        '<h1 title="' + esc(L.title(t)) + ' › Audio profile"><span class="ap-h1-t">' + esc(L.title(t)) + '</span>' + '<span class="ap-h1-k"><span aria-hidden="true">›</span> Audio profile</span></h1></div>' +
         // Round 6: the file's names are in the Library's details and on hover here; length and shape stay.
         '<p class="ap-meta" title="' + esc('Title in the file: ' + (t.metaTitle || 'none') + ' · File name: ' + t.file) + '"><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + normHTML(t) + '</div>' +
         '<div class="ap-headacts">' +
@@ -522,11 +530,12 @@
         '<button class="btn s ghost" data-act="apreset" data-k="ap-reset" title="Start at 0:00 and End at ' + L.fmt(t.dur) + ', no fades"' + dis(t) + '>' + L.icon('restart', 's') + 'Reset to whole track</button></div>' +
         placeHTML(t) + '</div>';
       var body = '<div class="viewbody ap-body" data-scroll="ap-body"><div class="ap-grid">' +
-        L.pane({ id: 'ap-wave', title: 'Waveform and listening', icon: 'wave', cls: 'ap-wavepane', noMax: true, kind: 'music', status: waveStatus(), body: listenHTML(t, p) }) +
+        // Round 10 (prep S1, look S11): the first box has the screen's name; the waveform is what it shows.
+        L.pane({ id: 'ap-wave', title: 'Audio profile', icon: 'wave', cls: 'ap-wavepane', noMax: true, kind: 'music', status: waveStatus(), body: listenHTML(t, p) }) +
         L.pane({ id: 'ap-end', title: 'At the end', icon: 'loop', cls: 'ap-endpane', noMax: true, kind: 'plain', status: { text: endStatus(p), tone: 'idle' }, body: endHTML(t, p) }) +
         L.pane({ id: 'ap-fades', title: 'Fades', icon: 'fade', cls: 'ap-fadepane', noMax: true, kind: 'plain', status: { text: p.fadeIn.dur || p.fadeOut.dur ? 'In ' + secs(p.fadeIn.dur) + ' · out ' + secs(p.fadeOut.dur) : 'No fades', tone: 'idle' }, body: fadesHTML(t, p) }) +
         L.pane({ id: 'ap-markers', title: 'Markers', icon: 'tag', cls: 'ap-mpane', noMax: true, kind: 'plain', status: { text: p.markers.length ? p.markers.length + ' marker' + (p.markers.length === 1 ? '' : 's') : 'Empty', tone: 'idle' },
-          actions: '<button class="btn s" data-act="apmadd" data-k="ap-madd"' + (S.keys1 ? ' aria-keyshortcuts="M"' : '') + ' title="Add a marker at the playhead (' + L.fmt(S.pos) + ')"' + dis(t) + '>' + L.icon('plus', 's') + 'Add marker at playhead</button>', body: markersHTML(t, p) }) +
+          actions: '<button class="btn s" data-act="apmadd" data-k="ap-madd"' + (S.keys1 ? ' aria-keyshortcuts="M"' : '') + ' title="Add a marker at the playhead (' + L.fmt(S.pos) + ')"' + dis(t) + '>' + L.icon('plus', 's') + 'Add marker at playhead</button>' + (L.splitButton ? L.splitButton(t, p) : ''), body: markersHTML(t, p) }) +
         '</div></div>';
       return head + body;
     },
@@ -569,7 +578,7 @@
   }
   function fromSec(p, which, sec) { return which === 'fadein' ? sec - p.start : which === 'fadeout' ? p.end - sec : sec; }
   function sayPoint(which) { var p = prof(track()), v = value(p, which); L.say(POINT[which] + ' ' + (which.indexOf('fade') === 0 || which === 'xfade' ? secs(v) : L.fmt(v))); }
-  function readOnlyNote() { L.toast('These are the track\'s settings. Give this place its own settings to change them here.'); }
+  function readOnlyNote() { L.toast('These are the track\'s settings. To change them only here, press Use separate settings here.'); }
   function handleDown(e) {
     if (e.button !== 0) return; e.preventDefault(); var which = e.currentTarget.dataset.aph, t = track(); e.currentTarget.focus();
     if (!editable(t)) { readOnlyNote(); return; }
@@ -642,14 +651,17 @@
   // Places
   function goPlace(key) { L.route('#/profile/' + S.tid + (key ? '/' + key : '')); setTimeout(function () { var s = document.querySelector('[data-k="ap-place"]'); if (s) s.focus(); }, 0); }
   L.inputs.applace = function (el) { goPlace(el.value); L.say('Settings for ' + placeName(el.value)); };
-  L.acts.apown = function () { var t = track(); L.profileStore(t, S.key, true); S.saved = true; S.undoClear = null; S.focusK = 'ap-clear'; L.say('This place now has its own settings, copied from the track\'s'); L.saved('own settings for ' + placeName(S.key).replace(/^the /, ''), { detail: 'copied from the track\'s' }); L.render(); };
+  L.acts.apown = function () { var t = track(); L.profileStore(t, S.key, true); S.saved = true; S.undoClear = null; S.focusK = 'ap-clear'; L.say('Separate settings are now used here, copied from the track\'s'); L.saved('own settings for ' + placeName(S.key).replace(/^the /, ''), { detail: 'copied from the track\'s' }); L.render(); };
   L.acts.apuse = function () { L.say('Using the track\'s settings here'); };
   L.acts.apclear = function () { var t = track(); S.undoClear = { key: S.key, p: D.profiles[S.key][t.id] }; L.clearProfile(t, S.key); S.saved = false; S.focusK = 'ap-own'; L.say('Back to the track\'s settings here'); L.render(); };
   L.acts.apundo = function () { var t = track(), u = S.undoClear; if (!u) return; D.profiles[u.key] = D.profiles[u.key] || {}; D.profiles[u.key][t.id] = u.p; S.undoClear = null; S.focusK = 'ap-clear'; L.say('Own settings brought back'); L.render(); };
   L.inputs.apmlabel = function (el) { var t = track(), ms = copyOf(prof(t)).markers; ms[+el.dataset.i].label = el.value; write(t, { markers: ms }); L.render(); };
   L.inputs.apafter = function (el) {
-    var t = track(); write(t, { after: el.value }); S.event = null; S.handover = null;
-    L.say({ loop: 'At the end: loop back to ' + L.fmt(prof(t).loopStart), next: 'At the end: move to the next track', stop: 'At the end: stop' }[el.value]); L.render();
+    var t = track(), v = el.value, p0 = prof(t), patch;
+    if (v === 'follow') { if (L.acts.r7follow) L.acts.r7follow(); return; }
+    patch = v === 'loop' ? { after: 'loop', loopXfade: 0 } : v === 'xloop' ? { after: 'loop', loopXfade: p0.loopXfade || 3 } : v === 'fade' ? { after: 'stop', fadeOut: { dur: (p0.fadeOut && p0.fadeOut.dur) || 4, shape: (p0.fadeOut && p0.fadeOut.shape) || 50 } } : v === 'stop' ? { after: 'stop', fadeOut: { dur: 0, shape: (p0.fadeOut && p0.fadeOut.shape) || 50 } } : { after: v };
+    write(t, patch); S.event = null; S.handover = null;
+    L.say({ loop: 'At its end: loop back to ' + L.fmt(prof(t).loopStart), xloop: 'At its end: loop with a crossfade', next: 'At its end: the next track', fade: 'At its end: fade out', stop: 'At its end: stop' }[v]); L.render();
   };
   L.inputs.apctx = function (el) { S.ctx = +el.value; S.handover = null; L.render(); };
   L.inputs.apkeys1 = function (el) { S.keys1 = el.checked; saveKeys1(); L.say('Single-key shortcuts ' + (S.keys1 ? 'on' : 'off')); L.render(); };

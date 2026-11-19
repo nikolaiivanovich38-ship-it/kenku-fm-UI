@@ -1,10 +1,11 @@
 /* Campaigns, Campaign and Session views (prefix cp-).
    #/campaigns            the top level: one card per campaign, each shown in its own table theme
    #/campaign/<cid>       one campaign: details, theme, sessions, campaign playlists and pad boards, notes
-   #/session/<cid>/<sid>  the session planner: scenes (Starts when, music: tracks and playlists in any mix,
+   #/session/<cid>/<sid>  the session planner: scenes (Story cue, music: tracks and playlists in any mix,
                           ambience: a track or ambience playlist, pad boards: several, notes),
                           session playlists and pad boards, and a reminder of the campaign's playlists.
-   Playlists and pad boards are never made here, only assigned (they live on the Playlists and Pad boards pages). */
+   Playlists and pad boards live on the Playlists and Pad boards pages. Round 10: a scene's pickers can make one in
+   place (Make a playlist of these… in Add music, New board… in Add pad boards), which goes straight into the scene. */
 (function () {
   var esc = L.esc, D = L.data;
   var STATUS = { played: 'Played', next: 'Next', draft: 'Draft' };
@@ -75,7 +76,8 @@
     var t = L.track(id); if (!t) return null;
     var fx = L.isFx(t);
     return { kind: 'track', id: id, obj: t, name: L.title(t), href: '#/library/' + id, icon: fx ? 'sfx' : t.kind === 'amb' ? 'ambience' : 'music', cls: fx ? 'fx' : t.kind === 'amb' ? 'amb' : 'music',
-      label: fx ? (t.role === 'Sting' ? 'FX · Sting' : 'FX') : t.kind === 'amb' ? 'Ambience track' : 'Track', sub: (t.role && t.kind === 'music' && !fx ? t.role + ' · ' : '') + L.fmt(t.dur) };
+      // Round 10 (prep D10): the uses' words (Background, Scene music, Short cue, Lead-in) here too.
+      label: fx ? (t.role === 'Sting' ? 'FX · Short cue' : 'FX') : t.kind === 'amb' ? 'Ambience track' : 'Track', sub: (t.role && t.kind === 'music' && !fx ? ((L.roleWord && L.roleWord[t.role]) || t.role) + ' · ' : '') + L.fmt(t.dur) };
   }
   // Preview, optional expander and contents for a playlist or board row. xk: expander key unique to this place on the page.
   // okey (ORG-13): the place whose own track order the open playlist shows and changes.
@@ -97,7 +99,7 @@
       var it = info(id, kind === 'bd'); if (!it) return ''; var o = it.obj, xk = 'cp-' + scope + ':' + id, nm = esc(o.name);
       var sub = kind === 'pl' ? plSub(o) : it.label + ' · ' + it.sub, ro = kind === 'pl' && !readonly && ids.length > 1;
       // ORG-13: the session's and the campaign's playlists can be dragged (or moved with Alt+Up / Alt+Down) into order.
-      return '<li class="cp-arow-wrap"' + (ro ? ' data-ro="apl|' + scope + '" data-ri="' + ids.indexOf(id) + '"' : '') + '><div class="cp-arow">' + (ro ? '<span class="ro-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
+      return '<li class="cp-arow-wrap"' + (ro ? ' data-ro="apl|' + scope + '" data-ri="' + ids.indexOf(id) + '"' : '') + (kind === 'pl' && o.kind === 'manual' ? ' data-dropto="pl:' + id + '"' : '') + '><div class="cp-arow">' + (ro ? '<span class="ro-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
         '<a class="ellipsis grow cp-aname" href="' + it.href + '" data-k="open-' + scope + kind + id + '" title="' + esc(o.name + ' · ' + sub) + '">' + nm + '</a>' +
         (kind === 'pl' ? L.orderButton(id, key) : '') + L.previewButton(it.kind, id) + (kind === 'pl' ? L.playOnAirButton('playlist', id, key) : '') +
         (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk, scope === 's' ? key : '', scope === 'r' ? '' : key) + '</li>';
@@ -142,7 +144,7 @@
   L.acts.cprm = function (el) {
     var x = ctx(), target = el.dataset.scope === 'c' ? x.c : x.s, kind = el.dataset.kind, list = kind === 'pl' ? target.playlists : kind === 'tr' ? target.tracks : target.boards, id = el.dataset.id;
     var i = list.indexOf(id); if (i < 0) return; list.splice(i, 1);
-    if (kind === 'tr') { focusK = 'add-' + el.dataset.scope + 'pl'; L.render(); L.toast('Removed "' + L.title(L.track(id)) + '" from this ' + (el.dataset.scope === 'c' ? 'campaign' : 'session') + '. It is still in the Library.'); return; }
+    if (kind === 'tr') { focusK = 'add-' + el.dataset.scope + 'pl'; L.render(); L.toast('Removed "' + L.title(L.track(id)) + '" from this ' + (el.dataset.scope === 'c' ? 'campaign' : 'session') + '. It is still in the Track library.'); return; }
     var o = kind === 'pl' ? L.playlist(id) : L.board(id);
     focusK = list.length ? 'more-' + el.dataset.scope + kind + list[Math.min(i, list.length - 1)] : 'add-' + el.dataset.scope + kind;
     L.render();
@@ -216,7 +218,7 @@
     L.filesFromDrop(e, function (files) {
       if (!files.length) { L.toast('No audio files in what you dropped'); return; }
       var before = D.tracks.length, ids = L.importFiles(files), created = D.tracks.slice(before).map(function (t) { return t.id; }), name = x.sc.name || 'this scene';
-      var lib = created.length ? plural(created.length, 'new track') + ' added to the Library' : '';
+      var lib = created.length ? plural(created.length, 'new track') + ' added to the Track library' : '';
       current = x.sc.id;
       if (where === 'amb') {
         created.forEach(function (id) { L.track(id).kind = 'amb'; });   // dropped on Ambience: new files are ambience beds
@@ -297,7 +299,7 @@
         '<button class="btn primary" data-act="cpnew" data-k="cpnew">' + L.icon('plus', 's') + 'New campaign</button></div>' +
         '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<ol class="cp-grid" aria-label="Campaigns in order">' + D.campaigns.map(card).join('') + '</ol>'
           // A first-time user: what a campaign is and what to do first (w3-ux 9).
-          : '<div class="empty"><b>No campaigns yet.</b> A campaign holds your sessions, the scenes in each, and the music, ambience and pad boards you use in them. Start with <b>New campaign</b>.</div>') + '</div>';
+          : '<div class="empty"><b>No campaigns yet.</b> A campaign contains your sessions, the scenes in each session, and the music, ambience and pad boards you use in them. Start with <b>New campaign</b>.</div>') + '</div>';
     },
     after: afterRender
   });
@@ -447,7 +449,7 @@
   // Folded card: one chip only (what starts the scene). The rest is in the card's tooltip and in the open scene.
   function sceneTip(sc) {
     var items = L.sceneItems(sc), bds = L.sceneBoards(sc), amb = sc.amb && info(sc.amb);
-    return [sc.when ? 'Starts when: ' + sc.when : 'No Starts when line yet',
+    return [sc.when ? 'Story cue: ' + sc.when : 'No story cue yet',
       'Music: ' + (items.length ? items.map(function (x) { return info(x.id).name; }).join(', ') : 'none'),
       'Ambience: ' + (amb ? amb.name : 'none'),
       'Pad boards: ' + (bds.length ? bds.map(function (b) { return (L.board(b) || {}).name; }).join(', ') : 'none')].join('\n');
@@ -474,11 +476,13 @@
       (i === 0 ? '<span class="cp-firsttag">' + firstTag + '</span>' : '') + ownMark(sc, list, it) +
       // Round 8: the buttons in Live's order: (a playlist's play order,) Preview, (Repeat one,) Play on air.
       (it.kind === 'playlist' && list === 'music' ? L.orderButton(it.id, key) : '') +
+      // Round 10 (prep review S11, P6): one order on every track row in the planner: Preview, Play on air, Audio profile,
+      // Repeat one, then ⋯. The Audio profile has one name everywhere (prep S1).
       L.previewButton(it.kind, it.id) +
+      (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id, list === 'music' ? key : '', '', shown) : '') +
+      (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Audio profile of ' + esc(shown) + ' in this scene: its waveform, end and fades" aria-label="Audio profile in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       // Round 6 part 3 (decision 4): Repeat one, saved with the scene; the same button as on the track in Live.
       (isTrack ? L.repeatOneButton(key, it.id, 'r1-' + k, shown) : '') +
-      (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id, list === 'music' ? key : '', '', shown) : '') +
-      (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Waveform, end and fades of ' + esc(shown) + ' in this scene" aria-label="Waveform, end and fades in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       moreBtn('im-' + k, nm, 'data-menu="item" data-list="' + list + '" data-sc="' + sc.id + '" data-idx="' + i + '"') +
       '</div>' + xpBody(it, xk, list === 'music' ? sceneKey(sc) : '', list === 'music' ? sceneKey(sc) : '') + '</li>';
   }
@@ -490,10 +494,12 @@
   }
   function musicList(sc) {
     var items = L.sceneItems(sc);
-    return '<div class="cp-box" data-filedrop="music" data-sc="' + sc.id + '" title="Drop audio files or folders here to add them">' +
+    var x = ctx();
+    // Round 9 (item 32): a track dragged from a playlist anywhere in the planner can be dropped on a scene's Music list.
+    return '<div class="cp-box" data-filedrop="music" data-sc="' + sc.id + '"' + (x.c && x.s ? ' data-dropto="sc:' + x.c.id + ':' + x.s.id + ':' + sc.id + '"' : '') + ' title="Drop audio files or folders here to add them">' +
       (items.length ? '<ol class="cp-items" aria-label="Music in order">' + items.map(function (x, i) { return itemRow(sc, 'music', info(x.id), i, items.length, 'Starts the scene'); }).join('') + '</ol>'
-        : '<p class="faint cp-mnone">No music yet. The first item you add starts the scene.</p>') +
-      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddmusic" data-sc="' + sc.id + '" data-k="am-' + sc.id + '" title="Plays in order; drop audio files on the box to add them">' + L.icon('plus', 's') + 'Add tracks or playlists…</button></div></div>';
+        : '<p class="faint cp-mnone">No music yet. The first item you add plays when the scene starts.</p>') +
+      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddmusic" data-sc="' + sc.id + '" data-k="am-' + sc.id + '" title="The music plays in order. Drop audio files on the box to add them.">' + L.icon('plus', 's') + 'Add tracks or playlists…</button></div></div>';
   }
   function boardList(sc) {
     var bds = L.sceneBoards(sc).filter(function (b) { return L.board(b); });
@@ -523,12 +529,16 @@
     var f = 'sc' + sc.id;
     var body = '<div class="cp-scene-body" id="scb-' + sc.id + '">' +
       '<div class="field"><label for="' + f + 'n">Name</label><input class="input" id="' + f + 'n" data-input="cpscf" data-f="name" data-sc="' + sc.id + '" data-k="scname-' + sc.id + '" data-save="scene name {v}" value="' + esc(sc.name) + '" autocomplete="off"></div>' +
-      '<div class="field"><label for="' + f + 'w">Starts when</label><input class="input" id="' + f + 'w" data-input="cpscf" data-f="when" data-sc="' + sc.id + '" data-k="scwhen-' + sc.id + '" data-save="when ' + esc(sc.name || 'the scene') + ' starts" value="' + esc(sc.when) + '" placeholder="The moment in the story" autocomplete="off"></div>' +
+      // Round 10 (prep review S2, P4): the story note is the Story cue; what the scene does when it starts is shown in
+      // words under it, with Change… (it was hidden in the scene's ⋯).
+      '<div class="field"><label for="' + f + 'w">Story cue</label><input class="input" id="' + f + 'w" data-input="cpscf" data-f="when" data-sc="' + sc.id + '" data-k="scwhen-' + sc.id + '" data-save="story cue of ' + esc(sc.name || 'the scene') + '" value="' + esc(sc.when) + '" placeholder="The moment in the story, e.g. They crest the cliff path" autocomplete="off"></div>' +
+      (L.sceneStartLine ? L.sceneStartLine(ctx().c.id + '/' + ctx().s.id + '/' + sc.id, sc) : '') +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'm"><span class="label" id="' + f + 'm">Music</span>' + musicList(sc) + '</div>' +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'a"><span class="label" id="' + f + 'a">Ambience</span>' + ambSlot(sc) + '</div>' +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'b"><span class="label" id="' + f + 'b">Pad boards</span>' + boardList(sc) + '</div>' +
       '<div class="field"><label for="' + f + 'x">Notes</label><textarea class="input" id="' + f + 'x" rows="2" data-input="cpscf" data-f="notes" data-sc="' + sc.id + '" data-k="scnotes-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' notes" placeholder="Reminders for this scene">' + esc(sc.notes) + '</textarea></div>' +
-      '<div class="field cp-obsfield"><label for="' + f + 'o">Note link <span class="cp-later">Coming later</span></label><input class="input" id="' + f + 'o" data-input="cpscf" data-f="noteLink" data-sc="' + sc.id + '" data-k="scnote-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' note link" value="' + esc(sc.noteLink || '') + '" placeholder="Optional: an Obsidian note" title="Kept for later; Lyre does not open Obsidian notes yet" autocomplete="off"></div></div>';
+      // Round 10 (prep review S7): no "Note link · Coming later" in every scene; the campaign's Obsidian box keeps it.
+      '</div>';
     // UX-18: a screen opened from inside this scene goes Back to it, with the scene open.
     return '<li class="cp-scene open' + (sc.id === current ? ' sel' : '') + '" data-drag="scenes" data-idx="' + i + '" data-back-label="' + nm + '" data-back-open="' + sc.id + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
   }
@@ -609,7 +619,7 @@
   L.acts.cpaddboards = function (el) {
     var x = findScene(el.dataset.sc); current = x.sc.id; if (!x.sc.boards) x.sc.boards = L.sceneBoards(x.sc).slice();
     var b = x.sc.boards;
-    L.pickBoards({ title: 'Pad boards for "' + (x.sc.name || 'this scene') + '"', selected: b, multi: true, saved: (x.sc.name || 'scene') + ' pad boards',
+    L.pickBoards({ title: 'Pad boards for "' + (x.sc.name || 'this scene') + '"', selected: b, multi: true, saved: (x.sc.name || 'scene') + ' pad boards', makeBoard: true, // Round 10: New board…
       intro: 'Tick the boards to have in this scene. New ones are added at the end; the first one shows when the scene starts.',
       onDone: function (ids) {
         var keep = b.filter(function (id) { return ids.indexOf(id) > -1; }), added = ids.filter(function (id) { return b.indexOf(id) < 0; });
@@ -640,7 +650,7 @@
       (i < n - 1 ? '<button role="menuitem" data-act="cpmove" data-dir="1" ' + mv + '>' + L.icon('chevdown') + 'Move down</button>' : '') +
       '<button role="menuitem" data-act="cpaddscene" data-id="' + id + '">' + L.icon('plus') + 'Add a scene after this one</button>' +
       // Round 7 (PLY-8, SHW-3): what the scene does when it starts, as steps, and whether it moves on by itself.
-      '<button role="menuitem" data-act="stepsopen" data-what="scene" data-ref="' + ctx().c.id + '/' + ctx().s.id + '/' + id + '">' + L.icon('list') + 'What it does when it starts…</button>' +
+      '<button role="menuitem" data-act="stepsopen" data-what="scene" data-ref="' + ctx().c.id + '/' + ctx().s.id + '/' + id + '">' + L.icon('list') + 'Start…</button>' +
       '<button role="menuitem" data-act="cpdup" data-id="' + id + '">' + L.icon('queue') + 'Duplicate</button><div class="sep"></div>' +
       '<button role="menuitem" data-act="cpdelask" data-id="' + id + '" class="cp-danger">' + L.icon('trash') + 'Delete…</button>', 'Scene actions');
   };
@@ -690,7 +700,7 @@
       'A scene\'s <b>Music</b> is now one ordered list of <b>tracks and playlists in any mix</b>: slot a track between playlists, or use only one kind. It plays from the top and loops; the first item starts the scene, and in play you can start any item. Open <b>The abbey ruins</b> to see one.',
       '<b>Add tracks or playlists…</b> opens a picker with Preview on every row and an arrow to see a playlist\'s tracks before you add it. Move, remove, open and the Audio profile are in each row\'s ⋯ menu.',
       '<b>Ambience</b> can be one track or an ambience playlist, with Preview. <b>Pad boards</b>: a scene can have several; the first shows when the scene starts, and each one can be previewed and opened to see its pads.',
-      '<b>Cleaner:</b> every box has a coloured top edge for its purpose (blue music, lime pads, accent for plans) and at most one status pill (e.g. "Coming later"; round 6 part 5: no scene count, no Ready or Saved). Folded scenes show one line and one chip; hover the scene name for its Starts when, ambience and boards. Rows show Preview and Play on air, then ⋯ for the rest.',
+      '<b>Cleaner:</b> every box has a coloured top edge for its purpose (blue music, lime pads, accent for plans) and at most one status pill (e.g. "Coming later"; round 6 part 5: no scene count, no Ready or Saved). Folded scenes show one line and one chip; hover the scene name for its Story cue, ambience and boards. Rows show Preview and Play on air, then ⋯ for the rest.',
       '<b>Prep | Live</b> and <b>Run this session</b> are both in the header.',
       'Obsidian placeholders (coming later): a <b>Session note</b> in the folded Obsidian pane, and an optional <b>Note link</b> per scene.'
     ],
@@ -715,7 +725,8 @@
       var allOpen = s.scenes.length && s.scenes.every(function (sc) { return open[sc.id]; });
       var scenes = L.pane({ id: 'ss-scenes', title: 'Scenes', icon: 'map', kind: 'scenes',
         status: s.scenes.length ? null : { text: 'Empty', tone: 'idle' },
-        actions: (s.scenes.length ? '<button class="closer" data-act="cpallscenes" data-k="allscenes" title="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '" aria-label="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '">' + L.icon(allOpen ? 'chevup' : 'chevdown') + '</button>' : '') +
+        // Round 10 (Nik, 18 Nov 08:36, answer 2b): each scene stays open until he closes it; no Open all.
+        actions: (allOpen && false ? '' : '') +
           '<button class="btn s" data-act="cpaddscene" data-k="addscene" title="' + (selIx > -1 ? 'Adds a scene after Scene ' + (selIx + 1) + ': ' + esc(sel.sc.name || 'Untitled scene') : 'Adds a scene at the end (no scene is selected)') + '">' + L.icon('plus', 's') + 'Add scene</button>',
         body: s.scenes.length ? '<p class="sr-only" id="cp-selnote">Selected: Add scene puts the new scene after it.</p><ol class="cp-scenes" aria-label="Scenes in order">' + s.scenes.map(function (sc, i) { return sceneCard(s, sc, i); }).join('') + '</ol>' : '<p class="cp-none">No scenes yet. Use Add scene.</p>',
         scroll: 'ss-scenes' });
@@ -733,7 +744,7 @@
           '<p class="hint cp-make">Campaign pads: ' + (cbNames.length ? esc(cbNames.join(', ')) : 'none') + '.</p>' });
       return head + '<div class="viewbody fill cp-body">' + details +
         '<div class="cp-split cp-ssplit"><div class="' + colClass(['ss-scenes']) + '">' + scenes + '</div>' +
-        '<div class="' + colClass(['ss-spl', 'ss-sbd', 'ss-cpl', 'ss-obs']) + ' cp-side">' + spl + sbd + cpl + obs + '</div></div></div>';
+        '<div class="' + colClass(['ss-spl', 'ss-sbd', 'ss-cpl', 'ss-obs']) + ' cp-side">' + spl + sbd + cpl + (obs && '') + '</div></div></div>'; // Round 10 (prep S7): no "Coming later" box in the session
     },
     after: afterRender
   });

@@ -55,7 +55,7 @@
   function glyph(n) { return '<svg viewBox="0 0 11 11" aria-hidden="true" focusable="false">' + GLYPHS[n] + '</svg>'; }
   function zoom() { return parseFloat(document.documentElement.style.zoom || '1') || 1; }
   function buttons() {
-    var app = document.getElementById('app'), w = document.getElementById('lyre-winbtns');
+    var app = document.getElementById('work') || document.getElementById('app'), w = document.getElementById('lyre-winbtns'); // Round 10: the window is #work
     if (!w && app) {
       w = document.createElement('div');
       w.id = 'lyre-winbtns'; w.className = 'winbtns'; w.setAttribute('aria-hidden', 'true'); w.setAttribute('data-window-buttons', '');

@@ -2,7 +2,7 @@
    (DAT-3), automatic hand-overs (SHW-3) and what played (PLY-1).
 
    PLY-8 steps. A scene's start and a pad are a list of steps, run in order. Out of sight until wanted: the usual
-   steps are not stored or shown; the scene's ⋯ › What it does when it starts… and the pad's What it does… open them.
+   steps are not stored or shown; the scene's ⋯ › Start… and the pad's What it does… open them.
      { do: 'music', what }        the scene's music from item `what` on (then the rest of its music)
      { do: 'amb', what }          the scene's ambience
      { do: 'pads', what }         show that pad board
@@ -110,6 +110,8 @@
     var a = document.activeElement, keep = k || (a && a.dataset && a.dataset.k); b.innerHTML = edBody();
     var f = keep && b.querySelector('[data-k="' + keep + '"]'); if (f && !f.disabled) f.focus(); else { var g = b.querySelector('[data-k="stp-add"]'); if (g) g.focus(); }
   }
+  // Round 10 (prep review P4): the scene's start in words, for the line under its Story cue.
+  L.stepsWords = function (what, ref) { return words(L.stepsOf(what, ref)); };
   L.stepsItem = function (what, ref) { return '<button role="menuitem" data-act="stepsopen" data-what="' + what + '" data-ref="' + esc(ref) + '">' + L.icon('list', 's') + 'What it does…</button>'; };
   L.sceneMarks = function (sc) {
     var m = '';
@@ -120,7 +122,7 @@
   L.acts.stepsopen = function (el) {
     var what = el.dataset.what, ref = el.dataset.ref, o = what === 'pad' ? padOf(ref).p : scOf(ref).sc;
     ED = { what: what, ref: ref, steps: JSON.parse(JSON.stringify(L.stepsOf(what, ref))), then: o.then || 'stay' };
-    var title = what === 'pad' ? 'When ' + o.label + ' is pressed' : 'When ' + o.name + ' starts';
+    var title = what === 'pad' ? 'When ' + o.label + ' is pressed' : 'Start of ' + o.name;
     L.sheet({ title: title, describe: 'Lyre does these in order. Each play step says how it comes in and what happens to Up next.', body: edBody(), wide: true,
       footer: '<button class="btn" data-act="stptry" data-k="stp-try">' + L.icon('headphones', 's') + 'Try in headphones</button><span class="grow"></span><button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="stpdone" data-k="stp-done">Done</button>' });
   };
@@ -146,7 +148,7 @@
     if (same) delete o.steps; else o.steps = e.steps;
     if (e.what === 'scene') { if (e.then === 'stay') delete o.then; else { o.then = e.then; o.afterMin = 5; } }
     ED = null; L.closeSheet(); L.render();
-    L.saved(e.what === 'pad' ? 'what ' + o.label + ' does' : 'what ' + o.name + ' does when it starts');
+    L.saved(e.what === 'pad' ? 'what ' + o.label + ' does' : 'the start of ' + o.name);
   };
 
   // Running the steps. The prototype simulates what it cannot play (a fade's level is said and shown, not heard).
@@ -263,13 +265,13 @@
     var fades = t.ending === 'fades', f = t.follow, has = function (x) { return rows.indexOf(x) > -1; };
     return (has('ending') ? '<div class="lb-tg"><div class="lb-tgl">Ending</div><div class="chips" role="group" aria-label="Ending">' +
       // One chip: pressed, it fades out before its end; not pressed (the usual), it plays to its last second.
-      '<button class="chip lb-pick" data-act="r7ending" data-v="' + (fades ? 'hard' : 'fades') + '" data-k="lb-end-fades" aria-pressed="' + fades + '" title="Lyre fades it out before its end (the length is in the Audio profile); not pressed, it plays to its last second">' + (fades ? L.icon('check', 's') : '') + 'Fades out</button></div></div>' : '') +
+      '<button class="chip lb-pick" data-act="r7ending" data-v="' + (fades ? 'hard' : 'fades') + '" data-k="lb-end-fades" aria-pressed="' + fades + '" title="Lyre fades it out before its end (the length of the fade is in the Audio profile). When this is off, it plays to its last second.">' + (fades ? L.icon('check', 's') : '') + 'Fades out</button></div></div>' : '') +
       (has('resume') ? '<label class="lv-switch lb-resume" title="Starts again where it was last stopped, the next time it plays"><input type="checkbox" role="switch" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Pick up where it stopped</b></span></label>' : '') +
       (!has('then') ? '' : '<div class="lb-tg"><div class="lb-tgl" id="lb-then-l">Then</div><div class="chips" role="group" aria-labelledby="lb-then-l">' +
       (f ? '<span class="chip"><span class="lane-dot music" aria-hidden="true"></span>' + esc(itemName(f)) + '<button class="x" data-act="r7follownone" data-k="lb-follow-x" title="Remove" aria-label="Stop following with ' + esc(itemName(f)) + '">' + L.icon('close') + '</button></span><button class="btn s ghost" data-act="r7follow" data-k="lb-follow">Change…</button>'
         : '<button class="btn s ghost" data-act="r7follow" data-k="lb-follow" title="When it ends, play a playlist or a track">' + L.icon('next', 's') + 'Follow with…</button>') + '</div></div>');
   };
-  function curTrack() { var r = L.current(); return r.name === 'library' && L.track(r.p.tid); }
+  function curTrack() { var r = L.current(), id = r.name === 'library' ? r.p.tid : (L.panelTrack && L.panelTrack()); return id && L.track(id); }
   L.acts.r7ending = function (el) {
     var t = curTrack(); if (!t) return; t.ending = el.dataset.v;
     var p = L.profileStore(t, '', true); p.fadeOut = { dur: t.ending === 'fades' ? (p.fadeOut && p.fadeOut.dur) || 4 : 0, shape: (p.fadeOut && p.fadeOut.shape) || 50 };

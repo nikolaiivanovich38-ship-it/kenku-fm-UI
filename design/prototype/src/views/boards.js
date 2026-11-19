@@ -190,7 +190,7 @@
       '<a class="pb-card-main" href="#/board/' + b.id + '" data-k="card-' + b.id + '" tabindex="-1">' + mini(b) +
       '<span class="pb-card-text"><span class="pb-card-name ellipsis">' + esc(b.name) + '</span><span class="pb-card-size">' + esc(sizeText(b)) + '</span></span></a>' +
       (hits.length ? '<div class="pb-card-used"><span class="pb-lbl">Pads</span> <span class="pb-used-text">' + esc(hits.map(function (p) { return p.label; }).join(', ')) + '</span></div>' : '') +
-      '<div class="pb-card-used" title="' + esc(uses.map(useLabel).join('\n')) + '"><span class="pb-used-text">' + (uses.length ? 'Used in ' + plural(uses.length, 'place') : '<span class="faint">Not used yet</span>') + '</span></div>' +
+      '<div class="pb-card-used" title="' + esc(uses.map(useLabel).join('\n')) + '"><span class="pb-used-text">' + (uses.length ? 'Used ' + plural(uses.length, 'time') : '<span class="faint">Not used yet</span>') + '</span></div>' +
       '<div class="pb-card-acts">' +
       '<a class="btn s" href="#/board/' + b.id + '" data-k="edit-' + b.id + '" aria-label="Open ' + esc(b.name) + '">Open</a><span class="grow"></span>' +
       L.previewButton('board', b.id) +
@@ -258,13 +258,13 @@
   L.acts.pbdelboard = function (el) {
     var b = L.board(el.dataset.id), uses = L.usesOfBoard(b.id);
     L.sheet({ title: 'Delete "' + b.name + '"?',
-      body: '<div class="stack">' + (uses.length ? '<p>This board is used in:</p><ul class="pb-uselist">' + uses.map(function (u) { return '<li>' + esc(useLabel(u)) + '</li>'; }).join('') + '</ul><p>Those places will have no pad board until you choose another.</p>' : '<p>This board is not used anywhere.</p>') +
+      body: '<div class="stack">' + (uses.length ? '<p>This board is used in:</p><ul class="pb-uselist">' + uses.map(function (u) { return '<li>' + esc(useLabel(u)) + '</li>'; }).join('') + '</ul><p>They will have no pad board until you choose another.</p>' : '<p>This board is not used anywhere.</p>') +
         '<p class="muted">Its ' + plural(padCount(b) + b.spare.length, 'pad') + ' go with it. The sound files stay in your library.</p></div>',
       footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="pbdelboardok" data-id="' + b.id + '">Delete board</button>' });
   };
   L.acts.pbdelboardok = function (el) {
     var id = el.dataset.id, b = L.board(id), restore = L.snapshot(['boards', 'campaigns']);
-    L.undoNote('Deleted the pad board "' + b.name + '" and took it out of the places that used it.', restore);
+    L.undoNote('Deleted the pad board "' + b.name + '" and took it out of the scenes, sessions and campaigns that used it.', restore);
     D.campaigns.forEach(function (c) {
       c.boards = c.boards.filter(function (x) { return x !== id; });
       c.sessions.forEach(function (s) { s.boards = s.boards.filter(function (x) { return x !== id; }); s.scenes.forEach(function (sc) { sc.boards = L.sceneBoards(sc).filter(function (x) { return x !== id; }); if (sc.board === id) sc.board = ''; }); });
@@ -350,7 +350,7 @@
     if (s.kind === 'tag') {
       var files = tagFiles(s.tag);
       h += '<div class="field"><label for="pb-tag">Tag</label><input id="pb-tag" class="input" list="pb-tags" data-input="pbtag" data-k="pb-tag" data-save="' + esc(p.label) + ' sound tag" value="' + esc(s.tag || '') + '" placeholder="For example: door"><datalist id="pb-tags">' + TAG_SUGGEST.map(function (t) { return '<option value="' + t + '">'; }).join('') + '</datalist></div>' +
-        '<p class="hint">Each press picks one of these ' + plural(files.length, 'effect') + '.</p>' +
+        '<p class="hint">Each press plays one of these ' + plural(files.length, 'effect') + '.</p>' +
         (files.length ? '<ul class="pb-files">' + files.map(function (f) { var t = fxTrackByFile(f); return '<li>' + L.icon('file', 's') + '<span class="ellipsis grow">' + (t ? esc(L.title(t)) + ' <span class="faint">' + esc(f) + '</span>' : esc(f)) + '</span>' + (t ? L.previewButton('track', t.id) : '') + '</li>'; }).join('') + '</ul>' : '<p class="pb-none">No effects have this tag yet.</p>');
     } else {
       var list = s.kind === 'single' ? s.files.slice(0, 1) : s.files;
@@ -381,11 +381,13 @@
       fieldset('Play mode', '<div class="pb-modes" role="group" aria-label="Play mode">' + ['oneshot', 'toggle', 'hold', 'retrigger'].map(function (m) {
         return '<button class="btn s" data-act="pbmode" data-v="' + m + '" data-k="pbm-' + m + '" aria-pressed="' + (p.mode === m) + '" aria-describedby="pb-modehelp" title="' + MODE_HELP[m] + '">' + L.icon(L.modeIcon[m], 's') + L.modeName[m] + '</button>';
       }).join('') + '</div><p class="pb-modehelp" id="pb-modehelp">' + MODE_HELP[p.mode] + '</p>') +
+      // Round 9 (item 47): whether the music dips while this pad plays (the usual follows the play mode).
+      (L.padDipHTML ? L.padDipHTML(p) : '') +
       '<div class="field"><span class="label" id="pb-key-l">Hotkey</span><div class="row-flex"><button class="pb-keycap' + (ui.capture ? ' capturing' : '') + '" data-act="pbkeycap" data-k="pb-keycap" aria-labelledby="pb-key-l pb-keycap-t"' + (ui.capture || sel.where === 'spare' ? ' aria-describedby="pb-key-h"' : '') + '>' +
       '<span id="pb-keycap-t">' + (ui.capture ? 'Press a key…' : p.key ? '<span class="kbd">' + esc(String(p.key).toUpperCase()) + '</span> Change' : 'None. Click, then press a key') + '</span></button>' +
       (p.key && !ui.capture ? '<button class="btn s ghost" data-act="pbkeyclear" data-k="pb-keyclear">Clear</button>' : '') + '</div>' +
       (ui.capture || sel.where === 'spare' ? '<p class="hint" id="pb-key-h">' + (ui.capture ? 'Esc cancels, Backspace removes the key.' : 'This pad is spare, so its key does nothing until it is back on the grid.') + '</p>' : '') +
-      (other ? '<p class="pb-warn" role="alert">' + L.icon('bolt', 's') + '<span class="grow">' + esc(String(p.key).toUpperCase()) + ' is also the key for "' + esc(other.label) + '" on this board.</span><button class="btn s" data-act="pbkeyswap" data-other="' + other.id + '" data-k="pb-keyswap">Take it from that pad</button></p>' : '') + '</div>' +
+      (other ? '<p class="pb-warn" role="alert">' + L.icon('bolt', 's') + '<span class="grow">' + esc(String(p.key).toUpperCase()) + ' is also the key for "' + esc(other.label) + '" on this board.</span><button class="btn s" data-act="pbkeyswap" data-other="' + other.id + '" data-k="pb-keyswap">Remove it from that pad</button></p>' : '') + '</div>' +
       fieldset('Colour <span class="pb-cur">' + COLOUR_NAMES[p.color] + '</span>', '<div class="pb-swatches">' + Object.keys(L.colors).map(function (c) {
         return '<label class="pb-sw" title="' + COLOUR_NAMES[c] + '" style="--pc:' + L.colors[c] + '"><input type="radio" class="pb-vh" name="pb-colour" value="' + c + '" data-input="pbcolour" data-k="pbc-' + c + '" data-save="' + esc(p.label) + ' colour"' + (p.color === c ? ' checked' : '') + '><span class="pb-sw-dot"></span><span class="sr-only">' + COLOUR_NAMES[c] + '</span></label>';
       }).join('') + '</div>') +
@@ -407,7 +409,7 @@
       return '<li class="lrow"><span class="pb-lvl">' + lvl[u.level] + '</span><a class="pb-uselink ellipsis grow" href="' + href + '" data-k="use-' + i + '">' + esc(u.label) + '</a></li>';
     }).join('') + '</ul>' : '<p class="pb-spare-empty">Not used yet.</p>');
     return L.pane({ id: 'pb-used', title: 'Used in', icon: 'link', kind: 'scenes', size: 'auto', flush: true,
-      status: { text: uses.length ? plural(uses.length, 'place') : 'Not used yet', tone: 'idle' },
+      status: { text: uses.length ? plural(uses.length, 'use') : 'Not used yet', tone: 'idle' },
       actions: '<button class="btn s" data-act="pbuse" data-id="' + b.id + '" data-k="pb-usein">Use in…</button>', body: body });
   }
   function col(ids, html, cls) { return '<div class="col ' + cls + (ids.indexOf(L.state.maxed) > -1 ? ' has-max' : '') + '">' + html + '</div>'; }
@@ -503,7 +505,7 @@
   L.acts.pbpicklib = withPad(function (b, p) {
     var s = p.sound, cur = D.tracks.filter(function (t) { return t.kind === 'fx' && s.files.indexOf(t.file) > -1; }).map(function (t) { return t.id; });
     L.pickTracks({ title: 'Sounds for "' + p.label + '"', kinds: ['fx'], selected: cur, multi: true, saved: p.label + ' sound',
-      intro: 'Tick one effect, or several to play them as variants. Preview lets you hear each one first; the players hear nothing.',
+      intro: 'Tick one effect, or several to play them as variants. Use Preview to hear each one first. The players hear nothing.',
       onDone: function (ids) {
         if (!ids.length) return;
         var files = ids.map(function (id) { return L.track(id).file; }), own = s.files.filter(function (f) { return !fxTrackByFile(f); });

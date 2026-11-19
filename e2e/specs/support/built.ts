@@ -39,6 +39,12 @@ export const BUILT_SCREENS: readonly string[] = ["library", "playlists", "audio-
  *                   in the menu ...), built by the w51-feat stream; it adds "feat" when it merges and they pass
  *
  * They are a list of their own because "live" is a screen as well as a stream.
+ *
+ * 0.6.0 (design/prototype/ROUND9.md and ROUND10.md, design rounds 8 and 9 of 0.6.0, item 58): one more.
+ *
+ *   r10             the final design: rounds 9 and 10 as the prototype shows them (Live keeps its place, one Undo
+ *                   place, Arrange with Move…, Rooms under Settings, the Track panel, uses and At its end, Set up
+ *                   Lyre, the queue, columns and hidden filters, Make a playlist in Add music …); not built yet
  */
-export type Stream = "shell" | "live" | "rooms-settings" | "prep" | "retire" | "feat";
+export type Stream = "shell" | "live" | "rooms-settings" | "prep" | "retire" | "feat" | "r10";
 export const BUILT_STREAMS: readonly Stream[] = ["shell", "rooms-settings", "prep", "live", "retire", "feat"];

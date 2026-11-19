@@ -54,7 +54,7 @@
     if (aside) return aside;
     aside = document.createElement('aside');
     aside.id = 'lyre-help'; aside.className = 'helpsheet'; aside.hidden = true; aside.setAttribute('aria-labelledby', 'help-title');
-    document.getElementById('app').appendChild(aside);
+    (document.getElementById('work') || document.getElementById('app')).appendChild(aside); // Round 10: beside the screen, never over it
     aside.addEventListener('keydown', function (e) {
       keepKeys(e);
       if (e.key !== 'Escape' || e.shiftKey || e.defaultPrevented) return;
@@ -80,7 +80,8 @@
       var hits = L.helpSearch(H.q);
       return hits.length ? '<ul class="help-list" aria-label="Found">' + hits.map(item).join('') + '</ul>' : '<p class="muted help-none">Nothing found. Try other words.</p>';
     }
-    return GROUPS.map(function (g, gi) {
+    // Round 9 (r9guide.js, item 19): the screen's own tour and article, then Set up Lyre, then every article.
+    return (L.helpTopHTML ? L.helpTopHTML() : '') + GROUPS.map(function (g, gi) {
       var list = ARTICLES.filter(function (a) { return a.group === g; });
       return list.length ? '<h3 class="help-group" id="help-g' + gi + '">' + esc(g) + '</h3><ul class="help-list" aria-labelledby="help-g' + gi + '">' + list.map(item).join('') + '</ul>' : '';
     }).join('');
@@ -146,11 +147,11 @@
   /* ---------- the tour ---------- */
   function railTarget(k) { return function () { return document.querySelector('#rail [data-k="' + k + '"]'); }; }
   var STEPS = [
-    { title: "Lyre's places", text: 'Everything is a click away here. Help is at the foot, or press F1.', target: function () { return document.querySelector('#rail nav'); } },
-    { title: 'Library', text: 'Add your music here and tag it.', target: railTarget('rail-library') },
-    { title: 'Scenes', text: 'Scenes are in Campaigns: a campaign holds its sessions, a session its scenes.', target: railTarget('rail-campaigns') },
-    { title: 'Live', text: 'Run the session here. Space starts the next scene.', target: railTarget('rail-live') },
-    { title: 'Now playing', text: 'What plays shows down here. On air: the players hear it. Only you: your headphones.', bottom: true,
+    { title: "The menu", text: 'Lyre’s main screens are in this menu. Help is at the bottom, or press F1.', target: function () { return document.querySelector('#rail nav'); } },
+    { title: 'Track library', text: 'Add your music here and tag it.', target: railTarget('rail-library') },
+    { title: 'Scenes', text: 'Scenes are planned in Campaigns. A campaign has sessions, and each session has scenes.', target: railTarget('rail-campaigns') },
+    { title: 'Live', text: 'Run the session here. Press Space to start the next scene.', target: railTarget('rail-live') },
+    { title: 'Now playing', text: 'What is playing is shown here, at the bottom. On air means the players hear it. Only you means it plays in your headphones and nobody else hears it.', bottom: true,
       target: function () { return document.querySelector('#view .onairbar') || document.getElementById('view'); } }
   ];
   var T = { step: -1, replay: false }, tourEl = null;

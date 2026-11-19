@@ -208,7 +208,7 @@
     var ps = places(drag.kind, drag.ids, drag.from), groups = [];
     ps.forEach(function (p) { if (groups.indexOf(p.g) < 0) groups.push(p.g); });
     var canMove = drag.kind === 'track' && !!drag.from;
-    return '<header class="dt-head"><b>' + esc(nameOf(drag.kind, drag.ids)) + '</b><span class="faint dt-how" id="dt-how">' + (canMove ? (shiftDown ? 'Moves it' : 'Copies it · Shift moves') : 'Adds it') + ' · Esc cancels</span></header>' +
+    return '<header class="dt-head"><b>' + esc(nameOf(drag.kind, drag.ids)) + '</b><span class="faint dt-how" id="dt-how">' + (canMove ? (shiftDown ? 'Moves it' : 'Copies it. Hold Shift to move it') : 'Adds it') + ' · Esc cancels</span></header>' +
       groups.map(function (g) {
         return '<div class="dt-g" role="group" aria-label="' + esc(g) + '"><h3 class="dt-gh">' + esc(g) + '</h3>' + ps.filter(function (p) { return p.g === g; }).map(function (p) {
           // Names are told apart by their group for screen readers (a scene and a playlist can share a name).
@@ -225,7 +225,7 @@
   document.addEventListener('dragstart', function (e) {
     var it = e.target.closest && e.target.closest('[data-org], .pl-tr[data-tid]'); if (!it) return;
     var kind, ids, from = '';
-    if (it.dataset.org) { var a = it.dataset.org.split(':'); kind = a[0]; ids = a.slice(1).join(':').split(','); }
+    if (it.dataset.org) { var a = it.dataset.org.split(':'); kind = a[0]; ids = a.slice(1).join(':').split(','); from = it.dataset.orgFrom || ''; }
     else { if (L.isDivider(it.dataset.tid)) return; kind = 'track'; ids = [it.dataset.tid]; var r = L.current(); if (r.name === 'playlist') { var pl = L.playlist(r.p.pid); if (pl && pl.kind === 'manual') from = pl.id; } }
     drag = { kind: kind, ids: ids, from: from, cancelled: false };
     shiftDown = e.shiftKey || shiftDown;
@@ -235,7 +235,7 @@
   document.addEventListener('dragover', function (e) {
     if (!drag || drag.cancelled) return;
     var t = e.target.closest && e.target.closest('[data-dropto], [data-orgdrop]');
-    if (e.shiftKey !== shiftDown && drag.kind === 'track') { shiftDown = e.shiftKey || shiftDown; var h = document.getElementById('dt-how'); if (h && drag.from) h.textContent = (shiftDown ? 'Moves it' : 'Copies it · Shift moves') + ' · Esc cancels'; }
+    if (e.shiftKey !== shiftDown && drag.kind === 'track') { shiftDown = e.shiftKey || shiftDown; var h = document.getElementById('dt-how'); if (h && drag.from) h.textContent = (shiftDown ? 'Moves it' : 'Copies it. Hold Shift to move it') + ' · Esc cancels'; }
     if (!t) return;
     if (t.dataset.orgdrop && t.dataset.orgdrop.split(':')[0] !== drag.kind) return;
     e.preventDefault(); try { e.dataTransfer.dropEffect = shiftDown && drag.from ? 'move' : 'copy'; } catch (x) { /* read-only in some engines */ }

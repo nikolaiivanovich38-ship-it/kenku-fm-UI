@@ -14,7 +14,7 @@ import fs from "fs";
 import path from "path";
 import type { Stream } from "./support/built";
 import { expect, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, test } from "./support/test";
-import { isWindowMaximised, knownAxeIssues, knownLayoutIssue, lyreIsTheWholeWindow, notLyre, openRoute, pageFillsTheWindow, windowButtonsBox, type Box, type Theme } from "./support/target";
+import { BASE_THEMES, isWindowMaximised, knownAxeIssues, knownLayoutIssue, lyreIsTheWholeWindow, notLyre, openRoute, pageFillsTheWindow, showTheme, windowButtonsBox, type Box, type Theme } from "./support/target";
 
 // Injected with page.evaluate: the app's Lyre page has a content policy that refuses added script tags.
 const AXE_PATH = require.resolve("axe-core/axe.min.js");
@@ -147,8 +147,8 @@ test("the axe-core in use is version 4.14.0", () => {
 });
 
 /** The layout checks: sideways scroll, overlapping controls, cut-off button text, controls cut off at the side. */
-async function layoutProblems(page: Page) {
-  const ignore = notLyre();
+async function layoutProblems(page: Page, alsoIgnore: string[] = []) {
+  const ignore = [...notLyre(), ...alsoIgnore];
   return page.evaluate((ignore) => {
           const skip = (e: Element) => ignore.some((sel) => e.closest(sel));
           // The visible part of an element: its box cut down by every scrolling or clipping ancestor.
@@ -760,4 +760,264 @@ test("0.5.1: Live is the first entry of the menu", async ({ page }) => {
   const names = await page.getByRole("navigation", { name: "Lyre" }).getByRole("link").allTextContents();
   expect(names[0]).toMatch(/^\s*Live/);
   expect(names[1]).toMatch(/^\s*Campaigns/);
+});
+
+/* ---------- Round 10 (R10-FIX §3): nothing drawn on top of anything else ----------
+   Nik, 18 Nov 13:00: "there are a lot of overlapping features in the visual design". Asked what he meant, he chose
+   "drawn on top of each other": panels, menus or buttons covering or cutting off other parts of the screen.
+   Each screen is checked with each panel, dialog, menu and the Now playing bar open, at the three window sizes the
+   prototype offers for it (Whole window, Half of a 1920 screen, 1280×800), in all five themes:
+     - nothing of Lyre's (a word, a name, a control) is under something else: a docked panel takes its width from the
+       screen, which narrows and reflows; only a panel set to Float may lie over the screen, and it can be moved;
+     - a menu opens inside the window, whole;
+     - the Now playing bar never hides the last row: scrolled to its end, every list shows its last row whole.
+   The pop-ups (Saved, Undone) and hover text come and go by themselves and are left out; so are the window's own
+   buttons, which have their own sweep. */
+
+const R10_SIZES = [
+  { label: "Whole window (1920×1080)", width: 1920, height: 1080 },
+  { label: "Half of a 1920 screen (960×1000)", width: 960, height: 1000 },
+  { label: "1280×800", width: 1280, height: 800 },
+];
+
+/** Every place where something of Lyre's is drawn under something else. `mayCover`: CSS of what may lie over the
+ *  screen in this state (a floating panel, an open menu). */
+async function drawnOver(page: Page, mayCover: string[] = []): Promise<string[]> {
+  return page.evaluate(
+    ({ ignore, mayCover }) => {
+      const passing = ["[data-window-buttons]", "[role=tooltip]", "#lyre-toasts", ".sr-only", ...mayCover];
+      const skip = (e: Element) => ignore.some((s) => e.closest(s));
+      const name = (e: Element) => (e.getAttribute("aria-label") || (e.textContent ?? "").trim() || e.getAttribute("title") || e.tagName.toLowerCase()).replace(/\s+/g, " ").slice(0, 40);
+      // The part of a box that shows: cut down by every box around it that clips or scrolls (the element's own too).
+      const shown = (e: Element, r: DOMRect | { left: number; top: number; right: number; bottom: number }) => {
+        let a = { l: r.left, t: r.top, r: r.right, b: r.bottom };
+        for (let p: Element | null = e; p && p !== document.documentElement; p = p.parentElement) {
+          const cs = getComputedStyle(p);
+          if (cs.display !== "contents" && /(auto|scroll|hidden|clip)/.test(cs.overflowX + cs.overflowY)) {
+            const q = p.getBoundingClientRect();
+            a = { l: Math.max(a.l, q.left), t: Math.max(a.t, q.top), r: Math.min(a.r, q.right), b: Math.min(a.b, q.bottom) };
+          }
+        }
+        return a;
+      };
+      // A header that sticks at the top of a list may have rows scrolled under it: that is scrolling, not covering.
+      const sticky = (hit: Element) => {
+        for (let p: Element | null = hit; p; p = p.parentElement) if (getComputedStyle(p).position === "sticky") return true;
+        return false;
+      };
+      const control = "button, a[href], input, select, textarea, [role=button], [role=switch], [role=slider]";
+      const out = new Set<string>();
+      const scope = document.body;
+      for (const e of Array.from(scope.querySelectorAll<HTMLElement>("*"))) {
+        if (skip(e) || e.closest(passing.join(","))) continue;
+        if (!e.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
+        // A mark drawn inside a field that lets the pointer through (Find's "/" key) is drawn over the field, not under it.
+        if (getComputedStyle(e).pointerEvents === "none") continue;
+        const rects: DOMRect[] = [];
+        if (e.matches(control)) rects.push(e.getBoundingClientRect());
+        else {
+          for (const n of Array.from(e.childNodes)) {
+            if (n.nodeType !== Node.TEXT_NODE || !(n.textContent ?? "").trim()) continue;
+            const range = document.createRange();
+            range.selectNodeContents(n);
+            rects.push(...Array.from(range.getClientRects()));
+          }
+        }
+        for (const r of rects) {
+          const v = shown(e, r);
+          if (v.r - v.l < 4 || v.b - v.t < 4) continue;
+          const y = (v.t + v.b) / 2;
+          for (const x of [v.l + 2, (v.l + v.r) / 2, v.r - 2]) {
+            const hit = document.elementFromPoint(x, y);
+            if (!hit || hit === e || e.contains(hit) || hit.contains(e)) continue;
+            if (hit.closest(passing.join(",")) || skip(hit) || sticky(hit)) continue;
+            out.add(`${e.matches(control) ? "" : "text "}"${name(e)}" is under "${name(hit.closest(control) ?? hit)}"`);
+            break;
+          }
+        }
+      }
+      return Array.from(out).slice(0, 12);
+    },
+    { ignore: notLyre(), mayCover },
+  );
+}
+
+/** Opens each menu on the screen in turn and lists each one that runs past the window's edge or is cut off. */
+async function menuProblems(page: Page): Promise<string[]> {
+  return page.evaluate(async (ignore) => {
+    const out: string[] = [];
+    // The window: in the prototype the stage under its own strip (#work), in the app the page.
+    const frame = (document.getElementById("work") ?? document.documentElement).getBoundingClientRect();
+    const win = { l: Math.max(0, frame.left), t: Math.max(0, frame.top), r: Math.min(window.innerWidth, frame.right), b: Math.min(window.innerHeight, frame.bottom) };
+    const name = (e: Element) => (e.getAttribute("aria-label") || (e.textContent ?? "").trim() || e.getAttribute("title") || "").replace(/\s+/g, " ").slice(0, 40);
+    const buttons = () =>
+      Array.from(document.querySelectorAll<HTMLButtonElement>("button[aria-haspopup='menu'], button[aria-haspopup='true']")).filter((b) => !ignore.some((s) => b.closest(s)) && b.offsetParent !== null && !b.disabled);
+    const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const n = buttons().length;
+    for (let i = 0; i < n; i++) {
+      const b = buttons()[i];
+      if (!b) break;
+      b.scrollIntoView({ block: "nearest", inline: "nearest" });
+      b.click();
+      await frames();
+      const menu = Array.from(document.querySelectorAll<HTMLElement>("[role=menu]")).find((m) => m.checkVisibility());
+      if (menu) {
+        const r = menu.getBoundingClientRect();
+        const past = [r.left < win.l - 1 && "left", r.top < win.t - 1 && "top", r.right > win.r + 1 && "right", r.bottom > win.b + 1 && "bottom"].filter(Boolean);
+        if (past.length) out.push(`${name(b)}: its menu runs past the window's ${past.join(" and ")} edge`);
+        const scrolls = /(auto|scroll)/.test(getComputedStyle(menu).overflowY);
+        const cut = Array.from(menu.querySelectorAll<HTMLElement>("button, a[href], input, [role^=menuitem]")).filter((it) => {
+          const q = it.getBoundingClientRect();
+          return q.height > 0 && !scrolls && (q.top < r.top - 1 || q.bottom > r.bottom + 1 || q.right > r.right + 1);
+        });
+        if (cut.length) out.push(`${name(b)}: its menu cuts off "${name(cut[0])}"`);
+      }
+      (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await frames();
+    }
+    return out;
+  }, notLyre());
+}
+
+/** The state a screen is checked in: a panel, dialog or the Now playing bar open on it. */
+type Opened = {
+  name: string;
+  route: string;
+  owner: string;
+  open: (page: Page) => Promise<void>;
+  /** CSS of what may lie over the screen in this state (only a floating panel). */
+  mayCover?: string[];
+};
+
+const addMusic = async (page: Page) => {
+  await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
+  await page.getByRole("listitem", { name: /^Scene \d+: The abbey ruins$/ }).getByRole("button", { name: "Add tracks or playlists…" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+};
+const dock = (where: "Dock left" | "Dock right" | "Float") => async (page: Page) => {
+  await addMusic(page);
+  await page.getByRole("dialog").getByRole("button", { name: /^Dock/ }).click();
+  await page.getByRole("menuitemradio", { name: where }).click();
+};
+const somethingOnAir = async (page: Page, route: string) => {
+  await openRoute(page, "campaign/crown");
+  await page.getByRole("region", { name: "Campaign playlists", exact: true }).getByRole("button", { name: "Play on air: The Company themes" }).click();
+  await expect(page.getByRole("region", { name: "Now playing" })).toBeVisible();
+  await page.getByRole("link", { name: route, exact: true }).first().click();
+};
+
+const OPENED: Opened[] = [
+  { name: "Session planner with Add music docked at the right", route: "session/crown/s14", owner: "session-planner", open: addMusic },
+  { name: "Session planner with Add music docked at the left", route: "session/crown/s14", owner: "session-planner", open: dock("Dock left") },
+  { name: "Session planner with Add music floating", route: "session/crown/s14", owner: "session-planner", open: dock("Float"), mayCover: ["[role=dialog]"] },
+  { name: "Session planner with the Track panel", route: "session/crown/s14/t41", owner: "session-planner", open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); } },
+  { name: "A playlist with the Track panel", route: "playlist/p-abbess/t41", owner: "playlists", open: async () => {} },
+  { name: "A playlist with the Track panel and Help", route: "playlist/p-abbess/t41", owner: "playlists", open: async (page) => { await page.keyboard.press("F1"); } },
+  { name: "Track library with Help", route: "library", owner: "help", open: async (page) => { await page.keyboard.press("F1"); } },
+  { name: "Session planner with Help", route: "session/crown/s14", owner: "help", open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); await page.keyboard.press("F1"); } },
+  { name: "Live with Help", route: "live", owner: "help", open: async (page) => { await page.keyboard.press("F1"); } },
+  { name: "Live with Find's results", route: "live", owner: "live", open: async (page) => { await page.getByRole("searchbox", { name: /^Find a track/ }).fill("battle"); } },
+  { name: "Live while arranging", route: "live", owner: "live", open: async (page) => { await page.getByRole("button", { name: /^(Arrange|Move and size the boxes)/ }).click(); } },
+  { name: "Live with a scene playing", route: "live", owner: "live", open: async (page) => { await page.getByRole("button", { name: /^Start: / }).first().click(); } },
+  {
+    // Nik, 18 Nov (open question 1): a manual playlist unfolded in Live, its tracks with four buttons and a ⋯.
+    name: "Live with a manual playlist unfolded",
+    route: "live",
+    owner: "live",
+    open: async (page) => {
+      const box = page.getByRole("region", { name: "Campaign playlists", exact: true });
+      await box.getByRole("button", { name: "Campaign Playlists", exact: true }).click();
+      await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
+    },
+  },
+  {
+    name: "Playlists with the queue open",
+    route: "playlists",
+    owner: "playlists",
+    open: async (page) => {
+      await page.getByRole("button", { name: "Preview The Company themes" }).click();
+      await page.getByRole("region", { name: "Now playing" }).getByRole("button", { name: /^Queue/ }).click();
+      await expect(page.getByRole("region", { name: /^Queue/ })).toBeVisible();
+    },
+  },
+];
+
+/** The screens with lists that the Now playing bar must not hide the end of (the menu's name for each). */
+const WITH_THE_BAR = ["Track library", "Playlists", "Pad boards", "Campaigns", "Settings"];
+
+test.describe("round 10: nothing drawn on top of anything else (R10-FIX §3)", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+
+  for (const size of R10_SIZES) {
+    for (const state of OPENED) {
+      test(`${state.name}, ${size.label}, in all five themes: nothing is under anything else and no control is cut off`, async ({ page }) => {
+        expectFailureUntilScreenBuilt(state.owner);
+        await page.setViewportSize(size);
+        await openRoute(page, state.route);
+        await state.open(page);
+        const found: string[] = [];
+        for (const theme of BASE_THEMES) {
+          await showTheme(page, theme);
+          await page.waitForTimeout(100);
+          for (const p of await drawnOver(page, state.mayCover)) found.push(`${theme}: ${p}`);
+          const l = await layoutProblems(page, state.mayCover);
+          for (const p of l.overlaps) found.push(`${theme}: overlap ${p}`);
+          for (const p of l.clipped) found.push(`${theme}: text cut off in "${p}"`);
+        }
+        expect(found).toEqual([]);
+      });
+    }
+
+    for (const screen of SCREENS) {
+      test(`${screen.name}, ${size.label}, in all five themes: every menu opens inside the window, whole`, async ({ page }) => {
+        expectFailureUntilSweptScreenBuilt(screen);
+        await page.setViewportSize(size);
+        await openRoute(page, screen.route);
+        await screen.prepare?.(page, { playing: false });
+        const found: string[] = [];
+        for (const theme of BASE_THEMES) {
+          await showTheme(page, theme);
+          for (const p of await menuProblems(page)) found.push(`${theme}: ${p}`);
+        }
+        expect(found).toEqual([]);
+      });
+    }
+
+    for (const menuName of WITH_THE_BAR) {
+      test(`${menuName} with the Now playing bar, ${size.label}, in all five themes: scrolled to the end, nothing is under the bar`, async ({ page }) => {
+        expectFailureUntilScreenBuilt("on-air bar");
+        await page.setViewportSize(size);
+        await somethingOnAir(page, menuName);
+        const found: string[] = [];
+        for (const theme of BASE_THEMES) {
+          await showTheme(page, theme);
+          await page.evaluate(() => {
+            for (const e of Array.from(document.querySelectorAll<HTMLElement>("main *"))) if (e.scrollHeight > e.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(e).overflowY)) e.scrollTop = e.scrollHeight;
+          });
+          await page.waitForTimeout(100);
+          for (const p of await drawnOver(page)) found.push(`${theme}: ${p}`);
+        }
+        expect(found).toEqual([]);
+      });
+    }
+  }
+
+  test("a floating Add music panel can be moved with the keyboard, and docking it again gives the screen its width back", async ({ page }) => {
+    expectFailureUntilScreenBuilt("session-planner");
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "session/crown/s14");
+    await dock("Float")(page);
+    const panel = page.getByRole("dialog");
+    const before = (await panel.boundingBox())!;
+    await panel.getByRole("button", { name: "Move or size with the arrow keys" }).press("ArrowLeft");
+    expect((await panel.boundingBox())!.x).toBeLessThan(before.x - 10);
+    const main = page.getByRole("main");
+    const wide = (await main.boundingBox())!.width;
+    await panel.getByRole("button", { name: /^Dock/ }).click();
+    await page.getByRole("menuitemradio", { name: "Dock right" }).click();
+    const box = (await panel.boundingBox())!;
+    const narrow = (await main.boundingBox())!;
+    expect(narrow.width).toBeLessThan(wide - 200);
+    expect(narrow.x + narrow.width).toBeLessThanOrEqual(box.x + 1);
+  });
 });

@@ -306,6 +306,25 @@ export function knownLayoutIssue(screen: string, width: number, kind: "sideways"
   return screen === "Library with a filter on" || (screen === "A pad board" && width > 900 && width < 1000);
 }
 
+/** Round 10 (R10-FIX §3): the five base themes, by the prototype's names. */
+export type BaseTheme = "candle" | "fern" | "hearth" | "parchment" | "elysium";
+export const BASE_THEMES: readonly BaseTheme[] = ["candle", "fern", "hearth", "parchment", "elysium"];
+
+/**
+ * Round 10 (R10-FIX §3): show the screen as it is open now in another theme, without opening it again, so a panel or
+ * menu that is open stays open. Every page takes the theme, a campaign's own pages too (they show the campaign's
+ * theme, so the campaigns take it as well). The app: not built yet (it needs Look and feel and each campaign's theme).
+ */
+export async function showTheme(page: Page, theme: BaseTheme): Promise<void> {
+  if (isApp()) notBuilt("showTheme");
+  await page.evaluate((t) => {
+    const L = (window as unknown as { L: { state: { theme: string }; data: { campaigns: { theme?: string }[] }; render(): void } }).L;
+    L.state.theme = t;
+    for (const c of L.data.campaigns) c.theme = t;
+    L.render();
+  }, theme);
+}
+
 /* ---------- 0.5.1: Lyre is the whole window (design/prototype/ROUND8.md) ---------- */
 
 export type Box = { x: number; y: number; width: number; height: number };

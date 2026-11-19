@@ -24,7 +24,7 @@
   /* Round 8 (Nik, 11 Nov: "The campaign's visual theme should override the base / preference theme in settings"): the
      theme chosen here is the base. A campaign's own theme always shows on its page, its sessions and in Live; the
      "Each campaign's own" choice and the note that Look and feel overrides a campaign are gone. */
-  var INTRO = 'The base theme is for the Library, Playlists, Pad boards, Settings and any campaign without a theme of its own. A campaign\'s own theme always shows on its page, its sessions and in Live.';
+  var INTRO = 'Lyre uses the base theme in the Track library, Playlists, Pad boards, Settings and any campaign without a theme of its own. A campaign\'s own theme always shows on its page, its sessions and in Live.';
   function baseChoice() {
     var cur = L.baseTheme();
     return '<div class="lk-base"><label class="lk-dl" for="lk-base">Base theme</label><select class="input" id="lk-base" data-input="lkbase" data-k="lk-base" aria-describedby="lk-intro">' +

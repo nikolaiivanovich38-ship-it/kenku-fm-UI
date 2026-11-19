@@ -174,7 +174,7 @@ var L = (function () {
       return (g ? g.name : c.group) + ' ' + (c.match === 'all' ? 'all of' : c.match === 'none' ? 'none of' : 'any of') + ' ' + c.values.join(', ');
     });
     if (rule.energy) parts.push('energy ' + rule.energy[0] + ' to ' + rule.energy[1]);
-    if (rule.notRole) parts.push('not ' + rule.notRole.toLowerCase() + 's');
+    if (rule.notRole) parts.push('not ' + ((L.roleWord && L.roleWord[rule.notRole]) || rule.notRole).toLowerCase() + 's');
     if (rule.shapes && rule.shapes.length) parts.push('shape ' + rule.shapes.map(function (x) { return (L.shapeName[x] || x).toLowerCase(); }).join(' or '));
     return parts.join('; ');
   };
@@ -644,7 +644,8 @@ var L = (function () {
      (Shift+Esc) and a lane's Fade out take L.FADE seconds. The crossfade between tracks is Settings' own (L.defaultCrossfade). */
   L.FADE = 5;
   L.fadeAll = function (s) { L.stopLane('music', s); L.stopLane('amb', s); Object.keys(pb.own).forEach(function (id) { L.stopLane('music', s, id); L.stopLane('amb', s, id); }); pb.fx.forEach(function (f) { f.fadeOut = s || 2; }); L.say('Fading everything out'); L.changed(); };
-  L.stopAll = function () { pb.music = pb.amb = null; pb.musicOut = []; pb.ambOut = []; pb.fx = []; Object.keys(pb.own).forEach(function (id) { pb.own[id] = newMix(); }); L.say('Everything stopped'); L.changed(); };
+  // Round 10 (Nik, 18 Nov 08:36, answer 7b): Stop all stops the headphone preview too; the button keeps its name.
+  L.stopAll = function () { var pv = !!pb.preview; pb.music = pb.amb = null; pb.musicOut = []; pb.ambOut = []; pb.fx = []; pb.preview = null; Object.keys(pb.own).forEach(function (id) { pb.own[id] = newMix(); }); L.say(pv ? 'Everything stopped, your headphones too' : 'Everything stopped'); L.changed(); };
   // target: a bot id with its own sound, 'table' (default) or 'all' (every output at once).
   L.firePad = function (boardId, padId, phase, target) {
     var b = L.board(boardId); if (!b) return; var p = b.slots.concat(b.spare).filter(function (x) { return x && x.id === padId; })[0]; if (!p) return;
@@ -671,7 +672,13 @@ var L = (function () {
      playing (key = track id, 'pl:<pid>' or 'pad:<board>/<pad>'); L.previewLabel() names it. */
   function startPreview(key, p) { if (pb.preview && pb.preview.key === key) { pb.preview = null; L.say('Preview stopped'); } else { p.key = key; p.vol = 1; p.from = SCREEN_NAMES[String(curRoute || '').split('/')[1]] || ''; pb.preview = p; L.say('Previewing in your headphones: ' + p.label); } L.changed(); }
   L.preview = function (id) { startPreview(id, lane(id)); };
-  L.previewPlaylist = function (pid) { var p = L.playlist(pid), t = L.playlistTracks(p)[0]; if (!t) { L.toast('This playlist has no tracks yet'); return; } var ln = lane(t.id, pid); ln.label = p.name + ': ' + L.title(t); startPreview('pl:' + pid, ln); };
+  // Round 9 (item 31): previewing a playlist fills the preview's queue with it, in its play order; at a track's end the
+  // next one starts, and Back, Forward and the Queue move through it (L.previewAt).
+  L.previewPlaylist = function (pid) { var p = L.playlist(pid), ts = L.orderedTracks ? L.orderedTracks(pid, '') : L.playlistTracks(p), t = ts[0]; if (!t) { L.toast('This playlist has no tracks yet'); return; } var ln = lane(t.id, pid); ln.label = p.name + ': ' + L.title(t); ln.queue = ts.map(function (x) { return x.id; }); ln.qi = 0; ln.qname = p.name; startPreview('pl:' + pid, ln); };
+  L.previewAt = function (i) {
+    var cur = pb.preview; if (!cur || !cur.queue) return; i = Math.max(0, Math.min(cur.queue.length - 1, i));
+    var ln = lane(cur.queue[i], cur.playlistId); ln.label = cur.qname + ': ' + L.title(L.track(cur.queue[i])); ln.queue = cur.queue; ln.qi = i; ln.qname = cur.qname; ln.key = cur.key; ln.vol = 1; ln.from = cur.from; pb.preview = ln; L.changed();
+  };
   L.previewPad = function (boardId, padId) {
     var b = L.board(boardId), pad = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === padId; })[0]; if (!pad) return;
     startPreview('pad:' + boardId + '/' + padId, { id: '', label: pad.label + ' (pad)', playlistId: '', pos: 0, dur: 2.5, fadeIn: 0 });
@@ -704,7 +711,7 @@ var L = (function () {
       if (!m.music && m.rep) m.rep = null;
     });
     pb.fx = pb.fx.filter(function (f) { f.pos += dt; if (f.fadeOut) { f.fadeOut -= dt; return f.fadeOut > 0; } return f.loop || f.pos < f.dur; });
-    if (pb.preview && !pb.preview.paused) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) pb.preview = null; moved = true; }
+    if (pb.preview && !pb.preview.paused) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) { if (pb.preview.queue && pb.preview.qi < pb.preview.queue.length - 1) L.previewAt(pb.preview.qi + 1); else pb.preview = null; } moved = true; }
     if (moved || pb.fx.length) L.tick();
   }, 250);
   /* PLY-17 Repeat (Nik, 6 Nov 10:34; round 6 part 3, Nik, 6 Nov 12:24: "Repeat on the now playing bar should not
@@ -880,7 +887,7 @@ var L = (function () {
   function toasts() { return document.getElementById('lyre-toasts'); }
   L.placeToasts = function () {
     var box = toasts(), v = document.getElementById('view'); if (!box || !v) return;
-    var r = v.getBoundingClientRect(), bar = v.querySelector('.onairbar'), floor = bar && bar.offsetParent ? bar.getBoundingClientRect().top : r.bottom;
+    var r = v.getBoundingClientRect(), bar = v.querySelector('#r9-queue') || v.querySelector('.onairbar'), floor = bar && bar.offsetParent ? bar.getBoundingClientRect().top : r.bottom; // Round 9: above the queue too
     var right = Math.round(window.innerWidth - r.right + 12) + 'px', width = Math.max(160, Math.min(400, r.width - 24)) + 'px', bottom = Math.round(window.innerHeight - floor + 12);
     var un = v.querySelector('.undo-note');
     if (un) { un.style.right = right; un.style.maxWidth = width; un.style.bottom = bottom + 'px'; bottom += un.getBoundingClientRect().height + 6; }
@@ -1012,26 +1019,29 @@ var L = (function () {
   var sheetReturn = null;
   L.sheet = function (o) {
     L.closeSheet(); sheetReturn = document.activeElement;
-    var s = document.createElement('div'); s.className = 'sheet'; s.id = 'lyre-sheet';
+    var s = document.createElement('div'); s.className = 'sheet' + (o.float ? ' r9-float' : ''); s.id = 'lyre-sheet';
     // o.describe (round 6): what the sheet is for, read out with its title, not shown.
-    s.innerHTML = '<div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title"' + (o.describe ? ' aria-describedby="sheet-desc"' : '') + (o.wide ? ' style="width:min(900px,100%)"' : '') + '><header><h2 id="sheet-title">' + esc(o.title) + '</h2><button class="closer" data-act="closesheet" title="Close">' + L.icon('close') + '</button></header>' + (o.describe ? '<p class="sr-only" id="sheet-desc">' + o.describe + '</p>' : '') + '<div class="body">' + o.body + '</div>' + (o.footer ? '<footer>' + o.footer + '</footer>' : '') + '</div>';
+    // Round 9 (item 33, r9guide.js L.floatPanel): o.float makes a panel that does not block the page, which Nik can move,
+    // dock and resize to see what is behind it.
+    s.innerHTML = '<div class="panel" role="dialog" aria-modal="' + !o.float + '" aria-labelledby="sheet-title"' + (o.describe ? ' aria-describedby="sheet-desc"' : '') + (o.wide && !o.float ? ' style="width:min(900px,100%)"' : '') + '><header' + (o.float ? ' class="r9-fl-head" data-r9-drag="1"' : '') + '><h2 id="sheet-title">' + esc(o.title) + '</h2>' + (o.float && L.floatTools ? L.floatTools() : '') + '<button class="closer" data-act="closesheet" title="Close">' + L.icon('close') + '</button></header>' + (o.describe ? '<p class="sr-only" id="sheet-desc">' + o.describe + '</p>' : '') + '<div class="body">' + o.body + '</div>' + (o.footer ? '<footer>' + o.footer + '</footer>' : '') + '</div>';
     document.body.appendChild(s);
     // UX-R1 (0.5.0 review): a greyed control (the first step's Move up) cannot take focus, so it is skipped.
     var f = s.querySelector('.body input:not([disabled]), .body select:not([disabled]), .body textarea:not([disabled]), .body button:not([disabled])') || s.querySelector('button:not([disabled])'); if (f) f.focus();
-    s.addEventListener('pointerdown', function (e) { if (e.target === s) L.closeSheet(); });
+    if (!o.float) s.addEventListener('pointerdown', function (e) { if (e.target === s) L.closeSheet(); });
+    else if (L.floatPlace) L.floatPlace(s.querySelector('.panel'));
   };
   L.closeSheet = function () { var s = document.getElementById('lyre-sheet'); if (s) { s.remove(); if (sheetReturn && document.contains(sheetReturn)) sheetReturn.focus(); sheetReturn = null; } };
   L.acts.closesheet = function () { L.closeSheet(); };
   document.addEventListener('keydown', function (e) {
     var s = document.getElementById('lyre-sheet'); if (!s || menuEl) return;
     if (e.key === 'Escape') { e.preventDefault(); L.closeSheet(); return; }
-    if (e.key === 'Tab') { var f = [].slice.call(s.querySelectorAll('button,input,select,textarea,[tabindex]:not([tabindex="-1"])')).filter(function (x) { return !x.disabled && x.offsetParent; }); if (!f.length) return; var a = f[0], z = f[f.length - 1]; if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); } }
+    if (e.key === 'Tab' && !s.classList.contains('r9-float')) { var f = [].slice.call(s.querySelectorAll('button,input,select,textarea,[tabindex]:not([tabindex="-1"])')).filter(function (x) { return !x.disabled && x.offsetParent; }); if (!f.length) return; var a = f[0], z = f[f.length - 1]; if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); } }
   });
 
   /* ---------- routing ---------- */
   var ROUTES = [
-    [/^#\/campaigns$/, 'campaigns', []], [/^#\/campaign\/([\w-]+)$/, 'campaign', ['cid']], [/^#\/session\/([\w-]+)\/([\w-]+)$/, 'session', ['cid', 'sid']],
-    [/^#\/library(?:\/([\w-]+))?$/, 'library', ['tid']], [/^#\/playlists$/, 'playlists', []], [/^#\/playlist\/([\w-]+)$/, 'playlist', ['pid']],
+    [/^#\/campaigns$/, 'campaigns', []], [/^#\/campaign\/([\w-]+)$/, 'campaign', ['cid']], [/^#\/session\/([\w-]+)\/([\w-]+)(?:\/([\w-]+))?$/, 'session', ['cid', 'sid', 'tid']],
+    [/^#\/library(?:\/([\w-]+))?$/, 'library', ['tid']], [/^#\/playlists$/, 'playlists', []], [/^#\/playlist\/([\w-]+)(?:\/([\w-]+))?$/, 'playlist', ['pid', 'tid']],
     [/^#\/profile\/([\w-]+)(?:\/([\w:-]+))?$/, 'profile', ['tid', 'ctx']], [/^#\/boards$/, 'boards', []], [/^#\/board\/([\w-]+)$/, 'board', ['bid']], [/^#\/live$/, 'live', []], [/^#\/outputs$/, 'outputs', []], [/^#\/look$/, 'look', []],
     [/^#\/tags$/, 'tags', []], [/^#\/backup$/, 'backup', []], [/^#\/moved$/, 'moved', []], [/^#\/relink$/, 'relink', []], [/^#\/settings$/, 'settings', []]
   ];
@@ -1074,7 +1084,7 @@ var L = (function () {
   var steps = [], HISTORY_MAX = 50;
   L.HISTORY_MAX = HISTORY_MAX;
   function viewOf(h) { for (var i = 0; i < ROUTES.length; i++) if ((h || '').match(ROUTES[i][0])) return ROUTES[i][1]; return ''; }
-  var ROUTE_WORDS = { campaigns: 'Campaigns', library: 'Library', playlists: 'Playlists', boards: 'Pad boards', profile: 'Audio profile', live: 'Live', outputs: 'Rooms',
+  var ROUTE_WORDS = { campaigns: 'Campaigns', library: 'Track library', playlists: 'Playlists', boards: 'Pad boards', profile: 'Audio profile', live: 'Live', outputs: 'Rooms',
     look: 'Look and feel', tags: 'Tags', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
   L.routeLabel = function (h) {
     var v = viewOf(h), a = (h || '').replace(/^#\//, '').split('/');
@@ -1083,7 +1093,7 @@ var L = (function () {
     if (v === 'playlist') return (L.playlist(a[1]) || {}).name || 'Playlist';
     if (v === 'board') return (L.board(a[1]) || {}).name || 'Pad board';
     // A track in the Library, or its Audio profile, is named by the track.
-    if (v === 'library' && a[1] && L.track(a[1])) return 'Library: ' + L.title(L.track(a[1]));
+    if (v === 'library' && a[1] && L.track(a[1])) return 'Track library: ' + L.title(L.track(a[1]));
     if (v === 'profile' && L.track(a[1])) return 'Audio profile: ' + L.title(L.track(a[1]));
     return ROUTE_WORDS[v] || 'the last screen';
   };
@@ -1272,7 +1282,7 @@ var L = (function () {
     return 'Single track';
   }
   L.onAirOrigin = originOf;
-  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Rooms', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
+  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Track library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Rooms', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
   L.previewVol = 80;
   function roomRow(r, named, first, inLive) {
     var m = r.mix, c = m.music || m.amb, ln = m.music ? 'music' : 'amb', target = r.main ? 'table' : r.id, pk = ln + (r.main ? '' : '@' + r.id);
@@ -1290,9 +1300,12 @@ var L = (function () {
         '</div></div>' +
       '<div class="oab-time">' + L.seekBar(pk, nm, ln) + '<span class="num" data-time="' + pk + '"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control what the players hear' + esc(where) + '">' +
+        // Round 9 (item 31): Back and Forward on the bar, the same buttons in the same order for a room and a preview.
+        '<button class="btn s icon" data-act="oabprev" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-prev" aria-label="Back" title="' + (canNext ? 'Back: the previous track (after 3 seconds, the start of this one)' : 'A single track: back to its start') + '">' + L.icon('prev', 's') + '</button>' +
         '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + esc(where) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
         '<button class="btn s" data-act="oabstop" data-room="' + target + '" data-k="' + k + '-stop" title="Stop what the players hear' + esc(where) + ' (fades out in a second)">' + L.icon('stop', 's') + 'Stop</button>' +
         '<button class="btn s icon" data-act="oabnext" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-next" aria-label="Next" title="' + (canNext ? 'Next track (crossfade)' : 'A single track has no next one') + '"' + (canNext ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
+        (L.queueButton ? L.queueButton('room', target, k) : '') +
         L.shuffleButton(ln, target, k + '-shuf') + L.repeatButton(ln, target, k + '-rep') +
         // Round 7 (PLY-1): what played in this room tonight, with Play again (r7play.js).
         (L.historyButton ? L.historyButton(target, r.name, k) : '') + '</div>' +
@@ -1307,8 +1320,11 @@ var L = (function () {
         '<div class="oab-from ellipsis" title="' + esc(from) + '">' + esc(from) + '</div></div>' +
       '<div class="oab-time">' + L.seekBar('preview', p.label, 'preview') + '<span class="num" data-time="preview"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control your preview">' +
+        '<button class="btn s icon" data-act="pvprev" data-k="oab-pv-prev" aria-label="Back" title="' + (p.queue ? 'Back: the previous track (after 3 seconds, the start of this one)' : 'Back to the start') + '">' + L.icon('prev', 's') + '</button>' +
         '<button class="btn s icon" data-act="pvpause" data-k="oab-pv-pause" aria-label="' + (paused ? 'Play the preview' : 'Pause the preview') + '" title="' + (paused ? 'Play the preview again' : 'Pause the preview') + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
-        '<button class="btn s" data-act="pvstop" data-k="oab-pv-stop" aria-label="Stop the preview" title="Stop the preview">' + L.icon('stop', 's') + 'Stop</button></div>' +
+        '<button class="btn s" data-act="pvstop" data-k="oab-pv-stop" aria-label="Stop the preview" title="Stop the preview">' + L.icon('stop', 's') + 'Stop</button>' +
+        '<button class="btn s icon" data-act="pvnext" data-k="oab-pv-next" aria-label="Forward" title="' + (p.queue ? 'Forward: the next track' : 'A single track has no next one') + '"' + (p.queue ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
+        (L.queueButton && p.queue ? L.queueButton('preview', '', 'oab-pv') : '') + '</div>' +
       '<label class="oab-vol" title="Volume in your headphones">' + L.icon('headphones', 's') + '<span class="sr-only">Headphone volume</span><input type="range" min="0" max="100" step="5" value="' + L.previewVol + '" data-input="pvvol" data-k="oab-pv-vol" aria-valuetext="' + L.previewVol + ' percent"></label></div>';
   }
   function onAirBar(inLive) {
@@ -1324,6 +1340,9 @@ var L = (function () {
   }
   L.acts.oabpause = function (el) { var ln = el.dataset.lane, rm = el.dataset.room; L.pauseLane(ln, rm); var c = L.mix(rm)[ln]; L.say(c && c.paused ? 'Paused' : 'Playing again'); };
   L.acts.oabnext = function (el) { L.next(el.dataset.lane, el.dataset.room); };
+  L.acts.oabprev = function (el) { var c = mixOf(el.dataset.room)[el.dataset.lane]; if (!c) return; if (c.pos - (c.start || 0) > 3 || !(c.seq || c.playlistId)) { c.pos = c.from != null ? c.from : c.start || 0; L.say('Back to the start'); L.changed(); } else L.prev(el.dataset.lane, el.dataset.room); };
+  L.acts.pvprev = function () { var p = pb.preview; if (!p) return; if (p.pos - (p.start || 0) > 3 || !p.queue || !p.qi) { p.pos = p.from != null ? p.from : p.start || 0; L.changed(); } else L.previewAt(p.qi - 1); };
+  L.acts.pvnext = function () { var p = pb.preview; if (p && p.queue) L.previewAt(p.qi + 1); };
   L.inputs.oabvol = function (el, ev) { var b = L.bot(el.dataset.bot) || D.discord.bots[0]; b.volume = +el.value; el.setAttribute('aria-valuetext', b.volume + ' percent'); if (ev.type === 'change') L.changed(); };
   L.acts.oabstop = function (el) { var rm = el.dataset.room; L.stopLane('music', 1, rm); L.stopLane('amb', 1, rm); L.say('Stopped'); };
   L.acts.pvpause = function () { if (pb.preview) { pb.preview.paused = !pb.preview.paused; L.say(pb.preview.paused ? 'Preview paused' : 'Preview playing again'); L.changed(); } };
@@ -1369,9 +1388,12 @@ var L = (function () {
     return '<div class="logo">' + L.logo + '<b>Lyre</b></div><nav aria-label="Lyre"><div class="stack" style="gap:2px">' +
       // Round 8 (Nik, 11 Nov 20:33: "Let's move the live tab to the top of the left side bar"): Live comes first.
       a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) +
-      a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
-      a('#/outputs', 'outputs', 'users', 'Rooms' + outputsBadge(), (function () { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length, m = D.discord.bots.length; return n + ' of ' + m + (m === 1 ? ' bot is' : ' bots are') + ' in a room'; })()) + '</div></nav>' +
-      '<div class="bottom stack" style="gap:2px">' + a('#/settings', 'settings', 'gear', 'Settings') + a('#/look', 'look', 'palette', 'Look and feel') +
+      a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Track library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
+      // Round 9 (item 56): no Rooms screen; rooms are joined and moved in Live, bots set up in Settings › Discord bots.
+      '</div></nav>' +
+      '<div class="bottom stack" style="gap:2px">' + a('#/settings', 'settings', 'gear', 'Settings') +
+      // Round 10 (Nik, 18 Nov: "keep the room screen as an option as it stands under settings"): Rooms, under Settings.
+      a('#/outputs', 'outputs', 'broadcast', 'Rooms' + outputsBadge(), 'Which bot is in which voice channel').replace('<a ', '<a class="r10-sub" ') + a('#/look', 'look', 'palette', 'Look and feel') +
       // FND-8: Help, beside Look and feel (views/help.js). It opens a side panel, not a screen, so it is a button.
       '<button class="nav" data-act="help" data-k="rail-help" aria-controls="lyre-help" aria-expanded="' + !!(L.helpOpen && L.helpOpen()) + '" aria-keyshortcuts="F1"' + (min ? ' title="Help"' : '') + '>' + L.icon('help') + '<span class="lbl">Help</span></button>' +
       '<button class="nav" data-act="rail" data-k="railtoggle" title="' + (min ? 'Show labels' : 'Icons only') + '" aria-label="' + (min ? 'Show menu labels' : 'Show icons only') + '">' + L.icon(min ? 'chevright' : 'chevleft') + '<span class="lbl">Icons only</span></button></div>';
