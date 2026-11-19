@@ -229,7 +229,7 @@ test.describe("a track's details", () => {
     await d.getByRole("group", { name: "Energy, 1 calm to 5 intense" }).getByRole("button", { name: "4" }).click();
     await expect(d.getByRole("group", { name: "Energy, 1 calm to 5 intense" }).getByRole("button", { name: "4" })).toHaveAttribute("aria-pressed", "true");
     // Round 9 (item 18): Role and Loop advice became Use it for and At its end; choosing a use picks its usual end.
-    expectFailureUntilBuilt("r10");
+    expectFailureUntilBuilt("r10-tracks");
     await d.getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Background/ }).click();
     await expect(d.getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Background/ })).toHaveAttribute("aria-pressed", "true");
     await expect(d.getByRole("group", { name: "At its end" }).getByRole("button", { name: "Loop with a crossfade" })).toHaveAttribute("aria-pressed", "true");
@@ -488,7 +488,7 @@ test.describe("round 7: how a track behaves", () => {
 
   test("a sting never loops: its loop choices are off, and say why", async ({ page }) => {
     // Round 9 (item 18): a sting is a Short cue; At its end offers no loop for it.
-    expectFailureUntilBuilt("r10");
+    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await openTrack(page, "Dread rising, choir stabs");
     await expect(details(page).getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Short cue/ })).toHaveAttribute("aria-pressed", "true");
@@ -499,7 +499,7 @@ test.describe("round 7: how a track behaves", () => {
     await openRoute(page, "library");
     await openTrack(page, "Dread rising, choir stabs");
     // Round 9 (item 5): At its end › Play… opens a picker with search and Playlists, Music, Ambience and FX.
-    expectFailureUntilBuilt("r10");
+    expectFailureUntilBuilt("r10-tracks");
     await details(page).getByRole("group", { name: "At its end" }).getByRole("button", { name: "Play…" }).click();
     await page.getByRole("dialog").getByRole("radio", { name: /^Crypt ambush/ }).check();
     await page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
@@ -512,7 +512,7 @@ test.describe("round 7: how a track behaves", () => {
     // An underscore: it can fade out at its end, and pick up where it stopped.
     await openTrack(page, "Storm and dark romance");
     // Round 9 (item 18): Ending is one of At its end's choices; Pick up is "Next time, start where it stopped".
-    expectFailureUntilBuilt("r10");
+    expectFailureUntilBuilt("r10-tracks");
     await details(page).getByRole("group", { name: "At its end" }).getByRole("button", { name: "Fade out" }).click();
     await expect(page.getByRole("status").filter({ hasText: /at its end: fades out$/ })).toBeVisible();
     await details(page).getByLabel("Next time, start where it stopped").check();
@@ -887,7 +887,7 @@ test.describe("0.5.2: Nik's play test", () => {
    the files stay. Delete file from disk… only in a row's ⋯, with a confirmation that names the files and the Recycle
    Bin. Not built in this branch's app yet. */
 test.describe("round 10: removing tracks from the Track library", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  test.beforeEach(() => expectFailureUntilBuilt("r10-tracks"));
   const eerie = "Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)";
 
   test("a row's ⋯ has Remove from library: it asks first, names the scene that uses it, and Undo brings it back", async ({ page }) => {

@@ -512,7 +512,7 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
 
   test("each screen with a parent has its trail right after Back: every part a link, the screen's title last", async ({ page }) => {
     // Round 10 (Nik, 18 Nov 03:14, answer 2): Rooms is under Settings, so its trail is Settings › Rooms.
-    expectFailureUntilBuilt("shell", "rooms-settings", "r10"); // it opens Settings
+    expectFailureUntilBuilt("shell", "rooms-settings", "r10-live"); // it opens Settings
     // 0.5.2 item 23: the app calls the Library the Track library; the prototype "Library".
     const cases: [string, (string | RegExp)[], RegExp][] = [
       ["session/crown/s14", ["Campaigns", "The Sunken Crown"], /Session 14/],
@@ -554,7 +554,7 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
   test("Back's name says where it goes: Rooms opened from Live has Back to Live (a ‹ with no words, part 7)", async ({ page }) => {
     // Round 10 (Nik, 18 Nov 03:14, answer 2): Rooms is reached from the menu under Settings, not from Live's room menu
     // (rooms are joined and moved in Live itself).
-    expectFailureUntilBuilt("shell", "live", "rooms-settings", "r10");
+    expectFailureUntilBuilt("shell", "live", "rooms-settings", "r10-live");
     await openRoute(page, "live");
     await page.getByRole("link", { name: "Rooms (1/2)" }).click();
     await expect(page.getByRole("button", { name: "Back to Live" })).toHaveText("");

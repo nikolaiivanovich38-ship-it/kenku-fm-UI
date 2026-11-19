@@ -392,7 +392,7 @@ test.describe("round 6 cuts on a pad board", () => {
 
 /* Round 10 fixes (R10-FIX §2): Delete on a focused board card asks to delete it, as its ⋯'s Delete board… does. */
 test("round 10: Delete on a focused board card on Pad boards asks to delete it, and Undo brings it back", async ({ page }) => {
-  expectFailureUntilBuilt("r10");
+  expectFailureUntilBuilt("r10-prep");
   await openRoute(page, "boards");
   await page.getByRole("button", { name: "More for Spellwork" }).focus();
   await page.keyboard.press("Delete");

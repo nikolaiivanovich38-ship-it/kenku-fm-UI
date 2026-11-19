@@ -544,7 +544,7 @@ test.describe("0.5.2: one length for a track", () => {
    in line"). A track comes out of a playlist from its row's ⋯ or with Delete on its row, on the playlist's page and
    wherever its tracks are shown unfolded, with Undo; a playlist is deleted from its row on the Playlists page. */
 test.describe("round 10: taking tracks out and deleting playlists in line", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  test.beforeEach(() => expectFailureUntilBuilt("r10-tracks"));
 
   test("Delete on a focused track row takes it out of the playlist; Undo puts it back where it was", async ({ page }) => {
     await openRoute(page, "playlist/p-abbess");

@@ -122,7 +122,7 @@ test.describe("round 7: motion and target size", () => {
 /* Round 10 (Nik, 18 Nov, answer 1 to round 10's questions): Parchment's oxblood buttons become ink blue, so the red On
    air light stands out, as Hearth and Iron's orange became iron teal. Not built yet. */
 test.describe("round 10: Parchment's buttons are ink blue", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  test.beforeEach(() => expectFailureUntilBuilt("r10-prep"));
 
   test("a main button in Parchment is ink blue, far from On air's red, and its words and its edge keep AA contrast", async ({ page }) => {
     await openRoute(page, "boards", { theme: "parchment" });

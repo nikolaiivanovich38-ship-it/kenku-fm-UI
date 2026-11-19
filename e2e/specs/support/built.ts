@@ -40,11 +40,24 @@ export const BUILT_SCREENS: readonly string[] = ["library", "playlists", "audio-
  *
  * They are a list of their own because "live" is a screen as well as a stream.
  *
- * 0.6.0 (design/prototype/ROUND9.md and ROUND10.md, design rounds 8 and 9 of 0.6.0, item 58): one more.
+ * 0.6.0 (design/prototype/ROUND9.md and ROUND10.md, design rounds 8 and 9 of 0.6.0, item 58): the round 10 design,
+ * built by three streams (/root/kenku-wt/R60-GAPS.md lists what each builds, the files each owns and their order).
+ * Round 10's checks name the stream (or streams) that must build them; a stream adds its name here when it merges
+ * and its checks pass.
  *
- *   r10             the final design: rounds 9 and 10 as the prototype shows them (Live keeps its place, one Undo
- *                   place, Arrange with Move…, Rooms under Settings, the Track panel, uses and At its end, Set up
- *                   Lyre, the queue, columns and hidden filters, Make a playlist in Add music …); not built yet
+ *   r10-live        Live (On air keeps its height, one Undo place in the top bar and Undo for Play on air, Fade all
+ *                   and Stop all, the transport order, Arrange with Move…, Find's results beside the screen, icons at
+ *                   half a screen, room menus without Rooms…, Delete in Up next and in unfolded playlists), rooms and
+ *                   bots (Settings › Discord bots without Joins when Lyre starts, Rooms under Settings in the menu
+ *                   and its trail), and dipping the music under effects
+ *   r10-tracks      the Track library (Use it for and At its end, the Play… picker, Columns, hidden filters and their
+ *                   order), the Track panel, the Audio profile (its six ends, Split into parts…), Playlists (Sort,
+ *                   grips, → Open, dividers, Delete playlist… and Remove with Undo in line) and the queue with Back
+ *                   and Forward on the Now playing bar
+ *   r10-prep        the shell (side panels beside the screen, the themes and the look of round 10, showTheme in
+ *                   target.ts), Help (the first start, Set up Lyre, a tour per screen), the session planner and
+ *                   campaigns (no Open all, Start with Change…, Make a playlist of these…, New board…, Add music
+ *                   docked or floating, Remove with Undo and Delete), and Pad boards
  */
-export type Stream = "shell" | "live" | "rooms-settings" | "prep" | "retire" | "feat" | "r10";
+export type Stream = "shell" | "live" | "rooms-settings" | "prep" | "retire" | "feat" | "r10-live" | "r10-tracks" | "r10-prep";
 export const BUILT_STREAMS: readonly Stream[] = ["shell", "rooms-settings", "prep", "live", "retire", "feat"];

@@ -353,7 +353,7 @@ test.describe("0.5.1: a split headset only while On air plays too", () => {
 
 /* Round 10 (design/prototype/ROUND10.md; Nik, 18 Nov 03:14, answers 2 and 3). Not built yet. */
 test.describe("round 10: bots join only when Nik joins them; Rooms under Settings", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  test.beforeEach(() => expectFailureUntilBuilt("r10-live"));
 
   test("a bot has a Starting volume and no Joins when Lyre starts", async ({ page }) => {
     await openRoute(page, "settings");

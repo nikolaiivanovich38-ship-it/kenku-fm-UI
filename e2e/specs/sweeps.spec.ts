@@ -884,6 +884,8 @@ type Opened = {
   name: string;
   route: string;
   owner: string;
+  /** 0.6.0: the round 10 streams that build what this state opens, besides r10-prep (side panels, showTheme). */
+  streams?: [Stream, ...Stream[]];
   open: (page: Page) => Promise<void>;
   /** CSS of what may lie over the screen in this state (only a floating panel). */
   mayCover?: string[];
@@ -910,20 +912,21 @@ const OPENED: Opened[] = [
   { name: "Session planner with Add music docked at the right", route: "session/crown/s14", owner: "session-planner", open: addMusic },
   { name: "Session planner with Add music docked at the left", route: "session/crown/s14", owner: "session-planner", open: dock("Dock left") },
   { name: "Session planner with Add music floating", route: "session/crown/s14", owner: "session-planner", open: dock("Float"), mayCover: ["[role=dialog]"] },
-  { name: "Session planner with the Track panel", route: "session/crown/s14/t41", owner: "session-planner", open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); } },
-  { name: "A playlist with the Track panel", route: "playlist/p-abbess/t41", owner: "playlists", open: async () => {} },
-  { name: "A playlist with the Track panel and Help", route: "playlist/p-abbess/t41", owner: "playlists", open: async (page) => { await page.keyboard.press("F1"); } },
+  { name: "Session planner with the Track panel", route: "session/crown/s14/t41", owner: "session-planner", streams: ["r10-tracks"], open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); } },
+  { name: "A playlist with the Track panel", route: "playlist/p-abbess/t41", owner: "playlists", streams: ["r10-tracks"], open: async () => {} },
+  { name: "A playlist with the Track panel and Help", route: "playlist/p-abbess/t41", owner: "playlists", streams: ["r10-tracks"], open: async (page) => { await page.keyboard.press("F1"); } },
   { name: "Track library with Help", route: "library", owner: "help", open: async (page) => { await page.keyboard.press("F1"); } },
   { name: "Session planner with Help", route: "session/crown/s14", owner: "help", open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); await page.keyboard.press("F1"); } },
-  { name: "Live with Help", route: "live", owner: "help", open: async (page) => { await page.keyboard.press("F1"); } },
-  { name: "Live with Find's results", route: "live", owner: "live", open: async (page) => { await page.getByRole("searchbox", { name: /^Find a track/ }).fill("battle"); } },
-  { name: "Live while arranging", route: "live", owner: "live", open: async (page) => { await page.getByRole("button", { name: /^(Arrange|Move and size the boxes)/ }).click(); } },
-  { name: "Live with a scene playing", route: "live", owner: "live", open: async (page) => { await page.getByRole("button", { name: /^Start: / }).first().click(); } },
+  { name: "Live with Help", route: "live", owner: "help", streams: ["r10-live"], open: async (page) => { await page.keyboard.press("F1"); } },
+  { name: "Live with Find's results", route: "live", owner: "live", streams: ["r10-live"], open: async (page) => { await page.getByRole("searchbox", { name: /^Find a track/ }).fill("battle"); } },
+  { name: "Live while arranging", route: "live", owner: "live", streams: ["r10-live"], open: async (page) => { await page.getByRole("button", { name: /^(Arrange|Move and size the boxes)/ }).click(); } },
+  { name: "Live with a scene playing", route: "live", owner: "live", streams: ["r10-live"], open: async (page) => { await page.getByRole("button", { name: /^Start: / }).first().click(); } },
   {
     // Nik, 18 Nov (open question 1): a manual playlist unfolded in Live, its tracks with four buttons and a ⋯.
     name: "Live with a manual playlist unfolded",
     route: "live",
     owner: "live",
+    streams: ["r10-live"],
     open: async (page) => {
       const box = page.getByRole("region", { name: "Campaign playlists", exact: true });
       await box.getByRole("button", { name: "Campaign Playlists", exact: true }).click();
@@ -934,6 +937,7 @@ const OPENED: Opened[] = [
     name: "Playlists with the queue open",
     route: "playlists",
     owner: "playlists",
+    streams: ["r10-tracks"],
     open: async (page) => {
       await page.getByRole("button", { name: "Preview The Company themes" }).click();
       await page.getByRole("region", { name: "Now playing" }).getByRole("button", { name: /^Queue/ }).click();
@@ -942,16 +946,24 @@ const OPENED: Opened[] = [
   },
 ];
 
+/** 0.6.0: the round 10 stream that owns a screen (R60-GAPS.md), with r10-prep, which builds showTheme for the app. */
+function r10StreamsOf(owner: string): [Stream, ...Stream[]] {
+  if (["live", "outputs", "settings"].includes(owner)) return ["r10-prep", "r10-live"];
+  if (["library", "playlists", "audio-profile", "library-files", "tags"].includes(owner)) return ["r10-prep", "r10-tracks"];
+  return ["r10-prep"];
+}
+
 /** The screens with lists that the Now playing bar must not hide the end of (the menu's name for each). */
 const WITH_THE_BAR = ["Track library", "Playlists", "Pad boards", "Campaigns", "Settings"];
 
 test.describe("round 10: nothing drawn on top of anything else (R10-FIX §3)", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  test.beforeEach(() => expectFailureUntilBuilt("r10-prep"));
 
   for (const size of R10_SIZES) {
     for (const state of OPENED) {
       test(`${state.name}, ${size.label}, in all five themes: nothing is under anything else and no control is cut off`, async ({ page }) => {
         expectFailureUntilScreenBuilt(state.owner);
+        if (state.streams) expectFailureUntilBuilt(...state.streams);
         await page.setViewportSize(size);
         await openRoute(page, state.route);
         await state.open(page);
@@ -971,6 +983,7 @@ test.describe("round 10: nothing drawn on top of anything else (R10-FIX §3)", (
     for (const screen of SCREENS) {
       test(`${screen.name}, ${size.label}, in all five themes: every menu opens inside the window, whole`, async ({ page }) => {
         expectFailureUntilSweptScreenBuilt(screen);
+        expectFailureUntilBuilt(...r10StreamsOf(screen.owner));
         await page.setViewportSize(size);
         await openRoute(page, screen.route);
         await screen.prepare?.(page, { playing: false });

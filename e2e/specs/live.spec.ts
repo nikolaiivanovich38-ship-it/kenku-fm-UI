@@ -1627,9 +1627,9 @@ test.describe("0.5.2: Live's empty boxes, loop settings and track names", () => 
 });
 
 /* Round 10 (design/prototype/ROUND10.md, item 58): the final design for 0.6.0. Not built yet: each check is expected to
-   fail in the app until the "r10" stream is built (support/built.ts). */
+   fail in the app until the "r10-live" stream is built (support/built.ts). */
 test.describe("round 10: Live keeps its place, one Undo place, and Undo for what the players hear", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  test.beforeEach(() => expectFailureUntilBuilt("r10-live"));
   const topOf = async (page: Page, name: string) => (await region(page, name).boundingBox())!.y;
 
   test("starting a scene and firing a pad leave the boxes under On air where they were (table review M1)", async ({ page }) => {
@@ -1710,7 +1710,7 @@ test.describe("round 10: Live keeps its place, one Undo place, and Undo for what
 });
 
 test.describe("round 10: Arrange with a grip, an edge and one Move… per box; On air moves too (Nik, 18 Nov, answer 6)", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  test.beforeEach(() => expectFailureUntilBuilt("r10-live"));
 
   test("each box, On air included, has one Move… button; Move… › Into column 1 moves On air, Put back the usual layout brings it back", async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 960 });
@@ -1736,7 +1736,7 @@ test.describe("round 10: Arrange with a grip, an edge and one Move… per box; O
 /* Round 10, Nik's answers to its questions (18 Nov; R6-NIK-DECISIONS.md, "answers to the round 10 merge agent's 4
    questions"). Not built yet. */
 test.describe("round 10: Nik's answers on the strip at half a screen and on Rooms", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  test.beforeEach(() => expectFailureUntilBuilt("r10-live"));
   /** The words a person sees on a button (innerText leaves out what is not shown). */
   const shown = (page: Page, name: string) => page.getByRole("button", { name, exact: true }).evaluate((b) => (b as HTMLElement).innerText.trim());
 
@@ -1786,7 +1786,7 @@ test.describe("round 10: Nik's answers on the strip at half a screen and on Room
 
 /* Round 10 fixes (R10-FIX §1): Up next keeps its × on each row; Delete on a focused row does the same, with Undo. */
 test("round 10: Delete on a focused Up next row takes it out, as its × does", async ({ page }) => {
-  expectFailureUntilBuilt("r10");
+  expectFailureUntilBuilt("r10-live");
   await openRoute(page, "live");
   await startAbbey(page);
   const track = "Haunted sea shanty, grey and slow - the drowned bells";
@@ -1802,7 +1802,7 @@ test("round 10: Delete on a focused Up next row takes it out, as its × does", a
 /* Round 10 fixes, Nik's answer of 18 Nov to open question 1: a track in a manual playlist unfolded in Live has a ⋯ with
    Remove from this playlist, as in Prep (Undo, and Delete on a focused row); Live's four row buttons stay. */
 test("round 10: a track in a playlist unfolded in Live has a ⋯ with Remove from this playlist, with Undo and the Delete key", async ({ page }) => {
-  expectFailureUntilBuilt("r10");
+  expectFailureUntilBuilt("r10-live");
   await openRoute(page, "live");
   const box = region(page, "Campaign playlists");
   await box.getByRole("button", { name: "Campaign Playlists", exact: true }).click();

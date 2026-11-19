@@ -711,7 +711,7 @@ test.describe("0.5.2: dragging in a scene's music (items 41 and 36)", () => {
 
 /* Round 10 (design/prototype/ROUND10.md). Not built yet. */
 test.describe("round 10: the planner", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  test.beforeEach(() => expectFailureUntilBuilt("r10-prep"));
 
   test("no Open all: each scene stays open until it is closed (Nik, 18 Nov, answer 2b)", async ({ page }) => {
     await openAbbey(page);
@@ -729,6 +729,7 @@ test.describe("round 10: the planner", () => {
   });
 
   test("a track inside an open playlist opens the Track panel from its title (prep review D1)", async ({ page }) => {
+    expectFailureUntilBuilt("r10-tracks"); // the Track panel itself
     await openAbbey(page);
     await musicOf(abbey(page)).getByRole("button", { name: "Show contents of Abbey: eerie, low energy" }).click();
     const nested = abbey(page).getByRole("list", { name: /^Tracks in Abbey: eerie, low energy/ }).getByRole("link").first();
@@ -784,7 +785,7 @@ test.describe("round 10: the planner", () => {
 /* Round 10 fixes (R10-FIX §1 and §2): a scene's music and the session's lists. Delete on a focused row takes it out of
    the scene or session, as its ⋯'s "Remove from this scene / session" does, with Undo; the track or playlist stays. */
 test.describe("round 10: taking things out of a scene and a session", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10"));
+  test.beforeEach(() => expectFailureUntilBuilt("r10-prep"));
 
   test("Delete on a focused music row takes it out of the scene; Undo puts it back", async ({ page }) => {
     await openAbbey(page);
