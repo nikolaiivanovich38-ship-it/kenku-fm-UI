@@ -8,6 +8,7 @@ import React, { useMemo } from "react";
 import { trackNameIn, type DomainTrack, type TrackNames, type UsePlace } from "../../common/domain";
 import { trackNamesOf } from "../../common/lyre/lookup";
 import { useCampaigns } from "../api";
+import { useOpenTrackPanel } from "./SidePanel";
 
 export { trackNameIn, trackNamesOf };
 
@@ -65,8 +66,20 @@ export const trackDetailsHref = (trackId: string): string => `#/library/${trackI
  * arrival). Only where the name is not itself a play or unfold button: in Live a name never takes a play action's place.
  */
 export function TrackNameLink({ trackId, className, title, children }: { trackId: string; className?: string; title?: string; children: React.ReactNode }) {
+  // Round 10 (rows 13 and 38): a title opens the Track panel beside the screen (kit/SidePanel.tsx); the link's address
+  // stays the Track library, for a new window or a copied link.
+  const openTrackPanel = useOpenTrackPanel();
   return (
-    <a className={className ? `track-link ${className}` : "track-link"} href={trackDetailsHref(trackId)} title={title ?? "Open its details in the Track library"}>
+    <a
+      className={className ? `track-link ${className}` : "track-link"}
+      href={trackDetailsHref(trackId)}
+      title={title ?? "Open its details in the Track library"}
+      onClick={(event) => {
+        if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        openTrackPanel(trackId, event.currentTarget);
+      }}
+    >
       {children}
     </a>
   );
