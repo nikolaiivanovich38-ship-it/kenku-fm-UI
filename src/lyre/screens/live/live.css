@@ -574,13 +574,9 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
   .lv-top .lv-sess { order: 6; flex: 1 1 0; }
   .lv-dock { padding: 6px 6px 0; }
 }
-/* With Back and the trail in the strip, below 1100 px of app (960 windows) Fade all and Stop all are icons (their names
-   are read out and on hover), so Find keeps its words. The session shows its number only at every width (its name is
-   read out and on hover): the trail reads Campaign › Session, and Live's words stay at part 5's. */
-@container app (max-width: 1100px) {
-  .lv-top .lv-btxt { display: none; }
-  .lv-top .lv-fade, .lv-top .lv-stop { width: var(--ctl-s); padding: 0; }
-}
+/* The session shows its number only at every width (its name is read out and on hover): the trail reads Campaign ›
+   Session. Round 10: Fade all and Stop all are icons below 1000 px of app (Nik, 18 Nov, answer 2; the rule above), not
+   1100 px. */
 /* Part 6 follow-up: names in Scenes and Current scene stay readable at 1280 and 960 (UX-6: a name wraps to two lines,
    then shows whole on hover (its title) and while its row has keyboard focus). While every box in the trays is folded,
    the trays' column is only as wide as its folded headers need, and Scenes and Current scene get the room. A name keeps
@@ -657,8 +653,8 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 /* ---------- Round 10: On air keeps its height (table review M1); the transport (look M3, table S2) ----------
    Music and ambience keep one height, playing or not, and the title has room for two lines; the Effects line is always
    there and Up next keeps room for its first line, so starting a scene or firing a pad moves nothing. */
-.lv-lane.lv-m { min-height: 110px; }
-.lv-lane.lv-a { min-height: 92px; }
+.lv-lane.lv-m { min-height: 114px; }
+.lv-lane.lv-a { min-height: 96px; }
 .lv-lane.lv-lane-empty { border-bottom: 1px solid var(--line); }
 .lv-line.lv-fx { min-height: 32px; }
 .lv-line.lv-fx-empty { border-bottom: 1px solid transparent; }
