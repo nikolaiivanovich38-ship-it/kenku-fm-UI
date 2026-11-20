@@ -67,7 +67,6 @@ test.describe("what happens at the end", () => {
   // Round 6 (design/prototype/ROUND6.md): Stop no longer says "Then silence"; the check takes either name.
   test("offers Loop back, Move to the next track and Stop, with a plain explanation where one is needed", async ({ page }) => {
     // Round 10 (prep review D5, look D8): the same six ends, in the same words, as At its end in the track's details.
-    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "profile/t13");
     const choice = atEnd(page).getByRole("group", { name: "At its end" });
     await expect(choice.getByRole("radio")).toHaveCount(6);
@@ -355,12 +354,12 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("Pick up where it stopped is in the Audio profile too, the track's own choice (\"I don't see pickup where it stops in details or audio profile views\")", async ({ page }) => {
     appOnly();
     await openRoute(page, "profile/t13");
-    const pickUp = page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: "Pick up where it stopped" });
+    const pickUp = page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: /^(Pick up where it stopped|Next time, start where it stopped)$/ });
     await expect(pickUp).not.toBeChecked();
     await pickUp.check();
     await expect(page.getByRole("status").filter({ hasText: /picks up where it stopped/ })).toBeVisible();
     await reopen(page);
-    await expect(page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: "Pick up where it stopped" })).toBeChecked();
+    await expect(page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: /^(Pick up where it stopped|Next time, start where it stopped)$/ })).toBeChecked();
   });
 });
 
@@ -447,5 +446,63 @@ test.describe("0.5.2: Nik's play test", () => {
     await end.focus();
     for (let i = 0; i < 2; i++) await page.keyboard.press("PageDown");
     await expect(bar.getByRole("group", { name: /^Only you/ })).toContainText(/1:0\d \//, { timeout: 4000 });
+  });
+});
+
+/* Round 9 (ROUND9.md §10, item 8: "Split tracks into multiple at split points in audio profile using markers"): the
+   Markers box's Split into parts… makes a track for each part between markers, each playing its part of the same file
+   (Nik, 18 Nov, Q11 a). Round 9 left these checks to the build stream: written by r10-tracks against the prototype
+   first. t13 has markers at 1:04 (Choir enters), 3:10 (Low swell) and 5:18 (Loop back) in a 7:21 file. */
+test.describe("round 9: Split into parts", () => {
+  const markers = (page: Page) => page.getByRole("region", { name: "Markers", exact: true });
+  const library = (page: Page) => page.getByRole("link", { name: /^Track library/ }).first();
+
+  async function split(page: Page) {
+    await openRoute(page, "profile/t13");
+    await markers(page).getByRole("button", { name: "Split into parts…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Split into parts" });
+    await expect(dialog).toContainText("Your file is not changed");
+    const cuts = dialog.getByRole("group", { name: "Split at" }).getByRole("checkbox");
+    await expect(cuts).toHaveCount(3);
+    await expect(dialog.getByRole("button", { name: "Make 4 tracks" })).toBeVisible();
+    // Unticking Low swell joins the two parts either side of it.
+    await cuts.nth(1).uncheck();
+    await expect(dialog.getByRole("button", { name: "Make 3 tracks" })).toBeVisible();
+    await expect(dialog.getByRole("table").getByRole("row")).toHaveCount(4);
+    await expect(dialog.getByRole("table")).toContainText("1:04 – 5:18");
+    await expect(dialog.getByRole("checkbox", { name: "Copy its tags, Type and Use it for to each part" })).toBeChecked();
+    await expect(dialog.getByRole("checkbox", { name: "Add the parts beside it in its manual playlists" })).not.toBeChecked();
+    await dialog.getByRole("textbox", { name: "Name of part 2" }).fill("Choir section");
+    await dialog.getByRole("button", { name: "Make 3 tracks" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("status").filter({ hasText: /3 parts of .* in the Track library/ })).toBeVisible();
+  }
+
+  test("Split into parts… makes a track per part, which says what it is part of, and the whole track lists its parts", async ({ page }) => {
+    await split(page);
+    await library(page).click();
+    await page.getByRole("searchbox", { name: "Search tracks" }).fill("Choir section");
+    const grid = page.getByRole("grid", { name: "Tracks" });
+    await expect(grid.getByRole("row", { name: /^Select Choir section/ })).toContainText("4:14");
+    await grid.getByRole("row", { name: /^Select Choir section/ }).getByRole("gridcell").nth(1).click();
+    const details = page.getByRole("region", { name: "Details", exact: true });
+    await expect(details).toContainText("Part of");
+    await expect(details).toContainText("1:04–5:18");
+    await details.getByRole("link", { name: /^Eerie dread/ }).click();
+    await expect(details).toContainText("Parts");
+    await expect(details.getByRole("link", { name: "Choir section" })).toBeVisible();
+  });
+
+  test("Undo after Split into parts removes the parts again", async ({ page }) => {
+    await split(page);
+    // Undo at the bottom of the screen; pressed again only if the note was still being drawn when it was pressed.
+    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    await expect(async () => {
+      await undo.click({ timeout: 1_000 });
+      await expect(undo).toHaveCount(0, { timeout: 1_000 });
+    }).toPass({ timeout: 10_000 });
+    await library(page).click();
+    await page.getByRole("searchbox", { name: "Search tracks" }).fill("Choir section");
+    await expect(page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Choir section/ })).toHaveCount(0);
   });
 });

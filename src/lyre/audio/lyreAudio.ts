@@ -393,6 +393,16 @@ export interface LyreAudio {
    */
   tryPad(boardId: string, padId: string, phase?: "down" | "up", options?: PreviewFrom): CueOutcome;
   stopPreview(): void;
+  // --- r10-tracks --- Round 9 (row 20: "see the now playing queue, select any track in it to play, and have back and
+  // forward buttons on the now playing bar"): a previewed playlist's queue.
+  /** What the preview played, plays now and plays next (a playlist's round in its play order); null with no preview. */
+  previewQueue(): PreviewQueue | null;
+  /** Back: the start of this track, or within its first 3 s the track played before it. */
+  previewBack(): CueOutcome;
+  /** Forward: the next track of the previewed playlist. */
+  previewForward(): CueOutcome;
+  /** Play from the queue: the step `index` of the playlist's round (PreviewQueue.upNext[].index). */
+  previewPlayAt(index: number): CueOutcome;
   /** UX-16: pause the preview, or carry on if it is paused. */
   togglePreviewPause(): CueOutcome;
   /** UX-16: the headphone volume, 0 to 1, kept for the next preview too. */
@@ -497,6 +507,21 @@ export interface LyreAudioParts {
  * What the preview plays through (9, 30): a track, which its Followed by may follow, or a playlist in its place's play
  * order, track after track.
  */
+/** Round 9 (row 20): one track in the preview's queue. */
+export interface PreviewQueueTrack {
+  trackId: string;
+  title: string;
+}
+/** Round 9 (row 20): the preview's queue: Played (oldest first), Now playing and Up next (with its step's index). */
+export interface PreviewQueue {
+  playlistId: string | null;
+  played: PreviewQueueTrack[];
+  now: PreviewQueueTrack;
+  upNext: (PreviewQueueTrack & { index: number })[];
+}
+/** Back within this many seconds of a track's start goes to the track before it (Nik, 18 Nov, Q7 a). */
+export const BACK_TO_PREVIOUS_S = 3;
+
 interface PreviewRun {
   /** The preview's key: the track's id, or "pl:<id>" for a playlist. */
   key: string;
@@ -506,6 +531,8 @@ interface PreviewRun {
   from: string | null;
   /** The Audio profile gave it its profile and moves on by itself, until it lets go (changePreview with none). */
   held: boolean;
+  /** Round 9: the tracks this preview played before this one, oldest first (Back goes to the last). */
+  played?: Playing[];
 }
 
 /** OUT-10: one room's level meter. */
@@ -970,7 +997,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     this.previewRun = null;
     const next = run.item.origin.kind === "playlist" ? this.nextInPreview(run.item) : null;
     if (next) {
-      this.previewStep({ ...run, item: next });
+      this.previewStep({ ...run, item: next, played: [...(run.played ?? []), run.item] });
       return;
     }
     const follow = this.library.track(run.item.trackId)?.follow;
@@ -1000,6 +1027,46 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       round = sequenceOf(origin, this.show);
     }
     return round.length ? itemAt({ ...item, origin }, round, 0) : null;
+  }
+
+  // --- r10-tracks --- Round 9 (row 20): the preview's queue, Back and Forward.
+  previewQueue(): PreviewQueue | null {
+    const run = this.previewRun;
+    if (!run) return null;
+    const named = (trackId: string): PreviewQueueTrack => ({ trackId, title: trackTitle(this.library.track(trackId)) });
+    const played = (run.played ?? []).map((p) => named(p.trackId));
+    const now = named(run.item.trackId);
+    if (run.item.origin.kind !== "playlist") return { playlistId: null, played, now, upNext: [] };
+    const seq = sequenceOf(run.item.origin, this.show);
+    const { index, found } = locate(seq, run.item);
+    const from = found ? index + 1 : index;
+    return { playlistId: run.item.playlistId, played, now, upNext: seq.slice(from).map((step, k) => ({ ...named(step.trackId), index: from + k })) };
+  }
+
+  previewBack(): CueOutcome {
+    const run = this.previewRun;
+    const at = this.parts.preview.position();
+    if (!run || !at) return this.fail("Nothing is previewing.");
+    const start = (this.library.track(run.item.trackId) ? this.stepProfile(this.library.track(run.item.trackId) as DomainTrack, run.item, run.place).startMs : 0) / 1000;
+    const before = run.played ?? [];
+    if (at.seconds - start > BACK_TO_PREVIOUS_S || before.length === 0) return this.seekPreview(start);
+    return this.previewStep({ ...run, item: before[before.length - 1], played: before.slice(0, -1) });
+  }
+
+  previewForward(): CueOutcome {
+    const run = this.previewRun;
+    if (!run) return this.fail("Nothing is previewing.");
+    const next = run.item.origin.kind === "playlist" ? this.nextInPreview(run.item) : null;
+    if (!next) return this.fail("Nothing comes after this track.");
+    return this.previewStep({ ...run, item: next, played: [...(run.played ?? []), run.item] });
+  }
+
+  previewPlayAt(index: number): CueOutcome {
+    const run = this.previewRun;
+    if (!run || run.item.origin.kind !== "playlist") return this.fail("Nothing is previewing.");
+    const seq = sequenceOf(run.item.origin, this.show);
+    if (!Number.isInteger(index) || index < 0 || index >= seq.length) return this.fail("That track is no longer in the queue.");
+    return this.previewStep({ ...run, item: itemAt(run.item, seq, index), played: [...(run.played ?? []), run.item] });
   }
 
   /** A seed to deal a shuffled preview with (46: from cryptographic random numbers unless a test gives its own). */

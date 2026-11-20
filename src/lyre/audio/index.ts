@@ -10,6 +10,8 @@ export type {
   DeviceStatus,
   LaneNowPlaying,
   LyreAudio,
+  PreviewQueue,
+  PreviewQueueTrack,
   LyreAudioEvents,
   LyreAudioLibrary,
   LyrePad,

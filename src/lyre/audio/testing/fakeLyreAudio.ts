@@ -107,6 +107,15 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
     this.calls.push(["stopPreview"]);
   }
 
+  // --- r10-tracks --- Round 9 (row 20): the preview's queue, as a test sets it.
+  previewQueueNow: import("../lyreAudio").PreviewQueue | null = null;
+  previewQueue() {
+    return this.previewQueueNow;
+  }
+  previewBack = this.record("previewBack");
+  previewForward = this.record("previewForward");
+  previewPlayAt = this.record("previewPlayAt");
+
   setPreviewVolume(volume: number): void {
     this.calls.push(["setPreviewVolume", volume]);
   }

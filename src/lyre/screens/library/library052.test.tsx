@@ -109,7 +109,7 @@ describe("item 21: Clear in one filter control clears only that control; Clear a
     await user.click(f.getByRole("button", { name: "Clear energy" }));
     expect(filters()).toHaveTextContent("1 filter on");
     await user.click(f.getByRole("button", { name: "Clear Shape" }));
-    expect(filters()).not.toHaveTextContent("filter on");
+    expect(filters()).not.toHaveTextContent(/\d filters? on/);
   });
 
   it("Clear all filters clears every control and leaves the search as it is", async () => {
@@ -121,7 +121,7 @@ describe("item 21: Clear in one filter control clears only that control; Clear a
     await user.click(within(f.getByRole("group", { name: "Kind of track" })).getByRole("button", { name: "Music" }));
     await user.click(within(f.getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
     await user.click(f.getByRole("button", { name: "Clear all filters" }));
-    expect(filters()).not.toHaveTextContent("filter on");
+    expect(filters()).not.toHaveTextContent(/\d filters? on/);
     expect(screen.getByRole("searchbox", { name: "Search tracks" })).toHaveValue("the");
   });
 });
@@ -343,12 +343,12 @@ describe("items 1 and 50: Remove from library, Delete file from disk…, Remove 
     const user = userEvent.setup();
     const more = () => screen.getByRole("button", { name: "More for the library" });
     await user.click(more());
-    expect(screen.queryByRole("menuitem", { name: /^Remove all shown/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /^Remove the \d+ tracks shown/ })).toBeNull();
     await user.keyboard("{Escape}");
     await user.click(within(within(filters()).getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
     const shown = shownTitles().length;
     await user.click(more());
-    await user.click(screen.getByRole("menuitem", { name: `Remove all shown (${shown})…` }));
+    await user.click(screen.getByRole("menuitem", { name: `Remove the ${shown} tracks shown from the library…` }));
     const dialog = screen.getByRole("dialog", { name: `Remove all ${shown} shown tracks from the library?` });
     const before = (await api.library.listTracks()).length;
     await user.click(within(dialog).getByRole("button", { name: `Remove ${shown} tracks` }));
@@ -433,21 +433,20 @@ describe("0.5.2: the new confirmations have no accessibility failures", () => {
 });
 
 describe("round 8 click-through findings for the Library (lead, 18 Nov)", () => {
-  it("#2: Pick up where it stopped has the whole row, not the narrow label column", async () => {
+  it("#2: Next time, start where it stopped has the whole row, not the narrow label column", async () => {
     openAt("library/t02");
     await loaded();
-    const sw = await within(screen.getByRole("region", { name: "Details" })).findByRole("switch", { name: "Pick up where it stopped" });
+    const sw = await within(screen.getByRole("region", { name: "Details" })).findByRole("switch", { name: "Next time, start where it stopped" });
     expect(sw.closest(".lb-tg")).toHaveClass("lb-tg-wide");
   });
 
-  it("#4: Follow with's line under the list is the list's description, spaced clear of its focus ring", async () => {
+  it("#4, round 9: the Play… picker says that something waiting in Play next goes first", async () => {
     openAt("library/t02");
     await loaded();
     const user = userEvent.setup();
-    await user.click(await within(screen.getByRole("region", { name: "Details" })).findByRole("button", { name: "Follow with…" }));
-    const select = within(screen.getByRole("dialog")).getByRole("combobox", { name: "When it ends, play" });
-    expect(select).toHaveAccessibleDescription("Unless something is waiting in Play next.");
-    expect(screen.getByText("Unless something is waiting in Play next.")).toHaveClass("lb-follow-hint");
+    const end = await within(screen.getByRole("region", { name: "Details" })).findByRole("group", { name: "At its end" });
+    await user.click(within(end).getByRole("button", { name: "Play…" }));
+    expect(screen.getByRole("dialog", { name: "When it ends, play" })).toHaveAccessibleDescription(/Something waiting in Play next goes first\.$/);
   });
 
   it("#5: opened at a track from elsewhere (a playlist's track title), the list scrolls the open row into view", async () => {

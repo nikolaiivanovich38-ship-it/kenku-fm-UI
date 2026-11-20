@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HelpPanel } from "./HelpPanel";
+import { ARTICLES } from "./articles";
 import { AnnouncerProvider } from "../shell/Announcer";
 import { expectNoAxeViolations } from "../test/axe";
 import type { DiagnosticsBridge, DiagnosticsResult } from "../../common/lyreDiagnostics";
@@ -45,7 +46,8 @@ describe("Help's panel", () => {
     for (const group of ["Get started", "Prepare", "Run a session", "Your library"]) {
       expect(within(help).getByRole("list", { name: group })).toBeInTheDocument();
     }
-    expect(within(help).getAllByRole("listitem")).toHaveLength(15);
+    // Every article, one item each (0.6.0's streams add theirs).
+    expect(within(help).getAllByRole("listitem")).toHaveLength(ARTICLES.length);
   });
 
   it("finds articles as you type, and says when nothing matches", async () => {

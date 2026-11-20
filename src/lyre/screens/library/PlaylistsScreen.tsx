@@ -6,7 +6,7 @@
  * row opens in place to show its tracks and where it is used. Audio files dropped on a manual playlist join it and
  * the Library.
  */
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { PlaylistInfo } from "../../../common/lyre/api";
 import { useLyreApi } from "../../api";
 import { useNowPlaying } from "../../audio";
@@ -28,10 +28,18 @@ import { PopMenuButton, TwoLines, type PopMenuEntry } from "../../kit/PopMenu";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import { orgDragProps, useFolders } from "../folders/Folders";
 import "./library.css";
+import "./round9.css";
 import "./playlists.css";
 import { TopLead } from "../../shell/TopBar";
+import { useSave } from "../../shell/useSave";
+import { DeletePlaylistDialog } from "./DeletePlaylistDialog";
+import { deleteKeyOnRow } from "./PlaylistTrackList";
+import { moveIndex, PLAYLIST_SORTS, setPlaylistSort, sortPlaylists, usePlaylistSort } from "./playlistOrder";
 
 export { PlaylistPage as PlaylistScreen };
+
+/** Round 9 (item 38): the playlist being dragged by its grip (a drag of one row onto another), while the drag lasts. */
+let draggingPlaylist: string | null = null;
 
 type Filter = { lane: "all" | "music" | "amb" | "fx"; kind: "all" | "manual" | "dynamic"; used: "all" | "used" | "unused"; q: string };
 const NO_FILTER: Filter = { lane: "all", kind: "all", used: "all", q: "" };
@@ -58,6 +66,49 @@ export function PlaylistsScreen(_props: ScreenProps) {
   const onAir = useMemo(() => onAirPlaylistIds(now), [now]);
   const { playlists, groupNames } = data;
   const folders = useFolders("playlists");
+  const save = useSave();
+  const [deleting, setDeleting] = useState<PlaylistInfo | null>(null);
+  /* ----- Round 9 (item 38): Sort, and moving a playlist in Your order ----- */
+  const sort = usePlaylistSort();
+  const sortName = PLAYLIST_SORTS.find(([k]) => k === sort)?.[1] ?? "Your order";
+  const sortMenu = (): PopMenuEntry[] => [
+    { group: "Sort the playlists" },
+    ...PLAYLIST_SORTS.map(
+      ([key, label]): PopMenuEntry => ({
+        content: label,
+        role: "menuitemradio",
+        checked: sort === key,
+        onSelect: () => {
+          setPlaylistSort(key);
+          say(`Playlists: ${label}`);
+        },
+      }),
+    ),
+  ];
+  /** The control to focus once the moved list is drawn again (by its accessible name). */
+  const [refocus, setRefocus] = useState<string | null>(null);
+  useEffect(() => {
+    if (!refocus) return;
+    const el = document.querySelector<HTMLElement>(`[aria-label="${refocus.replace(/["\\]/g, "\\$&")}"]`);
+    if (el && document.activeElement !== el) el.focus();
+    setRefocus(null);
+  }, [playlists, refocus]);
+  /** Moves a playlist in Your order (going back to Your order first, and saying so, while another sort is on). */
+  const move = async (p: PlaylistInfo, to: Parameters<typeof moveIndex>[2], focusName?: string) => {
+    const goingBack = sort !== "own";
+    if (goingBack) setPlaylistSort("own");
+    const at = moveIndex(playlists, p.id, to);
+    if (at === null) {
+      if (goingBack) toast("Now in your order");
+      return;
+    }
+    const siblings = playlists.filter((x) => x.folderId === p.folderId).length;
+    const done = await save("order of the playlists", () => api.playlists.move(p.id, at), {
+      detail: `${goingBack ? "now in your order, " : ""}${p.name || "Untitled playlist"} is ${at + 1} of ${siblings}`,
+      key: "pl-order",
+    });
+    if (done && focusName) setRefocus(focusName);
+  };
 
   const setFilter = (change: Partial<Filter>) => {
     keptFilter = { ...filter, ...change };
@@ -81,6 +132,16 @@ export function PlaylistsScreen(_props: ScreenProps) {
         (f.used === "all" || (data.usesOf(p.id).length > 0) === (f.used === "used")),
     ).length;
   const anyFilter = filter.lane !== "all" || filter.kind !== "all" || filter.used !== "all" || !!filter.q;
+  const sorted = sortPlaylists(
+    shown,
+    sort,
+    {
+      count: (p) => data.tracksOf(p).length,
+      length: (p) => data.tracksOf(p).reduce((n, t) => n + t.durationMs, 0),
+      uses: (p) => data.usesOf(p.id).length,
+    },
+    playlists,
+  );
   const toggleOpen = (id: string) => {
     const next = new Set(open);
     if (next.has(id)) next.delete(id);
@@ -113,9 +174,9 @@ export function PlaylistsScreen(_props: ScreenProps) {
       item("manual", "amb", "Pick ambience loops by hand"),
       item("dynamic", "amb", "Every ambience track that matches"),
       { separator: true },
-      { group: "FX: sound effects and stings" },
-      item("manual", "fx", "Pick effects and stings by hand"),
-      item("dynamic", "fx", "Every effect or sting that matches"),
+      { group: "FX: sound effects and short cues" },
+      item("manual", "fx", "Pick effects and short cues by hand"),
+      item("dynamic", "fx", "Every effect or short cue that matches"),
     ];
   };
 
@@ -201,6 +262,12 @@ export function PlaylistsScreen(_props: ScreenProps) {
             ["used", "Used"],
             ["unused", "Not used yet"],
           ])}
+          <span className="grow" />
+          <PopMenuButton label="Sort the playlists" title="Sort the playlists" className="btn s" items={sortMenu}>
+            <Icon name="inorder" size="s" />
+            <span className="r9-sortw">{sortName}</span>
+            <Icon name="chevdown" size="s" />
+          </PopMenuButton>
         </div>
         <Column className="pl-listcol">
           <Pane
@@ -227,7 +294,7 @@ export function PlaylistsScreen(_props: ScreenProps) {
                   // Round 6 (UX-R3): the list's hover text, not a line in the box header.
                   title: "Drop audio files on a row to add them",
                   all: playlists,
-                  shown,
+                  shown: sorted,
                   filtered: anyFilter,
                   nameOf: (id) => playlists.find((x) => x.id === id)?.name ?? "The playlist",
                   renderItem: (p) => (
@@ -241,6 +308,13 @@ export function PlaylistsScreen(_props: ScreenProps) {
                       flash={drops.flash.includes(p.id)}
                       onUseIn={() => setUseIn(p.id)}
                       onMoveTo={() => folders.openMoveTo(p, p.name || "Untitled playlist")}
+                      ownOrder={sort === "own"}
+                      siblings={playlists.filter((x) => x.folderId === p.folderId)}
+                      onMove={(id, to, focusName) => {
+                        const moving = playlists.find((x) => x.id === id);
+                        if (moving) void move(moving, to, focusName);
+                      }}
+                      onDelete={() => setDeleting(p)}
                     />
                   ),
                 })}
@@ -266,6 +340,7 @@ export function PlaylistsScreen(_props: ScreenProps) {
       </div>
       <DropZone />
       {folders.dialogs}
+      {deleting && <DeletePlaylistDialog pl={deleting} data={data} onClose={() => setDeleting(null)} onDeleted={() => setTimeout(() => document.querySelector<HTMLElement>('[data-focus="plfq"]')?.focus(), 30)} />}
       {useIn && <UseInDialog playlist={playlists.find((p) => p.id === useIn)} campaigns={data.campaigns} nameOf={soundName(data)} onClose={() => setUseIn(null)} />}
     </>
   );
@@ -280,6 +355,10 @@ function PlaylistRow({
   flash,
   onUseIn,
   onMoveTo,
+  ownOrder,
+  siblings,
+  onMove,
+  onDelete,
 }: {
   p: PlaylistInfo;
   data: PlaylistData;
@@ -290,6 +369,14 @@ function PlaylistRow({
   onUseIn: () => void;
   /** ORG-4: Move to folder…. */
   onMoveTo: () => void;
+  /** Round 9 (item 38): the list is in Your order (each row has a grip). */
+  ownOrder: boolean;
+  /** The playlists in the same folder, in Your order (Move up is off for the first, Move down for the last). */
+  siblings: readonly PlaylistInfo[];
+  /** Moves playlist `id` (this one, or one dropped on this row); `focusName`: the control to focus once it is drawn again. */
+  onMove: (id: string, to: "up" | "down" | "top" | { before: string } | { after: string }, focusName?: string) => void;
+  /** Round 10 fixes (R10-FIX §2): Delete playlist… */
+  onDelete: () => void;
 }) {
   const tracks = data.tracksOf(p);
   const uses = data.usesOf(p.id);
@@ -299,17 +386,86 @@ function PlaylistRow({
   const usedWords = uses.length ? `used in ${usedText(uses)}` : "not used yet";
   const tip = `${kind.name}${rule ? `: ${rule}` : ""} · ${KIND_NAMES[p.lane]}\n${uses.length ? `Used in ${usedText(uses)}` : "Not used yet"}\nClick to open`;
   const name = p.name || "Untitled playlist";
+  const at = siblings.findIndex((x) => x.id === p.id);
+  const [line, setLine] = useState<"before" | "after" | null>(null);
+  const moreName = `More for ${name}`;
   return (
-    <li className={`pl-item${open ? " pl-open" : ""}${flash ? " pl-flash" : ""}`} data-pid={p.id}>
+    <li
+      className={`pl-item${open ? " pl-open" : ""}${flash ? " pl-flash" : ""}${line ? ` r9-pl-${line}` : ""}`}
+      data-pid={p.id}
+      // Round 9 (item 38): Alt+Up and Alt+Down move the playlist; Delete asks as Delete playlist… does (R10-FIX §2).
+      // Alt+arrows in the capture phase: a menu button would take Alt+Down as "open the menu".
+      onKeyDownCapture={(e) => {
+        if ((e.target as HTMLElement).closest("li") !== e.currentTarget) return;
+        if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && !(e.target as HTMLElement).matches("input, textarea, select")) {
+          e.preventDefault();
+          e.stopPropagation();
+          onMove(p.id, e.key === "ArrowUp" ? "up" : "down", (e.target as HTMLElement).getAttribute("aria-label") ?? moreName);
+        }
+      }}
+      onKeyDown={(e) => {
+        const own = (e.target as HTMLElement).closest("li") === e.currentTarget;
+        if (!own) return;
+        if (deleteKeyOnRow(e)) {
+          e.preventDefault();
+          onDelete();
+        }
+      }}
+      // An exact line shows where a dragged playlist lands: above this row in its upper half, below it in its lower.
+      onDragOver={(e) => {
+        const dragged = draggingPlaylist;
+        if (!dragged || dragged === p.id || !siblings.some((x) => x.id === dragged)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        const box = e.currentTarget.getBoundingClientRect();
+        setLine(e.clientY > box.top + box.height / 2 ? "after" : "before");
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setLine(null);
+      }}
+      onDrop={(e) => {
+        const dragged = draggingPlaylist;
+        const where = line;
+        setLine(null);
+        if (!dragged || !where || dragged === p.id) return;
+        e.preventDefault();
+        e.stopPropagation();
+        draggingPlaylist = null;
+        onMove(dragged, where === "before" ? { before: p.id } : { after: p.id });
+      }}
+    >
       <div
         className="pl-grid pl-row"
         title={tip}
         onClick={(e) => {
-          if ((e.target as HTMLElement).closest("button, a")) return;
+          if ((e.target as HTMLElement).closest("button, a, .r9-plgrip")) return;
           window.location.hash = hashOf(`playlist/${p.id}`);
         }}
       >
         <div className="pl-namecell">
+          {/* Round 9 (item 38): in Your order, a grip to drag the playlist to its place; the keys do the same. */}
+          {ownOrder && (
+            <span
+              className="r9-plgrip"
+              title="Drag to change the order (or Alt+Up / Alt+Down)"
+              aria-hidden="true"
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation();
+                draggingPlaylist = p.id;
+                e.dataTransfer.effectAllowed = "move";
+                e.dataTransfer.setData("application/x-lyre-playlist-order", p.id);
+                e.currentTarget.closest("li")?.classList.add("r9-pl-dragging");
+              }}
+              onDragEnd={(e) => {
+                draggingPlaylist = null;
+                e.currentTarget.closest("li")?.classList.remove("r9-pl-dragging");
+              }}
+            >
+              <Icon name="drag" size="s" />
+            </span>
+          )}
           <button
             type="button"
             className="xp-btn"
@@ -343,11 +499,43 @@ function PlaylistRow({
           <PlayOnAirButton target={{ kind: "playlist", id: p.id, empty: tracks.length === 0 }} name={name} />
           <PlayOrderButton playlistId={p.id} place={null} />
           <PopMenuButton
-            label={`More for ${name}`}
-            ariaLabel={`More for ${name}`}
+            label={moreName}
+            ariaLabel={moreName}
             title="More"
             className="btn s icon ghost pl-more-btn"
             items={() => [
+              // Round 9 (item 38): Your order from the keyboard too (Alt+Up, Alt+Down).
+              {
+                content: (
+                  <>
+                    <Icon name="chevup" size="s" />
+                    Move up<span className="kbd pl-mk">Alt+↑</span>
+                  </>
+                ),
+                disabled: at <= 0,
+                onSelect: () => onMove(p.id, "up", moreName),
+              },
+              {
+                content: (
+                  <>
+                    <Icon name="chevdown" size="s" />
+                    Move down<span className="kbd pl-mk">Alt+↓</span>
+                  </>
+                ),
+                disabled: at < 0 || at >= siblings.length - 1,
+                onSelect: () => onMove(p.id, "down", moreName),
+              },
+              {
+                content: (
+                  <>
+                    <Icon name="chevup" size="s" />
+                    Move to the top
+                  </>
+                ),
+                disabled: at <= 0,
+                onSelect: () => onMove(p.id, "top", moreName),
+              },
+              { separator: true },
               {
                 content: (
                   <>
@@ -375,10 +563,25 @@ function PlaylistRow({
                 ),
                 onSelect: onMoveTo,
               },
+              // Round 10 fixes (R10-FIX §2): delete it from here, without opening it (it asks first, then Undo).
+              { separator: true },
+              {
+                content: (
+                  <>
+                    <Icon name="trash" size="s" />
+                    Delete playlist…
+                  </>
+                ),
+                onSelect: onDelete,
+              },
             ]}
           >
             <Icon name="more" size="s" />
           </PopMenuButton>
+          {/* Round 10 (prep review D6, P14): its page in one click. */}
+          <a className="btn s icon r10-open" href={hashOf(`playlist/${p.id}`)} aria-label={`Open ${name}`} title="Open its page">
+            <Icon name="right" size="s" />
+          </a>
         </div>
       </div>
       {open && (
@@ -396,6 +599,7 @@ function PlaylistRow({
             </span>
           </p>
           <PlaylistContents
+            playlist={p}
             playlistId={p.id}
             name={name}
             dynamic={p.kind === "dynamic"}

@@ -2,7 +2,7 @@
  * The Audio profile's boxes and its "Settings for" bar (the prototype's listenHTML, endHTML, fadesHTML, markersHTML
  * and placeHTML in views/profile.js), drawn from the screen's controller.
  */
-import React from "react";
+import React, { useEffect, useState } from "react";
 
 import { shapeName } from "../../../common/domain";
 import { shownTitle } from "../../../common/lyre/text";
@@ -12,7 +12,12 @@ import { Icon, type IconName } from "../../kit/Icon";
 import { Kbd } from "../../kit/Pills";
 import { cx } from "../../kit/cx";
 import { hasOwn, ownPlaceKeys, placeName, placesOf } from "./places";
-import { envAt, fmt, fmt1, fmtPoint, POINT, sketchPath, startAtChoices, times, type Which } from "./profileModel";
+import { envAt, fmt, fmt1, fmtPoint, POINT, sketchPath, startAtChoices, times, toInput, type Which } from "./profileModel";
+import { endOf, type TrackEnd } from "../library/trackEnd";
+import { followNameOf } from "../library/TrackBehaviour";
+import { PlayAfterPicker } from "../library/PlayAfterPicker";
+import { SplitPartsDialog } from "./SplitPartsDialog";
+import { useAnnounce } from "../../shell/Announcer";
 import { ProfileLink } from "../../kit/ProfileLink";
 import { TrackPickUp } from "../library/PickUpSwitch";
 import type { ProfileController } from "./useProfileController";
@@ -63,7 +68,7 @@ function FieldError({ c, which }: C & { which: Which }) {
   ) : null;
 }
 
-/* ---------- Waveform and listening ---------- */
+/* ---------- Audio profile (round 10: the first box's name; it was Waveform and listening) ---------- */
 
 export function listenStatus(c: ProfileController) {
   return c.clock.playing ? { text: `Previewing ${fmt(c.clock.pos)}`, tone: "on" as const } : c.clock.event ? { text: "Paused", tone: "idle" as const } : undefined;
@@ -186,15 +191,40 @@ export function endStatus(c: ProfileController): string {
 
 export function EndBox({ c }: C) {
   const { p, editable, actions, keys1, view } = c;
+  const [choosing, setChoosing] = useState(false);
   const pos = c.clock.pos;
-  const radio = (v: "loop" | "next" | "stop", icon: IconName, label: string, sub: string) => (
-    <label className={cx("ap-opt", p.after === v && "on")}>
-      <input type="radio" name="ap-after" value={v} data-k={`ap-after-${v}`} checked={p.after === v} disabled={!editable} onChange={() => actions.setAfter(v)} />
+  // Round 10 (prep review D5, look D8): the same six ends, in the same words and order, as At its end in the track's
+  // details (library/trackEnd.ts). Here they apply to this place; Loop and Loop with a crossfade use the loop start below.
+  const saved = endOf(c.editor.track, toInput(p), !c.editor.place);
+  // At the track's own place the end is written with the track (a moment later): the choice shows at once, and the
+  // library's answer then takes over.
+  const [chosen, setChosen] = useState<TrackEnd | null>(null);
+  useEffect(() => setChosen(null), [saved, c.editor.track]);
+  const end = chosen ?? saved;
+  const radio = (v: TrackEnd, icon: IconName, label: string, sub: string) => (
+    <label className={cx("ap-opt", end === v && "on")}>
+      <input
+        type="radio"
+        name="ap-after"
+        value={v}
+        data-k={`ap-after-${v}`}
+        checked={end === v}
+        disabled={!editable}
+        onChange={() => {
+          if (v === "follow") return setChoosing(true);
+          setChosen(v);
+          actions.setEnd(v);
+        }}
+        // Play… already chosen: a click opens the picker again to change it.
+        onClick={() => v === "follow" && end === "follow" && setChoosing(true)}
+      />
       <span className="ap-opt-t">
         <Icon name={icon} size="s" />
         <b>{label}</b>
       </span>
-      <span className="ap-opt-s">{sub}</span>
+      {/* A space between the two, so the radio's name reads "Next track The scene or playlist moves on…". */}
+      {sub && " "}
+      {sub && <span className="ap-opt-s">{sub}</span>}
     </label>
   );
   const field = (which: Which, value: number, buttonLabel: string, key: string) => (
@@ -221,11 +251,26 @@ export function EndBox({ c }: C) {
   return (
     <>
       <fieldset className="ap-opts" disabled={!editable}>
-        <legend className="sr-only">At the end</legend>
-        {radio("loop", "loop", "Loop back to loop start", `Repeats ${fmt(p.loopStart)} to ${fmt(p.end)}`)}
-        {radio("next", "next", "Move to the next track", "The scene or playlist moves on. Played on its own, the track stops.")}
-        {radio("stop", "stop", "Stop", "Then silence")}
+        <legend className="sr-only">At its end</legend>
+        {radio("loop", "loop", "Loop", `Back to the loop start: ${fmt(p.loopStart)} to ${fmt(p.end)}`)}
+        {radio("xloop", "loop", "Loop with a crossfade", `The same loop, with ${p.loopXfade || 3} s of crossfade at the join`)}
+        {radio("next", "next", "Next track", "The scene or playlist moves on. Played on its own, the track stops.")}
+        {radio("fade", "fade", "Fade out", `Over ${p.fadeOut.dur || 4} s before its end`)}
+        {radio("stop", "stop", "Stop", "")}
+        {radio("follow", "playair", "Play…", c.editor.track.follow ? `Then plays ${followNameOf(c.editor.track.follow, c.view.playlists, c.view.tracks)}` : "Choose what plays when it ends")}
       </fieldset>
+      {choosing && (
+        <PlayAfterPicker
+          track={c.editor.track}
+          tracks={c.view.tracks}
+          playlists={c.view.playlists}
+          onClose={() => setChoosing(false)}
+          onDone={(ref) => {
+            setChoosing(false);
+            actions.setEnd(ref ? "follow" : "next", ref);
+          }}
+        />
+      )}
       {p.after === "next" && ctx && next && (
         <div className="ap-next">
           <span className="ap-ro-l">Next track</span>
@@ -408,6 +453,34 @@ export function AddMarkerButton({ c }: C) {
     >
       Add marker at playhead
     </Button>
+  );
+}
+
+/**
+ * Round 9 (ROUND9.md §10, item 8): Split into parts… beside Add marker. Each marker inside the track starts a part;
+ * with none, the button says to add a marker first.
+ */
+export function SplitPartsButton({ c }: C) {
+  const { toast } = useAnnounce();
+  const [open, setOpen] = useState(false);
+  const markers = c.p.markers.map((m) => ({ atMs: Math.round(m.at * 1000), label: m.label }));
+  const inside = markers.filter((m) => m.atMs > 0 && m.atMs < c.editor.track.durationMs).length;
+  const none = "Add a marker first: each marker starts a new part";
+  return (
+    <>
+      <button
+        type="button"
+        className="btn s"
+        data-k="r9-split"
+        aria-disabled={inside ? undefined : "true"}
+        title={inside ? "Make a track for each part between markers. Your file is not changed." : none}
+        onClick={() => (inside ? setOpen(true) : toast(none))}
+      >
+        <Icon name="list" size="s" />
+        Split into parts…
+      </button>
+      {open && <SplitPartsDialog track={c.editor.track} markers={markers} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
