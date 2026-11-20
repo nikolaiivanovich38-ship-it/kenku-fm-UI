@@ -283,10 +283,8 @@ test.describe("tagging many tracks at once", () => {
     await expect(bar).toContainText("2 selected");
     // Round 10 fixes (R10-FIX §1) add Remove from library and a ⋯ (Delete files from disk…); they are left out here.
     await expect(bar.getByRole("button").filter({ hasText: /\S/ }).filter({ hasNotText: "Remove from library" })).toHaveText(["Tag…", "Add to playlist…", "New playlist from these", "Clear selection"]);
-    if (test.info().project.name === "app") {
-      // 0.5.2 items 4, 12, 39 (built in the app only): a ⋯ after them, for Type and Remove from library.
-      await expect(bar.getByRole("button").last()).toHaveAccessibleName("More for the selected tracks");
-    }
+    // 0.5.2 items 4, 12, 39: a ⋯ after them, for Type and Remove from library (the prototype too since 0.6.0).
+    await expect(bar.getByRole("button").last()).toHaveAccessibleName("More for the selected tracks");
     await bar.getByRole("button", { name: "Clear selection" }).click();
     await expect(bar).toHaveCount(0);
   });

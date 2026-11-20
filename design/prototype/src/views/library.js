@@ -221,8 +221,9 @@
       '<button class="btn s" data-act="lbbnew" data-k="lb-bnew">' + L.icon('plus', 's') + 'New playlist from these</button>' +
       // Round 10 fixes (R10-FIX §1): Remove from library for the selection, in words; Delete files from disk… in its ⋯.
       '<button class="btn s" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '" data-k="lb-brm">' + L.icon('close', 's') + 'Remove from library…</button>' +
-      '<button class="btn s icon" data-act="r10selmore" data-k="lb-bmore" aria-haspopup="menu" aria-expanded="false" aria-label="More for the selected tracks" title="More">' + L.icon('more', 's') + '</button>' +
-      '<button class="btn s ghost" data-act="lbbclear" data-k="lb-bclear">Clear selection</button></div>';
+      // 0.6.0 sync (the app's selection bar): Clear selection, then the ⋯ last (Type, Remove from library, Delete files).
+      '<button class="btn s ghost" data-act="lbbclear" data-k="lb-bclear">Clear selection</button>' +
+      '<button class="btn s icon ghost" data-act="r10selmore" data-k="lb-bmore" aria-haspopup="menu" aria-expanded="false" aria-label="More for the selected tracks" title="More">' + L.icon('more', 's') + '</button></div>';
     var allOn = list.length && shownSel === list.length;
     var cols = COLS.filter(function (c) { return st.cols.indexOf(c[0]) > -1; });
     // Round 9 (item 25): a header sorts by its column, A to Z first, then Z to A; aria-sort says which.
