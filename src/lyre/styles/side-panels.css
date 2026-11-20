@@ -1,0 +1,68 @@
+/* Round 10 (design/prototype/ROUND10.md, "Nothing drawn on top of anything else"; the prototype's r10fix.css):
+   side panels beside the screen, not over it.
+
+   #work is the window. #app (the menu and the screen) and the side panels sit in it side by side, from left to right:
+   Add music docked left, #app, Find's results, the queue, the Track panel, Add music docked right, Help
+   (kit/SidePanel.tsx). A panel takes its width from the screen, which narrows and reflows: its container queries
+   ("app") and Live's and the Track library's columns follow #app's width. Below 760 px of window a panel takes the
+   whole window until it is closed, so it still covers nothing in part. Only Add music set to Float lies over the
+   screen, and it can be moved (kit/PanelDialog.tsx). */
+#work { flex: 1; min-height: 0; min-width: 0; width: 100%; display: flex; position: relative; overflow: clip; background: var(--bg);
+  container-type: inline-size; container-name: work; }
+#work > #app { flex: 1 1 0; min-width: 0; width: auto; grid-template-columns: auto minmax(0, 1fr); }
+
+.side-panels { display: flex; flex: none; min-height: 0; min-width: 0; }
+.side-panels:empty { display: none; }
+.side-panel { position: relative; flex: none; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--surface);
+  border-left: 1px solid var(--line-strong); }
+.side-panel[data-edge="left"] { border-left: 0; border-right: 1px solid var(--line-strong); }
+/* A panel at the right starts under a strip as tall as the screen's top bar: the window's own buttons sit over the
+   strip, never over the panel's head; the strip drags the window, as the top bar does. */
+.side-panel-strip { flex: none; height: 44px; border-bottom: 1px solid var(--line); background: var(--bg); -webkit-app-region: drag; app-region: drag; }
+.side-panel-body { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.side-panel-body > * { flex: 1; min-height: 0; }
+
+/* The widths (R10-FIX §3). */
+.side-panel[data-panel="help"], .side-panel[data-panel="queue"] { width: 340px; }
+.side-panel[data-panel="trackPanel"] { width: 380px; }
+.side-panel[data-panel="find"] { width: 400px; }
+.side-panel[data-panel="addMusic"] { width: var(--dock-w, clamp(360px, 36cqw, 560px)); }
+@container work (max-width: 1099px) {
+  .side-panel[data-panel="trackPanel"] { width: 340px; }
+  .side-panel[data-panel="find"] { width: 360px; }
+}
+
+/* With a panel at the right, the screen's own strip no longer reaches the window's buttons. */
+@container work (min-width: 760px) {
+  #work:has(> .side-panels[data-edge="right"] > .side-panel) .viewhead { padding-right: 12px; }
+  #work:has(> .side-panels[data-edge="right"] > .side-panel) .lv-top { padding-right: 8px; }
+}
+
+/* Narrow windows: a side panel takes the whole window until it is closed. */
+@container work (max-width: 759px) {
+  .side-panel { position: absolute; inset: 0; width: auto; z-index: 35; border: 0; }
+}
+
+/* Help in its side panel: the panel gives it its width and its edge. */
+.side-panel .helpsheet { width: auto; border-left: 0; }
+.side-panel .help-head { padding-right: 8px; }
+
+/* ---------- PanelDialog: a dialog that does not block the page (kit/PanelDialog.tsx) ---------- */
+/* The box the content lives in, moved between the side panel and the page: it adds nothing to the layout. */
+.panel-dialog-box { display: contents; }
+.panel-dialog-dock { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.panel-dialog { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--surface); }
+.panel-dialog:not(.float) { flex: 1; }
+.panel-dialog.float { position: fixed; z-index: 40; border: 1px solid var(--line-strong); border-radius: var(--r-l); box-shadow: 0 10px 40px rgb(0 0 0 / .55); }
+.panel-dialog > header { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--line); flex: none; }
+.panel-dialog.float > header { cursor: move; user-select: none; }
+.panel-dialog > header h2 { flex: 1; min-width: 0; font-family: var(--body); font-weight: 700; font-size: 15px; overflow-wrap: anywhere; }
+.panel-dialog-tools { display: inline-flex; gap: 2px; flex: none; }
+.panel-dialog > .body { padding: 12px 14px; overflow: auto; flex: 1; min-height: 0; }
+/* The row of buttons at the bottom wraps when the panel is narrow (docked at half a screen). */
+.panel-dialog > footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px 8px; padding: 8px 14px; border-top: 1px solid var(--line); flex: none; }
+/* Floating: the corner sizes it. Docked: its inner edge changes its width. */
+.panel-dialog-grip { position: absolute; right: 2px; bottom: 2px; width: 16px; height: 16px; cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, var(--line-strong) 50%, var(--line-strong) 60%, transparent 60%, transparent 70%, var(--line-strong) 70%, var(--line-strong) 80%, transparent 80%); }
+.panel-dialog[data-dock="right"] > .panel-dialog-grip { left: -3px; right: auto; top: 0; bottom: 0; width: 6px; height: auto; background: none; cursor: ew-resize; }
+.panel-dialog[data-dock="left"] > .panel-dialog-grip { left: auto; right: -3px; top: 0; bottom: 0; width: 6px; height: auto; background: none; cursor: ew-resize; }

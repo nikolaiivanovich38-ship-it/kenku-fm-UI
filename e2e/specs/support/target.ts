@@ -313,10 +313,21 @@ export const BASE_THEMES: readonly BaseTheme[] = ["candle", "fern", "hearth", "p
 /**
  * Round 10 (R10-FIX §3): show the screen as it is open now in another theme, without opening it again, so a panel or
  * menu that is open stays open. Every page takes the theme, a campaign's own pages too (they show the campaign's
- * theme, so the campaigns take it as well). The app: not built yet (it needs Look and feel and each campaign's theme).
+ * theme, so the campaigns take it as well). The app: the test build's hook on the Lyre page
+ * (`window.__lyreShellTest.showTheme`, src/lyre/shell/themeForTests.ts) shows the theme over Look and feel's and every
+ * campaign's own until the page opens again; nothing is saved. Both use the prototype's theme names, which are the
+ * app's (src/lyre/shell/themes.ts).
  */
 export async function showTheme(page: Page, theme: BaseTheme): Promise<void> {
-  if (isApp()) notBuilt("showTheme");
+  if (isApp()) {
+    await page.evaluate((t) => {
+      const hook = (window as unknown as { __lyreShellTest?: { showTheme(theme: string): void } }).__lyreShellTest;
+      if (!hook) throw new Error("target.showTheme: the Lyre page has no test hook (is this a CUE_DESK_E2E_BUILD=1 package?)");
+      hook.showTheme(t);
+    }, theme);
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.theme), { message: `the page shows the ${theme} theme` }).toBe(theme);
+    return;
+  }
   await page.evaluate((t) => {
     const L = (window as unknown as { L: { state: { theme: string }; data: { campaigns: { theme?: string }[] }; render(): void } }).L;
     L.state.theme = t;

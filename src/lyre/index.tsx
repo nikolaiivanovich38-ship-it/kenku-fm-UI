@@ -6,6 +6,7 @@ import "./styles/fonts.css";
 import "./styles/tokens.css";
 import "./styles/ui.css";
 import "./styles/shell.css";
+import "./styles/side-panels.css";
 
 import { installDocumentDropGuard } from "../common/security/dragGuard";
 import { AppProviders } from "./AppProviders";

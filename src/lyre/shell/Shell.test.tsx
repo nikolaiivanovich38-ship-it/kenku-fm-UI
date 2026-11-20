@@ -1,5 +1,5 @@
 import React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Shell } from "./Shell";
@@ -271,7 +271,10 @@ describe("FND-8 Help in the shell: one entry at the foot of the rail, and F1", (
     render(<Shell screens={SHELL_SCREENS} />);
     await user.click(screen.getByRole("button", { name: "Help" }));
     expect(help()).toBeInTheDocument();
-    expect(help()?.parentElement?.id).toBe("app");
+    // Round 10 (R10-FIX §3): Help is a side panel on the host, beside #app (the menu and the screen), inside #work.
+    expect(help()?.closest("[data-panel]")).toHaveAttribute("data-panel", "help");
+    expect(help()?.closest("#work")).not.toBeNull();
+    expect(help()?.closest("#app")).toBeNull();
     expect(screen.getByRole("button", { name: "Help" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("searchbox", { name: "Search help" })).toHaveFocus();
     await user.keyboard("{Escape}");
@@ -582,4 +585,57 @@ describe("w51-fix2: a fault shows a plain message with a way back, never a blank
       expect(alert).toHaveTextContent("Something went wrong in this window, so Lyre stopped showing it. Everything else keeps working.");
       expect(within(alert).getByRole("button", { name: "Show this window again" })).toBeInTheDocument();
     }));
+});
+
+describe("round 10: the window holds the menu and the screen, and the side panels beside them (R10-FIX §3)", () => {
+  it("puts #app (the menu and the screen) inside #work, the window, with the side-panel hosts on either side", () => {
+    const { container } = render(<Shell screens={SHELL_SCREENS} />);
+    const work = container.querySelector("#work");
+    expect(work).not.toBeNull();
+    const app = work!.querySelector(":scope > #app");
+    expect(app).not.toBeNull();
+    expect(app!.querySelector("nav")).not.toBeNull();
+    expect(app!.querySelector("main")).not.toBeNull();
+    const hosts = Array.from(work!.querySelectorAll(":scope > .side-panels"));
+    expect(hosts.map((h) => h.getAttribute("data-edge"))).toEqual(["left", "right"]);
+    expect(hosts[0].compareDocumentPosition(app!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(app!.compareDocumentPosition(hosts[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("round 10: showing another theme for the sweeps (test builds only)", () => {
+  const testBuild = globalThis as unknown as { __CUE_DESK_TEST_BUILD__?: boolean; __lyreShellTest?: { showTheme(theme: string): void } };
+  afterEach(() => {
+    delete testBuild.__CUE_DESK_TEST_BUILD__;
+    delete window.__lyreShellTest;
+  });
+
+  it("has no hook outside a test build", () => {
+    render(<Shell screens={SHELL_SCREENS} />);
+    expect(window.__lyreShellTest).toBeUndefined();
+  });
+
+  it("shows the screen in the theme asked for, over a campaign's own theme, without opening it again", () => {
+    testBuild.__CUE_DESK_TEST_BUILD__ = true;
+    window.history.replaceState(null, "", "#/library");
+    render(<Shell screens={SHELL_SCREENS} />);
+    expect(document.documentElement.dataset.theme).toBe("candle");
+    const heading = screen.getByRole("heading", { level: 1 });
+    act(() => window.__lyreShellTest!.showTheme("parchment"));
+    expect(document.documentElement.dataset.theme).toBe("parchment");
+    expect(screen.getByRole("heading", { level: 1 })).toBe(heading);
+    go("campaign/crown");
+    expect(document.documentElement.dataset.theme).toBe("parchment");
+    act(() => window.__lyreShellTest!.showTheme("not a theme"));
+    expect(document.documentElement.dataset.theme).toBe("parchment");
+  });
+
+  it("keeps Help open while the theme changes", async () => {
+    testBuild.__CUE_DESK_TEST_BUILD__ = true;
+    const user = userEvent.setup();
+    render(<Shell screens={SHELL_SCREENS} />);
+    await user.click(screen.getByRole("button", { name: "Help" }));
+    act(() => window.__lyreShellTest!.showTheme("elysium"));
+    expect(screen.getByRole("complementary", { name: "Help" })).toBeInTheDocument();
+  });
 });

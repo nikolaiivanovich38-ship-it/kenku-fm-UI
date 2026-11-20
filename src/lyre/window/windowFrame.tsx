@@ -2,7 +2,7 @@
  * FND-16 step 2 (0.5.1, design/prototype/ROUND8.md §1; the prototype's views/r8window.js): Lyre is the whole window.
  * Windows draws the window's own buttons (minimise, maximise, close) at the top right, over the right end of Lyre's
  * top strip (titleBarOverlay, src/main/window/windowFrame.ts). This keeps their space free and their colours right:
- *   - --wco-w and --wco-h on #app: the space the buttons take, in CSS pixels (so text size is already counted), from
+ *   - --wco-w and --wco-h on #work (the window; #app where there is none): the space the buttons take, in CSS pixels (so text size is already counted), from
  *     navigator.windowControlsOverlay, on start and whenever it changes. The strips keep it free (window.css). 0px
  *     where the window draws no buttons (macOS, a browser, a test).
  *   - the buttons take the colour of what is under them (each theme; Live's strip; Help open beside the screen).
@@ -72,7 +72,8 @@ export interface WindowFrameProps {
 export function WindowFrame({ bridge = (window as unknown as { lyre?: { window?: LyreWindowBridge } }).lyre?.window ?? null, paintKey }: WindowFrameProps): null {
   // The space to keep free, now and whenever the window says it changed (resize, maximise, text size).
   useLayoutEffect(() => {
-    const app = document.getElementById("app");
+    // Round 10: on #work, the window, so the side panels beside #app read them too (#app in a page without #work).
+    const app = document.getElementById("work") ?? document.getElementById("app");
     const overlay = overlayOf();
     const place = () => {
       const { width, height } = windowButtonsSpace(overlay, window.innerWidth);

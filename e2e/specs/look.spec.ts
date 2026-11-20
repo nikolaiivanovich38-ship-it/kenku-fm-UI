@@ -5,7 +5,7 @@
  */
 import type { Page } from "@playwright/test";
 import { expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
-import { openRoute } from "./support/target";
+import { BASE_THEMES, openRoute, showTheme } from "./support/target";
 
 const display = (page: Page) => page.getByRole("region", { name: "Display", exact: true });
 
@@ -147,4 +147,21 @@ test.describe("round 10: Parchment's buttons are ink blue", () => {
     expect(c.text, "its words on its colour (1.4.3)").toBeGreaterThanOrEqual(4.5);
     expect(c.edge, "the button against the page (1.4.11)").toBeGreaterThanOrEqual(3);
   });
+});
+
+/* Round 10 (R10-FIX §3): the sweeps show each screen in all five themes without opening it again (target.showTheme),
+   so a panel that is open stays open. Each theme gives the page its own colours, a campaign's own pages too (the
+   session planner shows its campaign's theme otherwise). */
+test("round 10: a screen shows in each of the five themes in turn, with Help still open beside it", async ({ page }) => {
+  await openRoute(page, "session/crown/s14");
+  await page.keyboard.press("F1");
+  const help = page.getByRole("complementary", { name: "Help", exact: true });
+  await expect(help).toBeVisible();
+  const grounds = new Set<string>();
+  for (const theme of BASE_THEMES) {
+    await showTheme(page, theme);
+    grounds.add(await page.evaluate(() => getComputedStyle(document.body).backgroundColor));
+    await expect(help).toBeVisible();
+  }
+  expect(grounds.size, "five different page colours").toBe(BASE_THEMES.length);
 });
