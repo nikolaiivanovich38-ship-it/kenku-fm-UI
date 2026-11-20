@@ -15,7 +15,7 @@ import { cx } from "../../kit/cx";
 import { ICONS } from "../../kit/icons";
 import { MODE_ICON, MODE_NAME, PAD_COLOUR } from "../boards/boardModel";
 import { useBoxTarget, useLive } from "./liveData";
-import { padStepWords, type LiveBox, type LiveRoom } from "./liveModel";
+import { noSoundWords, padHasNoSound, padStepWords, type LiveBox, type LiveRoom } from "./liveModel";
 import { useAnnounce } from "../../shell/Announcer";
 
 /** Whether a pad sounds in a room. */
@@ -41,7 +41,7 @@ export function firePads(audio: LyreAudio, now: NowPlaying, targets: RoomTarget[
 /** A board's pads in a box (its rooms are the box's To:). `keysOn`: its pad keys play it (Current scene's board). */
 export function PadGrid({ board, box, keysOn }: { board: PadBoard; box: LiveBox; keysOn: boolean }) {
   const { audio, now, rooms, keys1 } = useLive();
-  const { toast } = useAnnounce();
+  const { toast, warn } = useAnnounce();
   const target = useBoxTarget(box);
   const held = useRef<Pad | null>(null);
   const latest = useRef({ audio, now, targets: target.targets });
@@ -89,6 +89,11 @@ export function PadGrid({ board, box, keysOn }: { board: PadBoard; box: LiveBox;
           inWhere={target.inWhere}
           mine={target.targets.flatMap((t) => (t === "all" ? [] : [t.room]))}
           press={(phase) => {
+            // Round 10 (table review S3): a pad with no sound says so in the warning pop-up instead of doing nothing.
+            if (padHasNoSound(pad)) {
+              if (phase === "down") warn(noSoundWords(pad));
+              return;
+            }
             // 0.5.2 (round 9 review M5): a pad does not end the scene's Undo.
             firePads(audio, now, target.targets, board, pad, phase);
             const words = phase === "down" ? padStepWords(pad) : null;
@@ -133,15 +138,16 @@ function PadTile({ board, pad, box, rooms, now, keys, inWhere, mine, press, hold
   const isHold = pad.mode === "hold";
   const keyHeld = useRef(false);
   const icon: IconName = (pad.icon in ICONS ? pad.icon : "note") as IconName;
+  const none = padHasNoSound(pad);
   return (
     <button
       type="button"
-      className={cx("lv-pad", on && "on")}
+      className={cx("lv-pad", on && "on", none && "lv-pad-none")}
       data-lv={`pad-${box}-${key}`}
       style={{ ["--pad" as string]: (PAD_COLOUR[pad.color] ?? PAD_COLOUR.bone).hex }}
       aria-pressed={many ? onHere : on}
       aria-keyshortcuts={pad.key && keys ? pad.key : undefined}
-      title={`${pad.label}${pad.key && keys ? ` (key ${pad.key.toUpperCase()})` : ""}: ${MODE_NAME[pad.mode]}${inWhere}${inRooms.length ? `. Sounding in ${inRooms.join(" and ")}` : ""}`}
+      title={none ? `${pad.label}: no sound yet. Choose one on its pad board.` : `${pad.label}${pad.key && keys ? ` (key ${pad.key.toUpperCase()})` : ""}: ${MODE_NAME[pad.mode]}${inWhere}${inRooms.length ? `. Sounding in ${inRooms.join(" and ")}` : ""}`}
       onClick={isHold ? undefined : () => press("down")}
       onPointerDown={
         isHold
@@ -187,6 +193,11 @@ function PadTile({ board, pad, box, rooms, now, keys, inWhere, mine, press, hold
     >
       <Icon name={icon} size="s" />
       <span className="lv-pad-l ellipsis">{pad.label}</span>
+      {none && (
+        <span className="lv-pad-nosound">
+          <span className="sr-only">, </span>No sound
+        </span>
+      )}
       {inRooms.length > 0 && (
         <>
           {/* 0.5.2 (round 8 finding 15): the letters are the rooms' first letters; their hover says so in words. */}

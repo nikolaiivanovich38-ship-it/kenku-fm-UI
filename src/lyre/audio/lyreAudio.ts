@@ -380,6 +380,8 @@ export interface LyreAudio {
   restoreRooms(snapshot: RoomsSnapshot, options?: { sameTime?: boolean }): CueOutcome;
   /** True when a room in the snapshot was playing music or ambience. */
   snapshotHasSound(snapshot: RoomsSnapshot): boolean;
+  /** Play now on a planned track in a room's Up next: that step plays now and the plan goes on from there. */
+  playUpNext(ref: UpNextRef, target?: RoomTarget): CueOutcome;
   // --- end r10-live ---
 
   // ----- preview: the game master's headphones only, never on air -----
@@ -878,6 +880,12 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   snapshotHasSound(snapshot: RoomsSnapshot): boolean {
     return this.director.snapshotHasSound(snapshot);
+  }
+
+  playUpNext(ref: UpNextRef, target: RoomTarget = FIRST_ROOM): CueOutcome {
+    const outcome = this.director.playUpNext(ref, this.rooms.target(target));
+    if ("message" in outcome) this.emit("error", outcome.message);
+    return outcome;
   }
   // --- end r10-live ---
 

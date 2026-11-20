@@ -138,6 +138,15 @@ export class Director extends TypedEmitter<DirectorEvents> {
     }
   }
 
+  /** Round 10: Play now on a planned track in Up next, in the target's rooms. */
+  playUpNext(ref: UpNextRef, target: RoomTarget): CueOutcome {
+    try {
+      return this.eachRoom(target, (player) => (player.playUpNext(ref, this.crossfadeSeconds()) ? OK : fail("That track is no longer in Up next.")));
+    } finally {
+      this.emit("change");
+    }
+  }
+
   // ---------- round 6: each room's running list and its Repeat (PLY-16, PLY-17) ----------
 
   /** Play next (right after the current track) or Add to queue (after the bottom of the plan), in the target's rooms. */

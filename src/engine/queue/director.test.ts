@@ -1044,3 +1044,21 @@ describe("round 10: every room's snapshot and its Undo", () => {
     expect(director.snapshotHasSound(snapshot)).toBe(false);
   });
 });
+
+/* Round 9 §6 (item 31: "select any track in it to play"), built in round 10: Play now on a planned Up next row. */
+describe("round 10: Play now on a planned track in Up next", () => {
+  it("plays that step of the plan now, and the plan goes on from there", async () => {
+    await run({ type: "startScene", scene: S3 });
+    await context.advance(1);
+    const later = director.report()[0].list.find((e) => e.kind === "plan" && e.trackId === "m2")!;
+    expect(director.playUpNext(later.ref, table)).toEqual({ ok: true });
+    await context.flush();
+    expect(music()).toBe("m2");
+    expect(director.report()[0].list.find((e) => e.kind === "plan")?.trackId).not.toBe("sting");
+  });
+
+  it("an added entry or one that has gone says so", async () => {
+    await run({ type: "startScene", scene: S3 });
+    expect(director.playUpNext({ kind: "plan", key: "s:99" }, table).ok).toBe(false);
+  });
+});

@@ -86,6 +86,7 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   /** A test says whether the rooms were playing; by default they were, so Live offers Undo. */
   roomsHadSound = true;
   snapshotHasSound = (): boolean => this.roomsHadSound;
+  playUpNext = this.record("playUpNext");
   // --- end r10-live ---
   playNext = this.record("playNext");
   addToQueue = this.record("addToQueue");

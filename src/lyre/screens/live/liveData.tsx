@@ -55,6 +55,8 @@ export interface LiveData {
   guard: boolean;
   /** PLY-15: the library's Normalise volume setting, for the hover on a track on air. */
   normalise: LibraryNormalise;
+  /** Round 10 (table review S3): the tracks whose files Lyre cannot find (their rows say Missing). */
+  missing: ReadonlySet<string>;
 }
 
 const LiveContext = createContext<LiveData | null>(null);

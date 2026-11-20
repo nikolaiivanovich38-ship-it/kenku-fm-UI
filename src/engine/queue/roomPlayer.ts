@@ -368,6 +368,21 @@ export class RoomPlayer {
     return true;
   }
 
+  /**
+   * Round 9 §6 (item 31), built in round 10: Play now on a planned track in Up next: that step of the plan plays now
+   * and the plan goes on from there. False when the entry is no longer a planned step of this room.
+   */
+  playUpNext(ref: UpNextRef, fadeSeconds: number): boolean {
+    if (ref.kind !== "plan" || !this.music.current) return false;
+    const entry = listUpNext(this.list, this.planView(false)).find((e) => e.kind === "plan" && e.ref.kind === "plan" && e.ref.key === ref.key);
+    if (!entry || entry.kind !== "plan") return false;
+    this.cancelHandOver();
+    this.list = { ...this.list, now: { kind: "plan" }, ret: null, backToQueue: null };
+    this.startPick({ from: "plan", at: entry.at, ...(entry.round ? { round: entry.round } : {}) }, fadeSeconds);
+    this.deps.changed();
+    return true;
+  }
+
   startScene(ref: SceneRef, scene: DomainScene, own?: { music: { at: number; fadeSeconds: number; fromSeconds?: number } | null; ambience: boolean; keepMusic?: boolean }): void {
     const lib = this.deps.library;
     const seed = this.deps.newSeed?.();

@@ -18,7 +18,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 
 import { DEFAULT_LIBRARY_NORMALISE, guardAllows, keyName, shortcutKey } from "../../../common/domain";
 import { GLOBAL_KEY_EVENT } from "../../../common/globalKeys";
-import { useBoards, useCampaigns, useLyreQuery, useProfileOverrides, useSettings, useTagGroups, usePlaylists, useTracks } from "../../api";
+import { useBoards, useCampaigns, useLyreQuery, useMissingTracks, useProfileOverrides, useSettings, useTagGroups, usePlaylists, useTracks } from "../../api";
 import { useLyreAudio, useLyreAudioEvent, useNowPlaying, type LyreAudio } from "../../audio";
 import { loadInLive, takeNextScene, useLiveSession } from "../../kit/liveSession";
 import { usePlayOrders } from "../../kit/playOrders";
@@ -34,7 +34,7 @@ import { CurrentScenePane } from "./CurrentScene";
 import { closeFind, openFind } from "./Find";
 import { focusBox, focusLiveSoon, focusLive } from "./focus";
 import { LiveDataProvider, sceneRefOf, type LiveData } from "./liveData";
-import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, padForKey, padStepWords, trayShown, UNDO_MS, type LiveKeys } from "./liveModel";
+import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, noSoundWords, padForKey, padHasNoSound, padStepWords, trayShown, UNDO_MS, type LiveKeys } from "./liveModel";
 import { getLiveState, lastActed, standbyFor, updateLive, useLiveState } from "./liveState";
 import { LiveTop } from "./LiveTop";
 import { OnAirPane } from "./OnAir";
@@ -134,13 +134,15 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   // UX-12: Live waits for the keys Settings has, so a key changed there never does what it did before for a moment.
   const keysKnown = settings !== undefined || settingsQuery.error !== null;
   const normalise = useLyreQuery("normalise-settings", (api) => api.library.normaliseSettings(), ["tracks"]).data;
+  const missingList = useMissingTracks().data;
+  const missing = useMemo(() => new Set((missingList ?? []).map((m) => m.id)), [missingList]);
   const orders = usePlayOrders();
   const names = useTrackNames();
   const { outputs, client } = useOutputs();
   const loaded = useLiveSession();
   const inHand = useCampaignInHand();
   const state = useLiveState();
-  const { say, toast } = useAnnounce();
+  const { say, toast, warn } = useAnnounce();
   const width = useAppWidth();
   const columns = columnsFor(width);
   const [keys1, setKeys1State] = useState(readKeys1);
@@ -192,6 +194,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           keys,
           guard: settings?.nextSceneGuard ?? true,
           normalise: normalise ?? DEFAULT_LIBRARY_NORMALISE,
+          missing,
         }
       : null;
   const dataRef = useRef(data);
@@ -329,8 +332,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   /** 0.5.2 (round 9 review M4): the text box last typed into, and when (its own Ctrl+Z, until something plays). */
   const lastTyped = useRef<{ el: EventTarget | null; at: number }>({ el: null, at: 0 });
   // The latest callbacks, so the key listeners are added once and a held pad is never let go by a redraw.
-  const calls = useRef({ nextScene, undo, say, toast, setKeysOpen });
-  calls.current = { nextScene, undo, say, toast, setKeysOpen };
+  const calls = useRef({ nextScene, undo, say, toast, warn, setKeysOpen });
+  calls.current = { nextScene, undo, say, toast, warn, setKeysOpen };
   const heldKeys = useRef(new Map<string, () => void>());
   useEffect(() => {
     const onTab = (event: KeyboardEvent) => {
@@ -477,6 +480,11 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           if (!board || !pad) return;
           handled();
           if (event.repeat || heldKeys.current.has(decision.key)) return;
+          // Round 10 (table review S3): a pad with no sound says so instead of doing nothing.
+          if (padHasNoSound(pad)) {
+            calls.current.warn(noSoundWords(pad));
+            return;
+          }
           const targets = boxTarget(d.rooms, s.to.music).targets;
           // 0.5.2 (round 9 review M5): a pad does not end the scene's Undo.
           firePads(d.audio, d.now, targets, board, pad, "down");

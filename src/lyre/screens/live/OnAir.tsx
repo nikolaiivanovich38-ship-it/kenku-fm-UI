@@ -26,10 +26,10 @@ import { useAnnounce } from "../../shell/Announcer";
 import { clockTime, STOP_FADE_MS } from "../../shell/NowPlayingBar";
 import { formatLength } from "../campaigns/model";
 import { busiestChannel as moveToChannel, moveLosesSound, roomToRestore, viewOf } from "../outputs/outputsModel";
-import { clearAdded, FADE_BUTTON_MS, LIVE_FADE_MS, nextInRoom, takeOut } from "./liveActions";
+import { clearAdded, FADE_BUTTON_MS, LIVE_FADE_MS, nextInRoom, takeOut, withRoomsUndo } from "./liveActions";
 import { laneProfile, sceneSteps, showLibraryOf, useLive, type LiveData } from "./liveData";
 import { LoopMark } from "./Rows";
-import { addRoomChoices, busiestChannel, channelChoices, endWords, noRoomStatus, roomStatus, TABLE, UNDO_MS, loopSettingAt, upNextRows, type LiveRoom } from "./liveModel";
+import { addRoomChoices, busiestChannel, channelChoices, endWords, loopLine, noRoomStatus, roomStatus, TABLE, UNDO_MS, loopSettingAt, upNextRows, type LiveRoom } from "./liveModel";
 import { offerSoftUndo, touched, updateLive } from "./liveState";
 import { focusLive, focusLiveSoon } from "./focus";
 import { useFoldedSummary } from "./Scenes";
@@ -167,7 +167,6 @@ function RoomPart({ r, short }: { r: LiveRoom; short: boolean }) {
       </div>
     );
   }
-  const fx = room?.effects ?? [];
   const waiting = state.aq[r.roomId] ?? [];
   const showUp = !!room?.music || waiting.length > 0;
   return (
@@ -188,20 +187,17 @@ function RoomPart({ r, short }: { r: LiveRoom; short: boolean }) {
       </div>
       {r.bot?.room?.status === "reconnecting" ? <ConnectionLost r={r} /> : r.nobody && r.view && <NobodyThere r={r} />}
       <PlayedList r={r} />
-      {(room?.music || room?.ambience || fx.length > 0 || showUp) && (
-        <div className="lv-rm-b">
-          <div className="lv-rm-lanes">
-            <Lane lane="music" room={room} roomName={r.name} />
-            <Lane lane="ambience" room={room} roomName={r.name} />
-            {fx.length > 0 && <Effects room={room!} roomName={r.name} />}
-          </div>
-          {showUp && (
-            <div className="lv-rm-up">
-              <UpNext roomId={r.roomId} room={room} />
-            </div>
-          )}
+      {/* Round 10 (table review M1): the room keeps its height whatever plays: Music and Ambience keep their places
+          (blank when silent), the Effects line is always there, and Up next keeps room for its first line. So
+          starting a scene or firing a pad moves nothing under the pointer. */}
+      <div className="lv-rm-b">
+        <div className="lv-rm-lanes">
+          <Lane lane="music" room={room} roomName={r.name} />
+          <Lane lane="ambience" room={room} roomName={r.name} />
+          <Effects room={room} roomName={r.name} />
         </div>
-      )}
+        <div className="lv-rm-up">{showUp && <UpNext roomId={r.roomId} room={room} />}</div>
+      </div>
     </div>
   );
 }
@@ -474,18 +470,8 @@ function BotButton({ r }: { r: LiveRoom }) {
         },
       });
     }
-    entries.push(
-      {
-        key: "rooms",
-        content: (
-          <>
-            <Icon name="users" size="s" />
-            Rooms
-          </>
-        ),
-        onSelect: () => (window.location.hash = "#/outputs"),
-      },
-    );
+    // Round 10 (Nik, 18 Nov, answer 3): no Rooms… line here; the Rooms screen opens from the menu, under Settings.
+    if (entries[entries.length - 1] && "separator" in entries[entries.length - 1]) entries.pop();
     return entries;
   };
   return (
@@ -570,8 +556,9 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
   const d = useLive();
   const { audio, index, overrides, campaigns, orders, state } = d;
   const playing: LaneNowPlaying | null = (lane === "music" ? room?.music : room?.ambience) ?? null;
-  if (!playing || !room) return null;
   const isMusic = lane === "music";
+  // Round 10 (table review M1): an empty lane keeps its place, blank (no resting words, Nik 6 Nov).
+  if (!playing || !room) return <div className={cx("lv-lane lv-lane-empty", isMusic ? "lv-m" : "lv-a")} aria-hidden="true" />;
   const word = isMusic ? "Music" : "Ambience";
   const target = { room: room.roomId };
   const shown = laneName(d, room.roomId, playing);
@@ -590,8 +577,10 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
   }
   const waiting = state.aq[room.roomId] ?? [];
   const canNext = !single || (isMusic && room.upNextList.length > 0) || (!isMusic && waiting.length > 0);
-  // Where the music comes from: its playlist. What comes next is Up next, beside it.
-  const sub = isMusic && playing.playlistId ? (index.playlist(playing.playlistId)?.name ?? "") : "";
+  // Round 10 (look M2; 0.5.2 item 53): one quiet line, where the music comes from (its playlist) and how it loops, in
+  // words. What comes next is Up next, beside it.
+  const from = isMusic && playing.playlistId ? (index.playlist(playing.playlistId)?.name ?? "") : "";
+  const sub = isMusic ? [from, resolved ? loopLine(resolved.profile) : ""].filter(Boolean).join(" · ") : "";
   const endText = isMusic && resolved ? endWords(resolved.profile, resolved.source) : "";
   // The time runs to where the track ends here (its audio profile's End), as in the prototype; the file's own length
   // only when the profile does not know one.
@@ -610,7 +599,7 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
         {playing.paused && <span className="badge">Paused</span>}
       </div>
       <div className="lv-lane-m">
-        <div className="lv-lane-t lv-lane-tl" title={title}>
+        <div className="lv-lane-t lv-lane-tl lv-clamp2" title={title}>
           {/* 0.5.2 (Nik's item 53): its loop setting first, so a long name never hides it. */}
           {track && <LoopMark setting={loopSettingAt(track, playing.place, playing.playlistId, overrides)} />}
           {/* 0.5.2 (Nik's items 3 and 11): the name leads to the track's details in the Library. */}
@@ -627,8 +616,11 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
           </div>
         )}
       </div>
-      <div className="lv-lane-c" role="group" aria-label={`${word} in ${roomName}`}>
-        {isMusic && (
+      {/* Round 10 (look M3, table review S2; ROUND10.md "Transport order"): Previous · Pause (filled, larger) · Next, a gap,
+          Stop on its own, then Shuffle, Repeat and Fade. The ambience row keeps the same places (blank where it has no
+          button), so Pause and Stop sit at the same place in both rows. */}
+      <div className="lv-lane-c lv-transport" role="group" aria-label={`${word} in ${roomName}`}>
+        {isMusic ? (
           <button
             type="button"
             className="btn s icon"
@@ -643,10 +635,12 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
           >
             <Icon name="prev" size="s" />
           </button>
+        ) : (
+          <span className="lv-tblank" aria-hidden="true" />
         )}
         <button
           type="button"
-          className="btn s icon"
+          className="btn s icon lv-tmain"
           data-lv={`pause-${lane}-${lv}`}
           aria-label={`${playing.paused ? "Resume" : "Pause"} ${word.toLowerCase()}`}
           title={`${playing.paused ? "Resume" : "Pause"} ${word.toLowerCase()}`}
@@ -656,20 +650,6 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
           }}
         >
           <Icon name={playing.paused ? "play" : "pause"} size="s" />
-        </button>
-        {/* 0.5.1 (Nik, 11 Nov): Stop beside Pause, as in the Now playing bar (a quick fade; Fade out is the slow one). */}
-        <button
-          type="button"
-          className="btn s icon"
-          data-lv={`stop-${lane}-${lv}`}
-          aria-label={`Stop ${word.toLowerCase()}`}
-          title={`Stop ${word.toLowerCase()} (fades out in a second)`}
-          onClick={() => {
-            touched();
-            audio.stopLane(lane, { target, fadeMs: STOP_FADE_MS });
-          }}
-        >
-          <Icon name="stop" size="s" />
         </button>
         <button
           type="button"
@@ -682,8 +662,24 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
         >
           <Icon name="next" size="s" />
         </button>
-        {isMusic && <ShuffleButton room={room} roomName={roomName} />}
-        {isMusic && <RepeatButton room={room} roomName={roomName} />}
+        <span className="lv-tgap" aria-hidden="true" />
+        {/* 0.5.1 (Nik, 11 Nov): Stop as well as Pause (a quick fade; Fade out is the slow one); round 10: apart from Pause. */}
+        <button
+          type="button"
+          className="btn s icon lv-tstop"
+          data-lv={`stop-${lane}-${lv}`}
+          aria-label={`Stop ${word.toLowerCase()}`}
+          title={`Stop ${word.toLowerCase()} (fades out in a second)`}
+          onClick={() => {
+            touched();
+            audio.stopLane(lane, { target, fadeMs: STOP_FADE_MS });
+          }}
+        >
+          <Icon name="stop" size="s" />
+        </button>
+        <span className="lv-tgap" aria-hidden="true" />
+        {isMusic ? <ShuffleButton room={room} roomName={roomName} /> : <span className="lv-tblank" aria-hidden="true" />}
+        {isMusic ? <RepeatButton room={room} roomName={roomName} /> : <span className="lv-tblank" aria-hidden="true" />}
         <button
           type="button"
           className="btn s icon"
@@ -750,9 +746,11 @@ function ShuffleButton({ room, roomName }: { room: RoomNowPlaying; roomName: str
   );
 }
 
-function Effects({ room, roomName }: { room: RoomNowPlaying; roomName: string }) {
+/** Round 10 (table review M1): the Effects line keeps its place when nothing sounds (blank, no resting words). */
+function Effects({ room, roomName }: { room: RoomNowPlaying | null; roomName: string }) {
   const { audio, index } = useLive();
   const { say } = useAnnounce();
+  if (!room || !room.effects.length) return <div className="lv-line lv-fx lv-fx-empty" aria-hidden="true" />;
   const label = (e: RoomNowPlaying["effects"][number]) => {
     if (!e.padKey) return e.title;
     const [boardId, padId] = e.padKey.split("/");
@@ -839,8 +837,15 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
     const tail = after?.kind === "more" && after.inline ? more(after.n) : null;
     if (row.kind === "ambience") {
       const a = waiting[row.at];
+      const remove = () => {
+        const before = d.state.aq;
+        updateLive((s) => ({ aq: { ...s.aq, [roomId]: (s.aq[roomId] ?? []).filter((_, j) => j !== row.at) } }));
+        offerSoftUndo({ text: `Taken out of Up next: ${a.name}`, focus: "undo", restore: () => updateLive({ aq: before }) }, UNDO_MS);
+        say(`Taken out of Up next: ${a.name}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
+        focusLiveSoon(nextX(row.at, true));
+      };
       items.push(
-        <li key={`amb-${row.at}`} className="lv-up-i added amb">
+        <li key={`amb-${row.at}`} className="lv-up-i added amb" onKeyDown={deleteKey(remove)}>
           <span className="lane-dot amb" aria-hidden="true" />
           <span className="sr-only">Ambience next: </span>
           <span className="ellipsis grow" title={a.name}>
@@ -852,13 +857,7 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
             data-lv={`upx-a${row.at}-${k}`}
             aria-label={`Remove ${a.name} from Up next`}
             title="Take out of Up next (this evening only)"
-            onClick={() => {
-              const before = d.state.aq;
-              updateLive((s) => ({ aq: { ...s.aq, [roomId]: (s.aq[roomId] ?? []).filter((_, j) => j !== row.at) } }));
-              offerSoftUndo({ text: `Taken out of Up next: ${a.name}`, focus: "undo", restore: () => updateLive({ aq: before }) }, UNDO_MS);
-              say(`Taken out of Up next: ${a.name}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
-              focusLiveSoon(nextX(row.at, true));
-            }}
+            onClick={remove}
           >
             <Icon name="close" size="s" />
           </button>
@@ -871,8 +870,12 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
     const name = entryName(d, room, e);
     const isAdded = e.kind !== "planned";
     const left = isAdded && e.trackIds.length > 1 ? `${e.trackIds.length} left` : "";
+    const remove = () => {
+      takeOut(d, roomId, () => d.audio.removeFromUpNext(e.ref, { room: roomId }).ok, name, `upx-0-${k}`, { say });
+      focusLiveSoon(nextX(row.at));
+    };
     items.push(
-      <li key={`${e.kind}-${row.at}-${JSON.stringify(e.ref)}`} className={cx("lv-up-i", isAdded && "added")}>
+      <li key={`${e.kind}-${row.at}-${JSON.stringify(e.ref)}`} className={cx("lv-up-i", isAdded && "added")} onKeyDown={deleteKey(remove)}>
         {isAdded && (
           <>
             <Icon name={e.kind === "playNext" ? "next" : "queue"} size="s" />
@@ -889,16 +892,29 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
           </span>
         )}
         {left && <span className="faint num">{left}</span>}
+        {/* Round 9 §6 (item 31), built in round 10: a planned track can be played now; the list goes on from there. */}
+        {e.kind === "planned" && (
+          <button
+            type="button"
+            className="x lv-upplay"
+            data-lv={`upp-${row.at}-${k}`}
+            aria-label={`Play now: ${name}`}
+            title="Play it now. Up next goes on from there."
+            onClick={() => {
+              withRoomsUndo(d, `Playing now: ${name}`, `upp-${row.at}-${k}`, () => d.audio.playUpNext(e.ref, { room: roomId }));
+              say(`Playing now: ${name}`);
+            }}
+          >
+            <Icon name="play" size="s" />
+          </button>
+        )}
         <button
           type="button"
           className="x"
           data-lv={`upx-${row.at}-${k}`}
           aria-label={`Remove ${name} from Up next`}
           title="Take out of Up next (this evening only)"
-          onClick={() => {
-            takeOut(d, roomId, () => d.audio.removeFromUpNext(e.ref, { room: roomId }).ok, name, `upx-0-${k}`, { say });
-            focusLiveSoon(nextX(row.at));
-          }}
+          onClick={remove}
         >
           <Icon name="close" size="s" />
         </button>
@@ -928,6 +944,16 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
       )}
     </div>
   );
+}
+
+/** Round 10 (R10-FIX §1): Delete on a focused Up next row does what its × does. */
+function deleteKey(remove: () => void): (event: React.KeyboardEvent) => void {
+  return (event) => {
+    if (event.key !== "Delete" || event.ctrlKey || event.altKey || event.metaKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    remove();
+  };
 }
 
 /** PLY-1: What played, opened in the room itself (Live never covers its controls). */

@@ -213,7 +213,7 @@ function Results({ anchor }: { anchor: React.RefObject<HTMLDivElement> }) {
                       rowKey={`offp:${p.id}`}
                       place={place}
                       box="off"
-                      trackRow={(t) => <TrackRow key={t.id} track={t} rowKey={`offp:${p.id}:${t.id}`} place={place} playlistId={p.id} from={{ playlistId: p.id, ...(place ? { place } : {}) }} box="off" on={trackOnAir(d, t.id)} inner />}
+                      trackRow={(t) => <TrackRow key={t.id} track={t} rowKey={`offp:${p.id}:${t.id}`} place={place} playlistId={p.id} from={{ playlistId: p.id, ...(place ? { place } : {}) }} box="off" on={trackOnAir(d, t.id)} inner inPlaylist={p.kind === "manual" ? p : undefined} />}
                     />
                   );
                 })}
