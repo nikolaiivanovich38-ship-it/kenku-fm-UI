@@ -14,6 +14,7 @@ import { IconButton } from "../../kit/Button";
 import { ExpanderButton } from "../../kit/Expander";
 import { Pane } from "../../kit/Pane";
 import { useAnnounce } from "../../shell/Announcer";
+import { useUndoNote } from "../../shell/UndoNote";
 import { useSave } from "../../shell/useSave";
 import { boardInfo, playlistInfo, plural, trackInfo, type ItemInfo, type LibraryIndex } from "./model";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
@@ -224,7 +225,7 @@ export interface OnHandPaneProps {
 export function OnHandPane({ paneId, title, kind, owner, ids, trackIds = [], index, why, where, ownerWord }: OnHandPaneProps) {
   const api = useLyreApi();
   const write = useWrite();
-  const { say, toast } = useAnnounce();
+  const { say } = useAnnounce();
   const focusLater = useFocusLater();
   const [picking, setPicking] = useState(false);
   const scope = ownerWord === "campaign" ? "c" : "s";
@@ -259,20 +260,27 @@ export function OnHandPane({ paneId, title, kind, owner, ids, trackIds = [], ind
     });
   };
 
+  // Round 10 (R10-FIX §1, row 36): taking a playlist, board or track out of the campaign or session has Undo.
+  const { offerUndo } = useUndoNote();
   const remove = async (id: string, what: "playlists" | "boards" | "tracks") => {
     if (what === "tracks") {
+      const before = [...trackIds];
       if ((await write(api.campaigns.setOnHand(owner, "tracks", trackIds.filter((x) => x !== id)))) === undefined) return;
       focusLater(addKey);
       const t = index.track(id);
-      toast(`Removed "${t ? trackInfo(t).name : "the track"}" from this ${ownerWord}. It is still in the Track library.`);
+      offerUndo(`Removed "${t ? trackInfo(t).name : "the track"}" from this ${ownerWord}. It is still in the Track library.`, () => void write(api.campaigns.setOnHand(owner, "tracks", before)));
       return;
     }
+    const before = [...ids];
     const at = ids.indexOf(id);
     const next = ids.filter((x) => x !== id);
     const name = kind === "playlists" ? index.playlist(id)?.name : index.board(id)?.name;
     if ((await save(next)) === undefined) return;
     focusLater(next.length ? `more-${scope}${kindKey}${next[Math.min(at, next.length - 1)]}` : addKey);
-    toast(`Removed "${name}" from this ${ownerWord}. It is still on the ${kind === "playlists" ? "Playlists" : "Pad boards"} page.`);
+    offerUndo(`Removed "${name}" from this ${ownerWord}. It is still on the ${kind === "playlists" ? "Playlists" : "Pad boards"} page.`, () => {
+      focusLater(`more-${scope}${kindKey}${id}`);
+      void save(before);
+    });
   };
 
   return (

@@ -834,7 +834,16 @@ function ItemRow({
     { label: "Remove from this scene", icon: "close", onSelect: () => onChange("remove") },
   ];
   return (
-    <li className={`cp-it${position === 0 ? " first" : ""}${dropBefore ? " cp-ins-before" : ""} ${drag.rowClass(position)}`} {...drag.rowProps(position)}>
+    <li
+      className={`cp-it${position === 0 ? " first" : ""}${dropBefore ? " cp-ins-before" : ""} ${drag.rowClass(position)}`}
+      {...drag.rowProps(position)}
+      onKeyDown={(event) => {
+        // Round 10 (row 36): Delete on a focused row does what its ⋯'s Remove from this scene does, with Undo.
+        if (event.key !== "Delete" || event.defaultPrevented || isTypingIn(event.target) || (event.target as Element).closest(".xp-body")) return;
+        event.preventDefault();
+        onChange("remove");
+      }}
+    >
       <div className="cp-it-row">
         {count > 1 && (
           <span className="cp-handle" title="Drag to change the order (or use ⋯ Move up and Move down)" aria-hidden="true" {...drag.handleProps}>
@@ -921,6 +930,7 @@ function ItemRow({
 /** Moves, "starts the scene" and removes in a scene's music or pad boards, with what the prototype says. */
 function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
   const { say } = useAnnounce();
+  const { offerUndo } = useUndoNote();
   const nameOf = (id: string) => (list === "boards" ? ctx.index.board(id)?.name : soundInfo(scene.music.find((r) => r.id === id) ?? { kind: "track", id }, ctx.index)?.name) ?? "item";
   return async (at: number, op: "first" | "up" | "down" | "remove" | { to: number }) => {
     ctx.workedOn(scene.id);
@@ -931,10 +941,16 @@ function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
     const lead = list === "boards" ? " now shows first" : " now starts the scene";
     const save = async () => ((await ctx.saveScene(scene, list === "music" ? { music: items as SoundRef[] } : { boardIds: items as string[] })) ? true : undefined);
     if (op === "remove") {
+      const before = items.slice();
       items.splice(at, 1);
       ctx.focusLater(items.length ? `im-${scene.id}-${list}-${idOf(items[Math.min(at, items.length - 1)])}` : `${list === "boards" ? "ab" : "am"}-${scene.id}`);
       if ((await save()) === undefined) return;
       say(`Removed ${name} from this scene${at === 0 && items.length ? `. ${nameOf(idOf(items[0]))}${lead}` : ""}`);
+      // Round 10 (R10-FIX §1, row 36): Undo puts it back in its place; the track, playlist or board itself stays.
+      offerUndo(`Removed ${name} from ${scene.name || "this scene"}.`, () => {
+        ctx.focusLater(`im-${scene.id}-${list}-${id}`);
+        void ctx.saveScene(scene, list === "music" ? { music: before as SoundRef[] } : { boardIds: before as string[] });
+      });
       return;
     }
     const to = typeof op === "object" ? op.to : op === "first" ? 0 : op === "up" ? at - 1 : at + 1;
@@ -1061,10 +1077,15 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
     ctx.workedOn(scene.id);
     ctx.pick({ kind: "ambience", sceneId: scene.id });
   };
+  const { offerUndo } = useUndoNote();
   const clear = async () => {
     ctx.workedOn(scene.id);
     ctx.focusLater(`pa-${scene.id}`);
-    if (await ctx.saveScene(scene, { ambience: null })) say("No ambience in this scene");
+    const was = scene.ambience;
+    if (!(await ctx.saveScene(scene, { ambience: null }))) return;
+    say("No ambience in this scene");
+    // Round 10 (row 36): Undo puts the ambience back.
+    if (was) offerUndo(`Removed ${info?.name ?? "the ambience"} from ${scene.name || "this scene"}.`, () => void ctx.saveScene(scene, { ambience: was }));
   };
   const dropProps = {
     onDragOver: (event: React.DragEvent<HTMLDivElement>) => {
@@ -1128,4 +1149,9 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
       )}
     </div>
   );
+}
+
+/** A field that takes typing, where Delete deletes text. */
+function isTypingIn(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 }

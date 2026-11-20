@@ -158,6 +158,17 @@ describe("a scene's music", () => {
     expect((await s14(api)).scenes[2].music.map((m) => m.id)).toEqual(["p-abbess", "t13", "p-abbey-eerie"]);
   });
 
+  it("round 10: Delete on a focused row takes it out of the scene, and Undo puts it back in its place", async () => {
+    const { api } = await openAbbey();
+    const before = musicNames();
+    abbey().getByRole("button", { name: "More for The Abbess" }).focus();
+    await userEvent.keyboard("{Delete}");
+    await waitFor(() => expect(musicNames()).not.toContain("The Abbess"));
+    await userEvent.click(within(screen.getByRole("group", { name: "Undo" })).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(musicNames()).toEqual(before));
+    expect((await s14(api)).scenes[2].music).toHaveLength(before.length);
+  });
+
   it("a change shows at once while the library saves it, and goes back when the library refuses it", async () => {
     const api = createFakeLyreApi();
     let release: (answer: Awaited<ReturnType<typeof api.sessions.setSceneMusic>>) => void = () => undefined;
