@@ -620,6 +620,7 @@ export function LibraryScreen({ route }: ScreenProps) {
         onScrolled={setListScroll}
         describedBy="lb-keys"
         columns={columns}
+        onDelete={(id) => setRemoval({ how: "remove", ids: [id] })}
       />
       {/* Round 6: the keys show only while the keyboard is in the list, and are read out with it. */}
       <div className="lb-foot hint keys-on-focus" id="lb-keys">

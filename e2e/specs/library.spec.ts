@@ -939,9 +939,10 @@ test.describe("round 10: removing tracks from the Track library", () => {
     await page.getByRole("menuitem", { name: `Remove the ${n} tracks shown from the library…` }).click();
     const dialog = page.getByRole("dialog", { name: `Remove all ${n} shown tracks from the library?` });
     await dialog.getByRole("button", { name: `Remove ${n} tracks` }).click();
-    expect(await shownTitles(page)).toEqual([]);
+    // The app removes them in the library first, then draws the list: the checks wait for it.
+    await expect.poll(() => shownTitles(page)).toEqual([]);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect(await shownTitles(page)).toHaveLength(n);
+    await expect.poll(async () => (await shownTitles(page)).length).toBe(n);
   });
 
   test("a track's details have Remove from library, and Delete on a focused row asks the same", async ({ page }) => {

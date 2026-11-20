@@ -66,6 +66,8 @@ export interface TracksTableProps {
   onSort?: (sort: SortKey) => void;
   /** Round 6: the id of the key legend under the list, read out with it. */
   describedBy?: string;
+  /** Round 10 fixes (R10-FIX §1): Delete on a row (Remove from library, asking first). */
+  onDelete?: (id: string) => void;
   /** Round 9 (item 26): the columns shown beside Title, in the list's order (Columns beside Sort). */
   columns?: readonly ColumnKey[];
 }
@@ -193,6 +195,10 @@ export function TracksTable(props: TracksTableProps) {
     } else if ((key === "a" || key === "A") && plain) {
       event.preventDefault();
       props.onPlay(id);
+    } else if (key === "Delete" && plain && !event.shiftKey && props.onDelete) {
+      // Round 10 fixes (R10-FIX §1): Delete on a row asks as its ⋯'s Remove from library does.
+      event.preventDefault();
+      props.onDelete(id);
     }
   };
 
