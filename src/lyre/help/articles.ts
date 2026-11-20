@@ -23,6 +23,7 @@ import missingFiles from "./articles/13-missing-files.md?raw";
 import diagnostics from "./articles/14-diagnostics.md?raw";
 import upNext from "./articles/15-up-next.md?raw";
 // --- r10-tracks ---
+import trackPanel from "./articles/17-track-panel.md?raw";
 import filtersAndColumns from "./articles/18-filters-and-columns.md?raw";
 import splitParts from "./articles/19-split-parts.md?raw";
 
@@ -119,6 +120,7 @@ const FILES: Record<string, string> = {
   "14-diagnostics.md": diagnostics,
   "15-up-next.md": upNext,
   // --- r10-tracks ---
+  "17-track-panel.md": trackPanel,
   "18-filters-and-columns.md": filtersAndColumns,
   "19-split-parts.md": splitParts,
 };

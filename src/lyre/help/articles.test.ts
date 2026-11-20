@@ -9,7 +9,7 @@ describe("the help articles (FND-8)", () => {
   it("has every Markdown file in src/lyre/help/articles, in the order of their file names", () => {
     const files = fs.readdirSync(FOLDER).filter((f) => f.endsWith(".md")).sort();
     expect(ARTICLES.map((a) => a.file)).toEqual(files);
-    // 15 in 0.5.2; 0.6.0's streams add theirs (r10-tracks: 18 and 19).
+    // 15 in 0.5.2; 0.6.0's streams add theirs (r10-tracks: 17, 18 and 19).
     expect(files.length).toBeGreaterThanOrEqual(17);
   });
 
@@ -44,7 +44,8 @@ describe("the help articles (FND-8)", () => {
       "Find missing files",
       "Save diagnostics for a bug report",
       "Play next, Add to queue and Repeat",
-      // 0.6.0 (r10-tracks): round 9's filters and columns, and Split into parts.
+      // 0.6.0 (r10-tracks): the Track panel, round 9's filters and columns, and Split into parts.
+      "A track's details anywhere",
       "Filters, columns and sorting",
       "Split a track into parts",
     ]);

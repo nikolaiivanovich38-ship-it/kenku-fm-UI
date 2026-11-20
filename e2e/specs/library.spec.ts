@@ -827,13 +827,15 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     expect((await pickUp.boundingBox())!.height).toBeLessThan(30);
   });
 
-  test("round 8 #5: a track title on a playlist page opens the Track library with that row in view", async ({ page }) => {
+  test("round 8 #5: a track title on a playlist page opens its details, and Open in Track library shows that row in view", async ({ page }) => {
     appOnly();
     await openRoute(page, "playlist/p-abbess");
-    const links = page.locator('a[href^="#/library/"]');
+    const links = page.getByRole("main").locator('a[href^="#/library/"]');
     await expect(links.first()).toBeVisible();
     const href = (await links.last().getAttribute("href"))!;
     await links.last().click();
+    // Round 10: the title opens the Track panel beside the page; from there, the Track library.
+    await page.getByRole("complementary").getByRole("link", { name: "Open in Track library" }).click();
     const open = grid(page).locator(`tr[data-tid="${href.split("/").pop()}"]`);
     await expect(open).toHaveAttribute("aria-current", "true");
     await expect(open).toBeInViewport();

@@ -394,13 +394,19 @@ function PlaylistRow({
       className={`pl-item${open ? " pl-open" : ""}${flash ? " pl-flash" : ""}${line ? ` r9-pl-${line}` : ""}`}
       data-pid={p.id}
       // Round 9 (item 38): Alt+Up and Alt+Down move the playlist; Delete asks as Delete playlist… does (R10-FIX §2).
+      // Alt+arrows in the capture phase: a menu button would take Alt+Down as "open the menu".
+      onKeyDownCapture={(e) => {
+        if ((e.target as HTMLElement).closest("li") !== e.currentTarget) return;
+        if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && !(e.target as HTMLElement).matches("input, textarea, select")) {
+          e.preventDefault();
+          e.stopPropagation();
+          onMove(p.id, e.key === "ArrowUp" ? "up" : "down", (e.target as HTMLElement).getAttribute("aria-label") ?? moreName);
+        }
+      }}
       onKeyDown={(e) => {
         const own = (e.target as HTMLElement).closest("li") === e.currentTarget;
         if (!own) return;
-        if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown") && !(e.target as HTMLElement).matches("input, textarea, select")) {
-          e.preventDefault();
-          onMove(p.id, e.key === "ArrowUp" ? "up" : "down", (e.target as HTMLElement).getAttribute("aria-label") ?? moreName);
-        } else if (deleteKeyOnRow(e)) {
+        if (deleteKeyOnRow(e)) {
           e.preventDefault();
           onDelete();
         }
