@@ -257,7 +257,7 @@ describe("items 1 and 50: Remove from library, Delete file from disk…, Remove 
     await loaded();
     const user = userEvent.setup();
     await user.click(within(rowOf("t13")).getByRole("button", { name: /^More for / }));
-    await user.click(screen.getByRole("menuitem", { name: "Remove from library" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from library…" }));
     const dialog = screen.getByRole("dialog", { name: /^Remove “Eerie dread.*” from the library\?$/ });
     expect(dialog).toHaveTextContent("Its file stays on your computer");
     expect(within(dialog).getByRole("note")).toHaveTextContent("It is used in:Scenes: The abbey ruins (Session 14)");
@@ -275,7 +275,7 @@ describe("items 1 and 50: Remove from library, Delete file from disk…, Remove 
     await user.click(screen.getByRole("checkbox", { name: "Select Ashes" }));
     await user.click(within(rowOf("t13")).getByRole("checkbox"));
     await user.click(screen.getByRole("button", { name: "More for the selected tracks" }));
-    await user.click(screen.getByRole("menuitem", { name: "Remove from library" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from library…" }));
     await user.click(within(screen.getByRole("dialog", { name: "Remove 2 tracks from the library?" })).getByRole("button", { name: "Remove 2 tracks" }));
     await waitFor(async () => expect((await api.library.listTracks()).map((t) => t.id)).not.toContain("t44"));
     expect(screen.queryByRole("toolbar", { name: "Selected tracks" })).toBeNull();
@@ -327,7 +327,7 @@ describe("items 1 and 50: Remove from library, Delete file from disk…, Remove 
     const realRemove = api.library.removeTracks.bind(api.library);
     const removes = vi.spyOn(api.library, "removeTracks").mockImplementation((ids) => new Promise((resolve) => (answerRemove = () => resolve(realRemove(ids)))));
     await user.click(within(rowOf("t02")).getByRole("button", { name: /^More for / }));
-    await user.click(screen.getByRole("menuitem", { name: "Remove from library" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from library…" }));
     const remove = within(screen.getByRole("dialog")).getByRole("button", { name: "Remove" });
     await user.click(remove);
     await user.click(remove);
@@ -417,7 +417,7 @@ describe("0.5.2: the new confirmations have no accessibility failures", () => {
     await loaded();
     const user = userEvent.setup();
     await user.click(within(rowOf("t13")).getByRole("button", { name: /^More for / }));
-    await user.click(screen.getByRole("menuitem", { name: "Remove from library" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from library…" }));
     await expectNoAxeViolations(screen.getByRole("dialog"));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
     await user.click(within(rowOf("t13")).getByRole("button", { name: /^More for / }));

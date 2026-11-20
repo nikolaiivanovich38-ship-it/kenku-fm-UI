@@ -135,9 +135,9 @@ describe("taking things out in line", () => {
     valueOf(await api.playlists.addDivider("p-abbess", "After the font", 3));
     await user.click(screen.getByRole("button", { name: "Show contents of The Abbess" }));
     const tracks = await screen.findByRole("list", { name: "Tracks in The Abbess" });
-    await waitFor(() => expect(within(tracks).getByRole("listitem", { name: "Section: After the font" })).toBeInTheDocument());
+    await waitFor(() => expect(within(tracks).getByRole("listitem", { name: "Divider: After the font" })).toBeInTheDocument());
     const items = within(tracks).getAllByRole("listitem");
-    const at = items.findIndex((li) => li.getAttribute("aria-label") === "Section: After the font");
+    const at = items.findIndex((li) => li.getAttribute("aria-label") === "Divider: After the font");
     expect(items[at + 1]).toHaveTextContent(/^4/);
     const rows = () => within(screen.getByRole("list", { name: "Tracks in The Abbess" })).getAllByRole("listitem").filter((li) => li.dataset.tid);
     expect(rows()).toHaveLength(5);

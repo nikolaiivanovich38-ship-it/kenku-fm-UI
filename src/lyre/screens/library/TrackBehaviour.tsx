@@ -107,7 +107,7 @@ export function TrackBehaviour({ t, playlists, store }: { t: LibraryTrack; playl
                     <button
                       type="button"
                       className="x"
-                      title="Remove"
+                      title={`Stop playing ${name(t.follow)} after it`}
                       aria-label={`Stop playing ${name(t.follow)} after it`}
                       onClick={() => void write(endPatch(t, "next"), () => `${title} plays nothing after it`)}
                     >

@@ -125,7 +125,7 @@ function DipFields() {
             onChange={(event) => {
               const amount = event.target.value as DipAmount;
               setDip({ amount }, audio);
-              saved(`dip the music: ${DIP_AMOUNTS.find(([v]) => v === amount)![1].toLowerCase()}`, { key: "dip" });
+              saved(`how far the music dips, ${DIP_AMOUNTS.find(([v]) => v === amount)![1].toLowerCase()}`, { key: "dip" });
             }}
           >
             {DIP_AMOUNTS.map(([value, label]) => (

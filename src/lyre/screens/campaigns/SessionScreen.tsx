@@ -336,7 +336,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
       const at = chosen.indexOf(keys[0]);
       const rest = chosen.filter((key) => !keys.includes(key));
       rest.splice(Math.max(0, Math.min(at, rest.length)), 0, playlistKey(made.value.id));
-      say(`${name} made with ${plural(keys.length, "track")}, and put in the scene`);
+      say(`Made the playlist ${name} with ${plural(keys.length, "track")} and put it in the scene.`);
       return rest;
     },
   };
@@ -345,13 +345,13 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
   const makeBoard: PickerMakeNew = {
     label: "New board…",
     icon: "plus",
-    hint: "An empty pad board, made here and put in this scene; you give it pads on its own page",
+    hint: "Make an empty pad board and put it in this scene. You give it pads on its page.",
     field: "New board",
     suggest: () => freeName("New board", index.boards.map((b) => b.name)),
     make: async (name, chosen) => {
       const made = await write(api.boards.create({ name, cols: 4, rows: 3 }));
       if (!made) return null;
-      say(`${name} made, an empty 4 by 3 board, and put in the scene. Give it pads on its page.`);
+      say(`Made ${name}, an empty 4 by 3 board, and put it in the scene. Give it pads on its page.`);
       return [...chosen, made.value.id];
     },
   };

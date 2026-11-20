@@ -321,7 +321,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       updateLive({ arranging: on });
       focusLive("arrange");
       if (on) say("Arranging the boxes. Drag a box by its header, or use its Move… button. Press Done when you have finished.");
-      else announceSaved("layout of Live for this window size");
+      else announceSaved("the layout of Live for this window size");
     },
     [say, announceSaved],
   );

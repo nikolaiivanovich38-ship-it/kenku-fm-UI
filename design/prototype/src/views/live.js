@@ -249,7 +249,7 @@
   function undoStrip(where) {
     var u = S.undo2; if (!u || where !== 'strip') return '';
     return '<div class="lv-undo lv-undo2" role="group" aria-label="Undo"><span class="ellipsis grow">' + esc(u.text) + '</span>' +
-      '<button class="btn s" data-act="lvundo2" data-k="lv-undo2" aria-keyshortcuts="Control+Z" title="Undo (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
+      '<button class="btn s" data-act="lvundo2" data-k="lv-undo2" aria-keyshortcuts="Control+Z" title="Undo &quot;' + esc(u.text) + '&quot; (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
       '<span class="lv-undo-bar" aria-hidden="true"><span data-undo2-left style="width:100%"></span></span></div>';
   }
   function undoSlot() {
@@ -443,7 +443,7 @@
       '<div class="lv-lane-l"><span class="lv-lane-n"><span class="lane-dot ' + ln + '"></span>' + word + '</span>' + (c.paused ? '<span class="badge">Paused</span>' : '') +
         // Round 9 (item 47): while a dipping effect sounds, the music says so in words.
         // Round 10 (look D6, table D-S9): a status in words, not a button-looking chip.
-        (L.dippedIn && L.dippedIn(tg, ln) ? '<span class="r9-dipped r10-status" title="Quieter while an effect plays; it comes back by itself">Dipped</span>' : '') + '</div>' +
+        (L.dippedIn && L.dippedIn(tg, ln) ? '<span class="r9-dipped r10-status" title="' + (ln === 'music' ? 'The music' : 'The ambience') + ' is quieter while an effect plays. It comes back by itself.">Dipped</span>' : '') + '</div>' +
       // The scene position and the end rule are hover text (and read out); the track list shows where it is.
       // Round 10 (look M2): the playing title gets up to two lines; it is the most important text on screen.
       '<div class="lv-lane-m"><div class="lv-lane-t r10-clamp2" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +

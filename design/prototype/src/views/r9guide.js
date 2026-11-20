@@ -48,8 +48,8 @@
   // Round 10 (look D7, prep D12): one Dock menu with words in place of three unlabelled glyphs.
   L.floatTools = function () {
     return '<span class="r9-fl-tools" role="group" aria-label="Panel position">' +
-      '<button class="btn s" data-act="r10dockmenu" data-k="r10-dock" aria-haspopup="menu" aria-expanded="false" title="Dock it left or right, or let it float. Drag its title bar to move it, or its corner to change its size.">Dock' + L.icon('chevdown', 's') + '</button>' +
-      '<button class="btn s icon r9-fl-move" data-r9-move="1" title="Move it with the arrow keys. Hold Shift and use the arrows to change its size." aria-label="Move or resize with the arrow keys">' + L.icon('drag', 's') + '</button></span>';
+      '<button class="btn s" data-act="r10dockmenu" data-k="r10-dock" aria-haspopup="menu" aria-expanded="false" title="Dock this panel left or right, or let it float. Drag its title bar to move it, or its corner to resize it.">Dock' + L.icon('chevdown', 's') + '</button>' +
+      '<button class="btn s icon r9-fl-move" data-r9-move="1" title="Move the panel with the arrow keys. Hold Shift and use the arrows to resize it." aria-label="Move or resize with the arrow keys">' + L.icon('drag', 's') + '</button></span>';
   };
   L.floatPlace = function (p) {
     var g = geo();

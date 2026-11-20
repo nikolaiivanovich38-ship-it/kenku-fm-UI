@@ -415,7 +415,7 @@ describe("round 10: Settings › Discord bots (Nik, 18 Nov 03:14, answers 2 and 
     fireEvent.change(slider, { target: { value: "80" } });
     fireEvent.blur(slider);
     expect(outputs.calls).toContainEqual(["setStartVolume", expect.any(String), 0.8]);
-    await waitFor(() => expect(toast()).toContain("Lyre Table starting volume 80%"));
+    await waitFor(() => expect(toast()).toContain("Lyre Table's starting volume, 80%"));
   });
 
   it("has a Rooms link to the Rooms screen", async () => {

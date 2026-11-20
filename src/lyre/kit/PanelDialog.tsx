@@ -259,7 +259,7 @@ function OpenPanelDialog({ title, onClose, placeId, kind = "addMusic", footer, d
           <MenuButton
             label="Dock"
             size="s"
-            title="Dock it left or right, or let it float. Drag its title bar to move it, or its corner to change its size."
+            title="Dock this panel left or right, or let it float. Drag its title bar to move it, or its corner to resize it."
             items={[
               { label: "Dock left", checked: place.dock === "left", onSelect: () => dockTo("left") },
               { label: "Dock right", checked: place.dock === "right", onSelect: () => dockTo("right") },
@@ -273,7 +273,7 @@ function OpenPanelDialog({ title, onClose, placeId, kind = "addMusic", footer, d
             icon="drag"
             size="s"
             label="Move or resize with the arrow keys"
-            hint="Move it with the arrow keys. Hold Shift and use the arrows to change its size."
+            hint="Move the panel with the arrow keys. Hold Shift and use the arrows to resize it."
             onKeyDown={onMoveKey}
           />
         </span>

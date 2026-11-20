@@ -283,7 +283,7 @@
       '<span class="grow"></span><button class="btn" data-act="pkbdcancel" data-k="pk-bdcancel">Back</button><button class="btn primary" data-act="pkbdok" data-k="pk-bdok">Make it and add it</button>';
     return '<span id="pk-count" class="muted grow">' + count() + '</span>' +
       (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in their place.">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
-      (pk.makeBoard ? '<button class="btn" data-act="pkmkbd" data-k="pk-mkbd" title="An empty pad board, made here and put in this scene; you give it pads on its own page">' + L.icon('plus', 's') + 'New board…</button>' : '') +
+      (pk.makeBoard ? '<button class="btn" data-act="pkmkbd" data-k="pk-mkbd" title="Make an empty pad board and put it in this scene. You give it pads on its page.">' + L.icon('plus', 's') + 'New board…</button>' : '') +
       '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="pkdone">' + esc(pk.okLabel) + '</button>';
   }
   function paintFooter(k) { var f = document.querySelector('#lyre-sheet footer'); if (!f) return; f.innerHTML = footer(); var n = k && f.querySelector('[data-k="' + k + '"]'); if (n) { n.focus(); if (n.select) n.select(); } }
@@ -298,7 +298,7 @@
     var f = document.getElementById('pk-plname'), name = (f && f.value.trim()) || pk.naming, ts = tickedTracks(); if (!ts.length) return;
     var p = { id: L.uid('p-'), name: name, kind: 'manual', lane: 'music', items: ts.slice(), notes: '' }; D.playlists.push(p);
     var at = pk.sel.indexOf(ts[0]); pk.sel = pk.sel.filter(function (id) { return ts.indexOf(id) < 0; }); pk.sel.splice(Math.max(0, Math.min(at, pk.sel.length)), 0, p.id);
-    pk.naming = ''; L.acts.pkdone(); L.say(name + ' made with ' + ts.length + (ts.length === 1 ? ' track' : ' tracks') + ', and put in the scene');
+    pk.naming = ''; L.acts.pkdone(); L.say('Made the playlist ' + name + ' with ' + ts.length + (ts.length === 1 ? ' track' : ' tracks') + ' and put it in the scene.');
   };
   L.acts.pkmkbd = function () {
     var n = 1; while (D.boards.some(function (b) { return b.name === 'New board ' + n; })) n++;
@@ -311,7 +311,7 @@
     var slots = []; for (var i = 0; i < 12; i++) slots.push(null);
     D.boards.push({ id: id, name: name, cols: 4, rows: 3, spare: [], slots: slots });
     if (pk.sel.indexOf(id) < 0) pk.sel.push(id);
-    pk.namingBoard = ''; L.acts.pkdone(); L.say(name + ' made, an empty 4 by 3 board, and put in the scene. Give it pads on its page.');
+    pk.namingBoard = ''; L.acts.pkdone(); L.say('Made ' + name + ', an empty 4 by 3 board, and put it in the scene. Give it pads on its page.');
   };
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || !e.target) return;

@@ -68,7 +68,7 @@ describe("Arrange: the layouts of Live (round 10)", () => {
 
   it("says what moved", () => {
     expect(movedWords("onair", { into: 1 }, wide())).toBe("On air moved into column 2");
-    expect(movedWords("scenes", "taller", arrange(wide(), 3, "scenes", "taller", 300))).toBe("Scenes 360 pixels high");
+    expect(movedWords("scenes", "taller", arrange(wide(), 3, "scenes", "taller", 300))).toBe("Scenes is now 360 pixels high");
   });
 });
 

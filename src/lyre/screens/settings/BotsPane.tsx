@@ -336,7 +336,7 @@ function StartVolume({ bot, client }: { bot: LyreBot; client: OutputsClient }) {
         step={5}
         value={shown}
         aria-valuetext={`${shown} percent`}
-        title="The bot’s volume when it joins a room"
+        title="This bot starts at this volume when it joins a room."
         onChange={(event) => setShown(Number(event.target.value))}
         onPointerUp={() => commit()}
         onKeyUp={() => commit()}
@@ -348,7 +348,7 @@ function StartVolume({ bot, client }: { bot: LyreBot; client: OutputsClient }) {
   function commit() {
     if (shown === kept) return;
     client.setStartVolume(bot.id, shown / 100);
-    saved(`${bot.name} starting volume ${shown}%`, { key: `startvol-${bot.id}` });
+    saved(`${bot.name}'s starting volume, ${shown}%`, { key: `startvol-${bot.id}` });
   }
 }
 

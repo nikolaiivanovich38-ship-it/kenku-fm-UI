@@ -214,8 +214,8 @@ export function movedWords(id: ArrangeId, action: ArrangeAction, after: LiveLayo
   if (action === "top") return "On air is at the top again";
   if (typeof action === "object" && "into" in action) return `On air moved into column ${action.into + 1}`;
   if (action === "fit") return `${name} now fits its contents`;
-  if (action === "taller" || action === "shorter" || (typeof action === "object" && "height" in action)) return `${name} ${after.heights[id] ?? ""} pixels high`;
-  if (action === "narrower" || action === "wider") return `${name} ${action}`;
+  if (action === "taller" || action === "shorter" || (typeof action === "object" && "height" in action)) return `${name} is now ${after.heights[id] ?? ""} pixels high`;
+  if (action === "narrower" || action === "wider") return `${name} is now ${action}`;
   return `${name} moved`;
 }
 

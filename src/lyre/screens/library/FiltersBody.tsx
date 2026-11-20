@@ -250,7 +250,7 @@ export function FiltersBody({
             // Round 9 (item 34): a folder works like a chip: once shows only it, again hides its tracks, again clears.
             const hidden = filter.hideFolders.includes(f.path);
             const chosen = filter.folder === f.path;
-            const tip = f.path ? `${f.path}${chosen ? ": click again to hide its tracks" : hidden ? ": hidden; click to show it again" : ""}` : "Every folder";
+            const tip = f.path ? `${f.path}${chosen ? ": click again to hide its tracks" : hidden ? ": hidden. Click to show it again" : ""}` : "Every folder";
             return (
               <li key={`${f.sub ? "s" : "r"}:${f.path}`} className={cx(f.sub && "sub", "r9-fo", hidden && "is-hide")}>
                 <button

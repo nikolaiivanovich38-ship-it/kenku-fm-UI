@@ -17,12 +17,12 @@
   L.dividersBefore = function (pl) {
     var out = {}, pending = [];
     if (!pl || pl.kind !== 'manual' || !pl.items) return out;
-    pl.items.forEach(function (id) { if (L.isDivider(id)) pending.push(D.dividers[id] || 'Section'); else if (pending.length) { out[id] = pending; pending = []; } });
+    pl.items.forEach(function (id) { if (L.isDivider(id)) pending.push(D.dividers[id] || 'Divider'); else if (pending.length) { out[id] = pending; pending = []; } });
     return out;
   };
   L.dividerHeading = function (name, play) {
-    return '<li class="r9-divh" aria-label="Section: ' + esc(name) + '"><span class="r9-divh-line" aria-hidden="true"></span><b class="ellipsis">' + esc(name) + '</b><span class="r9-divh-line" aria-hidden="true"></span>' +
-      (play ? '<button class="btn s ghost r9-divplay" data-act="r9divplay" data-id="' + play.tid + '" data-pl="' + play.pid + '" data-place="' + esc(play.place || '') + '" title="Play ' + esc(name) + ' on air: the playlist from its first track under this heading" aria-label="Play from here: ' + esc(name) + '">' + L.icon('playair', 's') + 'Play from here</button>' : '') + '</li>';
+    return '<li class="r9-divh" aria-label="Divider: ' + esc(name) + '"><span class="r9-divh-line" aria-hidden="true"></span><b class="ellipsis">' + esc(name) + '</b><span class="r9-divh-line" aria-hidden="true"></span>' +
+      (play ? '<button class="btn s ghost r9-divplay" data-act="r9divplay" data-id="' + play.tid + '" data-pl="' + play.pid + '" data-place="' + esc(play.place || '') + '" title="Play the playlist on air from the first track under ' + esc(name) + '" aria-label="Play from here: ' + esc(name) + '">' + L.icon('playair', 's') + 'Play from here</button>' : '') + '</li>';
   };
   L.acts.r9divplay = function (el) {
     L.play(el.dataset.id, { playlistId: el.dataset.pl, place: el.dataset.place, fade: L.defaultCrossfade });

@@ -1841,7 +1841,7 @@ test("0.6.0 finishing (f-live): a playlist unfolded in Live shows its dividers, 
   await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
   const items = box.getByRole("list", { name: "Tracks in The Company themes" }).getByRole("listitem");
   const heading = items.filter({ hasText: "The voyage home" });
-  await expect(heading).toHaveAccessibleName("Section: The voyage home");
+  await expect(heading).toHaveAccessibleName("Divider: The voyage home");
   const all = await items.allTextContents();
   expect(all[all.findIndex((t) => t.includes("The voyage home")) + 1]).toContain(title.slice(0, 20));
   await heading.getByRole("button", { name: "Play from here: The voyage home" }).click();

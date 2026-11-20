@@ -1488,7 +1488,7 @@ describe("round 10 fixes (Nik, 18 Nov, answer 1): a track of a manual playlist u
     await userEvent.click(region("Campaign playlists").getByRole("button", { name: "Campaign Playlists" }));
     await userEvent.click(region("Campaign playlists").getByRole("button", { name: "Show contents of The Company themes" }));
     const list = within(region("Campaign playlists").getByRole("list", { name: "Tracks in The Company themes" }));
-    const heading = await list.findByRole("listitem", { name: "Section: The voyage home" });
+    const heading = await list.findByRole("listitem", { name: "Divider: The voyage home" });
     await userEvent.click(within(heading).getByRole("button", { name: "Play from here: The voyage home" }));
     await playOn(sound);
     const music = sound.audio.getNowPlaying().rooms[0].music;

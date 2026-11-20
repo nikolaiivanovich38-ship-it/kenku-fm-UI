@@ -600,7 +600,7 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
         {playing.paused && <span className="badge">Paused</span>}
         {/* Round 9 (item 47), round 10 (look D6): while a dipping effect sounds, the music says so in words. */}
         {room.dipped?.[isMusic ? "music" : "ambience"] && (
-          <span className="lv-dipped" title="Quieter while an effect plays. It comes back by itself.">
+          <span className="lv-dipped" title={`${isMusic ? "The music" : "The ambience"} is quieter while an effect plays. It comes back by itself.`}>
             Dipped
           </span>
         )}

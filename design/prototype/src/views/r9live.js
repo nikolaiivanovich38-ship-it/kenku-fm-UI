@@ -28,7 +28,7 @@
   // Lyre starts". The starting volume stays: it is the volume a bot has when Nik joins it to a room.
   L.botStartHTML = function (b, k) {
     var vol = b.startVolume != null ? b.startVolume : 85;
-    return '<div class="st-bot-2 r9-botstart"><label class="st-l" for="' + k + '-svol">Starting volume</label><input type="range" min="0" max="100" step="5" id="' + k + '-svol" value="' + vol + '" data-input="r9botvol" data-id="' + b.id + '" data-k="' + k + '-svol" aria-valuetext="' + vol + ' percent" title="The bot’s volume when it joins a room"><span class="num faint">' + vol + '%</span></div>';
+    return '<div class="st-bot-2 r9-botstart"><label class="st-l" for="' + k + '-svol">Starting volume</label><input type="range" min="0" max="100" step="5" id="' + k + '-svol" value="' + vol + '" data-input="r9botvol" data-id="' + b.id + '" data-k="' + k + '-svol" aria-valuetext="' + vol + ' percent" title="This bot starts at this volume when it joins a room."><span class="num faint">' + vol + '%</span></div>';
   };
   L.inputs.r9botstart = function (el) {
     var b = L.bot(el.dataset.id); if (!b) return; var v = el.value.split('/');
@@ -38,7 +38,7 @@
   L.inputs.r9botvol = function (el, ev) {
     var b = L.bot(el.dataset.id); if (!b) return; b.startVolume = +el.value; el.setAttribute('aria-valuetext', el.value + ' percent');
     var n = el.nextElementSibling; if (n) n.textContent = el.value + '%';
-    if (ev.type === 'change') L.saved(b.name + ' starting volume ' + el.value + '%', { key: 'r9bv-' + b.id });
+    if (ev.type === 'change') L.saved(b.name + '’s starting volume, ' + el.value + '%', { key: 'r9bv-' + b.id });
   };
   // Round 10 (Nik, 18 Nov 03:14, answer 2): the Rooms screen stays, as it was, under Settings (core.js rail, r10.js).
 
@@ -61,7 +61,7 @@
       '<label class="r9-dip-row"><input type="checkbox" data-input="r9dipamb" data-k="r9-dipamb"' + (D.dip.amb ? ' checked' : '') + '>Ambience dips too</label>' +
       '<p class="hint">The music gets quieter while a One-shot or Restart on press pad, or a Short cue, plays over it. You can change this for each pad under While it plays.</p></fieldset>';
   };
-  L.inputs.r9dipamt = function (el) { D.dip.amount = el.value; L.saved('dip the music: ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dip' }); };
+  L.inputs.r9dipamt = function (el) { D.dip.amount = el.value; L.saved('how far the music dips, ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dip' }); };
   L.inputs.r9dipback = function (el) { D.dip.back = el.value; L.saved('the music comes back ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dipb' }); };
   L.inputs.r9dipamb = function (el) { D.dip.amb = el.checked; L.saved(el.checked ? 'ambience dips too' : 'ambience keeps its level', { key: 'r9dipamb' }); };
   L.padDipHTML = function (p) {
@@ -225,13 +225,13 @@
       if ((d === 'left' && p && p.ci > 0) || (d === 'right' && p && p.ci < s.cols.length - 1)) { col.splice(p.i, 1); s.cols[p.ci + (d === 'left' ? -1 : 1)].push(id); }
       if (d === 'top' && p) { col.splice(p.i, 1); said = 'On air is at the top again'; }
       if (/^into/.test(d)) { var ci = +d.slice(4); while (s.cols.length <= ci) s.cols.push([]); s.cols[ci].unshift(id); said = 'On air moved into column ' + (ci + 1); }
-      if (d === 'taller' || d === 'shorter') { var box = boxEl(id), now = s.heights[id] || (box ? Math.round(box.getBoundingClientRect().height) : 300); s.heights[id] = Math.max(120, Math.min(1200, Math.round((now + (d === 'taller' ? 60 : -60)) / 10) * 10)); said = NAMES[id] + ' ' + s.heights[id] + ' pixels high'; }
+      if (d === 'taller' || d === 'shorter') { var box = boxEl(id), now = s.heights[id] || (box ? Math.round(box.getBoundingClientRect().height) : 300); s.heights[id] = Math.max(120, Math.min(1200, Math.round((now + (d === 'taller' ? 60 : -60)) / 10) * 10)); said = NAMES[id] + ' is now ' + s.heights[id] + ' pixels high'; }
       if (d === 'fit') { delete s.heights[id]; said = NAMES[id] + ' now fits its contents'; }
       if ((d === 'narrower' || d === 'wider') && p) {
         var n = s.cols.length, base = (s.widths || s.cols.map(function (x, i) { return (m === 3 ? [27, 43, 30, 25][i] : [38, 62, 30][i]) || 30; })).slice(0, n); while (base.length < n) base.push(25);
         var nb = p.ci < n - 1 ? p.ci + 1 : p.ci - 1, step = (d === 'wider' ? 4 : -4);
         if (nb >= 0 && base[p.ci] + step >= 12 && base[nb] - step >= 12) { base[p.ci] += step; base[nb] -= step; s.widths = base; }
-        said = NAMES[id] + (d === 'wider' ? ' wider' : ' narrower');
+        said = NAMES[id] + (d === 'wider' ? ' is now wider' : ' is now narrower');
       }
     });
     focusMove(id); L.say(said);
@@ -277,7 +277,7 @@
       // 0.6.0 review M7 (f-live, as the app): a cancelled pointer (Alt+Tab, a touch taken over) ends the drag, saving nothing.
       var offE = function () { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', upE); document.removeEventListener('pointercancel', cancelE); edge.parentNode.classList.remove('r10-sizing'); };
       var cancelE = function () { offE(); edge.parentNode.style.removeProperty('--r9h'); };
-      var upE = function () { offE(); edit(function (s) { s.heights[id] = Math.round(hNow / 10) * 10; }); L.say(NAMES[id] + ' ' + Math.round(hNow / 10) * 10 + ' pixels high'); };
+      var upE = function () { offE(); edit(function (s) { s.heights[id] = Math.round(hNow / 10) * 10; }); L.say(NAMES[id] + ' is now ' + Math.round(hNow / 10) * 10 + ' pixels high'); };
       document.addEventListener('pointermove', mv); document.addEventListener('pointerup', upE); document.addEventListener('pointercancel', cancelE); return;
     }
     var bar = e.target.closest && e.target.closest('.r9-split'); if (!bar) return;

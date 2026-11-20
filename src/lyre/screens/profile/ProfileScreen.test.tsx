@@ -854,6 +854,6 @@ describe("round 9: Split into parts", () => {
     const { user } = await open("profile/t44");
     await user.click(within(screen.getByRole("region", { name: "Markers" })).getByRole("button", { name: "Split into parts…" }));
     expect(screen.queryByRole("dialog", { name: "Split into parts" })).toBeNull();
-    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent("Add a marker first: each marker starts a new part"));
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent("Add a marker first. Each marker starts a new part."));
   });
 });

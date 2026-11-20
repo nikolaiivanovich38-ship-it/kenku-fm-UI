@@ -62,7 +62,7 @@ export function UndoPlace({ onUndo }: { onUndo: () => boolean }) {
       Started <b>{undo.started}</b>
     </span>
   ) : null;
-  const title = undo2 ? `Undo: ${undo2.text} (Ctrl+Z)` : undo ? `Go back to ${undo.label}, with its music and ambience (Ctrl+Z)` : "";
+  const title = undo2 ? `Undo "${undo2.text}" (Ctrl+Z)` : undo ? `Go back to ${undo.label}, with its music and ambience (Ctrl+Z)` : "";
   return (
     <div className="lv-undoplace">
       {offered && (

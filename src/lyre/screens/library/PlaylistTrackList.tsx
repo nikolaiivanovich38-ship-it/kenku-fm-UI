@@ -35,7 +35,7 @@ export function dividersBefore(pl: Pick<PlaylistInfo, "kind" | "dividers"> & { t
     const under = pl.trackIds[d.at];
     // A divider below the last track has no track under it: it heads nothing, so it is not shown in a list of tracks.
     if (!under) continue;
-    out.set(under, [...(out.get(under) ?? []), d.name || "Section"]);
+    out.set(under, [...(out.get(under) ?? []), d.name || "Divider"]);
   }
   return out;
 }
@@ -43,12 +43,12 @@ export function dividersBefore(pl: Pick<PlaylistInfo, "kind" | "dividers"> & { t
 /** A divider as a heading row in a list of tracks; Live adds Play from here (the playlist from the track under it). */
 export function DividerHeading({ name, onPlay }: { name: string; onPlay?: () => void }) {
   return (
-    <li className="r9-divh" aria-label={`Section: ${name}`}>
+    <li className="r9-divh" aria-label={`Divider: ${name}`}>
       <span className="r9-divh-line" aria-hidden="true" />
       <b className="ellipsis">{name}</b>
       <span className="r9-divh-line" aria-hidden="true" />
       {onPlay && (
-        <button type="button" className="btn s ghost r9-divplay" title={`Play ${name} on air: the playlist from its first track under this heading`} aria-label={`Play from here: ${name}`} onClick={onPlay}>
+        <button type="button" className="btn s ghost r9-divplay" title={`Play the playlist on air from the first track under ${name}`} aria-label={`Play from here: ${name}`} onClick={onPlay}>
           <Icon name="playair" size="s" />
           Play from here
         </button>
