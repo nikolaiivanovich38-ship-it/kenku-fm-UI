@@ -461,6 +461,9 @@ var L = (function () {
     // OUT-8: a bot that is not connected to Discord (Settings) cannot join a voice channel.
     if (b.login && b.login !== 'online') { L.toast(b.name + ' is not connected: connect it in Settings'); return; }
     var other = D.discord.bots.filter(function (x) { return x !== b && x.server === serverId && x.channel === channelId && x.status !== 'idle'; })[0];
+    // Round 10 (r10-live, as the app): a bot that joins a room from none starts at its Starting volume (Settings ›
+    // Discord bots).
+    if (b.status === 'idle' && b.startVolume != null) b.volume = b.startVolume;
     b.server = serverId; b.channel = channelId; b.status = 'connecting'; b.error = '';
     L.say(b.name + ' is joining ' + L.botWhere(b)); L.changed();
     setTimeout(function () { if (b.channel === channelId) { b.status = 'connected'; L.say(b.name + ' is broadcasting to ' + L.botWhere(b) + (other ? '. ' + other.name + ' is in the same room, so the players hear both.' : '')); L.changed(); } }, 1100);
@@ -476,10 +479,12 @@ var L = (function () {
   L.botKick = function (botId) {
     var b = L.bot(botId); if (!b || b.status === 'idle') return null;
     var m = mixOf(botId), lanes = ['music', 'amb'].map(function (ln) { var c = m[ln]; return c ? { ln: ln, id: c.id, playlistId: c.playlistId, place: c.place, seq: c.seq, pos: c.pos, paused: c.paused } : null; }).filter(Boolean);
-    var where = { server: b.server, channel: b.channel }, lost = lanes.some(function (x) { return !x.paused; }) && L.botListeners(b).length > 0;
+    var where = { server: b.server, channel: b.channel }, volume = b.volume, lost = lanes.some(function (x) { return !x.paused; }) && L.botListeners(b).length > 0;
     L.botLeave(botId);
     return { lost: lost, restore: function () {
       L.botJoin(botId, where.server, where.channel);
+      // 0.6.0 review M2 (f-live): Undo brings the bot back at the volume it had, however late Undo is pressed.
+      b.volume = volume;
       var say = L.say; L.say = function () {};
       try { lanes.forEach(function (x) { L.play(x.id, { lane: x.ln, playlistId: x.playlistId, place: x.place, seq: x.seq, fade: 1, target: botId }); var c = mixOf(botId)[x.ln]; if (c) { c.pos = x.pos; c.paused = x.paused; } }); } finally { L.say = say; }
       L.changed();

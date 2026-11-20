@@ -68,7 +68,7 @@
     var usual = USUAL_DIP[p.mode], cur = p.dip == null ? 'usual' : p.dip ? 'dip' : 'no';
     var opts = [['usual', 'The usual (' + (usual ? 'dip' : 'don’t dip') + ')'], ['dip', 'Dip the music'], ['no', 'Don’t dip']];
     return '<fieldset class="pb-fs r9-paddip"><legend>While it plays</legend><div class="seg s" role="radiogroup" aria-label="While it plays">' + opts.map(function (x) {
-      return '<button role="radio" aria-checked="' + (cur === x[0]) + '" data-act="r9paddip" data-pid="' + p.id + '" data-v="' + x[0] + '" data-k="r9pd-' + x[0] + '">' + x[1] + '</button>';
+      return '<button role="radio" aria-checked="' + (cur === x[0]) + '" tabindex="' + (cur === x[0] ? 0 : -1) + '" data-act="r9paddip" data-pid="' + p.id + '" data-v="' + x[0] + '" data-k="r9pd-' + x[0] + '">' + x[1] + '</button>';
     }).join('') + '</div>' + (D.dip.amount === 'off' ? '<p class="hint">Dipping is off in Settings › Sound to Discord.</p>' : '') + '</fieldset>';
   };
   L.acts.r9paddip = function (el) {
@@ -76,6 +76,15 @@
     if (el.dataset.v === 'usual') delete p.dip; else p.dip = el.dataset.v === 'dip';
     L.render(); L.saved(p.label + (L.padDips(p) ? ' dips the music' : ' leaves the music as it is')); var b = document.querySelector('[data-k="r9pd-' + el.dataset.v + '"]'); if (b) b.focus();
   };
+
+  // 0.6.0 (f-live, as the app): a group of radio buttons: Tab reaches the chosen one, the arrow keys choose another.
+  document.addEventListener('keydown', function (e) {
+    var b = e.target.closest && e.target.closest('[data-act="r9paddip"]'); if (!b) return;
+    var step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0; if (!step) return;
+    e.preventDefault(); e.stopPropagation();
+    var all = [].slice.call(b.parentNode.querySelectorAll('[data-act="r9paddip"]')), next = all[(all.indexOf(b) + step + all.length) % all.length];
+    L.acts.r9paddip(next);
+  }, true);
 
   /* ---------- §6 the queue ---------- */
   var Q = { open: null };
@@ -144,7 +153,13 @@
   }
   function current(mode) { return lay(mode, DEFAULT[mode]); }
   L.arranging = function () { return A.on && L.current().name === 'live'; };
-  L.liveArranged = function () { return !!A.saved[MODES[mode()]]; };
+  // 0.6.0 review M3 (f-live, as the app's arrangedKeyOrder): F6 and Alt+1 to 7 follow the boxes on screen only once a
+  // box has moved for this window size; a box made taller or a column wider keeps the usual order.
+  L.liveArranged = function () {
+    var m = mode(), s = A.saved[MODES[m]]; if (!s || !s.cols) return false;
+    var cols = s.cols.filter(function (c) { return c.length; });
+    return JSON.stringify(cols) !== JSON.stringify(DEFAULT[m]);
+  };
   L.liveLayout = function (mode, def) {
     DEFAULT[mode] = def;
     var c = lay(mode, def), out = c.cols;
@@ -272,7 +287,11 @@
       var wa = +cols[ci].dataset.w || a, wb = +cols[ci + 1].dataset.w || b;
       edit(function (s) {
         var n = s.cols.length, base = (s.widths || cols.map(function (c) { return c.getBoundingClientRect().width; })).slice(0, n);
-        var total = base[ci] + base[ci + 1]; base[ci] = total * wa / (wa + wb); base[ci + 1] = total * wb / (wa + wb); s.widths = base.map(function (x) { return Math.round(x * 10) / 10; });
+        // 0.6.0 review M4 (f-live): the bar before the empty column to drop into (drawn only while arranging) changes
+        // the last real column's width; the empty column keeps none.
+        if (base[ci + 1] == null || !s.cols[ci + 1].length) base[ci] = base[ci] * wa / a;
+        else { var total = base[ci] + base[ci + 1]; base[ci] = total * wa / (wa + wb); base[ci + 1] = total * wb / (wa + wb); }
+        s.widths = base.map(function (x) { return Math.round(x * 10) / 10; });
       });
     }
     document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);

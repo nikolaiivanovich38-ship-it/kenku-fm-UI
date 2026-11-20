@@ -493,6 +493,20 @@ test.describe("round 9: Split into parts", () => {
     await expect(details.getByRole("link", { name: "Choir section" })).toBeVisible();
   });
 
+  /* Review M5 (R60-CODE-REVIEW, f-live): with every point unticked there is one part, the whole track: Make is greyed
+     and says why. */
+  test("with every split point unticked, Make is greyed and says to tick one", async ({ page }) => {
+    await openRoute(page, "profile/t13");
+    await markers(page).getByRole("button", { name: "Split into parts…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Split into parts" });
+    const cuts = dialog.getByRole("group", { name: "Split at" }).getByRole("checkbox");
+    for (let i = 0; i < 3; i++) await cuts.nth(i).uncheck();
+    await expect(dialog.getByRole("button", { name: "Make 1 tracks" })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "Make 1 tracks" })).toHaveAccessibleDescription("Tick at least one place to split at.");
+    await cuts.nth(0).check();
+    await expect(dialog.getByRole("button", { name: "Make 2 tracks" })).toBeEnabled();
+  });
+
   test("Undo after Split into parts removes the parts again", async ({ page }) => {
     await split(page);
     // Undo at the bottom of the screen; pressed again only if the note was still being drawn when it was pressed.

@@ -415,6 +415,10 @@ test("0.6.0 finishing (f-live): a pad's While it plays is the usual for its play
   await field.getByRole("radio", { name: /^Don.t dip$/ }).click();
   await expect(field.getByRole("radio", { name: /^Don.t dip$/ })).toHaveAttribute("aria-checked", "true");
   await expect(field.getByRole("radio", { name: "The usual (dip)" })).toHaveAttribute("aria-checked", "false");
+  // A group of radio buttons: the arrow keys choose another.
+  await page.keyboard.press("ArrowLeft");
+  await expect(field.getByRole("radio", { name: "Dip the music" })).toHaveAttribute("aria-checked", "true");
+  await expect(field.getByRole("radio", { name: "Dip the music" })).toBeFocused();
   // The usual follows the play mode: a Toggle loop does not dip.
   await box.getByRole("group", { name: "Play mode" }).getByRole("button", { name: "Toggle loop" }).click();
   await expect(field.getByRole("radio").first()).toHaveText(/^The usual \(don.t dip\)$/);
