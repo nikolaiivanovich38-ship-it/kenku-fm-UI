@@ -209,7 +209,7 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
           type="button"
           className="btn s icon"
           aria-label="Back"
-          title={canNext ? "Back: the previous track (after 3 seconds, the start of this one)" : "A single track: back to its start"}
+          title={canNext ? "Go back to the start of this track. In its first 3 seconds, go back to the track before it." : "Go back to the start of this track."}
           onClick={() => audio.roomBack(laneName, target)}
         >
           <Icon name="prev" size="s" />
@@ -254,7 +254,8 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
             type="button"
             className="btn s r9-qbtn"
             aria-expanded={queueOpen}
-            title="The queue: what played, what plays now, what comes next"
+            aria-label={`Queue, ${toCome} to come`}
+            title="Open the queue of what played and what comes next"
             onClick={() => (queueOpen ? closeQueue() : setQueueOpen(true))}
           >
             <Icon name="queue" size="s" />
@@ -460,7 +461,7 @@ function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowP
           type="button"
           className="btn s icon"
           aria-label="Back"
-          title="Back to the start of this track; within its first 3 s, the track before it"
+          title="Go back to the start of this track. In its first 3 seconds, go back to the track before it."
           onClick={() => audio.previewBack()}
         >
           <Icon name="prev" size="s" />
@@ -478,7 +479,7 @@ function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowP
           <Icon name="stop" size="s" />
           Stop
         </button>
-        <button type="button" className="btn s icon" aria-label="Forward" title="The next track" disabled={!queue?.upNext.length} onClick={() => audio.previewForward()}>
+        <button type="button" className="btn s icon" aria-label="Forward" title="Go to the next track" disabled={!queue?.upNext.length} onClick={() => audio.previewForward()}>
           <Icon name="next" size="s" />
         </button>
         {queue?.playlistId && (
@@ -487,7 +488,8 @@ function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowP
             type="button"
             className="btn s r9-qbtn"
             aria-expanded={queueOpen}
-            title="The queue: what played, what plays now, what comes next"
+            aria-label={`Queue, ${queue.upNext.length} to come`}
+            title="Open the queue of what played and what comes next"
             onClick={() => (queueOpen ? closeQueue() : setQueueOpen(true))}
           >
             <Icon name="queue" size="s" />

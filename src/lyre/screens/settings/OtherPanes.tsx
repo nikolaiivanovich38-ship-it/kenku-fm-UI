@@ -166,7 +166,7 @@ function DipFields() {
         />
         Ambience dips too
       </label>
-      <p className="hint">The music gets quieter while an effect with Dip the music on is playing.</p>
+      <p className="hint">The music gets quieter while a One-shot or Restart on press pad, or a Short cue, plays over it. You can change this for each pad under While it plays.</p>
     </fieldset>
   );
 }

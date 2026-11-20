@@ -1855,7 +1855,7 @@ test.describe("round 10: rows and Up next", () => {
     await openRoute(page, "live");
     await startAbbey(page);
     const air = sceneMusic(page).getByRole("button", { name: /^Play on air/ }).first();
-    await expect(air).toHaveAttribute("title", /Players hear this now$/);
+    await expect(air).toHaveAttribute("title", /The players hear this now\.$/);
     expect(await air.evaluate((b) => b.parentElement?.lastElementChild === b)).toBe(true);
     const names = await air.evaluate((b) => Array.from(b.parentElement?.querySelectorAll("button") ?? []).map((x) => x.getAttribute("aria-label") ?? ""));
     expect(names[0]).toMatch(/^Preview/);

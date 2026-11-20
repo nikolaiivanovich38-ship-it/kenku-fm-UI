@@ -27,7 +27,7 @@
     // playlist's tracks, dividers aside), not its first copy.
     var row = el.dataset.row === '' || el.dataset.row == null ? -1 : +el.dataset.row, seen = -1;
     if (row > -1) p.items.forEach(function (x, k) { if (!L.isDivider(x) && ++seen === row && x === id) i = k; });
-    var text = 'Removed “' + title(id) + '” from the playlist "' + p.name + '". It is still in the Track library.';
+    var text = 'Removed "' + title(id) + '" from the playlist "' + p.name + '". It is still in the Track library.';
     L.undoNote(text, L.snapshot(['playlists']));
     p.items.splice(i, 1);
     L.render(); L.say(text + ' To undo this, press Undo, at the bottom of the screen, or Ctrl+Z.'); L.saved(p.name, { detail: 'removed ' + title(id), key: 'pl-' + p.id });
@@ -50,12 +50,12 @@
   withUndo('cpitem', function (el) {
     if (el.dataset.op !== 'remove') return '';
     var sc = scene(el.dataset.sc), arr = sc && (el.dataset.list === 'boards' ? L.sceneBoards(sc) : sc[el.dataset.list]), id = arr && arr[+el.dataset.idx];
-    return id ? 'Removed “' + itemName(id) + '” from this scene.' : '';
+    return id ? 'Removed "' + itemName(id) + '" from ' + (sc.name || 'this scene') + '.' : '';
   });
-  withUndo('cpclearamb', function (el) { var sc = scene(el.dataset.sc); return sc && sc.amb ? 'Removed “' + itemName(sc.amb) + '” from this scene.' : ''; });
+  withUndo('cpclearamb', function (el) { var sc = scene(el.dataset.sc); return sc && sc.amb ? 'Removed "' + itemName(sc.amb) + '" from ' + (sc.name || 'this scene') + '.' : ''; });
   withUndo('cprm', function (el) {
     var where = el.dataset.scope === 'c' ? 'campaign' : 'session', kind = el.dataset.kind;
-    return 'Removed “' + itemName(el.dataset.id) + '” from this ' + where + '. ' + (kind === 'tr' ? 'It is still in the Track library.' : kind === 'pl' ? 'It is still on the Playlists page.' : 'It is still in Pad boards.');
+    return 'Removed "' + itemName(el.dataset.id) + '" from this ' + where + '. ' + (kind === 'tr' ? 'It is still in the Track library.' : kind === 'pl' ? 'It is still on the Playlists page.' : 'It is still in Pad boards.');
   });
 
   /* ---------- the Delete key on a focused row ---------- */

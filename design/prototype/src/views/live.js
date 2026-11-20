@@ -628,7 +628,7 @@
   function playBtn(box, data, k, nm, extra) {
     var where = inWhere(box);
     // Round 10 (table review S5): Play on air stands apart, last, after a gap, in the room colour on hover and focus.
-    return '<button class="closer r10-air" data-act="lvplay" data-box="' + box + '" ' + data + ' data-k="' + k + '-p" title="Play on air' + where + (extra || '') + '. Players hear this now" aria-label="Play on air' + where + ': ' + esc(nm) + '">' + L.icon('playair') + '</button>';
+    return '<button class="closer r10-air" data-act="lvplay" data-box="' + box + '" ' + data + ' data-k="' + k + '-p" title="Play on air' + where + (extra || '') + '. The players hear this now." aria-label="Play on air' + where + ': ' + esc(nm) + '">' + L.icon('playair') + '</button>';
   }
   function trackRow(t, src, o) {
     o = o || {};
@@ -656,7 +656,7 @@
       // Round 6 part 3: moods and energy are in the row's details (and Find's results), not on the row on air.
       (open || o.box === 'off' ? '<span class="chips lv-trk-chips">' + moodChips(t, o.prefer) + '</span>' + (isAmb || isFx ? '' : L.energy(t.energy)) : '') +
       // Round 10 (table review S3): a track whose file is missing says so before Nik presses anything.
-      (t.missing ? '<span class="badge warn r10-miss" title="Lyre cannot find this file: Find missing files in the Track library">Missing</span>' : '') +
+      (t.missing ? '<span class="badge warn r10-miss" title="Lyre cannot find this file. To look for it, use Find missing files… in the Track library.">Missing</span>' : '') +
       '<span class="num lv-dur" title="' + (Math.round(len) !== Math.round(t.dur) ? 'Plays ' + L.fmt(len) + ' of the file\'s ' + L.fmt(t.dur) : 'Length ' + L.fmt(t.dur)) + '">' + L.fmt(len) + '</span>' +
       '<span class="lv-trk-acts' + (onAirNow ? ' shown' : '') + '">' +
         '<button class="closer lv-pvb' + (pv || o.noPlay ? '' : ' lv-hov') + '" data-act="lvpv" data-id="' + t.id + '" data-k="' + k + '-v" aria-pressed="' + pv + '" title="' + (pv ? 'Stop the preview' : 'Preview in your headphones (players do not hear it)') + '" aria-label="Preview: ' + esc(nm) + '">' + L.icon('headphones') + '</button>' +
@@ -1060,7 +1060,7 @@
   };
   L.acts.r10lvplrm = function (el) {
     var p = L.playlist(el.dataset.pid), id = el.dataset.tid, i = p ? p.items.indexOf(id) : -1; if (i < 0) return;
-    var was = p.items.slice(), text = 'Removed ' + L.title(L.track(id)) + ' from ' + p.name;
+    var was = p.items.slice(), text = 'Removed "' + L.title(L.track(id)) + '" from the playlist "' + p.name + '"';
     p.items.splice(i, 1);
     softUndo(text, function () { p.items.splice.apply(p.items, [0, p.items.length].concat(was)); }, 'pl:' + p.id, '');
     L.render(); var next = p.items[i] || p.items[i - 1], b = next && document.querySelector('[data-act="r10lvmore"][data-pid="' + p.id + '"][data-tid="' + next + '"]');

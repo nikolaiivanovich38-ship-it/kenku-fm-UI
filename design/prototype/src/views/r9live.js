@@ -59,7 +59,7 @@
     return '<fieldset class="r9-dip"><legend>Dip the music under effects</legend><div class="st-xf">' +
       pick('r9-dipamt', 'How far', AMOUNTS, D.dip.amount, 'r9dipamt') + pick('r9-dipback', 'Comes back', BACKS, D.dip.back, 'r9dipback') + '</div>' +
       '<label class="r9-dip-row"><input type="checkbox" data-input="r9dipamb" data-k="r9-dipamb"' + (D.dip.amb ? ' checked' : '') + '>Ambience dips too</label>' +
-      '<p class="hint">The music gets quieter while an effect with Dip the music on is playing.</p></fieldset>';
+      '<p class="hint">The music gets quieter while a One-shot or Restart on press pad, or a Short cue, plays over it. You can change this for each pad under While it plays.</p></fieldset>';
   };
   L.inputs.r9dipamt = function (el) { D.dip.amount = el.value; L.saved('dip the music: ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dip' }); };
   L.inputs.r9dipback = function (el) { D.dip.back = el.value; L.saved('the music comes back ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dipb' }); };
@@ -99,7 +99,7 @@
   L.queueButton = function (kind, tg, k) {
     var q = queueOf(kind, tg); if (!q || q.ids.length < 2) return '';
     var key = kind + ':' + tg, open = Q.open === key, left = q.ids.length - q.at - 1;
-    return '<button class="btn s r9-qbtn" data-act="r9queue" data-kind="' + kind + '" data-tg="' + esc(tg) + '" data-k="' + k + '-queue" aria-expanded="' + open + '" aria-controls="r9-queue" title="The queue: what played, what plays now, what comes next">' + L.icon('queue', 's') + 'Queue <span class="num">' + left + '</span></button>';
+    return '<button class="btn s r9-qbtn" data-act="r9queue" data-kind="' + kind + '" data-tg="' + esc(tg) + '" data-k="' + k + '-queue" aria-expanded="' + open + '" aria-controls="r9-queue" aria-label="Queue, ' + left + ' to come" title="Open the queue of what played and what comes next">' + L.icon('queue', 's') + 'Queue <span class="num">' + left + '</span></button>';
   };
   L.acts.r9queue = function (el) { var key = el.dataset.kind + ':' + el.dataset.tg; Q.open = Q.open === key ? null : key; Q.back = el.dataset.k; L.render(); var f = document.querySelector('#r9-queue .r9-q-now button, #r9-queue button'); if (Q.open && f) f.focus(); };
   function queueHTML() {
@@ -112,9 +112,9 @@
       var head = i === 0 && q.at > 0 ? '<li class="r9-q-h">Played</li>' : i === q.at ? '<li class="r9-q-h">Now playing</li>' : i === q.at + 1 ? '<li class="r9-q-h">Up next</li>' : '';
       return head + (divs[id] ? divs[id].map(function (d) { return L.dividerHeading(d); }).join('') : '') +
         '<li class="r9-q-' + cls + '"' + (i === q.at ? ' aria-current="true"' : '') + '><span class="num faint">' + (i + 1) + '</span><span class="ellipsis grow" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</span><span class="num faint">' + L.fmt(t.dur) + '</span>' +
-        (i === q.at ? '<span class="badge">Now</span>' : '<button class="btn s icon" data-act="r9qplay" data-i="' + i + '" data-k="r9q-' + i + '" aria-label="Play ' + esc(L.title(t)) + ' now" title="Play it now. The queue continues from there.">' + L.icon('play', 's') + '</button>') + '</li>';
+        (i === q.at ? '<span class="badge">Now</span>' : '<button class="btn s icon" data-act="r9qplay" data-i="' + i + '" data-k="r9q-' + i + '" aria-label="Play now: ' + esc(L.title(t)) + '" title="' + (a[0] === 'preview' ? 'Play it now. The queue continues from there.' : 'Play it now on air. Up next continues from there.') + '">' + L.icon('play', 's') + '</button>') + '</li>';
     }).join('');
-    return '<section id="r9-queue" class="r9-queue" aria-label="Queue: ' + esc(q.name) + '"><header><b>Queue</b><span class="faint ellipsis">' + esc(q.name) + (a[0] === 'preview' ? ' · only you' : '') + '</span><span class="grow"></span>' +
+    return '<section id="r9-queue" class="r9-queue" aria-label="Queue: ' + esc(q.name) + '"><header><b>Queue</b><span class="faint ellipsis">' + esc(q.name) + (a[0] === 'preview' ? ' · only you' : ' · on air') + '</span><span class="grow"></span>' +
       '<button class="closer" data-act="r9qclose" data-k="r9q-x" title="Close (Esc)" aria-label="Close the queue">' + L.icon('close') + '</button></header><ol class="r9-q-list">' + rows + '</ol></section>';
   }
   L.acts.r9qclose = function () { Q.open = null; L.render(); var b = Q.back && document.querySelector('[data-k="' + Q.back + '"]'); if (b) b.focus(); };
@@ -174,7 +174,7 @@
   };
   L.arrangeBar = function (mode) {
     if (!A.on) return '';
-    return '<div class="r9-arrbar" role="region" aria-label="Arrange"><span class="grow"><b>Arrange the boxes</b> <span class="faint">· drag a box by its header to move it, drag its bottom edge to resize it, or use Move…. The layout is kept for ' + (mode === 3 ? 'a whole window' : mode === 2 ? 'half a screen' : 'a narrow window') + '.</span></span>' +
+    return '<div class="r9-arrbar" role="region" aria-label="Arrange"><span class="grow"><b>Arrange the boxes</b> <span class="faint">· Drag a box by its header to move it, or by its bottom edge to resize it. You can also use its Move… button. The layout is kept for ' + (mode === 3 ? 'a whole window' : mode === 2 ? 'half a screen' : 'a narrow window') + '.</span></span>' +
       '<button class="btn s ghost" data-act="r9arrreset" data-k="r9-arr-reset">' + L.icon('restart', 's') + 'Put back the usual layout</button><button class="btn s primary" data-act="r9arrange" data-k="r9-arr-done">Done</button></div>';
   };
   L.arrangeWrap = function (id, html, ci, mode) {

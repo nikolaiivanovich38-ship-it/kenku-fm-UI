@@ -126,7 +126,7 @@
     library: { route: '#/library', name: 'Track library', steps: [
       ['[data-k="lb-add"]', 'Add tracks', 'Add files or a folder. With Watch a folder…, new files in that folder are added by themselves. You can also drop files on the page.'],
       ['[data-k="lb-q"]', 'Search', 'Type any word from a title, file name, artist or tag.'],
-      ['.lb-filters .pane-body', 'Filters', 'Click a filter once to show only those tracks. Click it again to hide them. Use the order button to sort the filters.'],
+      ['.lb-filters .pane-body', 'Filters', 'Click a filter once to show only those tracks. Click it again to hide them. To sort the filters, use Order the filters.'],
       ['[data-k="lb-cols"]', 'Columns', 'Choose which columns the list shows. Click a column’s name to sort by it, and click it again to reverse the order.']] },
     details: { route: '#/library', open: function () { var t = D.tracks.filter(function (x) { return !tagged(x); })[0] || D.tracks[0]; return '#/library/' + t.id; }, name: 'A track’s details', steps: [
       ['#lb-title', 'Your title', 'Type a name you will recognise at the table. The title in the file does not change.'],

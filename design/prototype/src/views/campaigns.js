@@ -148,7 +148,7 @@
     var o = kind === 'pl' ? L.playlist(id) : L.board(id);
     focusK = list.length ? 'more-' + el.dataset.scope + kind + list[Math.min(i, list.length - 1)] : 'add-' + el.dataset.scope + kind;
     L.render();
-    L.toast('Removed "' + o.name + '" from this ' + (el.dataset.scope === 'c' ? 'campaign' : 'session') + '. It is still on the ' + (kind === 'pl' ? 'Playlists' : 'Pad boards') + ' page.');
+    L.toast('Removed "' + o.name + '" from this ' + (el.dataset.scope === 'c' ? 'campaign' : 'session') + '. It is still ' + (kind === 'pl' ? 'on the Playlists page' : 'in Pad boards') + '.');
   };
 
   /* ---------- reordering (buttons and drag and drop) ---------- */

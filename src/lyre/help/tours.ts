@@ -133,7 +133,7 @@ export const TOURS: Record<TourKey, TourDef> = {
     steps: [
       { title: "Add tracks", text: "Add files or a folder. With Watch a folder…, new files in that folder are added by themselves. You can also drop files on the page.", target: control(/^Add tracks/) },
       { title: "Search", text: "Type any word from a title, file name, artist or tag.", target: first("#view input[type=search]") },
-      { title: "Filters", text: "Click a filter once to show only those tracks. Click it again to hide them. Use the order button to sort the filters.", target: region("Filters") },
+      { title: "Filters", text: "Click a filter once to show only those tracks. Click it again to hide them. To sort the filters, use Order the filters.", target: region("Filters") },
       { title: "Columns", text: "Choose which columns the list shows. Click a column’s name to sort by it, and click it again to reverse the order.", target: control(/^Columns/) },
     ],
   },

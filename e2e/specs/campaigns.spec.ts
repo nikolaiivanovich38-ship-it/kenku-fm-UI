@@ -911,15 +911,15 @@ test("0.6.0 finishing (f-live): a room on air has Back, Next and its queue on th
   const air = region(page, "Now playing").getByRole("group", { name: /^On air/ }).first();
   const controls = air.getByRole("group", { name: /^Control what the players hear/ });
   const names = await controls.getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label") || (b.textContent ?? "").trim()));
-  expect(names.slice(0, 5).map((n) => n.replace(/ \d+$/, ""))).toEqual(["Back", "Pause", "Stop", "Next", "Queue"]);
+  expect(names.slice(0, 5).map((n) => n.replace(/, \d+ to come$/, ""))).toEqual(["Back", "Pause", "Stop", "Next", "Queue"]);
   // The on-air edge is wider than round 6's 3 px (r10.css), as the preview's is.
   expect(await air.evaluate((row) => getComputedStyle(row).boxShadow)).toMatch(/5px 0px 0px( 0px)? inset|inset 5px 0px 0px/);
   await controls.getByRole("button", { name: /^Queue/ }).click();
   const queue = page.getByRole("region", { name: /^Queue/ });
   await expect(queue).toContainText("Now playing");
   await expect(queue).toContainText("Up next");
-  const play = queue.getByRole("button", { name: /^Play .+ now$/ }).first();
-  const next = ((await play.getAttribute("aria-label")) ?? "").replace(/^Play (.+) now$/, "$1");
+  const play = queue.getByRole("button", { name: /^Play now: .+$/ }).first();
+  const next = ((await play.getAttribute("aria-label")) ?? "").replace(/^Play now: (.+)$/, "$1");
   await play.click();
   // It plays now: the room's row names it.
   await expect(air).toContainText(next);

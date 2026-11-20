@@ -998,7 +998,7 @@ function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
       if ((await save()) === undefined) return;
       say(`Removed ${name} from this scene${at === 0 && items.length ? `. ${nameOf(idOf(items[0]))}${lead}` : ""}`);
       // Round 10 (R10-FIX §1, row 36): Undo puts it back in its place; the track, playlist or board itself stays.
-      offerUndo(`Removed ${name} from ${scene.name || "this scene"}.`, () => {
+      offerUndo(`Removed "${name}" from ${scene.name || "this scene"}.`, () => {
         ctx.focusLater(`im-${scene.id}-${list}-${id}`);
         void ctx.saveScene(scene, list === "music" ? { music: before as SoundRef[] } : { boardIds: before as string[] });
       });
@@ -1138,7 +1138,7 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
     if (!(await ctx.saveScene(scene, { ambience: null }))) return;
     say("No ambience in this scene");
     // Round 10 (row 36): Undo puts the ambience back.
-    if (was) offerUndo(`Removed ${info?.name ?? "the ambience"} from ${scene.name || "this scene"}.`, () => void ctx.saveScene(scene, { ambience: was }));
+    if (was) offerUndo(`Removed "${info?.name ?? "the ambience"}" from ${scene.name || "this scene"}.`, () => void ctx.saveScene(scene, { ambience: was }));
   };
   const dropProps = {
     onDragOver: (event: React.DragEvent<HTMLDivElement>) => {

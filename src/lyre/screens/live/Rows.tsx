@@ -97,7 +97,7 @@ function PlayButton({ box, what, dataLv, extra }: { box: LiveBox; what: PlayWhat
       className="closer lv-air"
       data-lv={`${dataLv}-p`}
       aria-label={`Play on air${target.inWhere}: ${what.name}`}
-      title={`Play on air${target.inWhere}${extra}. Players hear this now`}
+      title={`Play on air${target.inWhere}${extra}. The players hear this now.`}
       onClick={() => playOnAir(d, target.targets, what, `${dataLv}-p`)}
     >
       <Icon name="playair" />
@@ -240,7 +240,7 @@ export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on,
         {place?.kind === "scene" && <LoopMark setting={loopSettingAt(track, place, playlistId, overrides)} />}
         {/* Round 10 (table review S3): a track whose file is missing says so before anything is pressed. */}
         {missing && (
-          <span className="badge warn lv-miss" title="Lyre cannot find this file. Open Find missing files in the Track library to look for it.">
+          <span className="badge warn lv-miss" title="Lyre cannot find this file. To look for it, use Find missing files… in the Track library.">
             Missing
           </span>
         )}
@@ -334,7 +334,7 @@ function useRemoveFromPlaylist(): (p: PlaylistInfo, track: LibraryTrack, name: s
     const at = p.trackIds.indexOf(track.id);
     if (at < 0) return;
     if ((await write(api.playlists.removeTrack(p.id, track.id))) === undefined) return;
-    const text = `Removed ${name} from ${p.name}`;
+    const text = `Removed "${name}" from the playlist "${p.name}"`;
     offerSoftUndo({ text, focus: `${dataLv}-m`, restore: () => void write(api.playlists.addTracks(p.id, [track.id], at)) }, UNDO_MS);
     say(`${text}. It is still in the Track library. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
     const rest = p.trackIds.filter((id) => id !== track.id);

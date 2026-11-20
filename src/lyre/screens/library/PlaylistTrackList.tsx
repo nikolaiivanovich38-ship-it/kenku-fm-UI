@@ -113,7 +113,7 @@ export function useRemoveFromPlaylist() {
       const title = t ? shownTitle(t) : "the track";
       const done = await save(pl.name, () => api.playlists.removeTrack(pl.id, trackId, at), { detail: `removed ${title}`, key: `pl-${pl.id}` });
       if (!done) return false;
-      const text = `Removed “${title}” from the playlist "${pl.name}". It is still in the Track library.`;
+      const text = `Removed "${title}" from the playlist "${pl.name}". It is still in the Track library.`;
       say(`${text} To undo this, press Undo, at the bottom of the screen, or Ctrl+Z.`);
       if (done.ok) offer(text, done.undoLabel);
       return true;

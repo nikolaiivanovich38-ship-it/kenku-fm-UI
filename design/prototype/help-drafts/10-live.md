@@ -1,21 +1,22 @@
 ---
 title: Run a session in Live
 group: Run a session
-words: live run session scene next space undo keys shortcuts find track playlist search on air room rooms pads fade stop leave nobody there back shuffle seek jump position arrange layout move resize connection lost
+words: live run session scene next space undo keys shortcuts find track playlist search on air room rooms pads fade stop leave kick nobody there back shuffle seek jump position arrange layout move resize connection lost
 ---
 Press **Run this session** on a campaign or session page to load it into Live.
 
-- **On air**: a part for each room, with what it plays, how it loops and **Up next**. The red light is on while the players hear something. Click a position line to jump within the track. Press a room's name to move it or make it leave, and **+ Room** to add a room.
-- **Scenes**: press `Space`, or **Next scene**, to start the next scene.
-- **Current scene**: the running scene's music, its ambience and its pads, which you can play with their keys.
+- **On air**, at the top, has a part for each room: what it plays and how it loops, **Up next**, its volume and its bot.
+- **Scenes**: press `Space`, or **Next scene**, to start the next scene. Click a scene's name to look inside it and play anything in it without starting the scene.
+- **Current scene**: the running scene's music in play order, its ambience and its pads, which you can play with their keys.
 - **This session** and **Whole campaign**: their playlists and pads.
-- **Find a track or playlist** (`/`): search for anything not in the plan.
-- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds. **Stop all** stops everything at once, in your headphones too. In a narrow window they are icons. Point at one to see its name.
+- **Find a track or playlist** (`/`): search the whole library for anything not in the plan.
+- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds. **Stop all** stops everything at once, your preview too.
+- **Undo** is in the top bar. Press it, or `Ctrl+Z`, within 8 seconds to take back a new scene, **Play on air**, **Fade all**, **Stop all**, **Leave** or a room you moved.
 
-Within 8 seconds, you can take back a scene change, Play on air, Fade all or Stop all with **Undo** in the top bar or `Ctrl+Z`. Undo stays when you play a pad or change a volume.
+A room is a voice channel with one of your bots in it. Use its bot button to change the channel or add a room. To take the bot out, press **Leave**. Scenes start in the first room. With two rooms or more, use **To:** on a box to choose where it plays. **No room**, **Nobody there** or **Connection lost** means the players hear nothing.
 
-**Connection lost** means a bot dropped out and the players hear nothing. Lyre tries to reconnect by itself. **Try again** is beside the message, with a button for the other bot. With **No room** or **Nobody there**, press the button beside it to put the bot where the players are.
+Press **‹** (Back), at the top left, or `Alt+Left` to go back to the screen before. To jump to the boxes, from On air down, use `Alt+1` to `Alt+7`.
 
-To move and resize the boxes, press **Arrange**. Drag a box by its header to move it or by its bottom edge to resize it, or use **Move…**. Press **Done** to keep the layout for this window size.
+To move or resize the boxes, press **Arrange**. Lyre keeps the layout for this window size.
 
-To go back one step, press **‹** (Back) or `Alt+Left`. **Keys** lists every key.
+**Keys** lists every key. If single keys get in your way, turn **Single-key shortcuts** off there.

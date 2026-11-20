@@ -278,7 +278,7 @@ export function OnHandPane({ paneId, title, kind, owner, ids, trackIds = [], ind
     const name = kind === "playlists" ? index.playlist(id)?.name : index.board(id)?.name;
     if ((await save(next)) === undefined) return;
     focusLater(next.length ? `more-${scope}${kindKey}${next[Math.min(at, next.length - 1)]}` : addKey);
-    offerUndo(`Removed "${name}" from this ${ownerWord}. It is still on the ${kind === "playlists" ? "Playlists" : "Pad boards"} page.`, () => {
+    offerUndo(`Removed "${name}" from this ${ownerWord}. It is still ${kind === "playlists" ? "on the Playlists page" : "in Pad boards"}.`, () => {
       focusLater(`more-${scope}${kindKey}${id}`);
       void save(before);
     });

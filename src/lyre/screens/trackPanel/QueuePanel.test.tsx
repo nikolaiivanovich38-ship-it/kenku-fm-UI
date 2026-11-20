@@ -35,7 +35,7 @@ describe("the preview's queue", () => {
     expect(queue.getByRole("list", { name: "Played" })).toHaveTextContent("Alien, unknowable");
     expect(queue.getByRole("list", { name: "Now playing" })).toHaveTextContent("Now track");
     expect(within(queue.getByRole("list", { name: "Up next" })).getAllByRole("listitem")).toHaveLength(2);
-    await user.click(queue.getByRole("button", { name: "Play Last one now" }));
+    await user.click(queue.getByRole("button", { name: "Play now: Last one" }));
     expect(audio.calls).toContainEqual(["previewPlayAt", 3]);
     await user.click(queue.getByRole("button", { name: "Close the queue" }));
     await waitFor(() => expect(screen.queryByRole("region", { name: "Queue" })).toBeNull());

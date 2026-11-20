@@ -1472,7 +1472,7 @@ describe("round 10 fixes (Nik, 18 Nov, answer 1): a track of a manual playlist u
     await userEvent.click(first.getByRole("button", { name: /^More for / }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Remove from this playlist" }));
     await waitFor(() => expect(tracks().getAllByRole("listitem")).toHaveLength(n - 1));
-    expect(undoPlace()).toHaveTextContent(/^Removed .* from The Company themes/);
+    expect(undoPlace()).toHaveTextContent(/^Removed ".*" from the playlist "The Company themes"/);
     await userEvent.click(within(undoPlace()).getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(tracks().getAllByRole("listitem")).toHaveLength(n));
     within(tracks().getAllByRole("listitem")[1]).getByRole("button", { name: /^More for / }).focus();
@@ -1501,7 +1501,7 @@ describe("round 10 fixes (Nik, 18 Nov, answer 1): a track of a manual playlist u
     await userEvent.click(region("Campaign playlists").getByRole("button", { name: "Campaign Playlists" }));
     const row = region("Campaign playlists").getAllByRole("listitem")[0];
     const buttons = within(row).getAllByRole("button").filter((b) => b.closest(".lv-trk-acts"));
-    expect(buttons[buttons.length - 1]).toHaveAttribute("title", expect.stringMatching(/^Play on air.*Players hear this now$/));
+    expect(buttons[buttons.length - 1]).toHaveAttribute("title", expect.stringMatching(/^Play on air.*The players hear this now\.$/));
   });
 });
 

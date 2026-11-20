@@ -3,10 +3,10 @@ title: How a track plays (Audio profile)
 group: Prepare
 words: audio profile waveform start end loop fade fades markers start at settings place scene playlist track
 ---
-In the Audio profile you choose where a track starts and ends, what happens at its end, and how it fades. Open it from a track's **Audio profile** link in the Track library's Details, or from the wave button by a track in a scene. Opened from a scene, it shows that scene's settings, and the **Back to** button takes you back to the scene.
+In the Audio profile you choose where a track starts and ends, what happens at its end, and how it fades. Open it from a track's **Audio profile** link in the Track library's Details, or from the wave button by a track in a scene. Opened from a scene, it shows that scene's settings. To go back to the scene, press the **Back to** button, which has the scene's name on it.
 
 - **Start** and **End**: drag them on the waveform, move them with the arrow keys (a tenth of a second; with `Shift`, a second), or type a time such as 5:12.4. Press **Zoom in** to widen the waveform and place them more exactly.
-- **At its end**: Loop, Loop with a crossfade, Next track, Fade out, Stop, or **Play…**, which plays a playlist or another track after it. The track's details have the same six.
+- **At its end**: **Loop**, **Loop with a crossfade**, **Next track**, **Fade out**, **Stop** or **Play…**, which plays a playlist or another track after it. The track's details have the same six.
 - **Fades**: a fade in and a fade out, each with its length.
 - **Markers**: notes on the waveform, such as where it peaks.
 - **Start at**: where the track starts, wherever it plays. Choose the Beginning or one of its markers.

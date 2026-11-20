@@ -336,7 +336,7 @@
   L.acts.plrm = function (el) {
     var pl = cur(), tid = el.dataset.tid, i = pl.items.indexOf(tid); if (i < 0) return;
     // Round 10 fixes (R10-FIX §1): with Undo; the track stays in the Track library.
-    L.undoNote('Removed “' + L.title(L.track(tid)) + '” from this playlist. It is still in the Track library.', L.snapshot(['playlists']));
+    L.undoNote('Removed "' + L.title(L.track(tid)) + '" from this playlist. It is still in the Track library.', L.snapshot(['playlists']));
     pl.items.splice(i, 1); var next = pl.items[i] || pl.items[i - 1];
     L.render(); focusK(next ? 'm-more-' + next : 'pladdopen');
     L.say('Removed ' + L.title(L.track(tid)) + '. ' + plural(pl.items.length, 'track') + ' left.'); L.saved(pl.name, { detail: 'removed ' + L.title(L.track(tid)), key: 'pl-' + pl.id });
