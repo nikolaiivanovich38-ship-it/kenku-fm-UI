@@ -11,7 +11,7 @@ import type { SoundRef, TrackNames, UsePlace } from "../../../common/domain";
 import { isRefused, MAX_SESSION_NUMBER, type CampaignInfo, type SceneAddress, type SceneInfo, type SessionInfo, type SessionStatus } from "../../../common/lyre/api";
 import { shownTitle } from "../../../common/lyre/text";
 import { useCampaign, useLyreApi, useTagGroups } from "../../api";
-import { Button, IconButton } from "../../kit/Button";
+import { Button } from "../../kit/Button";
 import { Dialog } from "../../kit/Dialog";
 import { ExpanderButton } from "../../kit/Expander";
 import { Icon } from "../../kit/Icon";
@@ -21,7 +21,7 @@ import type { MenuEntry } from "../../kit/Menu";
 import { Column, Pane } from "../../kit/Pane";
 import { useAnnounce } from "../../shell/Announcer";
 import { useUndoNote } from "../../shell/UndoNote";
-import { SceneMarks, StepsDialog } from "../steps/StepsDialog";
+import { SceneMarks, SceneStart, StepsDialog } from "../steps/StepsDialog";
 import { RepeatOneButton } from "../../kit/RepeatOneButton";
 import type { ScreenProps } from "..";
 import { carriesFiles, dropIndex, droppedPaths } from "./drops";
@@ -32,7 +32,6 @@ import {
   DraftField,
   ModeSwitch,
   NotFound,
-  ObsidianButton,
   Opening,
   useHeadingFocusWhenReady,
   RowMenu,
@@ -312,7 +311,6 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
   };
 
   const drag = useDragReorder("scenes", (from, to) => void moveScene(from, to));
-  const allOpen = s.scenes.length > 0 && s.scenes.every((x) => open[x.id]);
   const deletingScene = sceneAt(deleting);
   const stepsScene = sceneAt(stepsOf);
   const campaignBoards = c.boardIds.map((id) => index.board(id)?.name).filter(Boolean);
@@ -415,19 +413,6 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
               status={s.scenes.length ? undefined : { text: "Empty" }}
               actions={
                 <>
-                  {s.scenes.length > 0 && (
-                    <IconButton
-                      quiet
-                      icon={allOpen ? "chevup" : "chevdown"}
-                      label={allOpen ? "Fold all scenes" : "Open all scenes"}
-                      data-k="allscenes"
-                      onClick={() => {
-                        const any = !allOpen;
-                        setOpen(Object.fromEntries(s.scenes.map((x) => [x.id, any])));
-                        say(any ? "All scenes open" : "All scenes folded");
-                      }}
-                    />
-                  )}
                   <Button size="s" icon="plus" data-k="addscene" onClick={() => void addScene(selectedScene())}>
                     Add scene
                   </Button>
@@ -448,6 +433,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
                         setCurrent(scene.id);
                       }}
                       drag={drag}
+                      onStart={() => setStepsOf(scene.id)}
                       menu={[
                         ...(i > 0 ? [{ label: "Move up", icon: "chevup" as const, onSelect: () => { void moveScene(i, i - 1); } }] : []),
                         ...(i < s.scenes.length - 1 ? [{ label: "Move down", icon: "chevdown" as const, onSelect: () => { void moveScene(i, i + 1); } }] : []),
@@ -507,20 +493,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
               <OnHandList ids={c.playlistIds} trackIds={c.trackIds} kind="playlists" index={index} scope="r" place={{ kind: "campaign", campaignId: c.id }} />
               <p className="hint cp-make">Campaign pads: {campaignBoards.length ? campaignBoards.join(", ") : "none"}.</p>
             </Pane>
-            <Pane id="ss-obs" title="Obsidian" icon="link" size="auto" collapsed kind="plain" status={{ text: "Coming later" }}>
-              <div className="field">
-                <label htmlFor="cp-s-obs">Session note</label>
-                <DraftField
-                  className="input"
-                  id="cp-s-obs"
-                  autoComplete="off"
-                  value={s.noteLink}
-                  placeholder={`${c.obsidian.sessionsFolder || "Sessions"}/Session ${s.number}.md`}
-                  onSave={(noteLink) => void saveSession({ noteLink }, `Session ${s.number} Obsidian note`)}
-                />
-              </div>
-              <ObsidianButton idPrefix="cp-s-o-" />
-            </Pane>
+            {/* Round 10 (row 14, P8): no Obsidian box on the session; the campaign's stays. */}
           </Column>
         </div>
       </div>
@@ -602,6 +575,8 @@ interface SceneCardProps {
   onToggle: () => void;
   drag: ReturnType<typeof useDragReorder>;
   menu: MenuEntry[];
+  /** Round 10: Change… in the Start group opens the scene's steps. */
+  onStart: () => void;
 }
 
 /** What a folded scene's tooltip says: its Story cue, music, ambience and pad boards. */
@@ -617,7 +592,7 @@ function sceneTip(scene: SceneInfo, index: LibraryIndex, names: TrackNames, plac
   ].join("\n");
 }
 
-function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCardProps) {
+function SceneCard({ scene, position, ctx, open, onToggle, drag, menu, onStart }: SceneCardProps) {
   const api = useLyreApi();
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [fileOver, setFileOver] = useState(false);
@@ -769,6 +744,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
             <label htmlFor={`${f}w`}>Story cue</label>
             <DraftField className="input" id={`${f}w`} placeholder="The moment in the story" autoComplete="off" value={scene.startsWhen} onSave={(value) => save({ startsWhen: value }, `story cue of ${scene.name || "the scene"}`)} />
           </div>
+          <SceneStart scene={scene} onChange={onStart} />
           <div className="field cp-span" role="group" aria-labelledby={`${f}m`}>
             <span className="label" id={`${f}m`}>
               Music
@@ -790,20 +766,6 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
           <div className="field">
             <label htmlFor={`${f}x`}>Notes</label>
             <DraftField multiline className="input" id={`${f}x`} rows={2} placeholder="Reminders for this scene" value={scene.notes} onSave={(value) => save({ notes: value }, `${scene.name || "scene"} notes`)} />
-          </div>
-          <div className="field cp-obsfield">
-            <label htmlFor={`${f}o`}>
-              Note link <span className="cp-later">Coming later</span>
-            </label>
-            <DraftField
-              className="input"
-              id={`${f}o`}
-              placeholder="Optional: an Obsidian note"
-              title="Kept for later. Lyre cannot open Obsidian notes yet."
-              autoComplete="off"
-              value={scene.noteLink}
-              onSave={(value) => save({ noteLink: value }, `${scene.name || "scene"} note link`)}
-            />
           </div>
         </div>
       )}

@@ -440,12 +440,22 @@ describe("scenes", () => {
     expect(await screen.findByText('Deleted scene "Aftermath" and its notes.')).toBeInTheDocument();
   });
 
-  it("Open all scenes opens every scene, and folds them again", async () => {
+  it("round 10: has no Open all; each scene stays open until it is closed (Nik, 18 Nov, 2b)", async () => {
     openAt("session/crown/s14");
-    await userEvent.click(await screen.findByRole("button", { name: "Open all scenes" }));
-    expect(screen.getAllByRole("list", { name: "Music in order" })).toHaveLength(6);
-    await userEvent.click(screen.getByRole("button", { name: "Fold all scenes" }));
-    expect(screen.queryByRole("list", { name: "Music in order" })).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Scene 2: Greyhollow inn" }));
+    await userEvent.click(screen.getByRole("button", { name: "Scene 3: The abbey ruins" }));
+    expect(screen.queryByRole("button", { name: /^(Open|Fold) all scenes$/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("list", { name: "Music in order" }).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("round 10: an open scene says how it starts, under its Story cue, and Change… opens its steps; no note link", async () => {
+    openAt("session/crown/s14");
+    await userEvent.click(await screen.findByRole("button", { name: "Scene 3: The abbey ruins" }));
+    const start = screen.getByRole("group", { name: "Start" });
+    expect(start).toHaveTextContent("then it waits until you press Next scene");
+    await userEvent.click(within(start).getByRole("button", { name: "Change the start of The abbey ruins" }));
+    expect(screen.getByRole("dialog", { name: "Start of The abbey ruins" })).toBeInTheDocument();
+    expect(screen.queryByText("Coming later")).not.toBeInTheDocument();
   });
 
   it("opening a session from its campaign puts the focus on the session's heading once it is ready", async () => {
