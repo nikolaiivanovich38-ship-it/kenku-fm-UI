@@ -490,4 +490,16 @@ test.describe("0.6.0: a tour per screen, every step finding its control", () => 
       expect(await walkTour(page, name, steps.length)).toEqual([...steps]);
     });
   }
+
+  // Round 9, item 56 (built in 0.6.0): the room's name is the button that moves it, so the step says so.
+  test("Rooms in Live: the Move a room step tells you to press the room's name", async ({ page }) => {
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await openRoute(page, "campaigns");
+    await helpButton(page).click();
+    await helpPanel(page).getByRole("button", { name: /^Show me( again)?: Put the bot in a room$/ }).click();
+    const step = (n: number) => page.getByRole("dialog", { name: new RegExp(`Rooms in Live · ${n} of ${ROOMS.length}$`) });
+    await step(1).getByRole("button", { name: "Next", exact: true }).click();
+    await expect(step(2)).toContainText("Move a room");
+    await expect(step(2)).toContainText("Press the room’s name to move it to another channel or make it leave. From the same menu you can copy what another room plays.");
+  });
 });

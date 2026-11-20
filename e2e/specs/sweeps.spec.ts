@@ -892,7 +892,7 @@ const OPENED: Opened[] = [
   { name: "Session planner with Help", route: "session/crown/s14", owner: "help", open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); await page.keyboard.press("F1"); } },
   { name: "Live with Help", route: "live", owner: "help", open: async (page) => { await page.keyboard.press("F1"); } },
   { name: "Live with Find's results", route: "live", owner: "live", open: async (page) => { await page.getByRole("searchbox", { name: /^Find a track/ }).fill("battle"); } },
-  { name: "Live while arranging", route: "live", owner: "live", open: async (page) => { await page.getByRole("button", { name: /^(Arrange|Move and size the boxes)/ }).click(); } },
+  { name: "Live while arranging", route: "live", owner: "live", open: async (page) => { await page.getByRole("button", { name: /^(Arrange|Move and resize the boxes)/ }).click(); } },
   { name: "Live with a scene playing", route: "live", owner: "live", open: async (page) => { await page.getByRole("button", { name: /^Start: / }).first().click(); } },
   {
     // Nik, 18 Nov (open question 1): a manual playlist unfolded in Live, its tracks with four buttons and a ⋯.

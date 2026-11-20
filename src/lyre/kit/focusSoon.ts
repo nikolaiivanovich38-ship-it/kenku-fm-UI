@@ -5,7 +5,7 @@
  * - by default it waits until the control in use has gone (focus is on the page), then focuses the first of
  *   `selectors` that is drawn by then (or as soon as one is drawn);
  * - with `move`, it focuses the first one as soon as it is drawn, even while the control in use is still there (a new
- *   room's bot button after Add a room).
+ *   room's button, its name, after + Room).
  *
  * It stops as soon as focus is somewhere else the person chose, when the screen changes (Back or a link: the place
  * opened may have a control of the same name, which is not the neighbour meant), and after `ms`. The neighbour is

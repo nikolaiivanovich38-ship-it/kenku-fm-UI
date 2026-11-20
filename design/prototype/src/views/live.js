@@ -1195,8 +1195,10 @@
     // Round 9 (item 56): + Room lists voice channels; Lyre takes a free bot itself (the one that joins there when Lyre
     // starts, else the first free). With none free, the list is greyed and one line says where bots are added.
     var pick = idle[0];
-    L.menu(el, '<div class="group">New room in</div>' + (pick ? channelItems(pick, 'lvaddjoin').replace(/data-id="[^"]*"/g, 'data-id="auto"') :
-      '<p class="item faint r9-nobot">Every bot is in a room. Add a bot in <a href="#/settings" data-k="lv-addbot-link">Settings › Discord bots</a>.</p>'), 'New room');
+    // 0.6.0 (g60-room, the app's newRoomEntries): a link in a menu has to be one of its items (axe: a menu holds only
+    // items), so Settings › Discord bots is a menu item.
+    L.menu(el, pick ? '<div class="group">New room in</div>' + channelItems(pick, 'lvaddjoin').replace(/data-id="[^"]*"/g, 'data-id="auto"') :
+      '<p class="item faint r9-nobot">Every bot is in a room. Add a bot in <a href="#/settings" role="menuitem" tabindex="-1" data-k="lv-addbot-link">Settings › Discord bots</a>.</p>', 'New room');
   };
   // Add a bot… opens Settings' three steps over Live; once connected, the new bot joins from Add a room.
   L.acts.lvaddbot = function () { if (L.acts.stadd) L.acts.stadd(); else L.route('#/settings'); };

@@ -57,6 +57,21 @@ describe("the help articles (FND-8)", () => {
   it("avoids the words Nik asked to keep out", () => {
     for (const a of ARTICLES) expect(a.body + a.title, a.file).not.toMatch(/\b(genuinely|honestly|does real work|carry|carries|carried)\b/i);
   });
+
+  it("matches its draft in design/prototype/help-drafts word for word, where there is one", () => {
+    const drafts = path.join(__dirname, "../../../design/prototype/help-drafts");
+    for (const file of fs.readdirSync(drafts).filter((f) => f.endsWith(".md"))) {
+      expect(fs.readFileSync(path.join(FOLDER, file), "utf8"), file).toBe(fs.readFileSync(path.join(drafts, file), "utf8"));
+    }
+  });
+
+  it("says to press a room's name to move it (round 9, item 56), not its bot button", () => {
+    for (const file of ["10-live.md", "16-rooms-and-bots.md"]) {
+      const a = ARTICLES.find((x) => x.file === file)!;
+      expect(a.body, file).toMatch(/room's name/);
+      expect(a.body, file).not.toMatch(/bot button/);
+    }
+  });
 });
 
 describe("the article format", () => {

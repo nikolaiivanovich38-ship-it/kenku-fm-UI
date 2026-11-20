@@ -796,7 +796,7 @@ The independent review (UX-R1 to UX-R21) left these kit rules for every screen:
 | Dialog focus (UX-R1) | `kit/Dialog.tsx` | Focus goes to the first control that can take it (a greyed one is skipped), else the first enabled button. `enterSubmits`: Enter in a one-line text field presses the footer's main button (UX-R20). |
 | Resting statuses (UX-R3) | `kit/Pane.tsx` `isRestingStatus`, `foldedSummary` | Round 6 rule 4, as the prototype's `L.quietStatus`: an idle "Empty", "Copied" or count ("4", "12 pads") shows only while the box is folded; `foldedSummary` does the same for a summary that repeats the open box. A status that says something happens (Playing, Trying, n sounding, a warning) always shows. |
 | Key legends (UX-R3) | `styles/ui.css` `.keys-on-focus` | A key legend or reorder how-to shows only while the keyboard is in its box (round 6 rule 5); keep it the box's description too. |
-| Focus after a change (UX-R4) | `kit/focusSoon.ts`, `screens/live/focus.ts` `focusLiveSoon` | When the control in use goes, focus a neighbour once it is drawn (or, with `move`, a new control such as a new room's bot button); it stops when the person moves focus. |
+| Focus after a change (UX-R4) | `kit/focusSoon.ts`, `screens/live/focus.ts` `focusLiveSoon` | When the control in use goes, focus a neighbour once it is drawn (or, with `move`, a new control such as a new room's button (its name)); it stops when the person moves focus. |
 | One event, one message (UX-R6) | `shell/Announcer.tsx`, `shell/savedModel.ts` | The pop-up is shown at once and read out from the live region 120 ms later (`READ_NOTE_AFTER_MS`); a `say` in that moment is read instead. The pop-up itself is `aria-live="off"`. Live's Undo strips are groups named Undo, not statuses. |
 | Counts while typing (UX-R7) | `kit/useSayWhenSettled.ts` | A result count is read out once typing pauses (500 ms); the count on screen is not a live region. |
 | Undo's focus (UX-R19) | `shell/UndoNote.tsx` `offer(text, undoLabel, focusBack)` | Where focus goes once a library change is undone (a CSS selector); Tags gives the tag's ⋯. |
@@ -990,3 +990,18 @@ From the round 10 prototype (design/prototype/ROUND9.md §3, §7–§10, ROUND10
   `restore` leaves a lane alone that still plays the snapshot's item on its own voice.
 - Find missing files (review I1) treats a whole track and its parts as one file: one is looked for, the others get the
   same answer, and `applyRelink` moves the other tracks of a relinked track's old file along with it.
+
+## 0.6.0: g60-room (round 9 item 56: the room's name is its button)
+
+- In On air each room's name is the button that moves it (`screens/live/OnAir.tsx` `RoomButton`, inside the room's
+  `h3`; the room's group is still labelled by the name alone). Its menu has Move <room> to (each voice channel), Copy
+  what … is playing, Make <bot> leave <room>, then "via <bot>" as a note (the menu's description) and Use <bot> instead
+  for each bot in no room. The bot's own button (`BotButton`) and its Add a room… and Add a bot… entries are gone. Leave
+  and Use … instead keep what they did: Undo of Leave (`useKick`, `restoreRoom`), the old bot's volume for the new one,
+  and the main process's starting volume for a bot that joins from no room. Focus after Undo and after + Room goes to
+  the room's button (`data-k="room-<bot id>"`).
+- + Room (`AddRoom`: icon and the word Room, named "Add a room") lists voice channels by server and Lyre picks the bot
+  (`liveModel.newRoomChoices`: in each server, the first logged-in bot in no voice channel that can join it; the app has
+  no "joins when Lyre starts" channel to prefer, unlike the prototype). With every bot in a room, a note says where bots
+  are added, with Settings › Discord bots as a link that is one of the menu's items (`kit/PopMenu.tsx` moves the arrows
+  between `a[href]` items too), since axe allows only items in a menu.
