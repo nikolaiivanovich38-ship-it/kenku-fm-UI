@@ -33,3 +33,20 @@
 .tour-title { font-size: var(--fs-l); margin: 2px 0 4px; }
 .tour p { margin: 0 0 8px; font-size: var(--fs-s); line-height: 1.45; }
 .tour-btns { display: flex; align-items: center; gap: 6px; }
+/* Round 10: a screen's tour points from any side. */
+.tour[data-side="left"]::before { right: -6px; top: var(--arrow, 50%); transform: translateY(-50%) rotate(225deg); }
+.tour[data-side="bottom"]::before { top: -6px; left: var(--arrow, 24px); transform: translateX(-50%) rotate(135deg); }
+
+/* Round 9 §4 and round 10: On this screen and Set up Lyre at the top of Help. */
+.help-screen { margin-bottom: 4px; }
+.help-screen-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.help-setup { margin: 8px 0 4px; padding: 8px; border: 1px solid var(--line); border-radius: var(--r-l); background: var(--surface-2); }
+.help-setup-head { display: flex; align-items: center; gap: 8px; }
+.help-setup-head .help-group { margin: 0; }
+.help-setup-bar { height: 6px; margin: 8px 0; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.help-setup-bar > span { display: block; height: 100%; background: var(--ok); }
+.help-setup-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.help-setup-list li { display: flex; align-items: center; gap: 8px; font-size: var(--fs-s); min-height: var(--ctl); }
+.help-setup-list li.done .grow { color: var(--ink-2); }
+.help-setup-mark { flex: none; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--line-strong); font-size: 12px; }
+.help-setup-list li.done .help-setup-mark { color: var(--ok); border-color: var(--ok); }

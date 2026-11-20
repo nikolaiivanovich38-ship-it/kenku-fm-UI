@@ -30,3 +30,12 @@ body :is(.tray, .lv-grp) { border: 0; background: none; }
 /* A picker's foot while it asks the name of a new playlist or board (kit/Picker.tsx, PickerMakeNew). */
 .pk-mk { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; min-width: 0; font-size: var(--fs-s); font-weight: 700; }
 .pk-mk .input { flex: 1; min-width: 0; }
+
+/* Set up Lyre's progress on Help's button (shell/Rail.tsx): an outline chip drawn by CSS, so the button's name stays
+   Help; folded to icons, a dot inside the button. */
+.rail button.nav:has(.help-ring) { gap: 6px; padding-right: 4px; }
+.help-ring { flex: none; margin-left: auto; padding: 0 4px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: 12px; line-height: 16px; color: var(--ink-2); }
+.help-ring::after { content: attr(data-count); }
+.rail.min .nav { position: relative; }
+.rail.min .help-ring { position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; padding: 0; margin: 0; border: 2px solid var(--accent); background: var(--surface); }
+.rail.min .help-ring::after { content: none; }

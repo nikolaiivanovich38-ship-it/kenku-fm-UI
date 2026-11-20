@@ -15,6 +15,10 @@ import { HelpText } from "./HelpText";
 import { keepKeysHere } from "./keys";
 import { diagnosticsResultWords, type DiagnosticsBridge, type DiagnosticsResult } from "../../common/lyreDiagnostics";
 import { LYRE_VERSION } from "../version";
+import { SCREEN_HELP, type TourKey, type TourPlaces } from "./tours";
+import { useSetupProgress } from "./setup";
+import { routeFromHash } from "../shell/routes";
+import { useHasLyreApi, useBoards, useCampaigns, useTracks } from "../api";
 import "./help.css";
 
 /** Count announced this long after the last key, so a screen reader is not interrupted at every letter. */
@@ -23,11 +27,13 @@ const COUNT_DELAY_MS = 400;
 export interface HelpPanelProps {
   onClose: () => void;
   onTour: () => void;
+  /** Round 10: Tour of this screen and Set up Lyre's Show me. */
+  onScreenTour?: (key: TourKey, places: TourPlaces | "here") => void;
   /** The main process's Save diagnostics (window.lyre.diagnostics); null where there is none (tests, a browser). */
   diagnostics: DiagnosticsBridge | null;
 }
 
-export function HelpPanel({ onClose, onTour, diagnostics }: HelpPanelProps) {
+export function HelpPanel({ onClose, onTour, onScreenTour, diagnostics }: HelpPanelProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState<HelpArticle | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -102,7 +108,10 @@ export function HelpPanel({ onClose, onTour, diagnostics }: HelpPanelProps) {
       <p className="muted help-none">Nothing found. Try other words.</p>
     );
   } else {
-    body = HELP_GROUPS.map((group, i) => (
+    body = (
+      <>
+        {onScreenTour && <HelpTop onScreenTour={onScreenTour} item={item} />}
+        {HELP_GROUPS.map((group, i) => (
       <React.Fragment key={group}>
         <h3 className="help-group" id={`help-group-${i}`}>
           {group}
@@ -111,7 +120,9 @@ export function HelpPanel({ onClose, onTour, diagnostics }: HelpPanelProps) {
           {ARTICLES.filter((a) => a.group === group).map(item)}
         </ul>
       </React.Fragment>
-    ));
+        ))}
+      </>
+    );
   }
 
   return (
@@ -202,4 +213,104 @@ function HelpFoot({ onTour, diagnostics }: Pick<HelpPanelProps, "onTour" | "diag
       )}
     </footer>
   );
+}
+
+/**
+ * Round 9 §4 and round 10 (ROUND10.md "Help"): Help starts with On this screen (Tour of this screen and the screen's
+ * article), then Set up Lyre (with a library to read).
+ */
+function HelpTop({ onScreenTour, item }: { onScreenTour: (key: TourKey, places: TourPlaces | "here") => void; item: (article: HelpArticle) => React.ReactNode }) {
+  const route = routeFromHash(window.location.hash);
+  const here = SCREEN_HELP[route.name];
+  const article = here?.article ? ARTICLES.find((a) => a.id === here.article) : undefined;
+  return (
+    <>
+      {here && (
+        <div className="help-screen">
+          <h3 className="help-group">On this screen</h3>
+          <div className="help-screen-row">
+            <Button size="s" icon="play" onClick={() => onScreenTour(here.tour, "here")}>
+              Tour of this screen
+            </Button>
+          </div>
+          {article && (
+            <ul className="help-list" aria-label="On this screen">
+              {item(article)}
+            </ul>
+          )}
+        </div>
+      )}
+      {useHasLyreApi() && <SetUpLyre onShowMe={(key, places) => onScreenTour(key, places)} />}
+    </>
+  );
+}
+
+/** Set up Lyre: nine tasks ticked from the library, each with Show me; one line once all are done or it is hidden. */
+function SetUpLyre({ onShowMe }: { onShowMe: (key: TourKey, places: TourPlaces) => void }) {
+  const progress = useSetupProgress(themeWasChosen());
+  const tracks = useTracks().data ?? [];
+  const campaigns = useCampaigns().data ?? [];
+  const boards = useBoards().data ?? [];
+  const [showDone, setShowDone] = useState(false);
+  const all = progress.done === progress.of;
+  const folded = progress.hidden || (all && !showDone);
+  const untagged = tracks.find((t) => !Object.values(t.tags).some((x) => x.length)) ?? tracks[0];
+  const campaign = campaigns[0];
+  const session = campaign?.sessions.find((s) => s.status !== "played") ?? campaign?.sessions[0];
+  const places: TourPlaces = {
+    trackId: untagged?.id,
+    session: campaign && session ? { campaignId: campaign.id, sessionId: session.id } : undefined,
+    boardId: boards[0]?.id,
+  };
+  return (
+    <section className="help-setup" aria-labelledby="help-setup-h">
+      <div className="help-setup-head">
+        <h3 className="help-group" id="help-setup-h">
+          Set up Lyre
+        </h3>
+        <span className="num faint">{all ? "all done" : `${progress.done} of ${progress.of}`}</span>
+        <span className="grow" />
+        <Button
+          size="s"
+          variant="ghost"
+          aria-expanded={!folded}
+          onClick={() => (all && !progress.hidden ? setShowDone(!showDone) : progress.setHidden(!progress.hidden))}
+        >
+          {folded ? "Show" : "Hide"}
+        </Button>
+      </div>
+      {!folded && (
+        <>
+          <div className="help-setup-bar" role="progressbar" aria-label="Set up Lyre" aria-valuemin={0} aria-valuemax={progress.of} aria-valuenow={progress.done}>
+            <span style={{ width: `${Math.round((progress.done / progress.of) * 100)}%` }} />
+          </div>
+          <ol className="help-setup-list">
+            {progress.tasks.map(({ task, done }, i) => (
+              <li key={task.id} className={done ? "done" : undefined}>
+                <span className="help-setup-mark" aria-hidden="true">
+                  {done ? <Icon name="check" size="s" /> : i + 1}
+                </span>
+                <span className="grow">
+                  {task.title}
+                  <span className="sr-only">{done ? ", done" : ", to do"}</span>
+                </span>
+                <Button size="s" variant={done ? "ghost" : undefined} aria-label={`${done ? "Show me again" : "Show me"}: ${task.title}`} onClick={() => onShowMe(task.tour, places)}>
+                  {done ? "Show me again" : "Show me"}
+                </Button>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** "Choose a theme (optional)": a theme was chosen in Look and feel at some time (it is remembered). */
+function themeWasChosen(): boolean {
+  try {
+    return /"theme"/.test(localStorage.getItem("lyre-shell") ?? "");
+  } catch {
+    return false;
+  }
 }

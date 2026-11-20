@@ -3,6 +3,8 @@ import { Icon, LyreLogo, type IconName } from "../kit/Icon";
 import { hashOf, type Section } from "./routes";
 import { useShellData } from "./ShellData";
 import { HELP_BUTTON_ID } from "../help/useHelp";
+import { useSetupProgress } from "../help/setup";
+import { useHasLyreApi } from "../api";
 
 interface RailProps {
   section: Section;
@@ -17,6 +19,7 @@ interface RailProps {
 /** The rail: Lyre's sections (Live first since 0.5.1; then the prototype's order), with Look and feel, Help and "Icons only" at the bottom. */
 export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: RailProps) {
   const { liveLabel, liveName, outputsLabel, outputsHint } = useShellData();
+  const hasLibrary = useHasLyreApi();
   const link = (to: Section, icon: IconName, label: string, name?: string, hint?: string) => (
     <a
       href={hashOf(to)}
@@ -65,6 +68,7 @@ export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: Ra
           >
             <Icon name="help" />
             <span className="lbl">Help</span>
+            {section !== "live" && hasLibrary && <SetupDot />}
           </button>
         )}
         <button
@@ -80,4 +84,17 @@ export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: Ra
       </div>
     </aside>
   );
+}
+
+/**
+ * Round 9 §4 and round 10 (look D12, R10-FIX §3): Set up Lyre's progress on Help's button, a quiet outline chip
+ * ("4/9"; a dot inside the button when the menu shows icons only), its count in its hover text, until all nine are
+ * done or the checklist is hidden. Not while Live is open, where a scene may be running.
+ */
+function SetupDot() {
+  const p = useSetupProgress(false);
+  // The theme task is optional: the chip counts it as Help's panel does, but never shows only for it.
+  const left = p.tasks.filter((t) => !t.done && t.task.id !== "look").length;
+  if (p.hidden || left === 0) return null;
+  return <span className="help-ring" aria-hidden="true" title={`Set up Lyre: ${p.done} of ${p.of} done`} data-count={`${p.done}/${p.of}`} />;
 }
