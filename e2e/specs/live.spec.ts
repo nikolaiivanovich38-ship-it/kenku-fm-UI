@@ -16,8 +16,9 @@ const sceneMusic = (page: Page) => page.getByRole("region", { name: /^(Current s
 /** Round 6 part 3: one On air box along the bottom, with a part per room (before: an On air box per room). */
 /* Round 10 (ROUND10.md, table review M1): Undo is in one place in the top strip, so the checks look for its strip on
    the page, which finds it in the app's boxes as well. */
-/** Round 9 (item 56): a room's name is the button that moves it, and Kick is Leave; the app's 0.5.1 names are read too. */
-const ROOM_TABLE = /^(Lyre Table in Table: change|Room Table: move or change)/;
+/** Round 9 (item 56, built in 0.6.0): a room's name is the button that moves it (the bot's button is gone), and Kick is
+ *  Leave. */
+const ROOM_TABLE = /^Room Table: move or change$/;
 const LEAVE_TABLE = /^Make Lyre Table leave Table$/;
 const room = (page: Page, name: string) => region(page, "On air").getByRole("group", { name, exact: true });
 /** Round 6 part 3: Find a track is a field in the top strip (it was the Off script box); its results open under it. */
@@ -738,7 +739,7 @@ test.describe("round 6: see a scene before it starts, Add to queue, Repeat, and 
     await openRoute(page, "live");
     await page.getByRole("button", { name: ROOM_TABLE }).click();
     const menu = page.getByRole("menu", { name: "Room Table" });
-    await expect(menu).toContainText(/Lyre Table plays in|Move Table to/); // round 9: the room comes first
+    await expect(menu).toContainText("Move Table to"); // round 9: the room comes first
     await menu.getByRole("menuitemradio", { name: /^Whispers/ }).click();
     await expect(room(page, "Whispers")).toBeVisible();
     await expect(room(page, "Table")).toHaveCount(0);
@@ -1472,7 +1473,7 @@ test.describe("0.5.1: fades of 5 seconds, and Rooms' actions in On air", () => {
     await openRoute(page, "live");
     await room(page, "Table").getByRole("button", { name: ROOM_TABLE }).click();
     const menu = page.getByRole("menu");
-    await expect(menu).toContainText(/Lyre Table plays in|Move Table to/); // round 9: the room comes first
+    await expect(menu).toContainText("Move Table to"); // round 9: the room comes first
     await menu.getByRole("menuitemradio", { name: /^Side room/ }).click();
     await expect(room(page, "Side room")).toBeVisible();
     await expect(room(page, "Table")).toHaveCount(0);
@@ -1523,23 +1524,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await seek.press("ArrowRight");
     await seek.press("ArrowRight");
     await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeGreaterThanOrEqual(10);
-  });
-
-  test("rooms from Live: a bot's menu chooses its channel, adds a room and kicks; Add a room offers Add a bot… (\"I don't want to have to tab to the rooms tab\")", async ({ page }) => {
-    appOnly();
-    await openRoute(page, "live");
-    await page.getByRole("button", { name: ROOM_TABLE }).click();
-    const menu = page.getByRole("menu", { name: "Room Table" });
-    await expect(menu).toContainText(/Lyre Table plays in|Move Table to/); // round 9: the room comes first
-    await expect(menu).toContainText("Add a room: Lyre Side joins…");
-    await expect(menu.getByRole("menuitem", { name: LEAVE_TABLE })).toBeVisible();
-    await menu.getByRole("menuitem", { name: /^Side room.*Lyre Side joins$/ }).click();
-    await expect(room(page, "Side room")).toBeVisible();
-    await page.getByRole("button", { name: "Add a room" }).click();
-    const add = page.getByRole("menu", { name: "Add a room" });
-    await expect(add).toContainText("Every bot is in a room");
-    await add.getByRole("menuitem", { name: "Add a bot…" }).click();
-    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
   });
 
   test("On air: Stop beside Pause on the playing track, and Shuffle next to Repeat (\"I need both\")", async ({ page }) => {
@@ -1869,5 +1853,67 @@ test.describe("round 10: rows and Up next", () => {
     const name = ((await play.getAttribute("aria-label")) ?? "").replace(/^Play now: /, "");
     await play.click();
     await expect(room(page, "Table").getByRole("group", { name: "Music in Table", exact: true }).locator("xpath=..")).toContainText(name.slice(0, 20));
+  });
+});
+
+/* Round 9, item 56 (ROUND9.md §2), built in 0.6.0 (Nik, 20 Nov): in On air each room's name is the button that moves
+   it, and the bot is a quiet line in its menu and in its hover text. The bot's own button ("Lyre Table in Table:
+   change") and its Add a room… entries are gone; + Room lists voice channels and Lyre picks a bot that is not in a room
+   yet. These replace 0.5.1's app-only check of the bot's menu. */
+test.describe("round 9, item 56: a room's name is the button that moves it", () => {
+  test("the room's name is the button, with the bot in its hover text; no button is named after the bot", async ({ page }) => {
+    await openRoute(page, "live");
+    const button = room(page, "Table").getByRole("button", { name: ROOM_TABLE });
+    await expect(button).toHaveText("Table");
+    await expect(button).toHaveAttribute("title", "Table (via Lyre Table): move it to another voice channel");
+    await expect(button).toHaveAttribute("aria-haspopup", "menu");
+    await expect(region(page, "On air").getByRole("button", { name: /: change$/ })).toHaveCount(0);
+  });
+
+  test("its menu: Move Table to each voice channel, Make Lyre Table leave Table, then via Lyre Table and Use Lyre Side instead", async ({ page }) => {
+    await openRoute(page, "live");
+    await room(page, "Table").getByRole("button", { name: ROOM_TABLE }).click();
+    const menu = page.getByRole("menu", { name: "Room Table" });
+    await expect(menu.getByRole("menuitemradio", { name: /^Whispers/ })).toBeEnabled();
+    await expect(menu.getByRole("menuitemradio", { name: /^Table/ })).toHaveAttribute("aria-checked", "true");
+    await expect(menu.getByRole("menuitem", { name: LEAVE_TABLE })).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Use Lyre Side instead" })).toBeVisible();
+    const text = await menu.innerText();
+    const at = (words: string) => text.indexOf(words);
+    expect(at("Move Table to")).toBeGreaterThanOrEqual(0);
+    expect(at("Move Table to")).toBeLessThan(at("Make Lyre Table leave Table"));
+    expect(at("Make Lyre Table leave Table")).toBeLessThan(at("via Lyre Table"));
+    expect(at("via Lyre Table")).toBeLessThan(at("Use Lyre Side instead"));
+    // Adding rooms and bots is + Room's and Settings' business.
+    await expect(menu.getByRole("menuitem", { name: /Add a (room|bot)/ })).toHaveCount(0);
+    await expect(menu).not.toContainText("Add a room");
+  });
+
+  test("Use Lyre Side instead: the free bot takes the room over and the music goes on", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await room(page, "Table").getByRole("button", { name: ROOM_TABLE }).click();
+    await page.getByRole("menu", { name: "Room Table" }).getByRole("menuitem", { name: "Use Lyre Side instead" }).click();
+    await expect(room(page, "Table").getByRole("button", { name: ROOM_TABLE })).toHaveAttribute("title", "Table (via Lyre Side): move it to another voice channel", { timeout: 5000 });
+    await expect(room(page, "Table").getByText("Playing")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("+ Room lists voice channels and Lyre picks a bot itself; with every bot in a room, one line says where bots are added", async ({ page }) => {
+    await openRoute(page, "live");
+    const add = page.getByRole("button", { name: "Add a room" });
+    await expect(add).toHaveText("Room");
+    await add.click();
+    const menu = page.getByRole("menu", { name: "New room" });
+    await expect(menu).toContainText("New room in");
+    await expect(menu).not.toContainText("Lyre Side");
+    await expect(menu.getByRole("menuitemradio", { name: /^Table/ })).toBeDisabled();
+    await menu.getByRole("menuitemradio", { name: /^Side room/ }).click();
+    await expect(room(page, "Side room").getByRole("button", { name: "Room Side room: move or change" })).toHaveAttribute("title", "Side room (via Lyre Side): move it to another voice channel");
+    await add.click();
+    const none = page.getByRole("menu", { name: "New room" });
+    await expect(none).toContainText("Every bot is in a room. Add a bot in Settings › Discord bots.");
+    await expect(none.getByRole("menuitemradio")).toHaveCount(0);
+    await none.getByRole("link", { name: "Settings › Discord bots" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
   });
 });

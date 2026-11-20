@@ -558,36 +558,74 @@ describe("0.5.1: On air's position bar is a seek bar (Nik, 11 Nov)", () => {
   });
 });
 
-describe("0.5.1: rooms from Live, without going to Rooms (Nik, 11 Nov)", () => {
-  it("a room's bot menu chooses its channel, adds a room with the free bot, and kicks it with Undo", async () => {
+/*
+ * 0.5.1 (Nik, 11 Nov): rooms from Live, without going to Rooms. Round 9, item 56 (built in 0.6.0): the room's name is
+ * the button that moves it; the bot is a quiet line in its menu and in its hover text, and + Room picks the bot itself.
+ */
+describe("rooms from Live: the room's name is its button (item 56)", () => {
+  it("the room's button moves it, says its bot, offers the free bot, and makes the bot leave with Undo", async () => {
     const { outputs, sound } = await openLive();
     await startAbbey();
     await playOn(sound);
-    const bot = screen.getByRole("button", { name: "Lyre Table in Table: change" });
-    expect(bot).toHaveAttribute("title", expect.stringMatching(/^Choose a channel/));
-    await userEvent.click(bot);
-    let menu = within(screen.getByRole("menu", { name: "Room Table" }));
-    expect(menu.getByText("Lyre Table plays in")).toBeInTheDocument();
-    // Add a room: the free bot (Lyre Side) joins a channel from here too.
-    expect(menu.getByText("Add a room: Lyre Side joins…")).toBeInTheDocument();
-    await userEvent.click(menu.getByRole("menuitem", { name: /^Side room.*Lyre Side joins$/ }));
-    await act(async () => outputs.settle());
-    await findRoom("Side room");
-    // Kick from the menu, with Undo.
-    await userEvent.click(screen.getByRole("button", { name: "Lyre Table in Table: change" }));
-    menu = within(screen.getByRole("menu", { name: "Room Table" }));
+    expect(screen.queryByRole("button", { name: /: change$/ })).toBeNull();
+    const button = room("Table").getByRole("button", { name: "Room Table: move or change" });
+    expect(button).toHaveTextContent(/^Table$/);
+    expect(button).toHaveAttribute("title", "Table (via Lyre Table): move it to another voice channel");
+    await userEvent.click(button);
+    const menu = within(screen.getByRole("menu", { name: "Room Table" }));
+    const text = screen.getByRole("menu", { name: "Room Table" }).textContent ?? "";
+    expect(text.indexOf("Move Table to")).toBe(0);
+    expect(text.indexOf("Make Lyre Table leave Table")).toBeLessThan(text.indexOf("via Lyre Table"));
+    expect(text.indexOf("via Lyre Table")).toBeLessThan(text.indexOf("Use Lyre Side instead"));
+    expect(menu.getByRole("menuitemradio", { name: /^Table/ })).toHaveAttribute("aria-checked", "true");
+    expect(menu.queryByRole("menuitem", { name: /Add a (room|bot)/ })).toBeNull();
+    expect(text).not.toContain("Add a room");
+    // Leave from the menu, with Undo.
     await userEvent.click(menu.getByRole("menuitem", { name: "Make Lyre Table leave Table" }));
     await act(async () => outputs.settle());
     expect(undoPlace()).toHaveTextContent("Lyre Table left Table");
   });
 
-  it("Add a room is there with every bot in a room: it offers Add a bot…, which opens Settings", async () => {
+  it("Use Lyre Side instead: the free bot takes the room over, at the old bot's volume, and the music goes on", async () => {
+    const { outputs, sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const title = sound.audio.getNowPlaying().rooms[0].music!.title;
+    await userEvent.click(room("Table").getByRole("button", { name: "Room Table: move or change" }));
+    await userEvent.click(within(screen.getByRole("menu", { name: "Room Table" })).getByRole("menuitem", { name: "Use Lyre Side instead" }));
+    await act(async () => outputs.settle());
+    await playOn(sound);
+    await waitFor(() => expect(room("Table").getByRole("button", { name: "Room Table: move or change" })).toHaveAttribute("title", "Table (via Lyre Side): move it to another voice channel"));
+    expect(outputs.state.bots.find((b) => b.id === TABLE_BOT)?.room).toBeFalsy();
+    expect(sound.audio.getNowPlaying().rooms.find((r) => r.roomId === SIDE_BOT)?.music?.title).toBe(title);
+  });
+
+  it("+ Room lists voice channels and Lyre picks a bot that is not in a room yet", async () => {
+    const { outputs } = await openLive();
+    const add = screen.getByRole("button", { name: "Add a room" });
+    expect(add).toHaveTextContent(/^Room$/);
+    await userEvent.click(add);
+    const menuEl = screen.getByRole("menu", { name: "New room" });
+    expect(menuEl).toHaveTextContent(/^New room in/);
+    expect(menuEl.textContent).not.toContain("Lyre Side");
+    expect(within(menuEl).getByRole("menuitemradio", { name: /^Table/ })).toBeDisabled();
+    await userEvent.click(within(menuEl).getByRole("menuitemradio", { name: /^Side room/ }));
+    await act(async () => outputs.settle());
+    const side = await findRoom("Side room");
+    expect(side.getByRole("button", { name: "Room Side room: move or change" })).toHaveAttribute("title", "Side room (via Lyre Side): move it to another voice channel");
+    expect(outputs.state.bots.find((b) => b.id === SIDE_BOT)?.room).toBeTruthy();
+  });
+
+  it("+ Room with every bot in a room says where bots are added, with a link to Settings › Discord bots", async () => {
     const { outputs } = await openLive();
     await addSideRoom(outputs);
     await userEvent.click(screen.getByRole("button", { name: "Add a room" }));
-    const menu = within(screen.getByRole("menu", { name: "Add a room" }));
-    expect(menu.getByText("Every bot is in a room")).toBeInTheDocument();
-    await userEvent.click(menu.getByRole("menuitem", { name: "Add a bot…" }));
+    const menu = within(screen.getByRole("menu", { name: "New room" }));
+    expect(menu.getByText(/Every bot is in a room\. Add a bot in/)).toHaveTextContent("Every bot is in a room. Add a bot in Settings › Discord bots.");
+    expect(menu.queryAllByRole("menuitemradio")).toHaveLength(0);
+    const link = menu.getByRole("link", { name: "Settings › Discord bots" });
+    await waitFor(() => expect(link).toHaveFocus());
+    await userEvent.click(link);
     expect(window.location.hash).toBe("#/settings");
   });
 });
@@ -1158,9 +1196,9 @@ describe("rooms", () => {
     await userEvent.click(screen.getByRole("menuitemradio", { name: "Side room" }));
     await userEvent.click(box.getAllByRole("button", { name: /^Play on air in Side room: / })[0]);
     await playOn(sound);
-    await userEvent.click(screen.getByRole("button", { name: "Lyre Table in Table: change" }));
+    await userEvent.click(screen.getByRole("button", { name: "Room Table: move or change" }));
     const menu = within(screen.getByRole("menu", { name: "Room Table" }));
-    expect(menu.getByText("Lyre Table plays in")).toBeInTheDocument();
+    expect(menu.getByText("Move Table to")).toBeInTheDocument();
     expect(menu.getByRole("menuitem", { name: /Copy what Side room is playing/ })).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     // Nobody is in Side room: Kick takes it out at once, asking nothing, and still offers Undo (w51-fix2: Nik's 0.5.0 test).
@@ -1224,7 +1262,7 @@ describe("rooms", () => {
     const { outputs, sound } = await openLive();
     await startAbbey();
     await playOn(sound);
-    await userEvent.click(screen.getByRole("button", { name: "Lyre Table in Table: change" }));
+    await userEvent.click(screen.getByRole("button", { name: "Room Table: move or change" }));
     const menu = within(screen.getByRole("menu", { name: "Room Table" }));
     expect(menu.getByRole("menuitemradio", { name: /^Side room\s*empty$/ })).toBeInTheDocument();
     expect(menu.getAllByRole("menuitemradio", { name: /players/ })).toHaveLength(1);
@@ -1296,13 +1334,13 @@ describe("UX-R4: focus after the control in use goes", () => {
     await waitFor(() => expect(focusName()).toBe("Remove The Abbess from Up next"));
   });
 
-  it("Add a room moves focus to the new room's bot button", async () => {
+  it("Add a room moves focus to the new room's button (its name)", async () => {
     const { outputs } = await openLive();
     await addSideRoom(outputs);
-    await waitFor(() => expect(focusName()).toBe("Lyre Side in Side room: change"));
+    await waitFor(() => expect(focusName()).toBe("Room Side room: move or change"));
   });
 
-  it("Undo after Kick puts focus back on the room's bot button", async () => {
+  it("Undo after Kick puts focus back on the room's button (its name)", async () => {
     const { outputs, sound } = await openLive();
     await userEvent.click(screen.getByRole("button", { name: "Start: Recap and the coast road" }));
     await playOn(sound);
@@ -1311,7 +1349,7 @@ describe("UX-R4: focus after the control in use goes", () => {
     await userEvent.click(within(undoPlace()).getByRole("button", { name: "Undo" }));
     await act(async () => outputs.settle());
     await playOn(sound);
-    await waitFor(() => expect(focusName()).toBe("Lyre Table in Table: change"));
+    await waitFor(() => expect(focusName()).toBe("Room Table: move or change"));
   });
 });
 
