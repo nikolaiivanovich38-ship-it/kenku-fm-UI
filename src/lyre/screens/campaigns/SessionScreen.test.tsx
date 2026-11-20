@@ -902,3 +902,45 @@ describe("dragging in a scene's music and pad boards", () => {
   });
 });
 
+
+/* 0.6.0 (item 32; e2e session-planner "dragging a track of an unfolded playlist"): a nested track goes to another list. */
+describe("a track of an unfolded playlist, to another list", () => {
+  async function abbessTracks() {
+    await openAbbey();
+    const music = within(abbey().getByRole("list", { name: "Music in order" }));
+    await userEvent.click(music.getByRole("button", { name: "Show contents of The Abbess" }));
+    return within(abbey().getByRole("list", { name: /^Tracks in The Abbess/ }));
+  }
+
+  it("its name can be dragged, carrying the track and the manual playlist it is in; the list says how", async () => {
+    const tracks = await abbessTracks();
+    const link = tracks.getAllByRole("link")[0];
+    expect(link).toHaveAttribute("draggable", "true");
+    expect(link).toHaveAttribute("data-drag-from", "p-abbess");
+    expect(link.getAttribute("title")).toMatch(/drag to another playlist or scene$/);
+    expect(abbey().getByRole("list", { name: /^Tracks in The Abbess/ })).toHaveAccessibleDescription(/drag its name there, or use Add to… in its ⋯ menu/);
+  });
+
+  it("a scene's music and a manual playlist's row take the drop", async () => {
+    await abbessTracks();
+    expect(abbey().getByRole("list", { name: "Music in order" }).closest("[data-dropto]")).toHaveAttribute("data-dropto", "sc:crown:s14:sc3");
+    const company = region("Campaign playlists").getByRole("link", { name: "The Company themes" });
+    expect(company.closest("[data-dropto]")).toHaveAttribute("data-dropto", "pl:p-company");
+  });
+
+  it("Add to… in its ⋯ puts it in another scene's music, from the keyboard", async () => {
+    const { api } = await openAbbey();
+    const music = within(abbey().getByRole("list", { name: "Music in order" }));
+    await userEvent.click(music.getByRole("button", { name: "Show contents of The Abbess" }));
+    const tracks = within(abbey().getByRole("list", { name: /^Tracks in The Abbess/ }));
+    const name = tracks.getAllByRole("link")[0].textContent ?? "";
+    await userEvent.click(tracks.getByRole("button", { name: `More for ${name}` }));
+    expect(screen.getByRole("menuitem", { name: "Remove from this playlist" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Add to…" }));
+    const sheet = within(screen.getByRole("dialog", { name: `Add ${name} to` }));
+    await userEvent.click(sheet.getByRole("radio", { name: "Session 14 › Crypt ambush" }));
+    const before = (await s14(api)).scenes.find((x) => x.id === "sc4")?.music.length ?? 0;
+    await userEvent.click(sheet.getByRole("button", { name: "Add" }));
+    await waitFor(async () => expect((await s14(api)).scenes.find((x) => x.id === "sc4")?.music.length).toBe(before + 1));
+  });
+});

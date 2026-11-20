@@ -99,7 +99,16 @@ export function DropTray({ resolve }: { resolve: (el: HTMLElement) => Dragged | 
     // Esc cancels: the drag goes on in the browser until the button comes up, and its drop must change nothing
     // (not even the list's own reordering), so the drop is stopped before it reaches the page.
     let cancelled = false;
+    // 0.6.0 (item 32): a place in the page itself (a scene's music, a playlist's row) lights up as the tray's do.
+    let lit: HTMLElement | null = null;
+    const light = (el: HTMLElement | null) => {
+      if (lit === el) return;
+      lit?.classList.remove("dt-over");
+      lit = el && !el.closest(".droptray") ? el : null;
+      lit?.classList.add("dt-over");
+    };
     const end = () => {
+      light(null);
       setDrag(null);
       setOver(null);
       setShift(false);
@@ -135,6 +144,7 @@ export function DropTray({ resolve }: { resolve: (el: HTMLElement) => Dragged | 
       if (!live.current.drag) return;
       if (event.shiftKey && !live.current.shift) setShift(true);
       const t = target(event);
+      light(t);
       if (!t) return;
       // Handled here: the page's drop guard (SEC-7, on the document) would otherwise say "no drop" (dropEffect none).
       event.preventDefault();

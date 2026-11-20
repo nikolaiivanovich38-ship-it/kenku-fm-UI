@@ -65,7 +65,26 @@ export const trackDetailsHref = (trackId: string): string => `#/library/${trackI
  * 0.5.2 (Nik's items 3 and 11): a track's name as a link to its details in the Library (LibraryScreen opens Details on
  * arrival). Only where the name is not itself a play or unfold button: in Live a name never takes a play action's place.
  */
-export function TrackNameLink({ trackId, className, title, children }: { trackId: string; className?: string; title?: string; children: React.ReactNode }) {
+/** What a dragged nested track carries (screens/drop DropTray reads it): its id, and the manual playlist it is in. */
+export const DRAG_TRACK_ATTR = "data-drag-track";
+
+export function TrackNameLink({
+  trackId,
+  className,
+  title,
+  dragFrom,
+  children,
+}: {
+  trackId: string;
+  className?: string;
+  title?: string;
+  /**
+   * 0.6.0 (item 32): the name can be dragged to another playlist or a scene; the manual playlist it is listed in
+   * (Shift moves it out of that one), or null for a dynamic playlist. Left out, the name is not dragged.
+   */
+  dragFrom?: string | null;
+  children: React.ReactNode;
+}) {
   // --- r10-tracks --- Round 9 and 10 (rows 13, 38): a plain click opens the Track panel beside the screen (on the
   // Track library and the Audio profile it goes to the Library's details); the address stays the Library's, so a
   // middle click or Ctrl+click still opens the Library.
@@ -74,7 +93,9 @@ export function TrackNameLink({ trackId, className, title, children }: { trackId
     <a
       className={className ? `track-link ${className}` : "track-link"}
       href={trackDetailsHref(trackId)}
-      title={title ?? "Open its details"}
+      // The prototype's words (_shared.js contentsHTML): the hover says the name can be dragged.
+      title={dragFrom === undefined ? (title ?? "Open its details") : `${title ? `${title} · ` : ""}click for its details, or drag to another playlist or scene`}
+      {...(dragFrom === undefined ? {} : { draggable: true, [DRAG_TRACK_ATTR]: trackId, "data-drag-from": dragFrom ?? "" })}
       onClick={(event) => {
         if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
         event.preventDefault();

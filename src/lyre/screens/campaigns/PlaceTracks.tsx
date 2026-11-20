@@ -5,6 +5,11 @@
  * up and Move down on each row while it is on, so a single click does what a drag does. "Back to the playlist's
  * order" shows once the order differs. Each track has Preview and Play on air (0.5.1). In a scene or session each track shows its name there (DAT-14), its tags
  * (ORG-11) and its waveform, end and fades there (PLY-14); in a scene a music track has Repeat one (PLY-17).
+ *
+ * 0.6.0 (item 32, the prototype's r9lists.js "Drag between lists in the planner"): a track's name can be dragged onto
+ * another playlist, a scene's music or the Drop on tray (the screen's DropTray reads `nestedTrackDragged`); Shift moves
+ * it out of a manual playlist. Its ⋯ does the same from the keyboard with Add to…, and for a manual playlist has
+ * Remove from this playlist (r10remove.js) and Open in Track library.
  */
 import React, { useEffect, useRef, useState } from "react";
 import { keyOfPlace, placeOrderToKeep, tracksInPlaceOrder, type UsePlace } from "../../../common/domain";
@@ -17,7 +22,12 @@ import { ProfileLink } from "../../kit/ProfileLink";
 import { RepeatOneButton } from "../../kit/RepeatOneButton";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import { TagStrip } from "../../kit/TagStrip";
-import { ownNameTitle, TrackNameLink, trackNameAt, useTrackNames } from "../../kit/trackName";
+import { DRAG_TRACK_ATTR, ownNameTitle, TrackNameLink, trackNameAt, useTrackNames } from "../../kit/trackName";
+import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
+import type { IconName } from "../../kit/Icon";
+import { hashOf } from "../../shell/routes";
+import { AddToDialog, type Dragged } from "../drop/DropTray";
+import { useRemoveFromPlaylist } from "../library/PlaylistTrackList";
 import { useDragReorder } from "../../kit/reorder";
 import { useAnnounce } from "../../shell/Announcer";
 import { useSave } from "../../shell/useSave";
@@ -28,10 +38,32 @@ export function placeWords(place: UsePlace): string {
   return `in this ${place.kind}`;
 }
 
+/** What a drag that starts on a nested track's name carries, for the screen's DropTray; null for anything else. */
+export function nestedTrackDragged(el: HTMLElement): Dragged | null {
+  const link = el.closest<HTMLElement>(`[${DRAG_TRACK_ATTR}]`);
+  const id = link?.getAttribute(DRAG_TRACK_ATTR);
+  return id ? { ids: [id], from: link?.dataset.dragFrom || null } : null;
+}
+
 /** The Reorder switch of each list, kept while the page is open (it shows the buttons; it changes nothing). */
 const reordering = new Set<string>();
 
-export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: string; playlistId: string; lane: string; tracks: readonly LibraryTrack[]; place: UsePlace }) {
+export function PlaceTracks({
+  name,
+  playlistId,
+  manual = false,
+  lane,
+  tracks,
+  place,
+}: {
+  name: string;
+  playlistId: string;
+  /** A manual playlist: Shift-dragging a track moves it out, and its ⋯ has Remove from this playlist. */
+  manual?: boolean;
+  lane: string;
+  tracks: readonly LibraryTrack[];
+  place: UsePlace;
+}) {
   const api = useLyreApi();
   const save = useSave();
   const { say } = useAnnounce();
@@ -52,6 +84,8 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
   const own = !!saved?.length && placeOrderToKeep(tracks.map((t) => t.id), saved) !== null;
   const words = placeWords(place);
   const descId = `ro-d-${group.replace(/[^\w-]/g, "_")}`;
+  const removeFromPlaylist = useRemoveFromPlaylist();
+  const [addingTo, setAddingTo] = useState<string | null>(null);
   const scene = place.kind === "scene" ? campaigns?.find((c) => c.id === place.campaignId)?.sessions.find((s) => s.id === place.sessionId)?.scenes.find((x) => x.id === place.sceneId) : undefined;
 
   useEffect(() => {
@@ -118,7 +152,8 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
         )}
       </div>
       <p className="sr-only" id={descId}>
-        Drag a track, or press Alt+Up or Alt+Down on it, to change the order {words} only.
+        Drag a track, or press Alt+Up or Alt+Down on it, to change the order {words} only. To add a track to another playlist or a scene, drag its name
+        there, or use Add to… in its ⋯ menu.
       </p>
       <ol ref={listRef} className="list ro-list" aria-label={`Tracks in ${name}, in the order ${words}`} aria-describedby={descId}>
         {ordered.map((t, i) => {
@@ -129,7 +164,7 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
                 <Icon name="drag" size="s" />
               </span>
               <span className="faint num">{i + 1}</span>
-              <TrackNameLink trackId={t.id} className="grow ellipsis" title={ownNameTitle(n)}>
+              <TrackNameLink trackId={t.id} className="grow ellipsis" title={ownNameTitle(n)} dragFrom={manual ? playlistId : null}>
                 {n.name}
               </TrackNameLink>
               {place.kind !== "campaign" && <TagStrip track={t} groups={groups} />}
@@ -161,6 +196,22 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
                   <RepeatOneButton scene={place} sceneName={scene?.name || "the scene"} trackId={t.id} name={n.name} on={!!scene?.repeatOnes.includes(t.id)} />
                 </span>
               )}
+              <span data-ctl="more">
+                <PopMenuButton
+                  label={`More for ${n.name}`}
+                  ariaLabel={`More for ${n.name}`}
+                  title="More"
+                  className="btn s icon ghost r10-xpmore"
+                  items={(): PopMenuEntry[] => [
+                    { key: "addto", content: <MenuWords icon="plus" text="Add to…" />, onSelect: () => setAddingTo(t.id) },
+                    ...(manual ? [{ key: "remove", content: <MenuWords icon="close" text="Remove from this playlist" />, onSelect: (): void => void removeFromPlaylist({ id: playlistId, name }, t.id) }] : []),
+                    { separator: true },
+                    { key: "library", content: <MenuWords icon="library" text="Open in Track library" />, onSelect: () => (window.location.hash = hashOf(`library/${t.id}`)) },
+                  ]}
+                >
+                  <Icon name="more" size="s" />
+                </PopMenuButton>
+              </span>
               {on && (
                 <span className="ro-btns">
                   <button type="button" className="closer" data-ctl="up" aria-label={`Move up: ${n.name}`} title="Move up (Alt+Up)" disabled={i === 0} onClick={() => void move(i, i - 1, "up")}>
@@ -183,6 +234,17 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
           );
         })}
       </ol>
+      {addingTo && <AddToDialog what={{ ids: [addingTo], from: manual ? playlistId : null }} onClose={() => setAddingTo(null)} />}
+    </>
+  );
+}
+
+/** A menu item's icon and words. */
+function MenuWords({ icon, text }: { icon: IconName; text: string }) {
+  return (
+    <>
+      <Icon name={icon} size="s" />
+      {text}
     </>
   );
 }
