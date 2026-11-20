@@ -60,4 +60,4 @@ export const BUILT_SCREENS: readonly string[] = ["library", "playlists", "audio-
  *                   docked or floating, Remove with Undo and Delete), and Pad boards
  */
 export type Stream = "shell" | "live" | "rooms-settings" | "prep" | "retire" | "feat" | "r10-live" | "r10-tracks" | "r10-prep";
-export const BUILT_STREAMS: readonly Stream[] = ["shell", "rooms-settings", "prep", "live", "retire", "feat"];
+export const BUILT_STREAMS: readonly Stream[] = ["shell", "rooms-settings", "prep", "live", "retire", "feat", "r10-tracks"];

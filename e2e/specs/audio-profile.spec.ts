@@ -495,8 +495,12 @@ test.describe("round 9: Split into parts", () => {
 
   test("Undo after Split into parts removes the parts again", async ({ page }) => {
     await split(page);
-    await expect(page.getByText(/^Made 3 parts of /).last()).toBeVisible();
-    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    // Undo at the bottom of the screen; pressed again only if the note was still being drawn when it was pressed.
+    const undo = page.getByRole("button", { name: "Undo", exact: true });
+    await expect(async () => {
+      await undo.click({ timeout: 1_000 });
+      await expect(undo).toHaveCount(0, { timeout: 1_000 });
+    }).toPass({ timeout: 10_000 });
     await library(page).click();
     await page.getByRole("searchbox", { name: "Search tracks" }).fill("Choir section");
     await expect(page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Choir section/ })).toHaveCount(0);

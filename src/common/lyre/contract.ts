@@ -404,7 +404,11 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
           copyTags: true,
           addToPlaylists: true,
         };
-        const { trackIds } = valueOf(await api.library.splitIntoParts("t41", request));
+        const result = await api.library.splitIntoParts("t41", request);
+        const { trackIds } = valueOf(result);
+        // The Undo note undoes this step by its label: it must be the library's last step.
+        expect((await api.history.state()).undoLabel).toBe((result as { undoLabel: string | null }).undoLabel);
+        expect((result as { undoLabel: string | null }).undoLabel).toMatch(/^Split .* into 2 parts$/);
         expect(trackIds).toHaveLength(2);
         const tracks = await api.library.listTracks();
         const [a, b] = trackIds.map((id) => tracks.find((t) => t.id === id) as LibraryTrack);
