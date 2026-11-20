@@ -3,7 +3,7 @@
  * (design/prototype/tools/lb-flow.js, lb-size.js and src/views/library.js).
  */
 import type { Locator, Page } from "@playwright/test";
-import { appOnly, expect, expectFailureUntilBuilt, test } from "./support/test";
+import { appOnly, expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -891,6 +891,7 @@ test.describe("round 10: removing tracks from the Track library", () => {
   const eerie = "Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)";
 
   test("a row's ⋯ has Remove from library: it asks first, names the scene that uses it, and Undo brings it back", async ({ page }) => {
+    metByTheAppAlready("0.5.2 built Remove from library in a row's ⋯ with these words (RemoveTracks.tsx)");
     await openRoute(page, "library");
     await row(page, eerie).getByRole("button", { name: `More for ${eerie}` }).click();
     await page.getByRole("menuitem", { name: "Remove from library", exact: true }).click();

@@ -553,8 +553,7 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
 
   test("Back's name says where it goes: Rooms opened from Live has Back to Live (a ‹ with no words, part 7)", async ({ page }) => {
     // Round 10 (Nik, 18 Nov 03:14, answer 2): Rooms is reached from the menu under Settings, not from Live's room menu
-    // (rooms are joined and moved in Live itself).
-    expectFailureUntilBuilt("shell", "live", "rooms-settings", "r10-live");
+    // (rooms are joined and moved in Live itself). The app's menu already has Rooms (1/2), so the check is required.
     await openRoute(page, "live");
     await page.getByRole("link", { name: "Rooms (1/2)" }).click();
     await expect(page.getByRole("button", { name: "Back to Live" })).toHaveText("");

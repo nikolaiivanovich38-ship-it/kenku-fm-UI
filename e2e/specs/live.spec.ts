@@ -1653,6 +1653,7 @@ test.describe("round 10: Live keeps its place, one Undo place, and Undo for what
   });
 
   test("a pad keeps the scene's Undo: Ctrl+Z still goes back a scene (table review M5)", async ({ page }) => {
+    metByTheAppAlready("0.5.2 made a pad leave the scene's Undo as it was");
     await openRoute(page, "live");
     await startAbbey(page);
     await clickAway(page);
@@ -1683,6 +1684,7 @@ test.describe("round 10: Live keeps its place, one Undo place, and Undo for what
   });
 
   test("a double-click on Next scene starts one scene (0.5.2, table review M2)", async ({ page }) => {
+    metByTheAppAlready("0.5.2 built the double-click guard on Next scene");
     await openRoute(page, "live");
     await startFirstScene(page).catch(() => {});
     await page.waitForTimeout(1100);
