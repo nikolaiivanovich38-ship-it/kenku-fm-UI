@@ -180,7 +180,7 @@ export function DevicesPane() {
         disabled={!devices}
         onChange={(on) => set({ split: on }, on ? `one headset split: preview in the ${ear} ear` : "headset not split")}
       />
-      {split && <p className="hint st-splitnote">Only while something plays on air; a preview on its own plays in both ears.</p>}
+      {split && <p className="hint st-splitnote">This works only while something plays on air. A preview on its own plays in both ears.</p>}
       {split && (
         <div className="st-ears" role="radiogroup" aria-label="Which ear has the preview">
           {(["left", "right"] as const).map((side) => (
@@ -432,7 +432,7 @@ export function KeysPane() {
           {message}
         </p>
       ))}
-      <p className="hint">Pad keys are chosen on each pad board.</p>
+      <p className="hint">Each pad board has its own pad keys.</p>
       <div className="row-flex">
         <button type="button" className="btn s" disabled={!settings} onClick={() => void write(() => api.settings.resetShortcuts(), "Lyre's keys put back")}>
           <Icon name="restart" size="s" />
@@ -499,7 +499,7 @@ function KeysSheet({ settings, onClose }: { settings: LyreSettings | undefined; 
             ))}
           </tbody>
         </table>
-        <p className="hint">Pad keys are on each pad board.</p>
+        <p className="hint">Each pad board has its own pad keys.</p>
       </div>
     </Dialog>
   );

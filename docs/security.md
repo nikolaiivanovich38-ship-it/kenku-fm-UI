@@ -1270,3 +1270,18 @@ names tracks, never paths, and the main process checks the file again before it 
 | `src/lyre/screens/library/library052.test.tsx` | Delete file, Remove and Remove folder: a second press while the library works sends nothing; the button is disabled and busy |
 | `src/common/lyre/contract.ts` (both implementations) | Remove from library and Delete file from disk: one undo step, missing files kept, unknown ids refused with nothing changed |
 | `src/main/lyreApi/argChecks.test.ts` | Every method has a shape (the new ones included) |
+
+## r10-live
+
+0.6.0, round 10 (Live, rooms and bots, dipping the music). One new IPC channel; no new permission, navigation or
+file access.
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `LYRE_OUTPUT_SET_START_VOLUME` | Lyre page | bot id (`bot-<uuid>`), number from 0 to 1 | `OutputManager.setStartVolume` (kept in `discord-bots.json` as the bot's `startVolume`; `BotTokenStore.load` drops a value that is not a number from 0 to 1) |
+
+- A bot still never joins a room by itself at start (Nik, 18 Nov 03:14, answer 3): the starting volume is used only
+  when Nik joins it to a room from none (`OutputManager.moveBot`); a rejoin within 15 s of Leave (its Undo) keeps the
+  volume it had.
+- Tests: `src/main/broadcast/botTokenStore.test.ts` and `OutputManager.test.ts` ("round 10"); the argument checks are
+  the table's (`argsMatch(isBotId, isUnitInterval)`, the same as `LYRE_OUTPUT_SET_VOLUME`).

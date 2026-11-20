@@ -21,6 +21,10 @@ export interface LyreOutputsBridge {
   setVolume(botId: string, volume: number): void;
   /** Try a failed join (or login) again. */
   retry(botId: string): void;
+  // --- r10-live ---
+  /** Round 10: the bot's starting volume, 0 to 1 (its room's volume when it next joins a room from none). */
+  setStartVolume(botId: string, volume: number): void;
+  // --- end r10-live ---
 
   // ----- OUT-8: Settings in Lyre. A token goes in only; the state shows its last four characters (SEC-5). -----
   /** Add a bot with its token (Bot › Reset Token › Copy) and its Application ID (or null); it logs in at once. */
@@ -82,6 +86,7 @@ export function createLyreOutputsBridge(ipc: IpcRendererLike): LyreOutputsBridge
     setMuted: (botId, muted) => ipc.send("LYRE_OUTPUT_SET_MUTED", botId, muted),
     setVolume: (botId, volume) => ipc.send("LYRE_OUTPUT_SET_VOLUME", botId, volume),
     retry: (botId) => ipc.send("LYRE_OUTPUT_RETRY", botId),
+    setStartVolume: (botId, volume) => ipc.send("LYRE_OUTPUT_SET_START_VOLUME", botId, volume),
     addBot: async (token, applicationId) => botResult(await ipc.invoke("LYRE_BOT_ADD", token, applicationId)),
     replaceToken: async (botId, token) => botResult(await ipc.invoke("LYRE_BOT_SET_TOKEN", botId, token)),
     rename: async (botId, name) => botResult(await ipc.invoke("LYRE_BOT_RENAME", botId, name)),

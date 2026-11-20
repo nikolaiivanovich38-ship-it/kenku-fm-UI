@@ -32,6 +32,10 @@ interface StoredBot {
   encryptedToken?: string;
   /** OUT-8: the Application ID (a Discord id, digits only), for the invite link. Not a secret. */
   applicationId?: string;
+  // --- r10-live ---
+  /** Round 10: the bot's room volume when it joins a room from none (Settings › Discord bots), 0 to 1. */
+  startVolume?: number;
+  // --- end r10-live ---
 }
 
 /**
@@ -50,6 +54,11 @@ interface StoredFile {
   version: 1;
   bots: StoredBot[];
 }
+
+// --- r10-live ---
+/** Round 10: a bot's starting volume until one is chosen (as rooms start in the audio host, ROOM_START_VOLUME). */
+export const DEFAULT_START_VOLUME = 0.85;
+// --- end r10-live ---
 
 /** Bot ids are generated here; the interface may only send them back. */
 export const BOT_ID_PATTERN = /^bot-[0-9a-f-]{36}$/;
@@ -131,6 +140,22 @@ export class BotTokenStore {
     else delete bot.applicationId;
     this.save();
   }
+
+  // --- r10-live ---
+  /** Round 10: the volume the bot's room starts at when it joins a room from none; 85 % until one is chosen. */
+  startVolume(id: string): number {
+    return this.bots.find((candidate) => candidate.id === id)?.startVolume ?? DEFAULT_START_VOLUME;
+  }
+
+  /** Round 10: Settings › Discord bots › Starting volume. False for an unknown bot; kept between 0 and 1. */
+  setStartVolume(id: string, volume: number): boolean {
+    const bot = this.bots.find((candidate) => candidate.id === id);
+    if (!bot || !Number.isFinite(volume)) return false;
+    bot.startVolume = Math.max(0, Math.min(1, volume));
+    this.save();
+    return true;
+  }
+  // --- end r10-live ---
 
   /** OUT-8 Remove: takes the bot out and answers what putBack needs to undo it; null for an unknown bot. */
   takeOut(id: string): RemovedBot | null {
@@ -253,6 +278,7 @@ export class BotTokenStore {
           name: typeof bot.name === "string" ? bot.name.slice(0, 100) : "Bot",
           ...(typeof bot.encryptedToken === "string" ? { encryptedToken: bot.encryptedToken } : {}),
           ...(typeof bot.applicationId === "string" && /^\d{15,22}$/.test(bot.applicationId) ? { applicationId: bot.applicationId } : {}),
+          ...(typeof bot.startVolume === "number" && bot.startVolume >= 0 && bot.startVolume <= 1 ? { startVolume: bot.startVolume } : {}),
         }));
     } catch (error) {
       console.error("Unable to read the Discord bot list", error);

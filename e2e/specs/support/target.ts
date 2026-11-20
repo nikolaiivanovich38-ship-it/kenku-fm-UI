@@ -34,7 +34,7 @@ function isApp(): boolean {
 let currentApp: ElectronApplication | null = null;
 
 /** The main process's hook for the prototype's Discord (src/main/broadcast/testing/prototypeWorld.ts). */
-type OutputsTestHook = { join(bot: string, channel: string): Promise<void>; leaveAll(): void };
+type OutputsTestHook = { join(bot: string, channel: string): Promise<void>; leaveAll(): void; dropConnection(bot: string): void };
 
 function runningApp(what: string): ElectronApplication {
   if (!currentApp) throw new Error(`target.${what}: no app is running`);
@@ -264,6 +264,20 @@ export async function leaveAllRooms(page: Page): Promise<void> {
     for (const b of L.bots()) L.botLeave(b.id);
   });
 }
+
+// --- r10-live ---
+/**
+ * Round 10 (table review M3): the first room's bot loses its voice connection, as when the network goes, to show
+ * Connection lost. The prototype's own strip has Drop the connection; the app's fake Discord drops Lyre Table's.
+ */
+export async function dropConnection(page: Page): Promise<void> {
+  if (isApp()) {
+    await runningApp("dropConnection").evaluate(() => (globalThis as unknown as { __lyreOutputsTest: OutputsTestHook }).__lyreOutputsTest.dropConnection("Lyre Table"));
+    return;
+  }
+  await page.getByRole("button", { name: "Drop the connection" }).click();
+}
+// --- end r10-live ---
 
 /** Round 6, part 5: make the next save fail, as a full or read-only drive would, to show the failed-save pop-up.
  *  The prototype has a hook for it (its strip's "Make the next save fail"); the app needs a test-build hook. */

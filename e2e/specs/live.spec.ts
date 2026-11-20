@@ -4,7 +4,7 @@
  */
 import type { Page } from "@playwright/test";
 import { appOnly, expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
-import { joinRoom, leaveAllRooms, openRoute } from "./support/target";
+import { dropConnection, joinRoom, leaveAllRooms, openRoute } from "./support/target";
 
 /* The app's Live is still 0.4.1's (an On air box per room, Off script, the Pads box). A check written for round 6
    part 3's Live (one On air box with a part per room, Find a track in the top strip, the scene's pads and row buttons
@@ -1704,7 +1704,7 @@ test.describe("round 10: Live keeps its place, one Undo place, and Undo for what
   test("a lost connection says so, with Try again; the room hears the music again after it (0.5.2, table review M3)", async ({ page }) => {
     await openRoute(page, "live");
     await startAbbey(page);
-    await page.getByRole("button", { name: "Drop the connection" }).click();
+    await dropConnection(page);
     await expect(room(page, "Table").getByRole("alert")).toContainText("Connection lost · players hear nothing");
     await room(page, "Table").getByRole("button", { name: "Try again" }).click();
     await expect(room(page, "Table").getByText("Playing")).toBeVisible({ timeout: 4000 });

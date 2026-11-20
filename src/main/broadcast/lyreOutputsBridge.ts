@@ -34,6 +34,8 @@ export class LyreOutputsBridge {
     this.ipc.on("LYRE_OUTPUT_SET_MUTED", (_event, id: string, muted: boolean) => this.outputs.setMuted(id, muted));
     this.ipc.on("LYRE_OUTPUT_SET_VOLUME", (_event, id: string, volume: number) => this.outputs.setRoomVolume(id, volume));
     this.ipc.on("LYRE_OUTPUT_RETRY", (_event, id: string) => void this.outputs.reconnect(id));
+    // --- r10-live --- Round 10: Settings › Discord bots › Starting volume.
+    this.ipc.on("LYRE_OUTPUT_SET_START_VOLUME", (_event, id: string, volume: number) => this.outputs.setStartVolume(id, volume));
     // --- w6-contracts (OUT-8) ---
     this.ipc.handle("LYRE_BOT_ADD", (_event, token: string, applicationId: string | null) => this.outputs.addBotWithToken(token, applicationId));
     this.ipc.handle("LYRE_BOT_SET_TOKEN", (_event, id: string, token: string) => this.outputs.replaceToken(id, token));
