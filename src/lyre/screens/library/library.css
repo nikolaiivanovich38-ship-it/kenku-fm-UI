@@ -52,7 +52,7 @@
 .view .lb-bn { font-size: var(--fs-s); margin-right: 4px; }
 .view .lb-scroll { flex: 1; min-height: 0; overflow: auto; }
 .view .lb-foot { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 8px; border-top: 1px solid var(--line); flex: none; }
-.view .lb-foot .kbd { font-size: 10px; padding: 1px 4px; }
+.view .lb-foot .kbd { font-size: 12px; padding: 1px 4px; }
 /* Round 6: a key legend shows only while the keyboard is in its box (it is read out with the list all the same). */
 
 .view .lb-table { table-layout: fixed; }
@@ -81,8 +81,8 @@
 .view .lb-t1.untitled { font-weight: 400; font-style: italic; color: var(--ink-2); }
 .view .lb-t2 { font-size: var(--fs-xs); color: var(--ink-2); line-height: 1.25; }
 .view .lb-src { color: var(--ink-3); }
-.view .lb-notitle { font-size: 10.5px; line-height: 14px; padding: 0 5px; border: 1px dashed var(--line-strong); border-radius: 3px; color: var(--ink-2); white-space: nowrap; }
-.view .lb-newb { flex: none; height: 16px; font-size: 10px; background: var(--accent-soft); color: var(--ink); border: 1px solid var(--accent); }
+.view .lb-notitle { font-size: 12px; line-height: 14px; padding: 0 5px; border: 1px dashed var(--line-strong); border-radius: 3px; color: var(--ink-2); white-space: nowrap; }
+.view .lb-newb { flex: none; height: 16px; font-size: 12px; background: var(--accent-soft); color: var(--ink); border: 1px solid var(--accent); }
 .view .lb-chips { display: flex; gap: 3px; min-width: 0; overflow: hidden; }
 .view .lb-chip { min-width: 44px; flex: 0 1 auto; }
 .view .lb-more { flex: none; }
@@ -145,7 +145,7 @@ body .lb-tsintro { margin-bottom: 8px; font-size: var(--fs-s); }
 body .lb-tsg { border: 0; padding: 0; margin: 12px 0 0; min-width: 0; }
 body .lb-tsg legend { padding: 0; margin-bottom: 5px; font: 700 var(--fs-xs)/1.2 var(--body); color: var(--ink-2); letter-spacing: .03em; }
 body .lb-tsc:disabled { opacity: .45; cursor: not-allowed; }
-body .lb-cov { font-size: 10px; color: var(--ink-3); padding-left: 3px; border-left: 1px solid var(--line); margin-left: 2px; }
+body .lb-cov { font-size: 12px; color: var(--ink-3); padding-left: 3px; border-left: 1px solid var(--line); margin-left: 2px; }
 body .lb-tsc[aria-pressed="true"] .lb-cov { color: var(--ink-2); }
 body .lb-tsnew { display: flex; gap: 4px; margin-top: 6px; max-width: 300px; }
 body .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
@@ -169,7 +169,7 @@ body .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
 
 /* Round 3: row buttons, kind markers, how a scene uses the track. */
 .view .lb-rowbtns { display: flex; gap: 2px; justify-content: flex-end; }
-.view .lb-km { display: inline-flex; align-items: center; gap: 3px; flex: none; height: 16px; padding: 0 4px; margin-top: 1px; border: 1px solid var(--line-strong); border-radius: 3px; font-size: 10px; font-weight: 700; color: var(--ink-2); }
+.view .lb-km { display: inline-flex; align-items: center; gap: 3px; flex: none; height: 16px; padding: 0 4px; margin-top: 1px; border: 1px solid var(--line-strong); border-radius: 3px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
 .view .lb-km .lane-dot { width: 6px; height: 6px; }
 .view .lb-used li { column-gap: 6px; }
 .view .lb-how { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--ink-2); }
@@ -183,7 +183,7 @@ body .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
 /* Sticky header covers the rows scrolling under it (collapsed borders do not stick, so the table uses separate ones). */
 .view .lb-table { border-collapse: separate; border-spacing: 0; }
 .view .lb-table thead th { z-index: 3; background: var(--surface); box-shadow: 0 1px 0 var(--line-strong); }
-.view .lb-air { flex: none; height: 16px; font-size: 10px; }
+.view .lb-air { flex: none; height: 16px; font-size: 12px; }
 .view .lb-km { white-space: nowrap; }
 .view .lb-airline { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 1px; }
 .view .lb-airline > .lb-t2 { min-width: 0; flex: 1; }
