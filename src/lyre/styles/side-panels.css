@@ -40,7 +40,8 @@
 
 /* Narrow windows: a side panel takes the whole window until it is closed. */
 @container work (max-width: 759px) {
-  .side-panel { position: absolute; inset: 0; width: auto; z-index: 35; border: 0; }
+  /* As specific as the widths above, which a container query does not outrank. */
+  .side-panels > .side-panel[data-panel] { position: absolute; inset: 0; width: auto; z-index: 35; border: 0; }
 }
 
 /* Help in its side panel: the panel gives it its width and its edge. */
