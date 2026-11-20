@@ -33,7 +33,6 @@ import { addRoomChoices, busiestChannel, channelChoices, endWords, noRoomStatus,
 import { offerSoftUndo, touched, updateLive } from "./liveState";
 import { focusLive, focusLiveSoon } from "./focus";
 import { useFoldedSummary } from "./Scenes";
-import { SoftUndoStrip } from "./UndoStrips";
 
 /** Must 4: under this height of window (1280×800 at 200 %), each room is one line. */
 const SHORT_WINDOW_PX = 480;
@@ -53,7 +52,7 @@ function useShortWindow(): boolean {
 /** A room's id as part of a data-lv or an element id. */
 const lk = (roomId: string) => roomId.replace(/[^\w-]/g, "-");
 
-export function OnAirPane({ undo }: { undo: () => boolean }) {
+export function OnAirPane() {
   const d = useLive();
   const { rooms, now, outputs, client } = d;
   const short = useShortWindow();
@@ -65,9 +64,8 @@ export function OnAirPane({ undo }: { undo: () => boolean }) {
   return (
     <div className="lv-dock">
       <Pane id="lv-onair" title="On air" icon="broadcast" kind="onair" size="auto" flush noMax keys="Alt+1" actions={canAdd ? <AddRoom /> : undefined} summary={summary}>
-        <SoftUndoStrip where="onair" onUndo={undo} />
         <div className={cx("lv-rooms", rooms.length > 1 && "many")}>
-          {rooms.length ? rooms.map((r) => <RoomPart key={r.roomId} r={r} short={short} undo={undo} />) : <NoRoomPart table={table} short={short} />}
+          {rooms.length ? rooms.map((r) => <RoomPart key={r.roomId} r={r} short={short} />) : <NoRoomPart table={table} short={short} />}
         </div>
       </Pane>
     </div>
@@ -121,7 +119,7 @@ function NoRoomPart({ table, short }: { table: RoomNowPlaying | null; short: boo
   );
 }
 
-function RoomPart({ r, short, undo }: { r: LiveRoom; short: boolean; undo: () => boolean }) {
+function RoomPart({ r, short }: { r: LiveRoom; short: boolean }) {
   const d = useLive();
   const { names, index, state } = d;
   const status = roomStatus(r);
@@ -166,7 +164,6 @@ function RoomPart({ r, short, undo }: { r: LiveRoom; short: boolean; undo: () =>
             </button>
           )}
         </div>
-        <SoftUndoStrip where={`room:${r.roomId}`} onUndo={undo} />
       </div>
     );
   }
@@ -205,7 +202,6 @@ function RoomPart({ r, short, undo }: { r: LiveRoom; short: boolean; undo: () =>
           )}
         </div>
       )}
-      <SoftUndoStrip where={`room:${r.roomId}`} onUndo={undo} />
     </div>
   );
 }
@@ -278,7 +274,7 @@ function useMoveBot(): (r: LiveRoom, channelId: string) => void {
     touched();
     client.move(view.bot.id, channelId);
     if (lost && back) {
-      offerSoftUndo({ text: `${view.bot.name} moved from ${r.name} to ${to}`, where: `room:${r.roomId}`, focus: `room-${lk(r.roomId)}`, restore: () => client.move(view.bot.id, back) }, UNDO_MS);
+      offerSoftUndo({ text: `${view.bot.name} moved from ${r.name} to ${to}`, focus: `room-${lk(r.roomId)}`, restore: () => client.move(view.bot.id, back) }, UNDO_MS);
       say(`${view.bot.name} is joining ${to}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
     } else toast(`${view.bot.name} is joining ${to}`);
   };
@@ -303,7 +299,6 @@ function useKick(): (r: LiveRoom) => void {
       offerSoftUndo(
         {
           text: `${view.bot.name} left ${r.name}`,
-          where: "onair",
           // UX-R4: after Undo, focus goes back to the room's bot button once the bot has rejoined.
           focus: `room-${lk(r.roomId)}`,
           restore: () => {
@@ -315,7 +310,7 @@ function useKick(): (r: LiveRoom) => void {
         UNDO_MS,
       );
       say(`${view.bot.name} left ${r.name}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
-      focusLive("undo2");
+      focusLive("undo");
     } else {
       say(`${view.bot.name} left ${r.name}`);
       focusLiveSoon(["addroom", "nextsc"]);
@@ -816,7 +811,7 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
   /** UX-R4: after × the next entry's × (it takes the same place), else the one before, else Undo. */
   const nextX = (at: number, ambience = false) => {
     const x = (i: number) => (ambience ? `upx-a${i}-${k}` : `upx-${i}-${k}`);
-    return [x(at), x(at - 1), `upx-a0-${k}`, `upopen-${k}`, "undo2"];
+    return [x(at), x(at - 1), `upx-a0-${k}`, `upopen-${k}`, "undo"];
   };
   const toggle = () => {
     updateLive((s) => ({ upOpen: { ...s.upOpen, [roomId]: !open } }));
@@ -860,7 +855,7 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
             onClick={() => {
               const before = d.state.aq;
               updateLive((s) => ({ aq: { ...s.aq, [roomId]: (s.aq[roomId] ?? []).filter((_, j) => j !== row.at) } }));
-              offerSoftUndo({ text: `Taken out of Up next: ${a.name}`, where: `room:${roomId}`, focus: "undo2", restore: () => updateLive({ aq: before }) }, UNDO_MS);
+              offerSoftUndo({ text: `Taken out of Up next: ${a.name}`, focus: "undo", restore: () => updateLive({ aq: before }) }, UNDO_MS);
               say(`Taken out of Up next: ${a.name}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
               focusLiveSoon(nextX(row.at, true));
             }}
@@ -927,7 +922,7 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
       </span>
       <ol aria-labelledby={labelId}>{items}</ol>
       {added > 1 && !oneLine && (
-        <button type="button" className="btn s ghost lv-qclear" data-lv={`qclear-${k}`} title="Take out everything you added this evening" onClick={() => clearAdded(d, roomId, "undo2", { say })}>
+        <button type="button" className="btn s ghost lv-qclear" data-lv={`qclear-${k}`} title="Take out everything you added this evening" onClick={() => clearAdded(d, roomId, "undo", { say })}>
           Clear added
         </button>
       )}

@@ -995,3 +995,52 @@ describe("volume normalisation (PLY-15)", () => {
     expect(report().ambience?.gainDb).toBe(0);
   });
 });
+
+/* Round 10 (ROUND10.md, table review M4; Nik, 18 Nov 08:36, answer 6a): Play on air, Fade all and Stop all have Undo,
+   which brings every room back where it was. */
+describe("round 10: every room's snapshot and its Undo", () => {
+  it("after Stop all, restoring the snapshot brings back each room's music and ambience from where they were", async () => {
+    await run({ type: "startScene", scene: S1 });
+    await run({ type: "playTrack", trackId: "m3", target: whisper });
+    await context.advance(2);
+    const snapshot = director.snapshotRooms();
+    await run({ type: "stopAll" });
+    await context.advance(1);
+    expect([music(), ambience(), music("whisper")]).toEqual([null, null, null]);
+    expect(director.restoreRooms(snapshot, { sameTime: true })).toEqual({ ok: true });
+    await context.flush();
+    expect([music(), ambience(), music("whisper")]).toEqual(["m1", "amb1", "m3"]);
+    await context.advance(0.1);
+    // Back where it was when the snapshot was taken (2 s in), not where it would be had it kept playing.
+    expect(director.report()[0].music?.positionSeconds).toBeCloseTo(2, 0);
+  });
+
+  it("after Play on air, restoring puts back what the room played, with the scene's plan after it", async () => {
+    await run({ type: "startScene", scene: S1 });
+    await context.advance(1);
+    const snapshot = director.snapshotRooms();
+    await run({ type: "playTrack", trackId: "x", target: table });
+    expect(music()).toBe("x");
+    director.restoreRooms(snapshot);
+    await context.flush();
+    expect(music()).toBe("m1");
+    expect(await listenToMusic(6)).toEqual(["m1", "m2"]);
+  });
+
+  it("a room that has gone since the snapshot is left out; the others come back", async () => {
+    await run({ type: "playTrack", trackId: "m1", target: table });
+    await run({ type: "playTrack", trackId: "m2", target: whisper });
+    const snapshot = director.snapshotRooms();
+    await run({ type: "stopAll" });
+    rooms.setRooms(["Table"]);
+    expect(director.restoreRooms(snapshot)).toEqual({ ok: true });
+    await context.flush();
+    expect(music()).toBe("m1");
+  });
+
+  it("a snapshot with nothing playing says there is nothing to undo", async () => {
+    const snapshot = director.snapshotRooms();
+    expect(director.restoreRooms(snapshot).ok).toBe(true);
+    expect(director.snapshotHasSound(snapshot)).toBe(false);
+  });
+});

@@ -35,10 +35,11 @@ import { closeFind, openFind } from "./Find";
 import { focusBox, focusLiveSoon, focusLive } from "./focus";
 import { LiveDataProvider, sceneRefOf, type LiveData } from "./liveData";
 import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, padForKey, padStepWords, trayShown, UNDO_MS, type LiveKeys } from "./liveModel";
-import { getLiveState, lastActed, standbyFor, touched, updateLive, useLiveState } from "./liveState";
+import { getLiveState, lastActed, standbyFor, updateLive, useLiveState } from "./liveState";
 import { LiveTop } from "./LiveTop";
 import { OnAirPane } from "./OnAir";
 import { firePads } from "./Pads";
+import { fadeAllWithUndo } from "./liveActions";
 import { ScenesPane } from "./Scenes";
 import { PadsBox, PlaylistsBox } from "./Trays";
 import "./live.css";
@@ -372,8 +373,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     };
     const fadeAllKey = (d: LiveData) => {
       calls.current.setKeysOpen(false, false);
-      touched();
-      d.audio.fadeAll();
+      fadeAllWithUndo(d);
     };
     /**
      * Keys that Settings lets work in other programs too reach the page only as this event (Windows gives them to the
@@ -542,8 +542,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   return (
     <LiveDataProvider value={data}>
       <div className="lv">
-        <LiveTop keysOpen={keysOpen} setKeysOpen={setKeysOpen} setKeys1={setKeys1} loadSession={loadSession} />
-        <OnAirPane undo={undo} />
+        <LiveTop keysOpen={keysOpen} setKeysOpen={setKeysOpen} setKeys1={setKeys1} loadSession={loadSession} undo={undo} />
+        <OnAirPane />
         <div className={`lv-cols c${columns}`} data-scroll="lv-page">
           {LAYOUT[columns].map((ids) => (
             <div className={columns === 3 && /^(ss|cp)/.test(ids[0]) ? "col lv-c-trays" : "col"} key={ids.join("-")}>

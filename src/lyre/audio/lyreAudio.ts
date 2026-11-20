@@ -63,7 +63,7 @@ import {
 } from "../../engine/preview/previewPlayer";
 import type { DeviceStatus, OutputDeviceChooser, OutputDeviceInfo } from "../../engine/preview/outputDevices";
 import { DEFAULT_FADES, type CueAction, type CueOutcome, type TrackFrom } from "../../engine/queue/actions";
-import { Director, padWithoutSound, type ListWhat } from "../../engine/queue/director";
+import { Director, padWithoutSound, type ListWhat, type RoomsSnapshot } from "../../engine/queue/director";
 import type { PadSound, SceneRef, ShowLibrary } from "../../engine/queue/library";
 import { itemAt, locate, playlistItem, playOrderOf, sequenceOf, single, type Origin, type Playing } from "../../engine/queue/nowPlaying";
 import type { Random } from "../../engine/queue/queue";
@@ -77,6 +77,9 @@ import { endingLine } from "./playbackLog";
 import { StableRooms } from "./stableRooms";
 
 export type { CueAction, CueOutcome, TrackFrom, SceneRef, Origin, RoomLane, OutputDeviceInfo, DeviceStatus, PreviewKind, ListWhat, UpNextRef };
+// --- r10-live ---
+export type { RoomsSnapshot };
+// --- end r10-live ---
 
 // ---------- what the screens give LyreAudio ----------
 
@@ -368,6 +371,16 @@ export interface LyreAudio {
   sessionLoaded(): void;
   /** Any cue action (hotkeys, cues, later the remote API). */
   run(action: CueAction): CueOutcome;
+  // --- r10-live ---
+  /**
+   * Round 10 (table review M4; Nik, 18 Nov 08:36, answer 6a): what every room plays now, kept by Live before Play on
+   * air, Fade all or Stop all, and brought back by their Undo (`sameTime`: from where it was, not where it would be).
+   */
+  snapshotRooms(): RoomsSnapshot;
+  restoreRooms(snapshot: RoomsSnapshot, options?: { sameTime?: boolean }): CueOutcome;
+  /** True when a room in the snapshot was playing music or ambience. */
+  snapshotHasSound(snapshot: RoomsSnapshot): boolean;
+  // --- end r10-live ---
 
   // ----- preview: the game master's headphones only, never on air -----
   /**
@@ -853,6 +866,20 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   run(action: CueAction): CueOutcome {
     return this.perform(action);
   }
+
+  // --- r10-live ---
+  snapshotRooms(): RoomsSnapshot {
+    return this.director.snapshotRooms();
+  }
+
+  restoreRooms(snapshot: RoomsSnapshot, options?: { sameTime?: boolean }): CueOutcome {
+    return this.director.restoreRooms(snapshot, options);
+  }
+
+  snapshotHasSound(snapshot: RoomsSnapshot): boolean {
+    return this.director.snapshotHasSound(snapshot);
+  }
+  // --- end r10-live ---
 
   // ---------- preview ----------
 

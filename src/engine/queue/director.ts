@@ -30,6 +30,14 @@ export type ListWhat =
   | { kind: "track"; trackId: string; from?: TrackFrom; name?: string; fromMs?: number }
   | { kind: "playlist"; playlistId: string; place?: UsePlace | null; name?: string };
 
+/**
+ * Round 10 (table review M4; Nik, 18 Nov 08:36, answer 6a): what every room plays at one moment, taken before Play on
+ * air, Fade all or Stop all, so their Undo brings every room back where it was.
+ */
+export interface RoomsSnapshot {
+  rooms: readonly { roomId: string; snapshot: RoomSnapshot }[];
+}
+
 interface DirectorEvents {
   /** What a room plays changed; read `report()`. */
   change: () => void;
@@ -104,6 +112,30 @@ export class Director extends TypedEmitter<DirectorEvents> {
   libraryChanged(): void {
     for (const player of this.players.values()) player.refreshGains();
     this.emit("change");
+  }
+
+  // ---------- round 10: every room's snapshot, for Undo ----------
+
+  snapshotRooms(): RoomsSnapshot {
+    return { rooms: this.rooms.rooms().map((room) => ({ roomId: room.botId, snapshot: this.player(room.botId).snapshot() })) };
+  }
+
+  /** True when a room in the snapshot was playing music or ambience (otherwise there is nothing to bring back). */
+  snapshotHasSound(snapshot: RoomsSnapshot): boolean {
+    return snapshot.rooms.some((r) => r.snapshot.music.current !== null || r.snapshot.ambience !== null);
+  }
+
+  /** Every room still there goes back to the snapshot; a room that has gone since is left out. */
+  restoreRooms(snapshot: RoomsSnapshot, options: { sameTime?: boolean } = {}): CueOutcome {
+    try {
+      const here = new Set(this.rooms.rooms().map((room) => room.botId));
+      for (const { roomId, snapshot: one } of snapshot.rooms) {
+        if (here.has(roomId)) this.player(roomId).restore(one, DEFAULT_FADES.undo, options.sameTime ?? false);
+      }
+      return OK;
+    } finally {
+      this.emit("change");
+    }
   }
 
   // ---------- round 6: each room's running list and its Repeat (PLY-16, PLY-17) ----------

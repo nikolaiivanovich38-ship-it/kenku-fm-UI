@@ -281,9 +281,12 @@
 .lv-warn { flex: none; }
 /* Narrow strip: the session name keeps room; Fade all and Stop all become icon buttons (names kept for screen readers). */
 .lv-sess { min-width: 140px; }
-@container app (max-width: 900px) {
-  .lv-top .lv-btxt { display: none; }
-  .lv-top .lv-fade, .lv-top .lv-stop { width: var(--ctl-s); padding: 0; }
+/* Round 10 (Nik, 18 Nov, answer 2): Fade all and Stop all keep their words from 1000 px of app (a whole window, half a
+   2560 screen); at half a 1920 screen there is no room beside Back, the trail, the session, Prep | Live, Find and Undo,
+   so they are icons there, their names read out and on hover. */
+@container app (max-width: 999px) {
+  .lv-top .lv-fade .lv-btxt, .lv-top .lv-stop .lv-btxt { display: none; }
+  .lv-top .lv-fade, .lv-top .lv-stop { width: var(--ctl-s); padding: 0; justify-content: center; }
 }
 
 /* ---------- Outputs inline in On air; one section per mix ---------- */
@@ -432,7 +435,7 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
   background: var(--surface); border: 1px solid var(--line-strong); border-top: 3px solid var(--line-strong); border-radius: var(--r-l); box-shadow: var(--shadow); }
 .lv-found .lv-off-f { padding: 6px 6px 6px 8px; }
 .lv-top { gap: 8px; }
-.lv-top > .lv-find + .btn { margin-left: auto; }
+.lv-top > .lv-find + .lv-undoplace { margin-left: auto; }
 /* Rows (Nik, 6 Nov 13:55, Should 8 of the round 6 review): Preview, Play next and Add to queue always show, greyed at
    rest (icons, so nothing more to read), in full colour on the row on air, on hover and on keyboard focus. */
 .lv-trk-acts:not(.shown) .lv-hov { color: var(--ink-3); }
@@ -503,7 +506,7 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
   .lv-top .crumbs { order: 5; }
   .lv-top .lv-sess { order: 6; flex: 0 1 auto; min-width: 0; }
   .lv-top .lv-find { order: 7; flex: 1 1 120px; max-width: none; min-width: 0; }
-  .lv-top > .lv-find + .btn { margin-left: 0; }
+  .lv-top > .lv-find + .lv-undoplace { margin-left: 0; }
 }
 /* Must 4 (WCAG 1.4.10 Reflow): below 640 px of app (320 px windows, 200 % zoom) the top strip wraps (Prep | Live and
    the icon buttons, then the session, then Find a track the whole width), a room's header wraps (its name and status,
@@ -511,7 +514,7 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 @container app (max-width: 639px) {
   .lv-top { flex-wrap: wrap; row-gap: 6px; }
   .lv-top .lv-find { order: 10; flex: 1 1 100%; max-width: none; min-width: 0; }
-  .lv-top > .lv-find + .btn { margin-left: 0; }
+  .lv-top > .lv-find + .lv-undoplace { margin-left: 0; }
   .lv-top .lv-sess { order: 5; min-width: 0; flex: 1 1 100%; }
   .lv-top .mode-switch button { padding: 0 6px; }
   .lv-rm-h { flex-wrap: wrap; row-gap: 2px; padding-top: 4px; padding-bottom: 4px; }
@@ -622,3 +625,26 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-lane-tl > .lv-loop { flex: none; }
 .lv-lane-tl > a.track-link { min-width: 0; flex: 0 1 auto; }
 .lv-loop-none { opacity: .7; }
+
+/* ---------- Round 10: one Undo place in the top bar (table review M1, T1) ----------
+   The place is kept whether Undo shows or not, so nothing in the bar moves when it appears or goes. At half a screen
+   the bar has no room to keep: the place opens when Undo shows, and only Find gives way. Below 1100 px the button is an
+   icon (its word was cut to "U" there); its name and the hover text (Ctrl+Z) stay. */
+.lv-undoplace { flex: 0 1 260px; min-width: 0; display: flex; align-items: center; height: 28px; }
+.lv-undoplace:empty { flex: 0 1 200px; }
+.lv-undoplace:not(:empty) { min-width: 104px; }
+.lv-undoplace .lv-undo { margin: 0; flex: 1; min-width: 0; min-height: 0; height: 28px; box-sizing: border-box; padding: 0 2px 0 8px; gap: 6px;
+  border: 1px solid var(--accent); border-radius: var(--r-m); background: var(--accent-soft); font-size: var(--fs-s); }
+.lv-undoplace .lv-undo > .ellipsis { min-width: 0; }
+.lv-undoplace .lv-undo .btn { flex: none; max-width: none; }
+.lv-undoplace .lv-undo-bar > span { background: var(--accent); }
+.lv-top .lv-stop { margin-left: 6px; }
+@container app (max-width: 1099px) {
+  .lv-undoplace:empty { flex-basis: 0; }
+  .lv-undoplace { flex-shrink: 2; }
+  .lv-undoplace:not(:empty) { min-width: 0; flex: none; }
+  .lv-undoplace .lv-undo > .ellipsis { display: none; }
+  .lv-undoplace .lv-undo { padding: 0 2px; }
+  .lv-undoplace .lv-undo .btn { width: var(--ctl-s); padding: 0; justify-content: center; }
+  .lv-undoplace .lv-undo .btn > .lv-btxt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}

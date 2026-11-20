@@ -809,10 +809,13 @@ export class RoomPlayer {
     };
   }
 
-  /** Bring a snapshot back, each track where it would be had it kept playing. */
-  restore(snapshot: RoomSnapshot, fadeSeconds: number): void {
+  /**
+   * Bring a snapshot back, each track where it would be had it kept playing; with `sameTime` (round 10: Undo after
+   * Fade all or Stop all), where it was when the snapshot was taken, so the players hear it go on from that point.
+   */
+  restore(snapshot: RoomSnapshot, fadeSeconds: number, sameTime = false): void {
     this.cancelHandOver();
-    const elapsed = this.deps.engine.currentTime - snapshot.takenAt;
+    const elapsed = sameTime ? 0 : this.deps.engine.currentTime - snapshot.takenAt;
     this.music = snapshot.music;
     this.plan = snapshot.plan;
     if (snapshot.music.current) {

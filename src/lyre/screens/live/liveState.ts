@@ -24,13 +24,11 @@ export interface UndoOffer {
 
 /**
  * Round 6 part 2 and the review's Must 1: Undo of the last change that is not a scene change (Add to queue, Play next,
- * a removal from Up next, Clear added, Kick, moving a bot), shown as a strip where it happened, for 8 seconds or until
- * anything else changes what a room plays.
+ * a removal from Up next, Clear added, Leave, moving a bot; round 10: Play on air, Fade all, Stop all), shown in the
+ * top bar's Undo place (UndoStrips.tsx) for 8 seconds or until anything else changes what a room plays.
  */
 export interface SoftUndo {
   text: string;
-  /** Where its strip shows: "onair" (On air's own strip) or "room:<room id>" (in that room's part). */
-  where: string;
   /** The control that gets focus afterwards (its data-lv). */
   focus: string;
   until: number;
