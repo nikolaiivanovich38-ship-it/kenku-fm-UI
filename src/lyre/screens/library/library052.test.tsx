@@ -433,21 +433,20 @@ describe("0.5.2: the new confirmations have no accessibility failures", () => {
 });
 
 describe("round 8 click-through findings for the Library (lead, 18 Nov)", () => {
-  it("#2: Pick up where it stopped has the whole row, not the narrow label column", async () => {
+  it("#2: Next time, start where it stopped has the whole row, not the narrow label column", async () => {
     openAt("library/t02");
     await loaded();
-    const sw = await within(screen.getByRole("region", { name: "Details" })).findByRole("switch", { name: "Pick up where it stopped" });
+    const sw = await within(screen.getByRole("region", { name: "Details" })).findByRole("switch", { name: "Next time, start where it stopped" });
     expect(sw.closest(".lb-tg")).toHaveClass("lb-tg-wide");
   });
 
-  it("#4: Follow with's line under the list is the list's description, spaced clear of its focus ring", async () => {
+  it("#4, round 9: the Play… picker says that something waiting in Play next goes first", async () => {
     openAt("library/t02");
     await loaded();
     const user = userEvent.setup();
-    await user.click(await within(screen.getByRole("region", { name: "Details" })).findByRole("button", { name: "Follow with…" }));
-    const select = within(screen.getByRole("dialog")).getByRole("combobox", { name: "When it ends, play" });
-    expect(select).toHaveAccessibleDescription("Unless something is waiting in Play next.");
-    expect(screen.getByText("Unless something is waiting in Play next.")).toHaveClass("lb-follow-hint");
+    const end = await within(screen.getByRole("region", { name: "Details" })).findByRole("group", { name: "At its end" });
+    await user.click(within(end).getByRole("button", { name: "Play…" }));
+    expect(screen.getByRole("dialog", { name: "When it ends, play" })).toHaveAccessibleDescription(/Something waiting in Play next goes first\.$/);
   });
 
   it("#5: opened at a track from elsewhere (a playlist's track title), the list scrolls the open row into view", async () => {

@@ -604,7 +604,8 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await openRoute(page, "library");
     await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("gridcell").nth(1).click();
     const details = page.getByRole("region", { name: "Details", exact: true });
-    const resume = details.getByRole("switch", { name: "Pick up where it stopped" });
+    // Round 9's words since 0.6.0: "Next time, start where it stopped".
+    const resume = details.getByRole("switch", { name: /^(Pick up where it stopped|Next time, start where it stopped)$/ });
     await resume.check();
     await expect(resume).toBeChecked();
   });
@@ -819,21 +820,15 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await expect(row(page, /^Select Eerie dread/).getByText("Amb", { exact: true })).toBeVisible();
   });
 
-  test("round 8 #2 and #4: Pick up where it stopped fits on one line; Follow with's line is clear of the list's focus ring", async ({ page }) => {
+  test("round 8 #2: Pick up where it stopped fits on one line", async ({ page }) => {
     appOnly();
     await openRoute(page, "library");
-    // An Underscore track: it has Pick up where it stopped and Follow with… (Ashes, with no role, has no Follow with…).
+    // An Underscore track: it has Pick up where it stopped (round 9: Next time, start where it stopped). Round 8 #4 (the
+    // Follow with list's line) went with that list: At its end › Play… is a picker (round 9 block).
     await openTrack(page, "Melancholy tense - melancholy heroism - fade");
     const pickUp = details(page).locator("label.lb-resume");
     await expect(pickUp).toBeVisible();
     expect((await pickUp.boundingBox())!.height).toBeLessThan(30);
-    await details(page).getByRole("button", { name: "Follow with…" }).click();
-    const select = page.getByRole("dialog").getByRole("combobox", { name: "When it ends, play" });
-    await select.focus();
-    const s = (await select.boundingBox())!;
-    const hint = (await page.getByRole("dialog").getByText("Unless something is waiting in Play next.").boundingBox())!;
-    // The focus ring is drawn up to 4 px outside the list.
-    expect(hint.y).toBeGreaterThanOrEqual(s.y + s.height + 4);
   });
 
   test("round 8 #5: a track title on a playlist page opens the Track library with that row in view", async ({ page }) => {

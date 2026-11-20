@@ -526,7 +526,7 @@ function TrackRow({
         {isFx(t) && (
           <span className="chip">
             <span className="lane-dot fx" />
-            {t.kind === "fx" ? "FX" : "FX · Sting"}
+            {t.kind === "fx" ? "FX" : "FX · Short cue"}
           </span>
         )}
       </div>
@@ -1063,9 +1063,9 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
           <input
             type="checkbox"
             checked={!!rule.leaveOutStings}
-            onChange={(e) => void change({ ...rule, leaveOutStings: e.target.checked }, e.target.checked ? "Stings left out" : "Stings included")}
+            onChange={(e) => void change({ ...rule, leaveOutStings: e.target.checked }, e.target.checked ? "Short cues left out" : "Short cues included")}
           />
-          Leave out stings
+          Leave out short cues
         </label>
       </div>
       {/* DAT-13: only tracks of these shapes (the game master's choice, else Lyre's suggestion). None pressed: any. */}

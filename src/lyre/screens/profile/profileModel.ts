@@ -7,6 +7,7 @@
  */
 import { clockTime } from "../../../common/lyre/text";
 import { fadeInGain, fadeOutGain, type AfterEnd, type AudioProfile, type AudioProfileInput } from "../../../common/domain";
+import { endWrite, type TrackEnd } from "../library/trackEnd";
 
 export interface FadeSec {
   /** Length in seconds. */
@@ -223,6 +224,24 @@ export function movePoint(p: Prof, dur: number, which: Which, v: number): Prof {
 /** Reset to whole track: Start at 0:00, End at the end of the file, no fades, no crossfade. Markers stay. */
 export function wholeTrack(p: Prof, dur: number): Prof {
   return { ...p, start: 0, end: dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } };
+}
+
+/* ---------- Round 10 (prep review D5): At its end, the same six ends as the track's details ---------- */
+
+/**
+ * The profile as one end leaves it (library/trackEnd.ts endWrite, in seconds): the loop and its crossfade, After and the
+ * fade out. Follow with plays after the track moves on.
+ */
+export function withEnd(p: Prof, end: TrackEnd): Prof {
+  return fromInputParts(p, endWrite(end, toInput(p)).profile);
+}
+function fromInputParts(p: Prof, input: AudioProfileInput): Prof {
+  return {
+    ...p,
+    after: input.after ?? p.after,
+    loopXfade: input.loopCrossfadeMs !== undefined ? input.loopCrossfadeMs / 1000 : p.loopXfade,
+    fadeOut: input.fadeOut ? { dur: input.fadeOut.ms / 1000, shape: input.fadeOut.shape } : p.fadeOut,
+  };
 }
 
 /** A marker at the playhead (tenths of a second), named "Marker <n>", in time order. */

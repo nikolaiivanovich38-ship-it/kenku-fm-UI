@@ -151,7 +151,7 @@ describe("words the Library shows", () => {
 
   it("marks ambience, effects and stings with words as well as colour", () => {
     const sting = tracks.find((t) => t.role === "sting" && t.kind === "music");
-    expect(kindMark(sting)).toEqual({ lane: "fx", text: "FX · Sting", title: "FX: a sting (short music cue)" });
+    expect(kindMark(sting)).toEqual({ lane: "fx", text: "FX · Short cue", title: "FX: a short music cue" });
     expect(kindMark(tracks.find((t) => t.kind === "amb"))?.text).toBe("Amb");
     expect(kindMark(tracks.find((t) => t.id === "t44"))).toBeNull();
   });
@@ -173,7 +173,7 @@ describe("words the Library shows", () => {
   it("writes a dynamic playlist's rule as the prototype does, leaving out conditions without values", () => {
     const names = { mood: "Mood", motif: "Leitmotif" };
     expect(ruleWords({ conds: [{ group: "motif", match: "any", values: ["Drowned Abbess"] }, { group: "mood", match: "all", values: [] }], energy: [0, 1], leaveOutStings: true }, names)).toBe(
-      "Leitmotif any of Drowned Abbess; energy 0 to 1; not stings",
+      "Leitmotif any of Drowned Abbess; energy 0 to 1; not short cues",
     );
     expect(ruleWords({ conds: [], shapes: ["builds", "peaksThenFalls"] }, names)).toBe("shape builds or peaks then falls");
   });

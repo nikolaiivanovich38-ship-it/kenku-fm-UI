@@ -180,6 +180,12 @@ export type TrackPatch = Partial<{
   fadesOut: boolean;
   resume: boolean;
   follow: SoundRef | null;
+  // --- r10-tracks ---
+  /**
+   * Round 9 (At its end): the track's own audio profile, whole, written in the same undo step as the loop advice,
+   * Fades out and Follow with an end choice changes (trackEnd.ts endWrite). profiles.set writes it alone.
+   */
+  profile: AudioProfileInput;
 }>;
 
 /** A folder the Library lists under Folders: a library folder, or one Lyre watches for new files. */

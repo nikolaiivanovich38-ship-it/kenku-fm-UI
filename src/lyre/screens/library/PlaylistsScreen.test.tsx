@@ -387,8 +387,8 @@ describe("Playlists: a dynamic playlist", () => {
     expect(await rules.findByRole("group", { name: "Condition 3" })).toBeInTheDocument();
     await user.click(rules.getByRole("button", { name: "Remove condition 3" }));
     await waitFor(() => expect(rules.queryByRole("group", { name: "Condition 3" })).toBeNull());
-    await user.click(rules.getByRole("checkbox", { name: "Leave out stings" }));
-    await waitFor(() => expect(rules.getAllByText(/not stings/).length).toBeGreaterThan(0));
+    await user.click(rules.getByRole("checkbox", { name: "Leave out short cues" }));
+    await waitFor(() => expect(rules.getAllByText(/not short cues/).length).toBeGreaterThan(0));
     await user.selectOptions(rules.getByRole("combobox", { name: "Highest energy" }), "1");
     await waitFor(() => expect(rules.getAllByText(/energy 0 to 1/).length).toBeGreaterThan(0));
   });
@@ -476,7 +476,7 @@ describe("Playlists: round 5", () => {
     const saved = (await api.playlists.list()).find((p) => p.id === "p-gothic");
     expect(saved?.kind === "dynamic" && saved.rule.shapes).toEqual(["builds"]);
     // Another rule change keeps the shapes.
-    await user.click(within(region("Rules")).getByRole("checkbox", { name: "Leave out stings" }));
+    await user.click(within(region("Rules")).getByRole("checkbox", { name: "Leave out short cues" }));
     await waitFor(async () => {
       const p = (await api.playlists.list()).find((x) => x.id === "p-gothic");
       expect(p?.kind === "dynamic" && [p.rule.shapes, p.rule.leaveOutStings]).toEqual([["builds"], true]);

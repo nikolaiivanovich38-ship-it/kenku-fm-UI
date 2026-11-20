@@ -212,48 +212,66 @@ describe("Library: a track's details", () => {
     await waitFor(() => expect(within(details()).queryByRole("button", { name: "Remove Melancholy from Mood" })).toBeNull());
   });
 
-  it("PLY-4: a sting never loops: its loop choices are off, and say why", async () => {
+  it("PLY-4, round 9: a short cue never loops: At its end offers no loop for it", async () => {
     openAt("library/t39");
-    const role = await within(details()).findByRole("group", { name: "Role" });
-    expect(within(role).getByRole("button", { name: "Sting" })).toHaveAttribute("aria-pressed", "true");
-    const loop = within(details()).getByRole("group", { name: "Loop advice" });
-    expect(within(loop).getByRole("button", { name: "Loops well" })).toBeDisabled();
-    expect(loop).toHaveAccessibleDescription(/A sting plays once/);
+    const use = await within(details()).findByRole("group", { name: "Use it for" });
+    expect(within(use).getByRole("button", { name: /^Short cue/ })).toHaveAttribute("aria-pressed", "true");
+    const end = within(details()).getByRole("group", { name: "At its end" });
+    expect(within(end).queryByRole("button", { name: /^Loop/ })).toBeNull();
+    expect(within(end).getAllByRole("button").map((b) => b.textContent)).toEqual(["Next track", "Fade out", "Stop", "Play…"]);
   });
 
-  it("SHW-3: Follow with… hands over to a playlist or a track when it ends, saved with the track", async () => {
+  it("SHW-3, round 9: At its end › Play… hands over to a playlist or a track when it ends, saved with the track", async () => {
     const { api } = openAt("library/t39");
     const user = userEvent.setup();
-    await user.click(await within(details()).findByRole("button", { name: "Follow with…" }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "When it ends, play" }), "Crypt ambush (playlist)");
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Done" }));
-    await waitFor(() => expect(within(details()).getByRole("group", { name: "Then" })).toHaveTextContent("Crypt ambush"));
-    expect(document.getElementById("lyre-toast")).toHaveTextContent(/follows with Crypt ambush$/);
+    await user.click(within(await within(details()).findByRole("group", { name: "At its end" })).getByRole("button", { name: "Play…" }));
+    const dialog = within(screen.getByRole("dialog", { name: "When it ends, play" }));
+    await user.click(dialog.getByRole("radio", { name: /^Crypt ambush/ }));
+    await user.click(dialog.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(within(details()).getByRole("group", { name: "At its end" })).toHaveTextContent("Play: Crypt ambush"));
+    expect(document.getElementById("lyre-toast")).toHaveTextContent(/then plays Crypt ambush$/);
     expect((await api.library.listTracks()).find((t) => t.id === "t39")?.follow).toEqual({ kind: "playlist", id: "p-crypt" });
   });
 
-  it("PLY-4: an underscore's Ending: Fades out and Pick up where it stopped are saved with the track", async () => {
+  it("round 9: the Play… picker searches, shows Playlists, Music, Ambience and FX with counts, and a double-click chooses", async () => {
+    const { api } = openAt("library/t39");
+    const user = userEvent.setup();
+    await user.click(within(await within(details()).findByRole("group", { name: "At its end" })).getByRole("button", { name: "Play…" }));
+    const dialog = within(screen.getByRole("dialog", { name: "When it ends, play" }));
+    const tabs = within(dialog.getByRole("group", { name: "Show" }));
+    expect(tabs.getAllByRole("button").map((b) => b.textContent?.replace(/\s*\d+$/, ""))).toEqual(["All", "Playlists", "Music", "Ambience", "FX"]);
+    expect(dialog.getAllByRole("radio")[0]).toHaveAccessibleName(/^Nothing/);
+    await user.click(tabs.getByRole("button", { name: /^Ambience/ }));
+    expect(dialog.queryByRole("radio", { name: /^Crypt ambush/ })).toBeNull();
+    await user.click(tabs.getByRole("button", { name: /^All/ }));
+    await user.type(dialog.getByRole("searchbox", { name: "Search playlists and tracks" }), "ashen");
+    await user.dblClick(dialog.getByRole("radio", { name: /^Ashen King/ }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t39")?.follow).toEqual({ kind: "playlist", id: "p-ashen" }));
+  });
+
+  it("PLY-4, round 9: At its end › Fade out and Next time, start where it stopped are saved with the track", async () => {
     const { api } = openAt("library/t19");
     const user = userEvent.setup();
-    const ending = await within(details()).findByRole("group", { name: "Ending" });
-    await user.click(within(ending).getByRole("button", { name: "Fades out" }));
-    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/ending: fades out$/));
-    await user.click(within(details()).getByRole("switch", { name: "Pick up where it stopped" }));
+    const ending = await within(details()).findByRole("group", { name: "At its end" });
+    await user.click(within(ending).getByRole("button", { name: "Fade out" }));
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/at its end: fades out$/));
+    await user.click(within(details()).getByRole("switch", { name: "Next time, start where it stopped" }));
     await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/picks up where it stopped$/));
     const t19 = (await api.library.listTracks()).find((t) => t.id === "t19");
     expect([t19?.fadesOut, t19?.resume]).toEqual([true, true]);
   });
 
-  it("0.5.1: Pick up where it stopped is offered for a music track with no role and a transition, not for a sting", async () => {
+  it("0.5.1: Next time, start where it stopped is offered for a music track with no use and a lead-in, not for a short cue", async () => {
     const { api } = openAt("library/t44");
     const user = userEvent.setup();
-    await user.click(await within(details()).findByRole("switch", { name: "Pick up where it stopped" }));
+    await user.click(await within(details()).findByRole("switch", { name: "Next time, start where it stopped" }));
     await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t44")?.resume).toBe(true));
     go("library/t42");
-    expect(await within(details()).findByRole("switch", { name: "Pick up where it stopped" })).toBeInTheDocument();
+    expect(await within(details()).findByRole("switch", { name: "Next time, start where it stopped" })).toBeInTheDocument();
     go("library/t39");
-    await within(details()).findByRole("group", { name: "Role" });
-    expect(within(details()).queryByRole("switch", { name: "Pick up where it stopped" })).toBeNull();
+    await within(details()).findByRole("group", { name: "Use it for" });
+    expect(within(details()).queryByRole("switch", { name: "Next time, start where it stopped" })).toBeNull();
   });
 
   it("round 6: the list's keys are read out with it", async () => {
@@ -323,20 +341,27 @@ describe("Library: a track's details", () => {
     expect(box).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("energy, role and looping are chosen with buttons and saved", async () => {
+  it("round 9: energy and Use it for are chosen with buttons and saved; a use picks its usual end until one is chosen", async () => {
     const { api } = openAt("library/t44");
     const d = within(details());
     const user = userEvent.setup();
     const energy = await d.findByRole("group", { name: "Energy, 1 calm to 5 intense" });
     await user.click(within(energy).getByRole("button", { name: "4" }));
     await waitFor(() => expect(within(energy).getByRole("button", { name: "4" })).toHaveAttribute("aria-pressed", "true"));
-    await user.click(within(d.getByRole("group", { name: "Role" })).getByRole("button", { name: "Loop bed" }));
-    await user.click(within(d.getByRole("group", { name: "Loop advice" })).getByRole("button", { name: "Crossfade the loop" }));
+    await user.click(within(d.getByRole("group", { name: "Use it for" })).getByRole("button", { name: /^Background/ }));
     await waitFor(async () => {
       const t = (await api.library.listTracks()).find((x) => x.id === "t44");
-      expect([t.energy, t.role, t.loop]).toEqual([4, "loop_bed", "crossfade"]);
+      expect([t.energy, t.role, t.loop, t.profile?.after, t.profile?.loopCrossfadeMs]).toEqual([4, "loop_bed", "crossfade", "loop", 3000]);
     });
-    expect(within(d.getByRole("group", { name: "Role" })).getByRole("button", { name: "Loop bed" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(d.getByRole("group", { name: "Use it for" })).getByRole("button", { name: /^Background/ })).toHaveAttribute("aria-pressed", "true");
+    expect(within(d.getByRole("group", { name: "At its end" })).getByRole("button", { name: "Loop with a crossfade" })).toHaveAttribute("aria-pressed", "true");
+    expect(d.getByText("Background · loops with a 3 s crossfade.")).toBeInTheDocument();
+    // An end Nik picks stays when the use changes.
+    await user.click(within(d.getByRole("group", { name: "At its end" })).getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(within(d.getByRole("group", { name: "At its end" })).getByRole("button", { name: "Stop" })).toHaveAttribute("aria-pressed", "true"));
+    await user.click(within(d.getByRole("group", { name: "Use it for" })).getByRole("button", { name: /^Scene music/ }));
+    await waitFor(() => expect(within(d.getByRole("group", { name: "Use it for" })).getByRole("button", { name: /^Scene music/ })).toHaveAttribute("aria-pressed", "true"));
+    expect(within(d.getByRole("group", { name: "At its end" })).getByRole("button", { name: "Stop" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("lists the playlists it is in and the scenes that use it, directly or through a playlist", async () => {
@@ -684,7 +709,7 @@ describe("Library: volume normalisation (PLY-15, DAT-15)", () => {
     await waitFor(() => expect(within(details()).getByRole("group", { name: "Normalise volume" })).toHaveAccessibleDescription("-22.6 LUFS · +4.6 dB"));
   });
 
-  it("a track's details choose Library setting, On or Off, between Shape and Role; where the choice comes from is on hover", async () => {
+  it("a track's details choose Library setting, On or Off, between Shape and Use it for; where the choice comes from is on hover", async () => {
     const { api } = openAt("library/t02");
     const user = userEvent.setup();
     const norm = await within(details()).findByRole("group", { name: "Normalise volume" });
@@ -692,7 +717,7 @@ describe("Library: volume normalisation (PLY-15, DAT-15)", () => {
     expect(within(norm).getByRole("button", { name: "Library setting" })).toHaveAttribute("aria-pressed", "true");
     const order = [...details().querySelectorAll('[role="group"]')].map((g) => g.getAttribute("aria-label") ?? document.getElementById(g.getAttribute("aria-labelledby") ?? "")?.textContent);
     expect(order.indexOf("Normalise volume")).toBe(order.indexOf("Shape") + 1);
-    expect(order.indexOf("Role")).toBe(order.indexOf("Normalise volume") + 1);
+    expect(order.indexOf("Use it for")).toBe(order.indexOf("Normalise volume") + 1);
     await waitFor(() => expect(within(details()).getByTitle(/^True peak -8\.0 dBTP\. Follows the library \(Off\)/)).toHaveTextContent("-22.6 LUFS · plays as it is"));
     await user.click(within(norm).getByRole("button", { name: "On" }));
     await waitFor(() => expect(norm).toHaveAccessibleDescription("-22.6 LUFS · +4.6 dB"));

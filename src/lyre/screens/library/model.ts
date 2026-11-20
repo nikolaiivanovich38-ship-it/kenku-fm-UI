@@ -104,7 +104,7 @@ export function addedText(at: number, now = Date.now()): string {
 export function kindMark(t: DomainTrack): { lane: "amb" | "fx"; text: string; title: string } | null {
   if (t.kind === "fx") return { lane: "fx", text: "FX", title: "Sound effect" };
   if (t.kind === "amb") return { lane: "amb", text: "Amb", title: "Ambience" };
-  if (isFx(t)) return { lane: "fx", text: "FX · Sting", title: "FX: a sting (short music cue)" };
+  if (isFx(t)) return { lane: "fx", text: "FX · Short cue", title: "FX: a short music cue" };
   return null;
 }
 
@@ -283,7 +283,7 @@ export function ruleWords(rule: PlaylistRule, groupNames: Record<string, string>
   const how = { any: "any of", all: "all of", none: "none of" } as const;
   const parts = rule.conds.filter((c) => c.values.length).map((c) => `${groupNames[c.group] ?? c.group} ${how[c.match]} ${c.values.join(", ")}`);
   if (rule.energy) parts.push(`energy ${rule.energy[0]} to ${rule.energy[1]}`);
-  if (rule.leaveOutStings) parts.push("not stings");
+  if (rule.leaveOutStings) parts.push("not short cues");
   if (rule.shapes?.length) parts.push(`shape ${rule.shapes.map((x) => SHAPE_WORDS[x].toLowerCase()).join(" or ")}`);
   return parts.join("; ");
 }

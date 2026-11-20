@@ -113,9 +113,9 @@ export function PlaylistsScreen(_props: ScreenProps) {
       item("manual", "amb", "Pick ambience loops by hand"),
       item("dynamic", "amb", "Every ambience track that matches"),
       { separator: true },
-      { group: "FX: sound effects and stings" },
-      item("manual", "fx", "Pick effects and stings by hand"),
-      item("dynamic", "fx", "Every effect or sting that matches"),
+      { group: "FX: sound effects and short cues" },
+      item("manual", "fx", "Pick effects and short cues by hand"),
+      item("dynamic", "fx", "Every effect or short cue that matches"),
     ];
   };
 

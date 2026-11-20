@@ -1,29 +1,36 @@
 /**
- * PLY-4 and SHW-3 (design round 7, r7play.js L.playRows): how a track behaves as its role says, in the Library's
- * How it plays. Only the choices that fit the role show (less to read): an Underscore has Ending (Fades out), Pick up
- * where it stopped and Then (Follow with…); a Loop bed has Pick up; a Sting has Then; a Transition has Ending, Pick
- * up and Then; since 0.5.1 every other music track has Pick up too, with or without a role (roleChoices). Each change is saved with the track, with the Saved pop-up.
+ * Round 9 (ROUND9.md §3, r9track.js L.r9UseFor and L.r9AtEnd): Use it for and At its end in a track's details, in
+ * place of round 7's Role, Looping, Ending and Then (item 18: "Need to be have more intuitive roles than we currently
+ * do"). Choosing a use picks its usual end until the game master picks one himself (trackEnd.ts endIsUsual); At its
+ * end › Play… opens the picker (PlayAfterPicker). Under them: Next time, start where it stopped (music but a short
+ * cue) and one summary line. Each change is one write, with the Saved pop-up.
  */
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { roleChoices } from "../../../common/domain/round7";
 import type { SoundRef } from "../../../common/domain";
-import type { LibraryTrack, PlaylistInfo } from "../../../common/lyre/api";
+import type { LibraryTrack, PlaylistInfo, TrackPatch } from "../../../common/lyre/api";
 import { shownTitle } from "../../../common/lyre/text";
 import { useLyreApi, useTracks } from "../../api";
 import { Button } from "../../kit/Button";
-import { Dialog } from "../../kit/Dialog";
 import { Icon } from "../../kit/Icon";
 import { PickUpSwitch, pickUpWords } from "./PickUpSwitch";
 import { useSave } from "../../shell/useSave";
 import type { TrackStore } from "./trackStore";
+import { ENDS, endIsUsual, endOf, endWords, endWrite, usesFor, usualEnd, useEndSummary, USE_WORDS, type TrackEnd } from "./trackEnd";
+import { PlayAfterPicker } from "./PlayAfterPicker";
 
-type Patch = Partial<Pick<LibraryTrack, "fadesOut" | "resume" | "follow">>;
+/** The name of what a track plays after it: a playlist's name or a track's title. */
+export function followNameOf(ref: SoundRef | null | undefined, playlists: readonly PlaylistInfo[], tracks: readonly LibraryTrack[]): string {
+  if (!ref) return "nothing";
+  if (ref.kind === "playlist") return playlists.find((p) => p.id === ref.id)?.name ?? "a playlist";
+  const other = tracks.find((x) => x.id === ref.id);
+  return other ? shownTitle(other) : "a track";
+}
 
-/** A follow-with choice as the dialog's select keeps it: "playlist:p-crypt" or "track:t04". */
-const refKey = (ref: SoundRef) => `${ref.kind}:${ref.id}`;
-function refOf(key: string): SoundRef | null {
-  const [kind, id] = key.split(":");
-  return (kind === "playlist" || kind === "track") && id ? { kind, id } : null;
+/** The patch an end writes at the track's own place, with the profile in the same undo step. */
+export function endPatch(t: LibraryTrack, end: TrackEnd, follow: SoundRef | null = null): TrackPatch {
+  const w = endWrite(end, t.profile, follow);
+  return { ...w.track, profile: w.profile };
 }
 
 export function TrackBehaviour({ t, playlists, store }: { t: LibraryTrack; playlists: readonly PlaylistInfo[]; store: TrackStore }) {
@@ -31,165 +38,134 @@ export function TrackBehaviour({ t, playlists, store }: { t: LibraryTrack; playl
   const save = useSave();
   const tracks = useTracks().data ?? [];
   const [choosing, setChoosing] = useState(false);
-  // The switch and the chip show the choice at once; the library's answer then takes over (a refusal puts it back).
+  // The switch shows the choice at once; the library's answer then takes over (a refusal puts it back).
   const [resume, setResume] = useState<boolean | null>(null);
-  const [fadesOut, setFadesOut] = useState<boolean | null>(null);
-  useEffect(() => setResume(null), [t.resume]);
-  useEffect(() => setFadesOut(null), [t.fadesOut]);
   const resumeOn = resume ?? t.resume;
-  const fadesOn = fadesOut ?? t.fadesOut;
-  const choices = roleChoices(t);
   const title = shownTitle(t);
-  const write = async (patch: Patch, what: string) => {
-    const done = await save(what, () => api.library.updateTrack(t.id, patch));
+  const resumeShown = roleChoices(t).includes("resume");
+  const name = (ref: SoundRef | null | undefined) => followNameOf(ref, playlists, tracks);
+  const write = async (patch: TrackPatch, what: (after: LibraryTrack) => string) => {
+    // The words name the track as it is after the write ("… at its end: fades out").
+    const after = { ...t, ...patch } as LibraryTrack;
+    const done = await save(what(after), () => api.library.updateTrack(t.id, patch));
     if (done) store.put(done.value);
-    else {
-      setResume(null);
-      setFadesOut(null);
-    }
+    setResume(null);
+    return done;
   };
-  const followName = (ref: SoundRef | null): string => {
-    if (!ref) return "nothing";
-    if (ref.kind === "playlist") return playlists.find((p) => p.id === ref.id)?.name ?? "a playlist";
-    const other = tracks.find((x) => x.id === ref.id);
-    return other ? shownTitle(other) : "a track";
-  };
-  if (!choices.length) return null;
+
+  const end = endOf(t);
+  const shortCue = t.role === "sting";
+  const ends = ENDS.filter(([e]) => !(shortCue && (e === "loop" || e === "xloop")));
 
   return (
     <>
-      {choices.includes("ending") && (
-        <div className="lb-tg">
-          <div className="lb-tgl">Ending</div>
-          <div className="chips" role="group" aria-label="Ending">
-            {/* One chip: pressed, it fades out before its end; not pressed (the usual), it plays to its last second. */}
-            <button
-              type="button"
-              className="chip lb-pick"
-              aria-pressed={fadesOn}
-              title="Lyre fades it out before its end (the length of the fade is in the Audio profile). When this is off, it plays to its last second."
-              onClick={() => {
-                setFadesOut(!fadesOn);
-                void write({ fadesOut: !fadesOn }, `${title} ending: ${fadesOn ? "hard end" : "fades out"}`);
-              }}
-            >
-              {fadesOn && <Icon name="check" size="s" />}
-              Fades out
-            </button>
-          </div>
+      <div className="lb-tg">
+        <div className="lb-tgl" id={`lb-use-l-${t.id}`}>
+          Use it for
         </div>
-      )}
-      {choices.includes("resume") && (
+        <div className="chips r9-use" role="group" aria-labelledby={`lb-use-l-${t.id}`}>
+          {usesFor(t).map((u) => {
+            const on = t.role === u.role;
+            return (
+              <button
+                key={u.role}
+                type="button"
+                className="chip lb-pick r9-usechip"
+                aria-pressed={on}
+                aria-describedby={`lb-use-d-${u.role}`}
+                title={u.line}
+                onClick={() => {
+                  const role = on ? null : u.role;
+                  const patch: TrackPatch = { role };
+                  // Until the game master picks an end, a use brings its usual end (Background: Loop with a crossfade…).
+                  if (role && endIsUsual(t)) Object.assign(patch, endPatch(t, usualEnd({ role, kind: t.kind })));
+                  void write(patch, () => `${title}: ${role ? USE_WORDS[role] : "no use chosen"}`);
+                }}
+              >
+                <Icon name={on ? "check" : u.icon} size="s" />
+                {u.word}
+                <span className="sr-only" id={`lb-use-d-${u.role}`}>
+                  {u.line}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="lb-tg">
+        <div className="lb-tgl" id={`lb-end-l-${t.id}`}>
+          At its end
+        </div>
+        <div className="chips r9-end" role="group" aria-labelledby={`lb-end-l-${t.id}`}>
+          {ends.map(([e, word]) => {
+            if (e === "follow" && t.follow) {
+              return (
+                <React.Fragment key={e}>
+                  <span className="chip r9-follow-on">
+                    <Icon name="check" size="s" />
+                    <span>Play: {name(t.follow)}</span>
+                    <button
+                      type="button"
+                      className="x"
+                      title="Remove"
+                      aria-label={`Stop playing ${name(t.follow)} after it`}
+                      onClick={() => void write(endPatch(t, "next"), () => `${title} plays nothing after it`)}
+                    >
+                      <Icon name="close" />
+                    </button>
+                  </span>
+                  <Button size="s" className="ghost" onClick={() => setChoosing(true)}>
+                    Change…
+                  </Button>
+                </React.Fragment>
+              );
+            }
+            const on = end === e;
+            return (
+              <button
+                key={e}
+                type="button"
+                className="chip lb-pick"
+                aria-pressed={on}
+                title={e === "follow" ? "When it ends, play a playlist or a track" : undefined}
+                onClick={() => {
+                  if (e === "follow") return setChoosing(true);
+                  void write(endPatch(t, e), (after) => `${title} at its end: ${endWords(after, "")}`);
+                }}
+              >
+                {on && <Icon name="check" size="s" />}
+                {word}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {resumeShown && (
         <PickUpSwitch
           checked={resumeOn}
           onChange={(next) => {
             setResume(next);
-            void write({ resume: next }, pickUpWords(t, next));
+            void write({ resume: next }, () => pickUpWords(t, next));
           }}
         />
       )}
-      {choices.includes("follow") && (
-        <div className="lb-tg">
-          <div className="lb-tgl" id="lb-then-l">
-            Then
-          </div>
-          <div className="chips" role="group" aria-labelledby="lb-then-l">
-            {t.follow ? (
-              <>
-                <span className="chip">
-                  <span className="lane-dot music" aria-hidden="true" />
-                  {followName(t.follow)}
-                  <button
-                    type="button"
-                    className="x"
-                    title="Remove"
-                    aria-label={`Stop following with ${followName(t.follow)}`}
-                    onClick={() => void write({ follow: null }, `${title} follows with nothing`)}
-                  >
-                    <Icon name="close" />
-                  </button>
-                </span>
-                <Button size="s" className="ghost" onClick={() => setChoosing(true)}>
-                  Change…
-                </Button>
-              </>
-            ) : (
-              <Button size="s" className="ghost" icon="next" title="When it ends, play a playlist or a track" onClick={() => setChoosing(true)}>
-                Follow with…
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
+      <p className="r9-sum">
+        <Icon name="fade" size="s" />
+        <span>{useEndSummary(t, name(t.follow), resumeShown)}</span>
+      </p>
       {choosing && (
-        <FollowDialog
-          t={t}
-          playlists={playlists}
+        <PlayAfterPicker
+          track={t}
           tracks={tracks}
+          playlists={playlists}
           onClose={() => setChoosing(false)}
           onDone={(ref) => {
             setChoosing(false);
-            void write({ follow: ref }, `${title} follows with ${followName(ref)}`);
+            if (ref) void write(endPatch(t, "follow", ref), () => `${title} then plays ${name(ref)}`);
+            else if (t.follow) void write(endPatch(t, "next"), () => `${title} plays nothing after it`);
           }}
         />
       )}
     </>
-  );
-}
-
-/** Follow with…: a music playlist or another music track that plays when this one ends (unless something waits). */
-function FollowDialog({
-  t,
-  playlists,
-  tracks,
-  onClose,
-  onDone,
-}: {
-  t: LibraryTrack;
-  playlists: readonly PlaylistInfo[];
-  tracks: readonly LibraryTrack[];
-  onClose: () => void;
-  onDone: (ref: SoundRef) => void;
-}) {
-  const options: [string, string][] = [
-    ...playlists.filter((p) => p.lane === "music").map((p): [string, string] => [refKey({ kind: "playlist", id: p.id }), `${p.name} (playlist)`]),
-    ...tracks.filter((x) => x.kind === "music" && x.id !== t.id).map((x): [string, string] => [refKey({ kind: "track", id: x.id }), shownTitle(x)]),
-  ];
-  const [value, setValue] = useState(t.follow ? refKey(t.follow) : (options[0]?.[0] ?? ""));
-  return (
-    <Dialog
-      open
-      title={`Follow ${shownTitle(t)} with`}
-      onClose={onClose}
-      footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button
-            variant="primary"
-            onClick={() => {
-              const ref = refOf(value);
-              if (ref) onDone(ref);
-            }}
-          >
-            Done
-          </Button>
-        </>
-      }
-    >
-      <div className="field">
-        <label htmlFor="lb-follow">When it ends, play</label>
-        <select className="input" id="lb-follow" aria-describedby="lb-follow-hint" value={value} onChange={(e) => setValue(e.target.value)}>
-          {options.map(([key, label]) => (
-            <option key={key} value={key}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
-      {/* Round 8 click-through #4: spaced clear of the list's focus ring (WCAG 2.4.11). */}
-      <p className="hint lb-follow-hint" id="lb-follow-hint">
-        Unless something is waiting in Play next.
-      </p>
-    </Dialog>
   );
 }

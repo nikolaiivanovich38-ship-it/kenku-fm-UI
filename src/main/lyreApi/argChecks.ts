@@ -172,7 +172,7 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     search: read(object({ text: text(1_000), "lane?": text(MAX_ID), "limit?": whole, "shapes?": list(text(MAX_ID), 20) })),
     updateTrack: write(
       id,
-      object({ "title?": text(), "notes?": text(), "energy?": nullable(number), "role?": nullable(text(MAX_ID)), "loop?": nullable(text(MAX_ID)), "kind?": text(MAX_ID), "fadesOut?": bool, "resume?": bool, "follow?": nullable(soundRef) }),
+      object({ "title?": text(), "notes?": text(), "energy?": nullable(number), "role?": nullable(text(MAX_ID)), "loop?": nullable(text(MAX_ID)), "kind?": text(MAX_ID), "fadesOut?": bool, "resume?": bool, "follow?": nullable(soundRef), "profile?": object() }),
     ),
     listFolders: read(),
     showInFolder: write(id),

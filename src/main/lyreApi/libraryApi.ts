@@ -835,6 +835,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const changes: Record<string, unknown> = {};
           for (const key of ["title", "notes", "energy", "role", "kind"] as const) if (patch[key] !== undefined) changes[key] = patch[key];
           if (patch.loop !== undefined) changes.loopable = patch.loop;
+          // Round 9 (At its end, r10-tracks): the track's own profile in the same undo step.
+          if (patch.profile !== undefined) changes.profile = patch.profile;
           // Round 7 (PLY-4, SHW-3): how it plays, in the same undo step.
           const play: Record<string, unknown> = {};
           for (const key of ["fadesOut", "resume", "follow"] as const) if (patch[key] !== undefined) play[key] = patch[key];

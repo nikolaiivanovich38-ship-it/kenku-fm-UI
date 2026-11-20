@@ -33,15 +33,12 @@ import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
 import {
   addedText,
-  EFFECT_ROLE,
   ENERGY_WORDS,
   fmt,
   inVocabularyOrder,
   KIND_NAMES,
-  LOOPS,
   plural,
   profileSummary,
-  ROLES,
   SHAPES,
   shownTitle,
 } from "./model";
@@ -152,7 +149,6 @@ export function TrackDetails({
   const typeChange = useTypeChange(store, { offerUndo: false });
   const shown = shownTitle({ ...t, title });
   const previewOn = previewing === previewKeyOf({ kind: "track", id: t.id });
-  const roles = t.kind === "fx" ? [EFFECT_ROLE, ...ROLES] : ROLES;
   const names = useMemo(
     () => namesInScenes(t.id, campaigns),
     [t.id, campaigns],
@@ -376,26 +372,7 @@ export function TrackDetails({
             }}
           />
         </div>
-        <div className="lb-tg">
-          <div className="lb-tgl">Role</div>
-          <ChoiceChips
-            label="Role"
-            options={roles}
-            value={t.role}
-            onChoose={(v) => void write({ role: t.role === v ? null : v })}
-          />
-        </div>
-        <div className="lb-tg">
-          <div className="lb-tgl">Looping</div>
-          <ChoiceChips
-            label="Loop advice"
-            options={LOOPS}
-            value={t.loop}
-            onChoose={(v) => void write({ loop: t.loop === v ? null : v })}
-            // PLY-4: a sting never loops, so its loop choices are off, and say why.
-            disabledWhy={t.role === "sting" ? "A sting plays once; it never loops." : undefined}
-          />
-        </div>
+        {/* Round 9 (item 18): Use it for and At its end in place of Role, Looping, Ending and Then. */}
         <TrackBehaviour t={t} playlists={playlists} store={store} />
         <div className="lb-tg">
           <label className="lb-tgl" htmlFor="lb-notes">

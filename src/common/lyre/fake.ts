@@ -796,6 +796,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           }
           name = shownTitle(t);
           for (const key of ["title", "notes", "energy", "role", "loop", "kind", "fadesOut", "resume", "follow"] as const) if (patch[key] !== undefined) (t as unknown as Record<string, unknown>)[key] = copy(patch[key]);
+          // --- r10-tracks --- Round 9 (At its end): the track's own profile, in the same write.
+          if (patch.profile !== undefined) t.profile = copy(patch.profile);
           settle(t);
           return asListed(t);
         });

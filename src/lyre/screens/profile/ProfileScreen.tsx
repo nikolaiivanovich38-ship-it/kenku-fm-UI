@@ -190,7 +190,7 @@ function ProfileBody({ editor }: { editor: ProfileEditor }) {
       </div>
       <div className="viewbody ap-body" data-scroll="body">
         <div className="ap-grid">
-          <Pane id="ap-wave" title="Waveform and listening" icon="wave" className="ap-wavepane" noMax kind="music" status={listenStatus(c)}>
+          <Pane id="ap-wave" title="Audio profile" icon="wave" className="ap-wavepane" noMax kind="music" status={listenStatus(c)}>
             <ListenBox c={c} />
           </Pane>
           <Pane id="ap-end" title="At the end" icon="loop" className="ap-endpane" noMax kind="plain" status={{ text: endStatus(c), tone: "idle" }}>

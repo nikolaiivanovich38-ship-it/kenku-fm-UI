@@ -170,7 +170,7 @@ describe("the handles", () => {
 });
 
 describe("2: zooming in on the waveform", () => {
-  const wave = () => within(region("Waveform and listening"));
+  const wave = () => within(region("Audio profile"));
   const strip = () => document.querySelector<HTMLElement>(".ap-wave")!;
 
   it("Zoom in and Zoom out widen and narrow the strip, saying how far in it is; at 1× Zoom out is off", async () => {
@@ -199,18 +199,19 @@ describe("2: zooming in on the waveform", () => {
 
 
 describe("what happens at the end", () => {
-  it("offers loop, next track and stop, with the loop chosen for t13", async () => {
+  it("round 10: offers the six ends of the track's details, with Loop with a crossfade chosen for t13", async () => {
     await open();
-    const group = atEnd().getByRole("group", { name: "At the end" });
-    expect(within(group).getByRole("radio", { name: /^Loop back to loop start/ })).toBeChecked();
-    expect(within(group).getByRole("radio", { name: /^Move to the next track/ })).not.toBeChecked();
-    expect(within(group).getByRole("radio", { name: /^Stop/ })).not.toBeChecked();
+    const group = atEnd().getByRole("group", { name: "At its end" });
+    expect(within(group).getAllByRole("radio").map((r) => r.closest("label")?.querySelector("b")?.textContent)).toEqual(["Loop", "Loop with a crossfade", "Next track", "Fade out", "Stop", "Play…"]);
+    expect(within(group).getByRole("radio", { name: /^Loop with a crossfade The same loop, with 2 s/ })).toBeChecked();
+    expect(within(group).getByRole("radio", { name: /^Loop Back to the loop start: 1:04 to 5:18/ })).not.toBeChecked();
+    expect(within(group).getByRole("radio", { name: /^Next track/ })).not.toBeChecked();
     expect(region("At the end")).toHaveTextContent("Loops from 1:04");
   });
 
   it("moving on drops the loop start and names the next track", async () => {
     const { api, user } = await open();
-    await user.click(atEnd().getByRole("radio", { name: /^Move to the next track/ }));
+    await user.click(atEnd().getByRole("radio", { name: /^Next track/ }));
     expect(region("At the end")).toHaveTextContent("Moves on at 5:18");
     expect(screen.queryByRole("slider", { name: "Loop start" })).toBeNull();
     expect(region("At the end")).toHaveTextContent("Next track");
@@ -297,11 +298,11 @@ describe("fades", () => {
 describe("listening while you set it", () => {
   it("Space previews from the playhead in your headphones only, and Space pauses", async () => {
     const { audio, user } = await open();
-    const transport = within(region("Waveform and listening")).getByRole("group", { name: "Preview: only you hear it" });
+    const transport = within(region("Audio profile")).getByRole("group", { name: "Preview: only you hear it" });
     await user.click(screen.getByRole("heading", { level: 1 }));
     await user.keyboard(" ");
     expect(within(transport).getByRole("button", { name: "Pause" })).toHaveAttribute("aria-pressed", "true");
-    expect(region("Waveform and listening")).toHaveTextContent(/Previewing/);
+    expect(region("Audio profile")).toHaveTextContent(/Previewing/);
     expect(audio.calls.find(([m]) => m === "previewTrack")?.slice(0, 2)).toEqual(["previewTrack", "t13"]);
     expect(audio.calls.some(([m]) => m === "playTrack")).toBe(false);
     await user.keyboard(" ");
@@ -311,7 +312,7 @@ describe("listening while you set it", () => {
 
   it("shows the position, the time to End, the loops and the volume after fades", async () => {
     await open();
-    const wave = region("Waveform and listening");
+    const wave = region("Audio profile");
     expect(wave).toHaveTextContent(/Position\s*0:00\.0/);
     expect(wave).toHaveTextContent(/Time to End\s*5:18\.0/);
     expect(wave).toHaveTextContent(/Looped\s*not yet/);
@@ -320,7 +321,7 @@ describe("listening while you set it", () => {
 
   it("Play on air sends the track to the first room with these settings", async () => {
     const { audio, user } = await open();
-    await user.click(within(region("Waveform and listening")).getByRole("button", { name: "Play on air" }));
+    await user.click(within(region("Audio profile")).getByRole("button", { name: "Play on air" }));
     expect(audio.calls).toContainEqual(["playTrack", "t13", { fadeMs: 3000 }]);
     expect(document.getElementById("lyre-toast")).toHaveTextContent("On air: Eerie dread");
   });
@@ -355,7 +356,7 @@ describe("the preview's sound follows the profile shown", () => {
     const { audio, user } = await open();
     slider("Playhead").focus();
     await user.keyboard("{Shift>}{ArrowRight}{ArrowRight}{/Shift}");
-    await user.click(within(region("Waveform and listening")).getByRole("button", { name: "Play" }));
+    await user.click(within(region("Audio profile")).getByRole("button", { name: "Play" }));
     const [, id, options] = previews(audio)[0] as [string, string, { startAtMs: number; profile: { startMs: number; endMs: number; after: string; loopStartMs: number }; quiet: boolean }];
     expect(id).toBe("t13");
     expect(options.startAtMs).toBe(20_000);
@@ -372,7 +373,7 @@ describe("the preview's sound follows the profile shown", () => {
   it("the playhead, the loop count and the meter follow where the preview really is", async () => {
     const { audio, user } = await open();
     await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
-    const wave = region("Waveform and listening");
+    const wave = region("Audio profile");
     position(audio, 312.5);
     expect(wave).toHaveTextContent(/Position\s*5:12\.5/);
     expect(value("Playhead")).toBe(312);
@@ -392,7 +393,7 @@ describe("the preview's sound follows the profile shown", () => {
   it("Play loops from Start to End for a track that does not loop, until stopped; the clock follows every pass (BUG-17)", async () => {
     // In the scene "The abbey ruins", t13 ends at 3:10 and moves on.
     const { audio, user } = await open("profile/t13/sc:crown:s14:sc3");
-    const wave = region("Waveform and listening");
+    const wave = region("Audio profile");
     await user.click(within(wave).getByRole("button", { name: "Play" }));
     const [, , options] = previews(audio)[0] as [string, string, { startAtMs: number; profile: { startMs: number; endMs: number; after: string; loopStartMs: number; loopCrossfadeMs: number } }];
     expect(options.profile).toMatchObject({ startMs: 0, endMs: 190_000, after: "loop", loopStartMs: 0, loopCrossfadeMs: 0 });
@@ -419,7 +420,7 @@ describe("the preview's sound follows the profile shown", () => {
 
   it("a looping track's last 10 s keep looping until stopped, the clock following every pass (BUG-17)", async () => {
     const { audio, user } = await open();
-    const wave = region("Waveform and listening");
+    const wave = region("Audio profile");
     await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
     act(() => audio.setNowPlaying({ preview: { key: "t13", label: "Eerie dread" } }));
     position(audio, 312.5);
@@ -439,7 +440,7 @@ describe("the preview's sound follows the profile shown", () => {
   it("while the file loads the clock may run ahead; the first position puts it back without counting a loop (review 2)", async () => {
     const { audio, user } = await open();
     await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
-    const wave = region("Waveform and listening");
+    const wave = region("Audio profile");
     await act(() => new Promise((r) => setTimeout(r, 600)));
     position(audio, 308);
     expect(wave).toHaveTextContent(/Position\s*5:08\.0/);
@@ -451,7 +452,7 @@ describe("the preview's sound follows the profile shown", () => {
 
   it("arrow keys on the playhead while it plays start the sound again once, after the keys rest (review 4)", async () => {
     const { audio, user } = await open();
-    await user.click(within(region("Waveform and listening")).getByRole("button", { name: "Play" }));
+    await user.click(within(region("Audio profile")).getByRole("button", { name: "Play" }));
     position(audio, 0.2);
     expect(previews(audio)).toHaveLength(1);
     slider("Playhead").focus();
@@ -459,7 +460,7 @@ describe("the preview's sound follows the profile shown", () => {
     expect(previews(audio)).toHaveLength(1);
     // The old sound's positions do not pull the playhead back while the new one is on its way.
     position(audio, 0.3);
-    expect(region("Waveform and listening")).toHaveTextContent(/Position\s*0:05/);
+    expect(region("Audio profile")).toHaveTextContent(/Position\s*0:05/);
     await waitFor(() => expect(previews(audio)).toHaveLength(2));
     expect((previews(audio)[1][2] as { startAtMs: number }).startAtMs).toBeGreaterThanOrEqual(5000);
   });
@@ -529,7 +530,7 @@ describe("a preview that cannot play (review w3-polish 1)", () => {
   it("refused, the clock does not start and nothing says it plays", async () => {
     const { audio, user } = await open();
     audio.answer = { ok: false, message: "Unable to preview: Eerie dread" };
-    const wave = region("Waveform and listening");
+    const wave = region("Audio profile");
     await user.click(within(wave).getByRole("button", { name: "Play" }));
     await act(() => new Promise((r) => setTimeout(r, 300)));
     expect(within(wave).getByRole("button", { name: "Play" })).toHaveAttribute("aria-pressed", "false");
@@ -539,7 +540,7 @@ describe("a preview that cannot play (review w3-polish 1)", () => {
 
   it("failing while it loads, the clock stops where it is, says why, and never claims End", async () => {
     const { audio, user } = await open();
-    const wave = region("Waveform and listening");
+    const wave = region("Audio profile");
     await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
     act(() => audio.setNowPlaying({ preview: { key: "t13", label: "Eerie dread" } }));
     act(() => {
@@ -555,13 +556,13 @@ describe("a preview that cannot play (review w3-polish 1)", () => {
 });
 
 describe("the file's loudness (peaks from the library)", () => {
-  const meterBar = () => region("Waveform and listening").querySelector<HTMLElement>(".ap-meter-bar")!;
+  const meterBar = () => region("Audio profile").querySelector<HTMLElement>(".ap-meter-bar")!;
 
   it("while unknown, the meter shows the even band", async () => {
     const api = createFakeLyreApi();
     vi.spyOn(api.library, "peaksOf").mockResolvedValue(null);
     const { user } = await open("profile/t13", api);
-    await user.click(within(region("Waveform and listening")).getByRole("button", { name: "Play" }));
+    await user.click(within(region("Audio profile")).getByRole("button", { name: "Play" }));
     expect(meterBar().style.width).toBe("75%");
   });
 
@@ -570,7 +571,7 @@ describe("the file's loudness (peaks from the library)", () => {
     const peaks = vi.spyOn(api.library, "peaksOf").mockResolvedValue(new Array(1000).fill(0));
     const { user } = await open("profile/t13", api);
     await waitFor(() => expect(peaks).toHaveBeenCalledWith("t13"));
-    await user.click(within(region("Waveform and listening")).getByRole("button", { name: "Play" }));
+    await user.click(within(region("Audio profile")).getByRole("button", { name: "Play" }));
     await waitFor(() => expect(meterBar().style.width).toBe("35%"));
   });
 });
@@ -630,16 +631,32 @@ describe("markers and keys", () => {
     expect((await savedProfile(api))?.startAtMs ?? null).toBeNull();
   });
 
-  it("0.5.1: Pick up where it stopped is here for a music track, kept with the track; an effect has none", async () => {
+  it("0.5.1: Next time, start where it stopped is here for a music track, kept with the track; an effect has none", async () => {
     const { api, user } = await open();
-    const pickUp = atEnd().getByRole("switch", { name: "Pick up where it stopped" });
+    const pickUp = atEnd().getByRole("switch", { name: "Next time, start where it stopped" });
     expect(pickUp).not.toBeChecked();
     await user.click(pickUp);
     expect(pickUp).toBeChecked();
     await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t13")?.resume).toBe(true));
     go("profile/f04");
     await screen.findByRole("heading", { level: 1, name: /Audio profile/ });
-    expect(screen.queryByRole("switch", { name: "Pick up where it stopped" })).toBeNull();
+    expect(screen.queryByRole("switch", { name: "Next time, start where it stopped" })).toBeNull();
+  });
+
+  it("round 10: Fade out and Stop at the track's own place; Play… at its end opens the picker and names what follows", async () => {
+    const { api, user } = await open();
+    await user.click(atEnd().getByRole("radio", { name: /^Fade out/ }));
+    await waitFor(async () => {
+      const t = (await api.library.listTracks()).find((x) => x.id === "t13");
+      expect([t?.fadesOut, t?.profile?.after, t?.profile?.fadeOut?.ms]).toEqual([true, "next", 4000]);
+    });
+    await waitFor(() => expect(atEnd().getByRole("radio", { name: /^Fade out/ })).toBeChecked());
+    await user.click(atEnd().getByRole("radio", { name: /^Play…/ }));
+    const dialog = within(screen.getByRole("dialog", { name: "When it ends, play" }));
+    await user.click(dialog.getByRole("radio", { name: /^Crypt ambush/ }));
+    await user.click(dialog.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(atEnd().getByRole("radio", { name: /^Play… Then plays Crypt ambush/ })).toBeChecked());
+    expect((await api.library.listTracks()).find((x) => x.id === "t13")?.follow).toEqual({ kind: "playlist", id: "p-crypt" });
   });
 
   it("DAT-3: Play on air from a marker starts the track there", async () => {

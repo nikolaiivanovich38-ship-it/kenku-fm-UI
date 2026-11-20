@@ -131,7 +131,7 @@ describe("0.5.2: the Audio profile's preview after Back (item 24) and a change w
       window.dispatchEvent(new HashChangeEvent("hashchange"));
     });
     await screen.findByRole("slider", { name: "End" });
-    await userEvent.click(within(screen.getByRole("region", { name: "Waveform and listening" })).getByRole("button", { name: "Play" }));
+    await userEvent.click(within(screen.getByRole("region", { name: "Audio profile" })).getByRole("button", { name: "Play" }));
     await playOn(sound, 2);
     expect(sound.audio.getNowPlaying().preview?.trackId).toBe("t13");
     await userEvent.click(screen.getByRole("button", { name: /^Back to/ }));

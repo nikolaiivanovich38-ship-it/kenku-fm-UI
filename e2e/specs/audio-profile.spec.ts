@@ -355,12 +355,12 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("Pick up where it stopped is in the Audio profile too, the track's own choice (\"I don't see pickup where it stops in details or audio profile views\")", async ({ page }) => {
     appOnly();
     await openRoute(page, "profile/t13");
-    const pickUp = page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: "Pick up where it stopped" });
+    const pickUp = page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: /^(Pick up where it stopped|Next time, start where it stopped)$/ });
     await expect(pickUp).not.toBeChecked();
     await pickUp.check();
     await expect(page.getByRole("status").filter({ hasText: /picks up where it stopped/ })).toBeVisible();
     await reopen(page);
-    await expect(page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: "Pick up where it stopped" })).toBeChecked();
+    await expect(page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: /^(Pick up where it stopped|Next time, start where it stopped)$/ })).toBeChecked();
   });
 });
 
