@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { loadShellSettings, saveShellSettings, type PanelPlace, type ShellSettings } from "./settings";
+import { DEFAULT_THEME } from "./themes";
 
 interface ShellSettingsValue {
   settings: ShellSettings;
@@ -58,4 +59,13 @@ export function useRememberedPlace(id: string, fallback: PanelPlace): [PanelPlac
   }
   const place = shared.settings.places?.[id] ?? fallback;
   return [place, (next) => shared.update({ places: { ...shared.settings.places, [id]: next } })];
+}
+
+/**
+ * Set up Lyre's "Choose a theme": a theme was chosen in Look and feel. A theme other than the default, kept from before
+ * the flag was written (0.5.x), counts as chosen too. Without a provider (a component test) it reads the storage.
+ */
+export function useThemeWasChosen(): boolean {
+  const settings = useContext(ShellSettingsContext)?.settings ?? loadShellSettings();
+  return settings.themeChosen === true || settings.theme !== DEFAULT_THEME;
 }

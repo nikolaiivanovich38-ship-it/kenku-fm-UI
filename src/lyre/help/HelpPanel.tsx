@@ -17,6 +17,7 @@ import { diagnosticsResultWords, type DiagnosticsBridge, type DiagnosticsResult 
 import { LYRE_VERSION } from "../version";
 import { SCREEN_HELP, TOURS, type ScreenTourStart, type TourKey, type TourPlaces } from "./tours";
 import { useSetupProgress } from "./setup";
+import { useThemeWasChosen } from "../shell/ShellSettings";
 import { routeFromHash } from "../shell/routes";
 import { useHasLyreApi, useBoards, useCampaigns, useTracks } from "../api";
 import "./help.css";
@@ -276,7 +277,7 @@ function useTourPlaces(): TourPlaces {
 
 /** Set up Lyre: nine tasks ticked from the library, each with Show me; one line once all are done or it is hidden. */
 function SetUpLyre({ onShowMe }: { onShowMe: (key: TourKey) => void }) {
-  const progress = useSetupProgress(themeWasChosen());
+  const progress = useSetupProgress(useThemeWasChosen());
   const [showDone, setShowDone] = useState(false);
   const all = progress.done === progress.of;
   const folded = progress.hidden || (all && !showDone);
@@ -322,13 +323,4 @@ function SetUpLyre({ onShowMe }: { onShowMe: (key: TourKey) => void }) {
       )}
     </section>
   );
-}
-
-/** "Choose a theme (optional)": a theme was chosen in Look and feel at some time (it is remembered). */
-function themeWasChosen(): boolean {
-  try {
-    return /"theme"/.test(localStorage.getItem("lyre-shell") ?? "");
-  } catch {
-    return false;
-  }
 }

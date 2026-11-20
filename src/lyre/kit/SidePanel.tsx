@@ -16,7 +16,7 @@
  */
 import React, { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { panelToGiveWay, placeInOrder, type SidePanelEdge, type SidePanelKind, type SidePanelRoom } from "./sidePanelRoom";
+import { NARROW_WINDOW_PX, panelToGiveWay, placeInOrder, type SidePanelEdge, type SidePanelKind, type SidePanelRoom } from "./sidePanelRoom";
 import { trackDetailsHref } from "./trackName";
 
 export type { SidePanelEdge, SidePanelKind, SidePanelRoom } from "./sidePanelRoom";
@@ -104,7 +104,16 @@ export function SidePanelProvider({ children, openTrackPanel = goToTrackLibrary,
   const measure = useRef(measureRoom);
   measure.current = measureRoom;
 
+  // Each open panel's opener (what had focus when it opened), for focus to go back to if the panel closes with it.
+  const openers = useRef(new Map<SidePanelKind, HTMLElement>());
+  const latest = useRef(entries);
+  latest.current = entries;
   const put = useCallback((entry: Entry) => {
+    const focused = document.activeElement;
+    if (!latest.current.some((e) => e.kind === entry.kind)) {
+      if (focused instanceof HTMLElement && focused !== document.body) openers.current.set(entry.kind, focused);
+      else openers.current.delete(entry.kind);
+    }
     setEntries((current) => {
       const at = current.findIndex((e) => e.kind === entry.kind);
       if (at < 0) return [...current, entry];
@@ -140,9 +149,38 @@ export function SidePanelProvider({ children, openTrackPanel = goToTrackLibrary,
     return refs.current[kind] as (element: HTMLElement | null) => void;
   }, []);
 
+  // Below 760 px a panel covers the screen (side-panels.css): the screen is inert then, so Tab and a screen reader stay
+  // in the panel (WCAG 2.4.11). Checked after each change of panels and each resize.
+  const coverScreen = useCallback(() => {
+    const app = document.getElementById("app");
+    if (!app) return;
+    const width = measure.current().window;
+    app.toggleAttribute("inert", latest.current.length > 0 && width > 0 && width < NARROW_WINDOW_PX);
+  }, []);
+  useLayoutEffect(coverScreen, [entries, coverScreen]);
+  useLayoutEffect(() => {
+    window.addEventListener("resize", coverScreen);
+    return () => {
+      window.removeEventListener("resize", coverScreen);
+      document.getElementById("app")?.removeAttribute("inert");
+    };
+  }, [coverScreen]);
+
+  // A panel that closed with focus inside it (the room rule, its owner going away) leaves focus on the page itself:
+  // it goes back to what opened the panel, else into the panel still open, else to the screen's main heading.
+  const wasOpen = useRef<readonly SidePanelKind[]>([]);
+  useLayoutEffect(() => {
+    const open = entries.map((e) => e.kind);
+    const gone = wasOpen.current.filter((kind) => !open.includes(kind));
+    wasOpen.current = open;
+    if (gone.length === 0) return;
+    const back = gone.map((kind) => openers.current.get(kind));
+    for (const kind of gone) openers.current.delete(kind);
+    if (document.activeElement && document.activeElement !== document.body) return;
+    focusAfterPanel(back);
+  }, [entries]);
+
   // The screen keeps its room: after each change of panels (drawn, so the widths are the new ones) and each resize.
-  const latest = useRef(entries);
-  latest.current = entries;
   const keepRoom = useCallback(() => {
     const open = latest.current;
     const gives = panelToGiveWay(
@@ -169,6 +207,22 @@ export function SidePanelProvider({ children, openTrackPanel = goToTrackLibrary,
       <ShownContext.Provider value={shown}>{children}</ShownContext.Provider>
     </RegistryContext.Provider>
   );
+}
+
+/** Somewhere sensible for focus after a panel closed with it: an opener still usable, an open panel, the main heading. */
+function focusAfterPanel(openers: (HTMLElement | undefined)[]): void {
+  const usable = (e: Element | null | undefined): e is HTMLElement => e instanceof HTMLElement && e.isConnected && !e.closest("[inert], [hidden], [aria-hidden='true']");
+  const opener = openers.find(usable);
+  const panels = Array.from(document.querySelectorAll(".side-panel-body"));
+  const inPanel = panels
+    .reverse()
+    .map((p) => p.querySelector<HTMLElement>("h2, h1, button:not([disabled]), input:not([disabled]), [tabindex]"))
+    .find(usable);
+  const heading = document.querySelector<HTMLElement>("#view h1") ?? document.querySelector<HTMLElement>("main h1");
+  const to = opener ?? inPanel ?? (usable(heading) ? heading : null);
+  if (!to) return;
+  if (to.matches("h1, h2") && !to.hasAttribute("tabindex")) to.setAttribute("tabindex", "-1");
+  to.focus({ preventScroll: true });
 }
 
 /** Where the panels of one edge of #work are drawn, in SIDE_PANEL_ORDER. */

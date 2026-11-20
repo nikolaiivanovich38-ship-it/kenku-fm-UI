@@ -221,6 +221,97 @@ describe("the side-panel host: panels beside the screen, not over it (R10-FIX §
   });
 });
 
+/* Code review of 0.6.0 (R60-CODE-REVIEW.md M9, M10): focus never drops to the page when a panel closes, and a panel
+   that takes the whole window keeps Tab out of the screen under it. */
+describe("the side-panel host: focus and the covered screen", () => {
+  function PanelWithButton({ kind, label }: { kind: SidePanelKind; label: string }) {
+    const { openSidePanel } = useSidePanels();
+    return (
+      <button type="button" onClick={() => openSidePanel(kind, <aside aria-label={label}><button type="button">Inside {label}</button></aside>)}>
+        Open {label}
+      </button>
+    );
+  }
+
+  it("when the host closes a panel that had focus, focus goes back to what opened it", async () => {
+    let room: SidePanelRoom = { window: 1920, screen: 1000 };
+    const user = userEvent.setup();
+    render(
+      <Window room={() => room}>
+        <PanelWithButton kind="trackPanel" label="Track panel" />
+        <Opener kind="help" label="Help" />
+      </Window>,
+    );
+    await user.click(screen.getByRole("button", { name: "Open Track panel" }));
+    await user.click(screen.getByRole("button", { name: "Open Help" }));
+    screen.getByRole("button", { name: "Inside Track panel" }).focus();
+    room = { window: 1100, screen: 500 };
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(panelNames()).toEqual(["Help"]);
+    expect(screen.getByRole("button", { name: "Open Track panel" })).toHaveFocus();
+  });
+
+  it("a screen's own panel that goes away with what showed it leaves focus on the screen's main heading", async () => {
+    function Preview() {
+      const [on, setOn] = useState(true);
+      return (
+        <>
+          <h1>The abbey ruins</h1>
+          {on && (
+            <SidePanel kind="queue">
+              <aside aria-label="Queue">
+                <button type="button" onClick={() => setOn(false)}>
+                  Stop the preview
+                </button>
+              </aside>
+            </SidePanel>
+          )}
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    render(
+      <Window>
+        <Preview />
+      </Window>,
+    );
+    await user.click(screen.getByRole("button", { name: "Stop the preview" }));
+    expect(panelNames()).toEqual([]);
+    expect(screen.getByRole("heading", { name: "The abbey ruins" })).toHaveFocus();
+  });
+
+  it("below 760 px a panel takes the window and the screen under it is out of reach (inert) until it closes", async () => {
+    const room = () => ({ window: 700, screen: 700 });
+    const user = userEvent.setup();
+    render(
+      <Window room={room}>
+        <Opener kind="help" label="Help" />
+      </Window>,
+    );
+    const app = document.getElementById("app")!;
+    expect(app).not.toHaveAttribute("inert");
+    await user.click(screen.getByRole("button", { name: "Open Help" }));
+    expect(app).toHaveAttribute("inert");
+    act(() => {
+      screen.getByRole("button", { name: "Close Help" }).click();
+    });
+    expect(app).not.toHaveAttribute("inert");
+  });
+
+  it("in a wide window the screen beside a panel stays usable", async () => {
+    const user = userEvent.setup();
+    render(
+      <Window room={() => ({ window: 1280, screen: 900 })}>
+        <Opener kind="help" label="Help" />
+      </Window>,
+    );
+    await user.click(screen.getByRole("button", { name: "Open Help" }));
+    expect(document.getElementById("app")).not.toHaveAttribute("inert");
+  });
+});
+
 describe("<SidePanel>: a screen's own panel, drawn beside the screen", () => {
   const Owner = createContext("none");
   function Shown() {

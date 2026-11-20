@@ -76,6 +76,24 @@ describe("Set up Lyre (round 9 §4, round 10)", () => {
   });
 });
 
+describe("Choose a theme (R60-CODE-REVIEW.md M12)", () => {
+  const themeTask = () => within(within(help()).getByRole("region", { name: "Set up Lyre" })).getAllByRole("listitem")[8];
+
+  it("is not ticked by folding a box or anything else the shell remembers", async () => {
+    localStorage.setItem("lyre-shell", JSON.stringify({ theme: "candle", rail: "min", panes: { "cp-sessions": "c" } }));
+    start("campaigns");
+    await userEvent.click(screen.getByRole("button", { name: "Help" }));
+    expect(themeTask()).toHaveTextContent("Choose a theme (optional), to do");
+  });
+
+  it("is ticked once a theme is chosen in Look and feel", async () => {
+    start("look");
+    await userEvent.click(await screen.findByRole("button", { name: "Use this theme: Parchment" }));
+    await userEvent.click(screen.getByRole("button", { name: "Help" }));
+    expect(themeTask()).toHaveTextContent("Choose a theme (optional), done");
+  });
+});
+
 describe("the first start (Nik, 18 Nov 03:14, answer 5b)", () => {
   it("Done on the tour's last step opens Help at Set up Lyre", async () => {
     const user = userEvent.setup();
