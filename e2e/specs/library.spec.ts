@@ -3,7 +3,7 @@
  * (design/prototype/tools/lb-flow.js, lb-size.js and src/views/library.js).
  */
 import type { Locator, Page } from "@playwright/test";
-import { appOnly, expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
+import { appOnly, expect, test } from "./support/test";
 import { openRoute, reopen } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -396,7 +396,6 @@ test.describe("round 5: shape, names in scenes, Use in… and missing files", ()
 
 /* Round 6 (design/prototype/ROUND6.md): less text on screen; what leaves the screen is read out instead. */
 test.describe("round 6: the key legend", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("the keys show under the list while the keyboard is in it, and are read out with the list", async ({ page }) => {
     await openRoute(page, "library");
@@ -483,7 +482,6 @@ test.describe("round 5: volume normalisation", () => {
 /* Round 7 (design/prototype/ROUND7.md): tracks behave as tagged (PLY-4), follow-with hand-overs (SHW-3), and dragging
    several selected tracks to another list (ORG-5). */
 test.describe("round 7: how a track behaves", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("a sting never loops: its loop choices are off, and say why", async ({ page }) => {
     // Round 9 (item 18): a sting is a Short cue; At its end offers no loop for it.
@@ -517,7 +515,6 @@ test.describe("round 7: how a track behaves", () => {
 });
 
 test.describe("round 7: dragging selected tracks to another list", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("two ticked tracks dragged onto a playlist are both added", async ({ page }) => {
     await openRoute(page, "library");
@@ -566,7 +563,6 @@ test.describe("Library targets", () => {
    elsewhere." */
 test.describe("0.5.1: Prep and Live in the Library", () => {
   test("the Library's top bar has Prep | Live; Prep is on, and Live opens the session loaded in Live", async ({ page }) => {
-    expectFailureUntilBuilt("feat");
     await openRoute(page, "library");
     const modes = page.getByRole("main").getByRole("group", { name: "Prep or live" });
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
@@ -580,7 +576,6 @@ test.describe("0.5.1: Prep and Live in the Library", () => {
    a track". It showed only for underscores and loop beds. */
 test.describe("0.5.1: Pick up where it stopped for every music track", () => {
   test("a track of any role but a sting, or with no role yet, has Pick up where it stopped in its details; a sting has not", async ({ page }) => {
-    expectFailureUntilBuilt("feat");
     await openRoute(page, "library");
     for (const title of ["Ashes", "Haunted sea shanty"]) {
       await openTrack(page, title);
@@ -884,7 +879,6 @@ test.describe("round 10: removing tracks from the Track library", () => {
   const eerie = "Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)";
 
   test("a row's ⋯ has Remove from library: it asks first, names the scene that uses it, and Undo brings it back", async ({ page }) => {
-    metByTheAppAlready("0.5.2 built Remove from library in a row's ⋯ with these words (RemoveTracks.tsx)");
     await openRoute(page, "library");
     await row(page, eerie).getByRole("button", { name: `More for ${eerie}` }).click();
     await page.getByRole("menuitem", { name: "Remove from library…", exact: true }).click();

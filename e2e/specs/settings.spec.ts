@@ -1,11 +1,10 @@
 /**
  * Settings in Lyre (OUT-8, design round 6 part 2: design/prototype/ROUND6.md, "Your notes on 0.4.0", and
  * src/views/settings.js). Nik asked for proper directions for adding a bot, inviting it to the server before Lyre has
- * its token, and for Settings, tokens and new bots in the new interface. The screen is not built yet, so every check
- * here is expected to fail in the app until "settings" is in support/built.ts.
+ * its token, and for Settings, tokens and new bots in the new interface.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { arriveFromKenkuFM, openRoute, reopen } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -15,7 +14,6 @@ const sheet = (page: Page) => page.getByRole("dialog");
 test.describe("Settings", () => {
   // Round 6 part 2 (OUT-8): Settings in Lyre is a round 6 screen, not built in the app yet.
   test("is in the menu, has Back to where Nik was (round 6 part 7), and lists each bot with its status, servers and a masked token", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "rooms-settings");
     await openRoute(page, "campaigns");
     await page.getByRole("link", { name: "Settings", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Settings");
@@ -29,7 +27,6 @@ test.describe("Settings", () => {
   });
 
   test("Disconnect and Connect a bot", async ({ page }) => {
-    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     const side = bots(page).getByRole("group", { name: "Lyre Side" });
     await side.getByRole("button", { name: "Disconnect" }).click();
@@ -39,7 +36,6 @@ test.describe("Settings", () => {
   });
 
   test("Replace… takes a new token and shows only its last four characters", async ({ page }) => {
-    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     const side = bots(page).getByRole("group", { name: "Lyre Side" });
     await side.getByRole("button", { name: "Replace the token of Lyre Side" }).click();
@@ -50,7 +46,6 @@ test.describe("Settings", () => {
   });
 
   test("Remove is behind the bot's ⋯ menu, with an Undo", async ({ page }) => {
-    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     await bots(page).getByRole("button", { name: "More for Lyre Side" }).click();
     await page.getByRole("menuitem", { name: "Remove Lyre Side" }).click();
@@ -60,7 +55,6 @@ test.describe("Settings", () => {
   });
 
   test("the other settings Lyre still needs are here; the rare ones are folded", async ({ page }) => {
-    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     // Round 7: Sound to Discord is set once, so it is folded with the other rare settings. 0.5.1: Website tabs and
     // Local files went with the old window, and Remote control is hidden until Stream Deck support (checked below).
@@ -75,7 +69,6 @@ test.describe("Settings", () => {
 
 test.describe("Add a bot, in the order Discord needs", () => {
   // Round 6 part 2 (OUT-8): Settings in Lyre is a round 6 screen, not built in the app yet.
-  test.beforeEach(() => expectFailureUntilBuilt("rooms-settings"));
   test("three steps: create it, invite it first, then connect it with its token", async ({ page }) => {
     await openRoute(page, "settings");
     await bots(page).getByRole("button", { name: "Add a bot" }).click();
@@ -165,7 +158,6 @@ test.describe("Add a bot, in the order Discord needs", () => {
    the field it goes in, and the token step says Discord shows the token once. */
 test.describe("round 6, part 4: Add a bot in the order it is done", () => {
   test("step 2 says where the Application ID is before its field; step 3 says Discord shows the token once", async ({ page }) => {
-    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     await bots(page).getByRole("button", { name: "Add a bot" }).click();
     await sheet(page).getByRole("button", { name: "Next" }).click();
@@ -191,7 +183,6 @@ test.describe("round 7: headphones and speakers", () => {
   test("the preview has its own device, remembered; no On air device (lead decision, 7 Nov: heard only through Discord)", async ({ page }) => {
     // The app lists the computer's own devices; test builds add the prototype's stand-ins (src/lyre/audio/standInDevices.ts),
     // since the e2e machine has none. Playing on a stand-in falls back to the default device.
-    expectFailureUntilBuilt("live", "rooms-settings");
     await openRoute(page, "settings");
     const box = await unfold(page, "Headphones and speakers");
     await box.getByRole("combobox", { name: "Preview (only you)" }).selectOption("Headset (Arctis 7)");
@@ -200,7 +191,6 @@ test.describe("round 7: headphones and speakers", () => {
   });
 
   test("one headset can be split: the preview in one ear, On air in the other", async ({ page }) => {
-    expectFailureUntilBuilt("rooms-settings"); // w6-rooms: passes without Live (it was marked live too)
     await openRoute(page, "settings");
     const box = await unfold(page, "Headphones and speakers");
     await expect(box.getByRole("radio", { name: "Preview in the left ear" })).toHaveCount(0);
@@ -213,7 +203,6 @@ test.describe("round 7: headphones and speakers", () => {
 
 test.describe("round 7: crossfade and keyboard shortcuts", () => {
   test("the crossfade between tracks has a default, in Sound to Discord", async ({ page }) => {
-    expectFailureUntilBuilt("rooms-settings"); // w6-rooms: passes without Live (it was marked live too)
     await openRoute(page, "settings");
     const box = await unfold(page, "Sound to Discord");
     const x = box.getByRole("combobox", { name: "Between tracks" });
@@ -223,7 +212,6 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
   });
 
   test("every shortcut is listed with its key; one can be changed by pressing the new key, and reset", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "rooms-settings"); // w6-rooms: needs the shell's Find and play, not Live
     await openRoute(page, "settings");
     const box = await unfold(page, "Keyboard shortcuts");
     const palette = box.getByRole("row", { name: /^Find and play/ });
@@ -241,7 +229,6 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
   });
 
   test("a key already in use is refused, and Esc keeps the old key", async ({ page }) => {
-    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     const box = await unfold(page, "Keyboard shortcuts");
     const palette = box.getByRole("row", { name: /^Find and play/ });
@@ -253,7 +240,6 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
   });
 
   test("a printable sheet lists every key", async ({ page }) => {
-    expectFailureUntilBuilt("rooms-settings"); // w6-rooms: passes without Live (it was marked live too)
     await openRoute(page, "settings");
     const box = await unfold(page, "Keyboard shortcuts");
     await box.getByRole("button", { name: "Printable sheet" }).click();
@@ -276,7 +262,6 @@ test.describe("Settings shows Lyre's version", () => {
    until Stream Deck". Sound to Discord stays, now kept by Lyre itself, with Empty the audio cache (it was part of the
    old Clear website data). */
 test.describe("0.5.1: Settings without the old window", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
 
   test("Website tabs, Local files and Remote control are not in Settings", async ({ page }) => {
     await openRoute(page, "settings");
@@ -312,7 +297,6 @@ test.describe("0.5.1: Settings without the old window", () => {
    the old window's migration 6, with its LegacyTokenNotice). Someone coming straight from Kenku FM sees, once, under
    Settings › Discord bots, that Lyre moved the token and keeps it encrypted now. */
 test.describe("0.5.1: a bot token from Kenku FM", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
 
   test("a token Kenku FM kept in plain text: Settings says once that Lyre moved it and keeps it encrypted", async ({ page }) => {
     await arriveFromKenkuFM(page, { plainToken: true }, "settings");
@@ -351,7 +335,7 @@ test.describe("0.5.1: a split headset only while On air plays too", () => {
   });
 });
 
-/* Round 10 (design/prototype/ROUND10.md; Nik, 18 Nov 03:14, answers 2 and 3). Not built yet. */
+/* Round 10 (design/prototype/ROUND10.md; Nik, 18 Nov 03:14, answers 2 and 3). */
 test.describe("round 10: bots join only when Nik joins them; Rooms under Settings", () => {
 
   test("a bot has a Starting volume and no Joins when Lyre starts", async ({ page }) => {

@@ -6,6 +6,10 @@
  * every screen, so each of its tests names the screen it belongs to with `expectFailureUntilScreenBuilt`. A check of
  * round 6 or 7 names the streams that build it with `expectFailureUntilBuilt` (support/built.ts). A check of 0.5.1's
  * features, built in the app with no prototype round, calls `appOnly()`.
+ *
+ * 0.6.0 (Nik, 20 Nov: "We need our prototype to either be what ships or ahead of it"): every stream is built, so no
+ * check calls `expectFailureUntilBuilt` or `metByTheAppAlready` any more; both stay for the next release's streams.
+ * `appOnly()` is kept only for what a browser page cannot do (real files, audio devices, Discord, the operating system).
  */
 import { test as base, expect } from "@playwright/test";
 import path from "path";
@@ -49,12 +53,13 @@ export function metByTheAppAlready(why: string): void {
 }
 
 /**
- * 0.5.1: a check of something built straight in the app from Nik's 0.5.0 test, with no prototype round ("They don't
- * need to be designed or reviewed", 11 Nov 20:41). The prototype does not have it, so the prototype project skips the
- * check; the app project runs it like any other. Call it first in the test.
+ * A check of something a browser page cannot do: real files on disk, real audio devices, Discord or the operating
+ * system. The prototype project skips the check; the app project runs it like any other. Call it first in the test,
+ * with a comment saying what the page cannot do. (0.5.1 used it for features built in the app with no prototype round;
+ * since 0.6.0 the prototype has those too: AGENT_RULES.md, "The prototype is what ships or ahead of it".)
  */
 export function appOnly(): void {
-  base.skip(base.info().project.name !== "app", "Built in the app only (0.5.1, no prototype round)");
+  base.skip(base.info().project.name !== "app", "A browser page cannot do this (real files, audio devices, Discord or the operating system)");
 }
 
 export const test = base.extend<{ screenName: string }>({

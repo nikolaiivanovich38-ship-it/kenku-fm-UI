@@ -4,7 +4,7 @@
  * (t13), which loops from 1:04 to 5:18 and has its own settings in the scene "The abbey ruins".
  */
 import type { Page } from "@playwright/test";
-import { appOnly, expect, expectFailureUntilBuilt, test } from "./support/test";
+import { appOnly, expect, test } from "./support/test";
 import { openRoute, reopen } from "./support/target";
 
 // Round 10 (prep review S1): the first box is "Audio profile" in the design; the app's name until built: Waveform and listening.
@@ -129,7 +129,6 @@ test.describe("fades", () => {
 
   test("a looping track also has a loop crossfade that smooths the jump back", async ({ page }) => {
     // Round 6: what it does is read out with the group (and is its hover text) instead of a line on screen.
-    expectFailureUntilBuilt("prep");
     await openRoute(page, "profile/t13");
     await expect(fades(page).getByRole("group", { name: "Crossfade the loop" })).toHaveAccessibleDescription("Smooths the jump back to 1:04");
     await expect(fades(page).getByRole("textbox", { name: "loop crossfade length in seconds" })).toHaveValue("2");
@@ -304,7 +303,6 @@ test.describe("round 5: volume normalisation", () => {
 /* Round 7 (design/prototype/ROUND7.md, DAT-3): the mix-out marker, where the next track crossfades in, and playing on
    air from a marker. Loop in and loop out are the Loop and End handles a loop bed already has. */
 test.describe("round 7: mix out and playing from a marker", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
   const markers = (page: Page) => page.getByRole("region", { name: "Markers", exact: true });
 
   test("one marker can be the mix-out point; choosing another moves it", async ({ page }) => {

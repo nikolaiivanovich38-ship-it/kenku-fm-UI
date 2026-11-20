@@ -12,8 +12,7 @@
 import type { Page } from "@playwright/test";
 import fs from "fs";
 import path from "path";
-import type { Stream } from "./support/built";
-import { expect, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, test } from "./support/test";
+import { expect, expectFailureUntilScreenBuilt, test } from "./support/test";
 import { BASE_THEMES, isWindowMaximised, knownAxeIssues, knownLayoutIssue, lyreIsTheWholeWindow, notLyre, openRoute, pageFillsTheWindow, showTheme, windowButtonsBox, type Box, type Theme } from "./support/target";
 
 // Injected with page.evaluate: the app's Lyre page has a content policy that refuses added script tags.
@@ -22,15 +21,13 @@ const AXE_SOURCE = fs.readFileSync(AXE_PATH, "utf8");
 const AXE_VERSION = "4.14.0";
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
-/** `owner` is the spec file (screen) that has to be built for the sweep to be required in the app; `streams`, for a
- *  screen that is new or redesigned in round 6 or 7, names the 0.5.0 streams that build it (BUILD-LIST.md lists the
- *  sweep under the first). */
-type Screen = { name: string; route: string; owner: string; streams?: [Stream, ...Stream[]]; prepare?: (page: Page, options: { playing: boolean }) => Promise<void> };
+/** `owner` is the spec file (screen) that has to be built for the sweep to be required in the app. Since 0.6.0 every
+ *  stream that built a screen is built (support/built.ts), so a sweep names only its screen. */
+type Screen = { name: string; route: string; owner: string; prepare?: (page: Page, options: { playing: boolean }) => Promise<void> };
 
-/** Mark a sweep "expected to fail" in the app until its screen (and the streams that build the screen) is built. */
+/** Mark a sweep "expected to fail" in the app until its screen is built. */
 function expectFailureUntilSweptScreenBuilt(screen: Screen): void {
   expectFailureUntilScreenBuilt(screen.owner);
-  if (screen.streams) expectFailureUntilBuilt(...screen.streams);
 }
 
 const SCREENS: Screen[] = [
@@ -71,7 +68,6 @@ const SCREENS: Screen[] = [
     // round 6's one On air box, which the app's Live (0.4.1's) does not have yet.
     name: "Live with a second room and the pads open",
     owner: "live",
-    streams: ["live"],
     route: "live",
     prepare: async (page, { playing }) => {
       await page.getByRole("button", { name: "Add a room" }).click();
@@ -89,7 +85,6 @@ const SCREENS: Screen[] = [
     // Round 6, part 2 (SHW-7): a scene unfolded in Live's scene list, with its music, ambience and pad boards.
     name: "Live with a scene unfolded",
     owner: "live",
-    streams: ["live"],
     route: "live",
     prepare: async (page) => {
       // Narrow, the list shows only Now and Next until "Show all 6 scenes".
@@ -101,10 +96,10 @@ const SCREENS: Screen[] = [
   },
   { name: "Outputs", owner: "outputs", route: "outputs" },
   // Round 6, part 2 (OUT-8): Settings in Lyre.
-  { name: "Settings", owner: "settings", streams: ["rooms-settings"], route: "settings" },
+  { name: "Settings", owner: "settings", route: "settings" },
   { name: "Look and feel", owner: "look", route: "look" },
   // Round 7 (DAT-10): the Tags screen.
-  { name: "Tags", owner: "tags", streams: ["prep"], route: "tags" },
+  { name: "Tags", owner: "tags", route: "tags" },
   // Round 5 (design/prototype/ROUND5.md): the three new screens, with their tables and choices showing.
   {
     name: "Back up, move or share, with a file open",
@@ -437,25 +432,10 @@ for (const screen of SCREENS) {
 
 // UX-6 (design round 7): no hidden text. Wherever a name is cut short (an ellipsis, or two lines and then an ellipsis),
 // its full text is on hover (a title on it or on the row it is in), and keyboard focus on it shows the same text.
-// The app's built screens meet it already, apart from these (app run of 7 Nov 2026), which stay marked for the shell
-// (UX-6 is one kit behaviour) and the stream that builds their screen; the screens the app does not have are marked by
-// their screen and streams as well.
-const UX6_NOT_MET_YET: Record<string, { widths: number[]; streams: [Stream, ...Stream[]] }> = {
-  Library: { widths: [1920], streams: ["shell"] },
-  "Library with a track open": { widths: [960, 1920], streams: ["shell"] },
-  "A dynamic playlist": { widths: [960], streams: ["shell"] },
-  "Live with a second room and the pads open": { widths: [960, 1920], streams: ["shell", "live"] },
-  "Live with a scene unfolded": { widths: [960, 1920], streams: ["shell", "live"] },
-  Settings: { widths: [960, 1920], streams: ["shell", "rooms-settings"] },
-  "Look and feel": { widths: [960, 1920], streams: ["shell"] },
-  Tags: { widths: [960, 1920], streams: ["shell", "prep"] },
-};
 for (const screen of SCREENS) {
   for (const size of [{ width: 960, height: 1000 }, { width: 1920, height: 1080 }]) {
     test(`${screen.name} at ${size.width}×${size.height}: every name cut short has its full text on hover`, async ({ page }) => {
       expectFailureUntilSweptScreenBuilt(screen);
-      const notYet = UX6_NOT_MET_YET[screen.name];
-      if (notYet?.widths.includes(size.width)) expectFailureUntilBuilt(...notYet.streams);
       await page.setViewportSize(size);
       await openRoute(page, screen.route);
       await screen.prepare?.(page, { playing: true });
@@ -488,7 +468,6 @@ for (const screen of SCREENS) {
 
 test("UX-6: keyboard focus on a name cut short shows its full text", async ({ page }) => {
   expectFailureUntilScreenBuilt("library");
-  expectFailureUntilBuilt("shell");
   await page.setViewportSize({ width: 960, height: 1000 });
   await openRoute(page, "library");
   const rowEl = page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Very short heroic moment/ });
@@ -565,7 +544,6 @@ for (const screen of SCREENS) {
     const label = size.at200 ? "at 960×1040 with text at 200 %" : "at 960×1000";
     test(`${screen.name} ${label}: nothing is under the window's buttons; the strip's empty parts drag the window, its controls do not`, async ({ page }) => {
       expectFailureUntilSweptScreenBuilt(screen);
-      expectFailureUntilBuilt("retire");
       await page.setViewportSize({ width: size.width, height: size.height });
       if (size.at200) await textAt200(page);
       await openRoute(page, screen.route);
@@ -580,7 +558,6 @@ for (const screen of SCREENS) {
 }
 
 test.describe("0.5.1: Lyre is the whole window", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
 
   test("one window, Lyre's page alone: no Kenku FM tab bar, no Lyre Player tab, no website tabs", async ({ page }) => {
     expectFailureUntilScreenBuilt("campaigns");
@@ -734,7 +711,6 @@ async function overflow(page: Page): Promise<string[]> {
 }
 
 test.describe("0.5.1: Lyre's page fits the window", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
   for (const size of [{ width: 1920, height: 1040 }, { width: 1280, height: 680 }]) {
     test(`every screen fits a ${size.width}×${size.height} window exactly: nothing wider or taller than it`, async ({ page }) => {
       test.setTimeout(180_000);
@@ -755,7 +731,6 @@ test.describe("0.5.1: Lyre's page fits the window", () => {
 
 /* 0.5.1 (ROUND8.md, part 3). Nik, 11 Nov 20:33: "Let's move the live tab to the top of the left side bar". */
 test("0.5.1: Live is the first entry of the menu", async ({ page }) => {
-  expectFailureUntilBuilt("feat");
   await openRoute(page, "campaigns");
   const names = await page.getByRole("navigation", { name: "Lyre" }).getByRole("link").allTextContents();
   expect(names[0]).toMatch(/^\s*Live/);
@@ -884,17 +859,10 @@ type Opened = {
   name: string;
   route: string;
   owner: string;
-  /** 0.6.0: the round 10 streams that build what this state opens, besides r10-prep (side panels, showTheme). */
-  streams?: [Stream, ...Stream[]];
   open: (page: Page) => Promise<void>;
   /** CSS of what may lie over the screen in this state (only a floating panel). */
   mayCover?: string[];
-  /** Why the app meets it already, so it is required there (not marked r10-prep). */
-  met?: string;
 };
-
-/** r10-prep step 0 (20 Nov): Help on the side-panel host, beside the screen; every size and theme passes in the app. */
-const HELP_ON_THE_HOST = "Help is a side panel beside the screen since r10-prep step 0";
 
 const addMusic = async (page: Page) => {
   await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
@@ -917,22 +885,20 @@ const OPENED: Opened[] = [
   { name: "Session planner with Add music docked at the right", route: "session/crown/s14", owner: "session-planner", open: addMusic },
   { name: "Session planner with Add music docked at the left", route: "session/crown/s14", owner: "session-planner", open: dock("Dock left") },
   { name: "Session planner with Add music floating", route: "session/crown/s14", owner: "session-planner", open: dock("Float"), mayCover: ["[role=dialog]"] },
-  { name: "Session planner with the Track panel", route: "session/crown/s14/t41", owner: "session-planner", streams: ["r10-tracks"], open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); } },
-  { name: "A playlist with the Track panel", route: "playlist/p-abbess/t41", owner: "playlists", streams: ["r10-tracks"], open: async () => {} },
-  { name: "A playlist with the Track panel and Help", route: "playlist/p-abbess/t41", owner: "playlists", streams: ["r10-tracks"], open: async (page) => { await page.keyboard.press("F1"); } },
-  { name: "Track library with Help", route: "library", owner: "help", met: HELP_ON_THE_HOST, open: async (page) => { await page.keyboard.press("F1"); } },
-  { name: "Session planner with Help", route: "session/crown/s14", owner: "help", met: HELP_ON_THE_HOST, open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); await page.keyboard.press("F1"); } },
-  { name: "Live with Help", route: "live", owner: "help", met: HELP_ON_THE_HOST, open: async (page) => { await page.keyboard.press("F1"); } },
-  { name: "Live with Find's results", route: "live", owner: "live", streams: ["r10-live"], met: "r10-live built it on the side-panel host: an app run passed it at the three sizes in the five themes (20 Nov)", open: async (page) => { await page.getByRole("searchbox", { name: /^Find a track/ }).fill("battle"); } },
-  { name: "Live while arranging", route: "live", owner: "live", streams: ["r10-live"], met: "r10-live built it on the side-panel host: an app run passed it at the three sizes in the five themes (20 Nov)", open: async (page) => { await page.getByRole("button", { name: /^(Arrange|Move and size the boxes)/ }).click(); } },
-  { name: "Live with a scene playing", route: "live", owner: "live", streams: ["r10-live"], met: "r10-live built it on the side-panel host: an app run passed it at the three sizes in the five themes (20 Nov)", open: async (page) => { await page.getByRole("button", { name: /^Start: / }).first().click(); } },
+  { name: "Session planner with the Track panel", route: "session/crown/s14/t41", owner: "session-planner", open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); } },
+  { name: "A playlist with the Track panel", route: "playlist/p-abbess/t41", owner: "playlists", open: async () => {} },
+  { name: "A playlist with the Track panel and Help", route: "playlist/p-abbess/t41", owner: "playlists", open: async (page) => { await page.keyboard.press("F1"); } },
+  { name: "Track library with Help", route: "library", owner: "help", open: async (page) => { await page.keyboard.press("F1"); } },
+  { name: "Session planner with Help", route: "session/crown/s14", owner: "help", open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); await page.keyboard.press("F1"); } },
+  { name: "Live with Help", route: "live", owner: "help", open: async (page) => { await page.keyboard.press("F1"); } },
+  { name: "Live with Find's results", route: "live", owner: "live", open: async (page) => { await page.getByRole("searchbox", { name: /^Find a track/ }).fill("battle"); } },
+  { name: "Live while arranging", route: "live", owner: "live", open: async (page) => { await page.getByRole("button", { name: /^(Arrange|Move and size the boxes)/ }).click(); } },
+  { name: "Live with a scene playing", route: "live", owner: "live", open: async (page) => { await page.getByRole("button", { name: /^Start: / }).first().click(); } },
   {
     // Nik, 18 Nov (open question 1): a manual playlist unfolded in Live, its tracks with four buttons and a ⋯.
     name: "Live with a manual playlist unfolded",
     route: "live",
     owner: "live",
-    streams: ["r10-live"],
-    met: "r10-live built it on the side-panel host: an app run passed it at the three sizes in the five themes (20 Nov)",
     open: async (page) => {
       const box = page.getByRole("region", { name: "Campaign playlists", exact: true });
       await box.getByRole("button", { name: "Campaign Playlists", exact: true }).click();
@@ -943,7 +909,6 @@ const OPENED: Opened[] = [
     name: "Playlists with the queue open",
     route: "playlists",
     owner: "playlists",
-    streams: ["r10-tracks"],
     open: async (page) => {
       await page.getByRole("button", { name: "Preview The Company themes" }).click();
       await page.getByRole("region", { name: "Now playing" }).getByRole("button", { name: /^Queue/ }).click();
@@ -955,17 +920,12 @@ const OPENED: Opened[] = [
 /** The screens with lists that the Now playing bar must not hide the end of (the menu's name for each). */
 const WITH_THE_BAR = ["Track library", "Playlists", "Pad boards", "Campaigns", "Settings"];
 
-/* Marks: r10-prep step 0 (20 Nov) built showTheme for the app and Help on the side-panel host. A full run of the
-   app project then passed every menu sweep and every Now playing bar sweep, at the three sizes and in the five
-   themes, and the three states with Help, so those are required in the app (no stream named). The other states
-   open what a stream still builds (Add music docked or floating, the Track panel, Find's results, the queue, Arrange)
-   and name it. */
+/* Every state here is required in the app: the round 10 streams that built them are all built (support/built.ts). */
 test.describe("round 10: nothing drawn on top of anything else (R10-FIX §3)", () => {
   for (const size of R10_SIZES) {
     for (const state of OPENED) {
       test(`${state.name}, ${size.label}, in all five themes: nothing is under anything else and no control is cut off`, async ({ page }) => {
         expectFailureUntilScreenBuilt(state.owner);
-        if (!state.met) expectFailureUntilBuilt("r10-prep", ...(state.streams ?? []));
         await page.setViewportSize(size);
         await openRoute(page, state.route);
         await state.open(page);
@@ -1018,7 +978,6 @@ test.describe("round 10: nothing drawn on top of anything else (R10-FIX §3)", (
 
   test("a floating Add music panel can be moved with the keyboard, and docking it again gives the screen its width back", async ({ page }) => {
     expectFailureUntilScreenBuilt("session-planner");
-    expectFailureUntilBuilt("r10-prep"); // Add music on the kit's PanelDialog
     await page.setViewportSize({ width: 1280, height: 800 });
     await openRoute(page, "session/crown/s14");
     await dock("Float")(page);
@@ -1096,7 +1055,6 @@ test.describe("0.6.0: no text under 12 px, on every screen, in all five themes",
   for (const state of OPENED) {
     test(`${state.name}: no text is smaller than 12 px, in all five themes`, async ({ page }) => {
       expectFailureUntilScreenBuilt(state.owner);
-      if (!state.met) expectFailureUntilBuilt("r10-prep", ...(state.streams ?? []));
       await page.setViewportSize({ width: 1280, height: 800 });
       await openRoute(page, state.route);
       await state.open(page);
