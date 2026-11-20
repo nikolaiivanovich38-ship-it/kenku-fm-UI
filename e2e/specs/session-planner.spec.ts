@@ -4,7 +4,7 @@
  * has mixed music (track, playlist, track, playlist), an ambience playlist and two pad boards.
  */
 import type { Locator, Page } from "@playwright/test";
-import { appOnly, expect, test, expectFailureUntilScreenBuilt } from "./support/test";
+import { expect, test, expectFailureUntilScreenBuilt } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -678,7 +678,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
 /* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.2: dragging in a scene's music (items 41 and 36)", () => {
   test("a scene's track dragged by its handle onto the lower half of the last item goes last, exactly where the line showed", async ({ page }) => {
-    appOnly();
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
     const rows = page.getByRole("list", { name: "Music in order" }).locator(":scope > li");

@@ -3,7 +3,7 @@
  * Source: design/prototype/tools/cp-tab.js and src/views/campaigns.js.
  */
 import type { Page } from "@playwright/test";
-import { appOnly, expect, test, expectFailureUntilScreenBuilt } from "./support/test";
+import { expect, test, expectFailureUntilScreenBuilt } from "./support/test";
 import { failNextSave, joinRoom, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -774,7 +774,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("campaigns can be put in order: Reorder's Move down, and dragging a card; the order is kept", async ({ page }) => {
-    appOnly();
     await openRoute(page, "campaigns");
     const cards = page.getByRole("main").getByRole("article");
     const names = async () => (await cards.allInnerTexts()).map((t) => t.split("\n").find((line) => /Crown|Masks|Sixth/.test(line)) ?? t);
@@ -825,7 +824,6 @@ test.describe("0.5.2: deleting campaigns and sessions, and session numbers", () 
   const sessions = (page: Page) => page.getByRole("list", { name: "Sessions in order" }).getByRole("listitem");
 
   test("a campaign's ⋯ › Delete… names what goes with it, deletes it, and Undo brings it back (items 15 and 48)", async ({ page }) => {
-    appOnly();
     await openRoute(page, "campaigns");
     const cards = page.getByRole("main").getByRole("article");
     await page.getByRole("article", { name: "The Sunken Crown" }).getByRole("button", { name: "More for The Sunken Crown" }).click();
@@ -840,7 +838,6 @@ test.describe("0.5.2: deleting campaigns and sessions, and session numbers", () 
   });
 
   test("a session's ⋯ › Delete… deletes it with its scenes; the sessions after it count on (items 15 and 48)", async ({ page }) => {
-    appOnly();
     await openRoute(page, "campaign/crown");
     await page.getByRole("button", { name: "More for Session 13: The coast road" }).click();
     await page.getByRole("menuitem", { name: "Delete…" }).click();
@@ -850,7 +847,6 @@ test.describe("0.5.2: deleting campaigns and sessions, and session numbers", () 
   });
 
   test("Session numbers: a first number renumbers the sessions; Type each number lets a session keep its own (item 13)", async ({ page }) => {
-    appOnly();
     await openRoute(page, "campaign/crown");
     const first = page.getByRole("spinbutton", { name: "First session number" });
     await first.fill("1");

@@ -5,7 +5,7 @@
  * and rename, merge and delete with every track updated in one undoable step.
  */
 import type { Page } from "@playwright/test";
-import { appOnly, expect, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { openRoute } from "./support/target";
 /** 0.5.2 item 23: the app calls the Library the Track library in its menu, heading and Back; the prototype "Library". */
 const LIBRARY = /^(Track l|L)ibrary$/;
@@ -143,7 +143,6 @@ test.describe("tags where you use them", () => {
 
 test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   test("item 54: deleting a group's last tag removes the group too, and Undo brings both back", async ({ page }) => {
-    appOnly();
     await openRoute(page, "tags");
     await page.getByRole("button", { name: "New group" }).click();
     await dialog(page).getByRole("textbox", { name: "Name" }).fill("Faction");

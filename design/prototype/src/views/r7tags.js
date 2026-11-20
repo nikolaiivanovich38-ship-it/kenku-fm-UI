@@ -119,6 +119,13 @@
     D.tagValues[g].forEach(function (x) { if (L.tagParent(g, x) === v) { if (up) meta(g, x, true).parent = up; else delete meta(g, x, true).parent; } });
     var n = retag(g, v, '');
     D.tagValues[g].splice(D.tagValues[g].indexOf(v), 1); if (D.tagMeta[g]) delete D.tagMeta[g][v];
+    // 0.5.2 item 54 (the app since 0.5.2; 0.6.0 sync): the group's last tag takes the group with it, in the same Undo,
+    // unless a dynamic playlist's rule names the group.
+    var gr = group(g), ruled = D.playlists.some(function (p) { return p.kind === 'dynamic' && p.rule && (p.rule.conds || []).some(function (c) { return c.group === g; }); });
+    if (gr && !D.tagValues[g].length && !ruled) {
+      D.tagGroups.splice(D.tagGroups.indexOf(gr), 1); D.tracks.forEach(function (t) { delete t.tags[g]; });
+      done('Deleted ' + v + ' from ' + tracks(n) + '. The ' + gr.name + ' group had no other tags, so it went too', undo, 'tg-newgroup'); return;
+    }
     done('Deleted ' + v + ' from ' + tracks(n), undo, 'tg-add-' + g);
   };
   L.acts.tgparent = function (el) { var g = el.dataset.g, v = el.dataset.v; sheet('Put ' + v + ' inside', tagSelect('tg-in', 'Inside', g, [v].concat(L.tagInside(g, v)), 'Nothing: a tag of its own'), 'Done', 'tgparentok', d(el));
