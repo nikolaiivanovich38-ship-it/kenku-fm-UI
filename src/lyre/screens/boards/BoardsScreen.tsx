@@ -191,7 +191,16 @@ function BoardCard({
   const uses = usesOfBoard(campaigns, board.id);
   const first = firstPad(board);
   return (
-    <li className="pb-card">
+    <li
+      className="pb-card"
+      onKeyDown={(event) => {
+        // Round 10 (R10-FIX §2, row 35): Delete on a focused card asks as its ⋯'s Delete board… does, with Undo.
+        const target = event.target as HTMLElement;
+        if (event.key !== "Delete" || event.defaultPrevented || target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+        event.preventDefault();
+        onDelete();
+      }}
+    >
       {/* Out of the Tab path: Open below goes to the same place, so each card is one stop plus its buttons. */}
       <a className="pb-card-main" href={`#/board/${board.id}`} tabIndex={-1} {...orgDragProps("boards", board.id)}>
         <MiniGrid board={board} />

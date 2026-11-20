@@ -133,6 +133,14 @@ describe("all pad boards (boards.js list view)", () => {
     // What was deleted is said with Undo in the shell's message (screens/undoNotes.test.tsx).
   });
 
+  it("round 10: Delete on a focused card asks the same question as Delete board…", async () => {
+    const user = userEvent.setup();
+    renderScreen(BoardsScreen, "boards");
+    (await screen.findByRole("button", { name: "More for Weather and places" })).focus();
+    await user.keyboard("{Delete}");
+    expect(screen.getByRole("dialog", { name: 'Delete "Weather and places"?' })).toBeInTheDocument();
+  });
+
   it("Duplicate board makes a copy used nowhere yet", async () => {
     const user = userEvent.setup();
     renderScreen(BoardsScreen, "boards");
