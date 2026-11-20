@@ -594,6 +594,34 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     expect(announced.filter((t) => t.includes("review"))).toEqual([]);
   });
 
+  it("round 9 (row 20): a previewed playlist's queue, Forward, Back (the start, or within 3 s the track before) and Play from the queue", async () => {
+    rig.audio.previewPlaylist("P");
+    await rig.advance(0.5);
+    const q = rig.audio.previewQueue();
+    expect(q).toMatchObject({ playlistId: "P", played: [], now: { trackId: "m2" } });
+    expect(q?.upNext.map((t) => t.trackId)).toEqual(["m3"]);
+    expect(rig.audio.previewForward()).toEqual({ ok: true });
+    expect(state().preview).toMatchObject({ key: "pl:P", trackId: "m3" });
+    expect(rig.audio.previewQueue()?.played.map((t) => t.trackId)).toEqual(["m2"]);
+    expect(rig.audio.previewQueue()?.upNext).toEqual([]);
+    // Within its first 3 s, Back goes to the track before.
+    await rig.advance(1);
+    expect(rig.audio.previewBack()).toEqual({ ok: true });
+    expect(state().preview).toMatchObject({ trackId: "m2" });
+    expect(rig.audio.previewQueue()?.played).toEqual([]);
+    // Later in the track, Back goes to its start.
+    await rig.advance(4);
+    rig.audio.previewBack();
+    await rig.advance(0.2);
+    expect(state().preview).toMatchObject({ trackId: "m2" });
+    expect(state().preview!.position!).toBeLessThan(1);
+    expect(rig.audio.previewPlayAt(1)).toEqual({ ok: true });
+    expect(state().preview).toMatchObject({ trackId: "m3" });
+    expect(rig.audio.previewPlayAt(9).ok).toBe(false);
+    rig.audio.stopPreview();
+    expect(rig.audio.previewQueue()).toBeNull();
+  });
+
   it("previews a playlist's first track and a pad's sound, and says when a playlist is empty", async () => {
     rig.audio.previewPlaylist("P");
     expect(state().preview).toMatchObject({ key: "pl:P", label: "Battle: M2" });

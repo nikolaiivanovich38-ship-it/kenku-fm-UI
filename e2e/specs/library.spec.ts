@@ -880,7 +880,6 @@ test.describe("0.5.2: Nik's play test", () => {
    the files stay. Delete file from disk… only in a row's ⋯, with a confirmation that names the files and the Recycle
    Bin. Not built in this branch's app yet. */
 test.describe("round 10: removing tracks from the Track library", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-tracks"));
   const eerie = "Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)";
 
   test("a row's ⋯ has Remove from library: it asks first, names the scene that uses it, and Undo brings it back", async ({ page }) => {

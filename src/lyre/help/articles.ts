@@ -26,6 +26,7 @@ import upNext from "./articles/15-up-next.md?raw";
 import trackPanel from "./articles/17-track-panel.md?raw";
 import filtersAndColumns from "./articles/18-filters-and-columns.md?raw";
 import splitParts from "./articles/19-split-parts.md?raw";
+import queue from "./articles/21-queue.md?raw";
 
 /** The task groups, in the order the panel lists them. */
 export const HELP_GROUPS = ["Get started", "Prepare", "Run a session", "Your library"] as const;
@@ -123,6 +124,7 @@ const FILES: Record<string, string> = {
   "17-track-panel.md": trackPanel,
   "18-filters-and-columns.md": filtersAndColumns,
   "19-split-parts.md": splitParts,
+  "21-queue.md": queue,
 };
 
 export const ARTICLES: readonly HelpArticle[] = Object.keys(FILES)

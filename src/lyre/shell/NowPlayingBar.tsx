@@ -37,6 +37,8 @@ import { cx } from "../kit/cx";
 import { useOutputs } from "../outputs/OutputsProvider";
 import { roomVolumeControl } from "../outputs/roomVolume";
 import { useAnnounce } from "./Announcer";
+import { SidePanel } from "../kit/SidePanel";
+import { QueuePanel } from "../screens/trackPanel/QueuePanel";
 
 /** Stop on a room's row fades that room out this fast (the prototype's L.stopLane(…, 1)). */
 export const STOP_FADE_MS = 1000;
@@ -390,6 +392,14 @@ function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowP
   const hover = useNormaliseHover()(preview.trackId, preview.kind === "pad" ? null : preview.playlistId);
   const from = preview.from ? `Previewed from ${preview.from}` : "Preview";
   const volume = Math.round(preview.volume * 100);
+  // --- r10-tracks --- Round 9 (row 20): Back, Forward and the queue for a previewed playlist.
+  const queue = audio.previewQueue();
+  const [queueOpen, setQueueOpen] = useState(false);
+  const queueButton = useRef<HTMLButtonElement>(null);
+  const closeQueue = useCallback(() => {
+    setQueueOpen(false);
+    setTimeout(() => queueButton.current?.focus(), 0);
+  }, []);
   return (
     <div className={cx("oab-row", "you", paused && "paused")} role="group" aria-label={`Only you${paused ? ": paused" : ""}`}>
       <span className="oab-dest">
@@ -411,6 +421,15 @@ function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowP
         <button
           type="button"
           className="btn s icon"
+          aria-label="Back"
+          title="Back to the start of this track; within its first 3 s, the track before it"
+          onClick={() => audio.previewBack()}
+        >
+          <Icon name="prev" size="s" />
+        </button>
+        <button
+          type="button"
+          className="btn s icon"
           aria-label={paused ? "Play the preview" : "Pause the preview"}
           title={paused ? "Play the preview again" : "Pause the preview"}
           onClick={() => audio.togglePreviewPause()}
@@ -421,7 +440,28 @@ function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowP
           <Icon name="stop" size="s" />
           Stop
         </button>
+        <button type="button" className="btn s icon" aria-label="Forward" title="The next track" disabled={!queue?.upNext.length} onClick={() => audio.previewForward()}>
+          <Icon name="next" size="s" />
+        </button>
+        {queue?.playlistId && (
+          <button
+            ref={queueButton}
+            type="button"
+            className="btn s r9-qbtn"
+            aria-expanded={queueOpen}
+            title="The queue: what played, what plays now, what comes next"
+            onClick={() => (queueOpen ? closeQueue() : setQueueOpen(true))}
+          >
+            <Icon name="queue" size="s" />
+            Queue <span className="num">{queue.upNext.length}</span>
+          </button>
+        )}
       </div>
+      {queueOpen && (
+        <SidePanel kind="queue" onClosedByHost={() => setQueueOpen(false)}>
+          <QueuePanel onClose={closeQueue} />
+        </SidePanel>
+      )}
       <label className="oab-vol" title="Volume in your headphones">
         <Icon name="headphones" size="s" />
         <span className="sr-only">Headphone volume</span>

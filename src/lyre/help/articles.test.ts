@@ -9,7 +9,7 @@ describe("the help articles (FND-8)", () => {
   it("has every Markdown file in src/lyre/help/articles, in the order of their file names", () => {
     const files = fs.readdirSync(FOLDER).filter((f) => f.endsWith(".md")).sort();
     expect(ARTICLES.map((a) => a.file)).toEqual(files);
-    // 15 in 0.5.2; 0.6.0's streams add theirs (r10-tracks: 17, 18 and 19).
+    // 15 in 0.5.2; 0.6.0's streams add theirs (r10-tracks: 17, 18, 19 and 21).
     expect(files.length).toBeGreaterThanOrEqual(17);
   });
 
@@ -48,6 +48,7 @@ describe("the help articles (FND-8)", () => {
       "A track's details anywhere",
       "Filters, columns and sorting",
       "Split a track into parts",
+      "The queue, Back and Forward",
     ]);
   });
 
