@@ -1,0 +1,12 @@
+/* 0.6.0 sync (Nik, 20 Nov: "We need our prototype to either be what ships or ahead of it"): the styles of what the app
+   has and the prototype gained in p60-sync (R60-PROTO-SYNC.md). */
+
+/* 0.5.2 item 21: Clear beside a filter's heading. */
+.lb-fhrow { display: flex; align-items: center; gap: 6px; }
+.lb-fhrow .lb-fh { flex: 1; min-width: 0; }
+/* 0.5.2 items 20 and 40: a library folder's ⋯ beside its row in the Folders filter. */
+.lb-folders li { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.lb-folders li > button[aria-pressed] { flex: 1; min-width: 0; }
+.lb-folders .lb-fmore { flex: none; width: 24px; height: var(--ctl-s); padding: 0; justify-content: center; }
+.lb-check { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 4px; cursor: pointer; }
+.lb-check input { margin-top: 3px; }

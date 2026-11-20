@@ -79,7 +79,8 @@
     var resume = t.kind !== 'fx' && !sting;
     var sum = [t.role ? L.roleWord[t.role] : '', L.endWords(t), resume && t.resume ? 'starts where it stopped' : ''].filter(Boolean).join(' · ');
     return '<div class="lb-tg"><div class="lb-tgl" id="r9-end-l">At its end</div><div class="chips r9-end" role="group" aria-labelledby="r9-end-l">' + chips + '</div></div>' +
-      (resume ? '<label class="r9-resume"><input type="checkbox" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '>Next time, start where it stopped</label>' : '') +
+      // 0.6.0 sync (the app's PickUpSwitch since 0.5.1): a switch on a row of its own.
+      (resume ? '<div class="lb-tg r9-resume-row"><label class="lv-switch lb-resume" title="A long underscore or bed starts again where it was last stopped"><input type="checkbox" role="switch" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Next time, start where it stopped</b></span></label></div>' : '') +
       '<p class="r9-sum">' + L.icon('fade', 's') + '<span>' + esc(sum.charAt(0).toUpperCase() + sum.slice(1)) + '.</span></p>';
   };
   L.acts.r9use = function (el) {

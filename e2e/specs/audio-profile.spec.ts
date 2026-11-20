@@ -335,7 +335,7 @@ test.describe("round 6 cuts on the Audio profile", () => {
   });
 });
 
-/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("Start at a marker: the track then starts there when played on air from the Library (\"Start at [select marker]\")", async ({ page }) => {
     appOnly();
@@ -361,7 +361,7 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 });
 
-/* 0.5.2: from Nik's play test (14 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.2: from Nik's play test (14 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.2: Nik's play test", () => {
   test("item 2: Start and End move in tenths of a second, a time can be typed with tenths, and the strip zooms in (\"More granular positions on the audio profile tracking bar\")", async ({ page }) => {
     appOnly();

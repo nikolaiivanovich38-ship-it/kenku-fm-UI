@@ -760,7 +760,7 @@ test.describe("0.5.1: the Now playing bar's position, and a session dragged last
   });
 });
 
-/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("a campaign's theme shows on its pages whatever Look and feel chose; Look and feel is the base elsewhere", async ({ page }) => {
     const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
@@ -820,7 +820,7 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 });
 
-/* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.2: deleting campaigns and sessions, and session numbers", () => {
   const sessions = (page: Page) => page.getByRole("list", { name: "Sessions in order" }).getByRole("listitem");
 

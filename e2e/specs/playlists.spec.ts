@@ -520,7 +520,7 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 });
 
-/* 0.5.2: from the round 8 click-through, built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.2: from the round 8 click-through, built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.2: one length for a track", () => {
   test("round 8 #6: a track previewed from a playlist shows the length the list shows (5:01, not its file's 6:00)", async ({ page }) => {
     await openRoute(page, "playlists");

@@ -1402,7 +1402,7 @@ test.describe("0.5.1: fades of 5 seconds, and Rooms' actions in On air", () => {
 
 });
 
-/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("On air: the playing track's bar is a seek bar: a click jumps there, the arrow keys 5 s (\"click in the tracking bar … and skip\")", async ({ page }) => {
     await openRoute(page, "live");
@@ -1463,7 +1463,7 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 });
 
-/* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 /* 0.5.2 (before release): a row's full name unfolded with any focus in it, so after a click on one row's button the
    rows below moved when the next press took the focus away, and that click landed elsewhere. */
 test.describe("0.5.2: clicks in a scene's list land", () => {

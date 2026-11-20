@@ -3,8 +3,8 @@
  * (design/prototype/tools/lb-flow.js, lb-size.js and src/views/library.js).
  */
 import type { Locator, Page } from "@playwright/test";
-import { appOnly, expect, test } from "./support/test";
-import { openRoute, reopen } from "./support/target";
+import { expect, test } from "./support/test";
+import { expectRoute, openRoute, reopen } from "./support/target";
 import { dropFiles } from "./support/drop";
 
 const grid = (page: Page) => page.getByRole("grid", { name: "Tracks" });
@@ -407,7 +407,6 @@ test.describe("round 6: the key legend", () => {
   });
 
   test("a mouse click on a row leaves the legend hidden, so a row at the foot of the list opens (it moved away under the pointer); a key shows it", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const legend = page.getByText(/^Keys:/);
     // The last row wholly in sight, just above where the legend shows.
@@ -418,7 +417,7 @@ test.describe("round 6: the key legend", () => {
       return rows[rows.length - 1].dataset.tid as string;
     });
     await grid(page).locator(`tr[data-tid="${lastInSight}"] td.lb-c-title`).click();
-    await expect(page).toHaveURL(new RegExp(`#/library/${lastInSight}$`));
+    await expectRoute(page, new RegExp(`^library/${lastInSight}$`));
     await expect(legend).toBeHidden();
     await page.keyboard.press("ArrowUp");
     await expect(legend).toBeVisible();
@@ -588,10 +587,9 @@ test.describe("0.5.1: Pick up where it stopped for every music track", () => {
   });
 });
 
-/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("a music track with no role offers Pick up where it stopped in its details (\"I don't see pickup where it stops\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("gridcell").nth(1).click();
     const details = page.getByRole("region", { name: "Details", exact: true });
@@ -627,7 +625,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
 
 test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   test("item 7: a track's row shows its file's length and, under it, the length its Audio profile plays", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const length = row(page, /^Select Eerie dread/).locator("td.lb-c-dur");
     await expect(length).toContainText("7:21");
@@ -635,12 +632,11 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 6: Preview or Play on air on a row opens that track's details", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const ashes = row(page, "Ashes");
     await ashes.getByRole("button", { name: /^Preview / }).click();
     await expect(ashes).toHaveAttribute("aria-current", "true");
-    await expect(page).toHaveURL(/#\/library\/[^/]+$/);
+    await expectRoute(page, /^library\/[^/]+$/);
     const eerie = row(page, /^Select Eerie dread/);
     await eerie.getByRole("button", { name: /^Play on air: / }).click();
     await expect(eerie).toHaveAttribute("aria-current", "true");
@@ -658,18 +654,16 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 23: the menu, the heading and Back call it the Track library; the address stays #/library", async ({ page }) => {
-    appOnly();
     await openRoute(page, "settings");
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Track library", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Track library");
-    await expect(page).toHaveURL(/#\/library$/);
+    await expectRoute(page, /^library$/);
     await page.getByRole("button", { name: "More for the library" }).click();
     await page.getByRole("menuitem", { name: "Tags and groups…" }).click();
     await expect(page.getByRole("button", { name: "Back to Track library" })).toBeVisible();
   });
 
   test("item 21: Clear in one filter clears only that filter; Clear all filters clears every one", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const f = filters(page);
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
@@ -703,7 +697,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 10: a New track the game master tags is no longer New, with no title of its own", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const ashes = row(page, "Ashes");
     await expect(ashes.getByText("New", { exact: true })).toBeVisible();
@@ -714,7 +707,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 40: a library folder's ⋯ says what kind its new tracks are", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const f = filters(page);
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
@@ -728,7 +720,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 20: Remove folder… forgets a watched folder, its tracks stay unless ticked, and Undo brings it back", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const f = filters(page);
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
@@ -746,7 +737,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("items 1 and 50: Remove from library names where a track is used and works with Undo; Delete file from disk… asks first", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const eerie = row(page, /^Select Eerie dread/);
     await eerie.getByRole("button", { name: /^More for / }).click();
@@ -784,7 +774,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("items 4, 12 and 39: Type in a track's details; an FX track is offered for pads, and the selection's ⋯ changes several at once", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const ashes = row(page, "Ashes");
     await ashes.locator("td.lb-c-title").click();
@@ -808,7 +797,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("round 8 #2: Pick up where it stopped fits on one line", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     // An Underscore track: it has Pick up where it stopped (round 9: Next time, start where it stopped). Round 8 #4 (the
     // Follow with list's line) went with that list: At its end › Play… is a picker (round 9 block).
@@ -832,7 +820,7 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 });
 
-/* 0.5.2: from Nik's play test (14 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.2: from Nik's play test (14 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.2: Nik's play test", () => {
   test("item 29: with music on air and a preview playing, tracks dragged from the list onto the Drop on panel land, and nothing fails (\"crashed the interface\")", async ({ page }) => {
     await openRoute(page, "playlists");
