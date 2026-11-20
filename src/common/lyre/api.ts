@@ -432,6 +432,11 @@ export interface Pad {
   aside: boolean;
   /** PLY-8: what it does when pressed (null: the usual, playing its sound). boards.setPadSteps. */
   steps: CueStep[] | null;
+  /**
+   * 0.6.0 (f-live; round 9 §11, item 47): While it plays: true Dip the music, false Don't dip, null the usual for its
+   * play mode (a one-shot or Restart on press pad dips the music; a Toggle loop or Hold to play pad does not).
+   */
+  dip: boolean | null;
 }
 
 export type PadPatch = Partial<Omit<Pad, "id" | "sound" | "aside" | "steps">> & { sound?: Partial<PadSound> };
@@ -926,8 +931,11 @@ export interface LyreApi {
     delete(id: string): Promise<WriteResult>;
     /** Adds tracks to a manual playlist at a place (default the end). playlists.js pladd, drops; library.js lbpladd, lbbpl, lbrmpl. */
     addTracks(id: string, trackIds: string[], at?: number): Promise<WriteResult<AddedTracks>>;
-    /** playlists.js L.acts.plrm; library.js L.acts.lbplrm. */
-    removeTrack(id: string, trackId: string): Promise<WriteResult>;
+    /**
+     * playlists.js L.acts.plrm; library.js L.acts.lbplrm. Review M6: `at` is the row (its place among the playlist's
+     * tracks) of the copy to take out, for a track listed twice; without it, its first copy.
+     */
+    removeTrack(id: string, trackId: string, at?: number): Promise<WriteResult>;
     /** playlists.js L.acts.plmove, Alt+Up/Down, row drag. */
     moveTrack(id: string, trackId: string, toIndex: number): Promise<WriteResult>;
     /** PLY-13: every place's own play order, by place key then playlist id (resolvePlayOrder). core.js L.orderOf. */

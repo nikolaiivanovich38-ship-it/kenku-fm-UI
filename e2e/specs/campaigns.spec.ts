@@ -900,3 +900,32 @@ test("round 10: New campaign with something typed: the first Esc says a second o
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
 });
+
+/* 0.6.0 finishing (R60-FINISH f-live 3; R60-GAPS row 20; Nik's list of 18 Nov: "see the now playing queue, select any
+   track in it to play, and have back and forward buttons on the now playing bar"): a room's row on the Now playing bar
+   has Back, Pause, Stop, Next and Queue n, as the preview's row does, and its edge is the on-air colour (core.js roomRow,
+   r9live.js queueHTML, r10.css). Written before the app had them for a room. */
+test("0.6.0 finishing (f-live): a room on air has Back, Next and its queue on the Now playing bar", async ({ page }) => {
+  await openRoute(page, "campaign/crown");
+  await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+  const air = region(page, "Now playing").getByRole("group", { name: /^On air/ }).first();
+  const controls = air.getByRole("group", { name: /^Control what the players hear/ });
+  const names = await controls.getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label") || (b.textContent ?? "").trim()));
+  expect(names.slice(0, 5).map((n) => n.replace(/ \d+$/, ""))).toEqual(["Back", "Pause", "Stop", "Next", "Queue"]);
+  // The on-air edge is wider than round 6's 3 px (r10.css), as the preview's is.
+  expect(await air.evaluate((row) => getComputedStyle(row).boxShadow)).toMatch(/5px 0px 0px( 0px)? inset|inset 5px 0px 0px/);
+  await controls.getByRole("button", { name: /^Queue/ }).click();
+  const queue = page.getByRole("region", { name: /^Queue/ });
+  await expect(queue).toContainText("Now playing");
+  await expect(queue).toContainText("Up next");
+  const play = queue.getByRole("button", { name: /^Play .+ now$/ }).first();
+  const next = ((await play.getAttribute("aria-label")) ?? "").replace(/^Play (.+) now$/, "$1");
+  await play.click();
+  // It plays now: the room's row names it.
+  await expect(air).toContainText(next);
+  // Back within the first 3 seconds goes to the track before it; Next comes back to it.
+  await controls.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(air).not.toContainText(next);
+  await controls.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(air).toContainText(next);
+});

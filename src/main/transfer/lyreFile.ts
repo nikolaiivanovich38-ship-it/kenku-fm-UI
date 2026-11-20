@@ -495,6 +495,8 @@ function checkPad(v: unknown, at: string): Pad {
     fadeOutMs: num(o.fadeOutMs, `${at}.fadeOutMs`, 0, 1e9),
     aside: o.aside === undefined ? false : bool(o.aside, `${at}.aside`),
     steps: stepsOrNull(o.steps, `${at}.steps`),
+    // f-live: While it plays (a file from before 0.6.0 has none: the usual).
+    dip: o.dip === undefined || o.dip === null ? null : bool(o.dip, `${at}.dip`),
   };
 }
 

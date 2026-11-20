@@ -11,6 +11,7 @@ export type {
   LaneNowPlaying,
   LyreAudio,
   PreviewQueue,
+  RoomQueue,
   PreviewQueueTrack,
   LyreAudioEvents,
   LyreAudioLibrary,

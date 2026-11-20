@@ -104,6 +104,18 @@ export function readingOrder(layout: LiveLayout): ArrangeId[] {
   return inCols.includes("onair") ? inCols : ["onair", ...inCols];
 }
 
+/**
+ * Review M3: the order of F6 and Alt+1 to 7 for a window size: the reading order once Arrange has moved a box there;
+ * null (the usual order) while every box is where it usually is, however tall or wide.
+ */
+export function arrangedKeyOrder(columns: Columns, saved: SavedLayouts): ArrangeId[] | null {
+  if (!saved[SIZE_NAMES[columns] as keyof SavedLayouts]) return null;
+  const layout = layoutFor(columns, saved);
+  const usualCols = USUAL_LAYOUT[columns];
+  const same = layout.cols.length === usualCols.length && layout.cols.every((c, i) => c.length === usualCols[i].length && c.every((id, j) => id === usualCols[i][j]));
+  return same ? null : readingOrder(layout);
+}
+
 export type ArrangeAction =
   | "up"
   | "down"
@@ -169,8 +181,9 @@ export function arrange(layout: LiveLayout, columns: Columns, id: ArrangeId, act
       widths[other] -= step;
       next.widths = widths;
     }
-  } else if (typeof action === "object" && "widths" in action && action.widths.length === next.cols.length) {
-    next.widths = action.widths.map((w) => Math.round(w * 10) / 10);
+  } else if (typeof action === "object" && "widths" in action && action.widths.length >= next.cols.length) {
+    // Review M4: while arranging, an empty column to drop into may be drawn after the real ones; its width is left out.
+    next.widths = action.widths.slice(0, next.cols.length).map((w) => Math.round(w * 10) / 10);
   } else if (typeof action === "object" && "drop" in action) {
     take();
     if (action.drop !== "top") {

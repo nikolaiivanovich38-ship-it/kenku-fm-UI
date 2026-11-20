@@ -205,7 +205,8 @@
 
   /* ---------- Undo: scene changes, and (round 6 part 2) the queue, Up next and Kick, 8 s each ---------- */
   var UNDO_MS = 8000;
-  function laneCopy(c) { return c ? { id: c.id, playlistId: c.playlistId, place: c.place, pos: c.pos, paused: !!c.paused, seq: copySeq(c.seq), added: c.added } : null; }
+  // ref: the lane itself, so Undo can tell a lane that still plays the same thing (review I3) and leave it alone.
+  function laneCopy(c) { return c ? { id: c.id, playlistId: c.playlistId, place: c.place, pos: c.pos, paused: !!c.paused, seq: copySeq(c.seq), added: c.added, ref: c } : null; }
   function changeScene(idx) {
     var lv = live(), s = sess(); if (!s.scenes[idx]) return;
     var prevName = S.notStarted ? 'before the first scene' : (s.scenes[lv.scene] ? s.scenes[lv.scene].name : 'the previous scene');
@@ -226,6 +227,11 @@
     L.say('Started ' + s.scenes[idx].name + '. To undo this, press Undo or Ctrl+Z within 8 seconds.');
   }
   function restoreLane(ln, c, elapsed, tg) {
+    var mx = M(tg);
+    // 0.6.0 review I3 (f-live, as the app): a lane still playing what it played then was not changed: it plays on.
+    if (c && mx[ln] && mx[ln] === c.ref && !mx[ln].fadeOut) return;
+    // 0.6.0 review I2: what is still fading out of the lane stops now, so the track is not heard twice.
+    if (mx[ln + 'Out']) mx[ln + 'Out'] = [];
     if (!c) { L.stopLane(ln, 1.5, tg); return; }
     L.play(c.id, { lane: ln, playlistId: c.playlistId, place: c.place, fade: 1.5, seq: c.seq, target: tg });
     var m = M(tg); if (m[ln]) { m[ln].pos = Math.min(m[ln].dur - 1, c.pos + (c.paused ? 0 : elapsed)); m[ln].paused = c.paused; if (c.added) m[ln].added = c.added; }
@@ -254,14 +260,17 @@
   }
   /* Round 10 (table review M4, S1; Nik, 18 Nov 08:36, answer 6a): what every room plays, kept before Play on air, Fade
      all or Stop all, so Undo brings every room back where it was. */
-  function roomsSnap() {
-    var tgs = ['table'].concat(Object.keys(pb.own || {}).filter(function (id) { return tgOf(id) === id; }));
-    return { rm: clone(S.rm), rooms: tgs.map(function (tg) { return { tg: tg, music: laneCopy(M(tg).music), amb: laneCopy(M(tg).amb), rep: M(tg).rep || null }; }), at: Date.now() };
+  function roomsSnap(only) {
+    // 0.6.0 review I3 (f-live): Play on air keeps only the rooms it plays in, so Undo leaves the others where they are.
+    var tgs = only || ['table'].concat(Object.keys(pb.own || {}).filter(function (id) { return tgOf(id) === id; }));
+    return { rm: clone(S.rm), rooms: tgs.map(function (tg) { return { tg: tg, music: laneCopy(M(tg).music), amb: laneCopy(M(tg).amb), rep: M(tg).rep || null }; }), at: Date.now(), only: !!only };
   }
   function restoreRooms(snap, sameTime) {
     var elapsed = sameTime ? 0 : (Date.now() - snap.at) / 1000;
     quiet(function () { snap.rooms.forEach(function (r) { if (r.tg === 'table' || tgOf(r.tg) === r.tg) { restoreLane('music', r.music, elapsed, r.tg); restoreLane('amb', r.amb, elapsed, r.tg); M(r.tg).rep = r.rep; } }); });
-    S.rm = snap.rm;
+    // Only the rooms kept come back (review I3): the others keep their lists as they are now.
+    if (snap.only) snap.rooms.forEach(function (r) { if (snap.rm[r.tg]) S.rm[r.tg] = snap.rm[r.tg]; else delete S.rm[r.tg]; });
+    else S.rm = snap.rm;
     Object.keys(S.rm).forEach(function (tg) { var c = M(tg).music; if (c) S.rm[tg].playing = S.rm[tg].now === 'plan' ? c.id : S.rm[tg].playing; });
   }
   function anySound() { return roomTgs().concat(['table']).some(function (tg) { var m = M(tg); return m && (m.music || m.amb); }); }
@@ -573,7 +582,7 @@
   }
   L.acts.lvplayed = function (el) { var tg = el.dataset.tg; S.playedOpen[tg] = !S.playedOpen[tg]; L.render(); focusK(el.dataset.k); };
   L.acts.lvupplay = function (el) {
-    var tg = el.dataset.tg, u = upcoming(tg)[+el.dataset.i]; if (!u || !u.e) return; var snap = roomsSnap(); touched();
+    var tg = el.dataset.tg, u = upcoming(tg)[+el.dataset.i]; if (!u || !u.e) return; var snap = roomsSnap([tg]); touched();
     softUndo('Playing now: ' + L.title(L.track(u.e.id)), function () { restoreRooms(snap); }, 'strip', el.dataset.k);
     var rm = RM(tg); rm.now = 'plan'; rm.ret = null; rm.pnCur = null; rm.playing = u.e.id;
     L.play(u.e.id, { lane: 'music', playlistId: u.e.pl, place: u.e.place, seq: u.e.seq, fade: 3, target: tg });
@@ -1194,7 +1203,8 @@
     startEntry({ id: id, pl: pl || '', place: place || '', seq: seq }, tg);
   }
   L.acts.lvplay = function (el) {
-    var t = L.track(el.dataset.id); if (!t) return; var snap = t.kind === 'fx' ? null : roomsSnap(); touched();
+    var t = L.track(el.dataset.id); if (!t) return; var tgs = []; eachTo(el.dataset.box || 'music', function (tg) { tgs.push(tg); });
+    var snap = t.kind === 'fx' ? null : roomsSnap(tgs); touched();
     // Round 10 (table review M4): Play on air replaces what the players hear, so it has Undo (the room's track back
     // at its place). An effect layers over the music, like a pad, and needs none.
     eachTo(el.dataset.box || 'music', function (tg) {

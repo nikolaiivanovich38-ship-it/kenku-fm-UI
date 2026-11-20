@@ -442,6 +442,7 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
       mode: pad.mode,
       volume: pad.volume,
       fadeMs: pad.fadeOutMs,
+      dip: pad.dip ?? null,
       sound: { kind: pad.sound.kind, trackIds: tracksOf(pad.sound.trackIds), order: pad.sound.order, tagId: pad.sound.tag ? (tagIdOf(pad.sound.tag.group, pad.sound.tag.value) ?? null) : null },
     });
     const yours = item.yours ? yourBoard.get(item.yours.id) : undefined;

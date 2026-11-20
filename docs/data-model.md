@@ -561,6 +561,20 @@ Split into parts… in the Audio profile makes a track for each part between the
 | `schema/v011.test.ts` | Parts share their whole's file, two whole tracks still cannot, the look-up by file finds the whole; the upgrade from version 10 leaves every track whole |
 | `../../common/lyre/contract.ts` (round 9) | `splitIntoParts` in the library and the fake: the parts, their files, tags and profiles, the playlists, Undo, and what it refuses |
 
+### Version 12: a pad's While it plays (0.6.0, f-live)
+
+`schema/v012-pad-dip.ts` (round 9 §11, item 47; Nik, 18 Nov 03:14, answer 12.2). `pads.dip`: 1 Dip the music, 0 Don't
+dip, NULL the usual for the pad's play mode (a one-shot or Restart on press pad dips, a Toggle loop or Hold to play pad
+does not; the engine's `padDips`). An upgraded library keeps every pad, each on the usual. `Pad.dip` (`true`, `false`
+or `null`) goes through `boards.updatePad` (`dip?`: `nullable(bool)` in argChecks), is copied by Duplicate pad and by
+Duplicate board, travels in a Lyre file (a file from before 0.6.0 has none: the usual) and reaches the engine through
+`LibrarySnapshot.pad` (`PadSound.dip`). The pad's box on a pad board shows it as While it plays.
+
+| Test | Covers |
+| --- | --- |
+| `schema/v012.test.ts` | The upgrade from version 11 keeps every pad (all columns), each on the usual; only 0, 1 or NULL are kept |
+| `../../common/lyre/contract.ts` (f-live) | `dip` in the library and the fake: the usual at first, kept, copied with the pad and the board, refused when not true, false or null |
+
 ### Import (EDT-6, DAT-5, DAT-8, DAT-4)
 
 - `importAudio(store, { paths }, { tagReader, onProgress, signal, batchSize })`: walks the folders (no links followed), skips files already in the library (one read of every track's location, keyed by `fileKey`: case ignored, as the coming unique path indexes will), reads file facts and tags 8 files at a time, and saves 500 tracks per `changeWithoutHistory` transaction, letting the event loop run between batches. Clears the undo history afterwards (DB review item 10; `changeWithoutHistory` now does it by itself). Measured: 5,000 files into a 20,000-track library in about 1.2 s, saving 0.5 s, longest batch 70 ms (budget: 5 s, 2 s, 200 ms; `import/pipeline.perf.test.ts`). The tag reader's own time comes on top.

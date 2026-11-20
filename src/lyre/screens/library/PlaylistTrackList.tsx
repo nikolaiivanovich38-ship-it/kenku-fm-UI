@@ -65,6 +65,7 @@ export function DividedTrackList<T extends { id: string }>({
   renderItem,
   renderDivider = (name, key) => <DividerHeading key={key} name={name} />,
   className = "list",
+  id,
   onKeyDown,
 }: {
   label: string;
@@ -74,11 +75,13 @@ export function DividedTrackList<T extends { id: string }>({
   /** `firstTrackId`: the track under the heading (Play from here starts there). */
   renderDivider?: (name: string, key: string, firstTrackId: string) => React.ReactNode;
   className?: string;
+  /** f-live: Live's unfolded list is named by its playlist's expander (aria-controls). */
+  id?: string;
   onKeyDown?: React.KeyboardEventHandler<HTMLOListElement>;
 }) {
   const shown = new Set<string>();
   return (
-    <ol className={className} aria-label={label} onKeyDown={onKeyDown}>
+    <ol className={className} id={id} aria-label={label} onKeyDown={onKeyDown}>
       {items.map((item, i) => {
         // A track listed twice gets its headings once, above its first place.
         const heads = shown.has(item.id) ? [] : (dividers.get(item.id) ?? []);
@@ -105,10 +108,10 @@ export function useRemoveFromPlaylist() {
   const { offer } = useUndoNote();
   const tracks = useTracks().data;
   return useCallback(
-    async (pl: Pick<PlaylistInfo, "id" | "name">, trackId: string): Promise<boolean> => {
+    async (pl: Pick<PlaylistInfo, "id" | "name">, trackId: string, at?: number): Promise<boolean> => {
       const t = tracks?.find((x) => x.id === trackId);
       const title = t ? shownTitle(t) : "the track";
-      const done = await save(pl.name, () => api.playlists.removeTrack(pl.id, trackId), { detail: `removed ${title}`, key: `pl-${pl.id}` });
+      const done = await save(pl.name, () => api.playlists.removeTrack(pl.id, trackId, at), { detail: `removed ${title}`, key: `pl-${pl.id}` });
       if (!done) return false;
       const text = `Removed “${title}” from the playlist "${pl.name}". It is still in the Track library.`;
       say(`${text} To undo this, press Undo, at the bottom of the screen, or Ctrl+Z.`);

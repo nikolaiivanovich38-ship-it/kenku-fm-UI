@@ -218,6 +218,8 @@ export interface RoomToRestore {
   botId: string;
   channelId: string;
   lanes: LaneToRestore[];
+  /** Review M2: the bot's volume when it left, 0 to 1 (Undo brings it back at that volume, however late). */
+  volume?: number;
 }
 
 /** What Undo of a Kick needs: the channel the bot was in and what the room played (OUT-7: "back with its music"). */
@@ -235,7 +237,7 @@ export function roomToRestore(of: BotView, room: RoomNowPlaying | undefined): Ro
           : undefined;
     lanes.push({ trackId: lane.trackId, fromMs: Math.round((lane.position ?? 0) * 1000), from, place: lane.place ?? undefined });
   }
-  return { botId: of.bot.id, channelId: of.bot.room.channelId, lanes };
+  return { botId: of.bot.id, channelId: of.bot.room.channelId, lanes, ...(typeof of.bot.volume === "number" ? { volume: of.bot.volume } : {}) };
 }
 
 /** Must 2: a bot in a voice channel with nobody in it: the players hear nothing from it. */

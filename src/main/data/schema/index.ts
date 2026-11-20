@@ -15,7 +15,8 @@ import { v008NewAndFolderKind } from "./v008-new-and-folder-kind";
 import { v009SessionNumbers } from "./v009-session-numbers";
 import { v010LengthChecked } from "./v010-length-checked";
 import { v011TrackParts } from "./v011-track-parts";
+import { v012PadDip } from "./v012-pad-dip";
 
-export const MIGRATIONS: readonly Migration[] = [v001Library, v002Peaks, v003Round5, v004Loudness, v005Round6, v006Round7, v007StartAt, v008NewAndFolderKind, v009SessionNumbers, v010LengthChecked, v011TrackParts];
+export const MIGRATIONS: readonly Migration[] = [v001Library, v002Peaks, v003Round5, v004Loudness, v005Round6, v006Round7, v007StartAt, v008NewAndFolderKind, v009SessionNumbers, v010LengthChecked, v011TrackParts, v012PadDip];
 
 export { migrate, rebuildTable, schemaVersion, type Migration, type MigrationResult } from "./migrate";

@@ -173,6 +173,7 @@ function usePlaceNames(): PlaceNames {
       playlist: (id) => playlistNames.get(id) ?? null,
       board: (id) => boardNames.get(id) ?? null,
       track: (id) => trackNames.get(id) ?? null,
+      scene: (cid, sid, scid) => campaigns?.find((x) => x.id === cid)?.sessions.find((s) => s.id === sid)?.scenes.find((sc) => sc.id === scid)?.name ?? null,
     };
   }, [campaigns, playlists, boards, tracks]);
 }

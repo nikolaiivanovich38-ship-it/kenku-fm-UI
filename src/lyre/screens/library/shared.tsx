@@ -116,7 +116,9 @@ export function PlaylistContents({
   const manual = playlist?.kind === "manual";
   const take = async (index: number) => {
     const t = tracks[index];
-    if (!playlist || !t || !(await remove(playlist, t.id))) return;
+    // Review M6: a track listed twice: the copy on this row (when the list is in the playlist's own order).
+    const at = playlist?.kind === "manual" && playlist.trackIds[index] === t?.id ? index : undefined;
+    if (!playlist || !t || !(await remove(playlist, t.id, at))) return;
     // Focus goes to the next track's ⋯ (or the one before), as on the playlist's page.
     const next = tracks[index + 1] ?? tracks[index - 1];
     focusSoon(next ? `xpm-${playlist.id}-${next.id}` : "plfq");

@@ -569,11 +569,13 @@ function TracksPane({
   const ok = useWriteOk();
   const removeFromPlaylist = useRemoveFromPlaylist();
   /** Round 10 fixes (R10-FIX §1): Remove from this playlist, with Undo at the bottom of the screen. */
-  const remove = async (tid: string) => {
-    const i = pl.trackIds.indexOf(tid);
-    const rest = pl.trackIds.filter((x) => x !== tid);
+  const remove = async (tid: string, row?: number) => {
+    // Review M6: a track listed twice loses the copy on its row (when the rows are in the playlist's own order).
+    const at = row !== undefined && pl.trackIds[row] === tid ? row : undefined;
+    const i = at ?? pl.trackIds.indexOf(tid);
+    const rest = pl.trackIds.filter((_, k) => k !== i);
     edit({ ...pl, trackIds: rest });
-    if (!(await removeFromPlaylist(pl, tid))) {
+    if (!(await removeFromPlaylist(pl, tid, at))) {
       edit(null);
       return;
     }
@@ -700,7 +702,7 @@ function TracksPane({
                     manual={{
                       pos: i + 1,
                       ...moves,
-                      onRemove: () => void remove(t.id),
+                      onRemove: () => void remove(t.id, entries.slice(0, row).filter((x) => x.kind === "track").length),
                       onDividerAbove: () => setNaming({ at: i }),
                       onAddTo: () => setAddingTo(t.id),
                     }}

@@ -17,12 +17,16 @@
   /* ---------- a manual playlist's track, wherever the playlist is shown unfolded ---------- */
   L.acts.r10xpmore = function (el) {
     var p = L.playlist(el.dataset.pid), id = el.dataset.tid; if (!p || !L.track(id)) return;
-    L.menu(el, '<button role="menuitem" data-act="r10xprm" data-pid="' + esc(p.id) + '" data-tid="' + esc(id) + '">' + L.icon('close', 's') + 'Remove from this playlist</button>' +
+    L.menu(el, '<button role="menuitem" data-act="r10xprm" data-pid="' + esc(p.id) + '" data-tid="' + esc(id) + '" data-row="' + esc(el.dataset.row || '') + '">' + L.icon('close', 's') + 'Remove from this playlist</button>' +
       '<div class="sep"></div><button role="menuitem" data-act="r10xplib" data-tid="' + esc(id) + '">' + L.icon('library', 's') + 'Open in Track library</button>', 'More for ' + title(id));
   };
   L.acts.r10xplib = function (el) { L.route('#/library/' + el.dataset.tid); };
   L.acts.r10xprm = function (el) {
     var p = L.playlist(el.dataset.pid), id = el.dataset.tid, i = p ? p.items.indexOf(id) : -1; if (i < 0) return;
+    // 0.6.0 review M6 (f-live): a track listed twice loses the copy on the row it was chosen from (its place among the
+    // playlist's tracks, dividers aside), not its first copy.
+    var row = el.dataset.row === '' || el.dataset.row == null ? -1 : +el.dataset.row, seen = -1;
+    if (row > -1) p.items.forEach(function (x, k) { if (!L.isDivider(x) && ++seen === row && x === id) i = k; });
     var text = 'Removed “' + title(id) + '” from the playlist "' + p.name + '". It is still in the Track library.';
     L.undoNote(text, L.snapshot(['playlists']));
     p.items.splice(i, 1);

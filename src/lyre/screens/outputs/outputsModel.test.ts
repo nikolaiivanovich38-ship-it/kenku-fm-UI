@@ -179,6 +179,8 @@ describe("round 6 (OUT-7): Add bot and Kick in the voice channels", () => {
         { trackId: "t-anthem", fromMs: 42500, from: { playlistId: "p-company", place: { kind: "campaign", campaignId: "crown" } }, place: { kind: "campaign", campaignId: "crown" } },
         { trackId: "a-rain", fromMs: 3000, from: undefined, place: undefined },
       ],
+      // Review M2: the volume it had, for an Undo pressed after the main process has forgotten it.
+      volume: 0.85,
     });
     const scene = room({ music: { ...lane(), origin: { kind: "scene", scene: { campaignId: "crown", sessionId: "s14", sceneId: "sc3" }, at: 1 } as never } });
     expect(roomToRestore(table, scene)!.lanes[0].from).toEqual({ scene: { campaignId: "crown", sessionId: "s14", sceneId: "sc3" }, at: 1 });

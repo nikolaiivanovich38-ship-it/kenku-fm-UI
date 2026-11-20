@@ -83,7 +83,7 @@ export function LibraryPicker({ open, kind, index, title, intro, selected, onDon
     };
     const trackEntry = (t: LibraryTrack, group: string): Entry => {
       const fx = isFx(t);
-      const what = fx ? `FX${t.role === "sting" ? " · Sting" : ""}` : `${laneWord(t.kind)}${t.role && t.kind === "music" ? ` · ${roleWord(t.role)}` : ""}`;
+      const what = fx ? `FX${t.role === "sting" ? ` · ${roleWord("sting")}` : ""}` : `${laneWord(t.kind)}${t.role && t.kind === "music" ? ` · ${roleWord(t.role)}` : ""}`;
       return {
         track: t,
         item: {

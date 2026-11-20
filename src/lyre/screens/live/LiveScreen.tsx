@@ -43,8 +43,7 @@ import { fadeAllWithUndo } from "./liveActions";
 import { ScenesPane } from "./Scenes";
 import { PadsBox, PlaylistsBox } from "./Trays";
 import { ArrangeBar, ArrangeBox, ColumnSplit, columnDrop, focusMove, useTopDrop } from "./Arrange";
-import { dipSettingsOf, useDip } from "../settings/dipSettings";
-import { arrange, layoutFor, loadLayouts, movedWords, readingOrder, saveLayouts, SIZE_NAMES, whereIs, widthsOf, withLayout, type ArrangeAction, type ArrangeId, type BoxId } from "./liveLayout";
+import { arrange, arrangedKeyOrder, layoutFor, loadLayouts, movedWords, saveLayouts, whereIs, widthsOf, withLayout, type ArrangeAction, type ArrangeId, type BoxId } from "./liveLayout";
 import "./live.css";
 
 /** Where the single-key shortcuts choice is kept (this page only). */
@@ -327,11 +326,6 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     [say, announceSaved],
   );
   const dropTop = useTopDrop(changeLayout);
-  // Round 10 (item 47): the audio host dips the music as Settings › Sound to Discord says.
-  const dip = useDip();
-  useEffect(() => {
-    audio.setDip(dipSettingsOf(dip));
-  }, [audio, dip]);
   // Leaving Live ends Arrange mode, so the boxes can be used when you come back.
   useEffect(() => () => updateLive({ arranging: false }), []);
 
@@ -655,14 +649,14 @@ type LiveBoxEntry = (typeof LIVE_BOXES)[number];
 
 /**
  * Round 10: the boxes in the order F6 and Alt+1 to 7 follow. In the usual layout that is On air, Scenes, Current scene,
- * then the session's and the campaign's boxes, whatever the columns; once Arrange has moved the boxes for this window
+ * then the session's and the campaign's boxes, whatever the columns; once Arrange has moved a box for this window
  * size, their reading order on screen (column by column, top to bottom).
  */
 function keyOrder(): LiveBoxEntry[] {
-  const columns = columnsFor(appWidth());
-  const saved = loadLayouts();
-  if (!saved[SIZE_NAMES[columns] as keyof typeof saved]) return [...LIVE_BOXES];
-  return readingOrder(layoutFor(columns, saved))
+  // Review M3: only a box moved changes the order; a box made taller or a column wider does not.
+  const order = arrangedKeyOrder(columnsFor(appWidth()), loadLayouts());
+  if (!order) return [...LIVE_BOXES];
+  return order
     .map((id) => LIVE_BOXES.find((b) => b.id === `lv-${id}`))
     .filter((b): b is LiveBoxEntry => !!b);
 }

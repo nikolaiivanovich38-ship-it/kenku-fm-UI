@@ -3795,6 +3795,9 @@ var L = (function () {
     // OUT-8: a bot that is not connected to Discord (Settings) cannot join a voice channel.
     if (b.login && b.login !== 'online') { L.toast(b.name + ' is not connected: connect it in Settings'); return; }
     var other = D.discord.bots.filter(function (x) { return x !== b && x.server === serverId && x.channel === channelId && x.status !== 'idle'; })[0];
+    // Round 10 (r10-live, as the app): a bot that joins a room from none starts at its Starting volume (Settings ›
+    // Discord bots).
+    if (b.status === 'idle' && b.startVolume != null) b.volume = b.startVolume;
     b.server = serverId; b.channel = channelId; b.status = 'connecting'; b.error = '';
     L.say(b.name + ' is joining ' + L.botWhere(b)); L.changed();
     setTimeout(function () { if (b.channel === channelId) { b.status = 'connected'; L.say(b.name + ' is broadcasting to ' + L.botWhere(b) + (other ? '. ' + other.name + ' is in the same room, so the players hear both.' : '')); L.changed(); } }, 1100);
@@ -3810,10 +3813,12 @@ var L = (function () {
   L.botKick = function (botId) {
     var b = L.bot(botId); if (!b || b.status === 'idle') return null;
     var m = mixOf(botId), lanes = ['music', 'amb'].map(function (ln) { var c = m[ln]; return c ? { ln: ln, id: c.id, playlistId: c.playlistId, place: c.place, seq: c.seq, pos: c.pos, paused: c.paused } : null; }).filter(Boolean);
-    var where = { server: b.server, channel: b.channel }, lost = lanes.some(function (x) { return !x.paused; }) && L.botListeners(b).length > 0;
+    var where = { server: b.server, channel: b.channel }, volume = b.volume, lost = lanes.some(function (x) { return !x.paused; }) && L.botListeners(b).length > 0;
     L.botLeave(botId);
     return { lost: lost, restore: function () {
       L.botJoin(botId, where.server, where.channel);
+      // 0.6.0 review M2 (f-live): Undo brings the bot back at the volume it had, however late Undo is pressed.
+      b.volume = volume;
       var say = L.say; L.say = function () {};
       try { lanes.forEach(function (x) { L.play(x.id, { lane: x.ln, playlistId: x.playlistId, place: x.place, seq: x.seq, fade: 1, target: botId }); var c = mixOf(botId)[x.ln]; if (c) { c.pos = x.pos; c.paused = x.paused; } }); } finally { L.say = say; }
       L.changed();
@@ -7349,7 +7354,7 @@ var L = (function () {
           // Round 6 part 3 (decision 4): a scene's Repeat one, saved with the scene, shows and changes here as in Live.
           (inScene && p.lane === 'music' ? L.repeatOneButton(inScene, t.id, 'r1-' + (did || id) + '-' + t.id, nm) : '') +
           // Round 10 fixes (R10-FIX §1): a manual playlist's track comes out of the playlist from here too (r10remove.js).
-          (p.kind === 'manual' && L.acts.r10xpmore ? '<button type="button" class="btn s icon r10-xpmore" data-act="r10xpmore" data-pid="' + esc(id) + '" data-tid="' + t.id + '" data-k="xpm-' + esc(did || id) + '-' + t.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(nm) + '" title="More">' + L.icon('more', 's') + '</button>' : '') +
+          (p.kind === 'manual' && L.acts.r10xpmore ? '<button type="button" class="btn s icon r10-xpmore" data-act="r10xpmore" data-pid="' + esc(id) + '" data-tid="' + t.id + '" data-row="' + i + '" data-k="xpm-' + esc(did || id) + '-' + t.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(nm) + '" title="More">' + L.icon('more', 's') + '</button>' : '') +
           (ron ? '<span class="ro-btns"><button type="button" class="closer" data-act="romove" data-d="-1" data-k="roup-' + did + '-' + t.id + '" aria-label="Move up: ' + esc(nm) + '" title="Move up (Alt+Up)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + '</button>' +
             '<button type="button" class="closer" data-act="romove" data-d="1" data-k="rodn-' + did + '-' + t.id + '" aria-label="Move down: ' + esc(nm) + '" title="Move down (Alt+Down)"' + (i === ts.length - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + '</button></span>' : '') + '</li>';
       }).join('') + '</ol>';
@@ -10295,7 +10300,8 @@ var L = (function () {
 
   /* ---------- Undo: scene changes, and (round 6 part 2) the queue, Up next and Kick, 8 s each ---------- */
   var UNDO_MS = 8000;
-  function laneCopy(c) { return c ? { id: c.id, playlistId: c.playlistId, place: c.place, pos: c.pos, paused: !!c.paused, seq: copySeq(c.seq), added: c.added } : null; }
+  // ref: the lane itself, so Undo can tell a lane that still plays the same thing (review I3) and leave it alone.
+  function laneCopy(c) { return c ? { id: c.id, playlistId: c.playlistId, place: c.place, pos: c.pos, paused: !!c.paused, seq: copySeq(c.seq), added: c.added, ref: c } : null; }
   function changeScene(idx) {
     var lv = live(), s = sess(); if (!s.scenes[idx]) return;
     var prevName = S.notStarted ? 'before the first scene' : (s.scenes[lv.scene] ? s.scenes[lv.scene].name : 'the previous scene');
@@ -10316,6 +10322,11 @@ var L = (function () {
     L.say('Started ' + s.scenes[idx].name + '. To undo this, press Undo or Ctrl+Z within 8 seconds.');
   }
   function restoreLane(ln, c, elapsed, tg) {
+    var mx = M(tg);
+    // 0.6.0 review I3 (f-live, as the app): a lane still playing what it played then was not changed: it plays on.
+    if (c && mx[ln] && mx[ln] === c.ref && !mx[ln].fadeOut) return;
+    // 0.6.0 review I2: what is still fading out of the lane stops now, so the track is not heard twice.
+    if (mx[ln + 'Out']) mx[ln + 'Out'] = [];
     if (!c) { L.stopLane(ln, 1.5, tg); return; }
     L.play(c.id, { lane: ln, playlistId: c.playlistId, place: c.place, fade: 1.5, seq: c.seq, target: tg });
     var m = M(tg); if (m[ln]) { m[ln].pos = Math.min(m[ln].dur - 1, c.pos + (c.paused ? 0 : elapsed)); m[ln].paused = c.paused; if (c.added) m[ln].added = c.added; }
@@ -10344,14 +10355,17 @@ var L = (function () {
   }
   /* Round 10 (table review M4, S1; Nik, 18 Nov 08:36, answer 6a): what every room plays, kept before Play on air, Fade
      all or Stop all, so Undo brings every room back where it was. */
-  function roomsSnap() {
-    var tgs = ['table'].concat(Object.keys(pb.own || {}).filter(function (id) { return tgOf(id) === id; }));
-    return { rm: clone(S.rm), rooms: tgs.map(function (tg) { return { tg: tg, music: laneCopy(M(tg).music), amb: laneCopy(M(tg).amb), rep: M(tg).rep || null }; }), at: Date.now() };
+  function roomsSnap(only) {
+    // 0.6.0 review I3 (f-live): Play on air keeps only the rooms it plays in, so Undo leaves the others where they are.
+    var tgs = only || ['table'].concat(Object.keys(pb.own || {}).filter(function (id) { return tgOf(id) === id; }));
+    return { rm: clone(S.rm), rooms: tgs.map(function (tg) { return { tg: tg, music: laneCopy(M(tg).music), amb: laneCopy(M(tg).amb), rep: M(tg).rep || null }; }), at: Date.now(), only: !!only };
   }
   function restoreRooms(snap, sameTime) {
     var elapsed = sameTime ? 0 : (Date.now() - snap.at) / 1000;
     quiet(function () { snap.rooms.forEach(function (r) { if (r.tg === 'table' || tgOf(r.tg) === r.tg) { restoreLane('music', r.music, elapsed, r.tg); restoreLane('amb', r.amb, elapsed, r.tg); M(r.tg).rep = r.rep; } }); });
-    S.rm = snap.rm;
+    // Only the rooms kept come back (review I3): the others keep their lists as they are now.
+    if (snap.only) snap.rooms.forEach(function (r) { if (snap.rm[r.tg]) S.rm[r.tg] = snap.rm[r.tg]; else delete S.rm[r.tg]; });
+    else S.rm = snap.rm;
     Object.keys(S.rm).forEach(function (tg) { var c = M(tg).music; if (c) S.rm[tg].playing = S.rm[tg].now === 'plan' ? c.id : S.rm[tg].playing; });
   }
   function anySound() { return roomTgs().concat(['table']).some(function (tg) { var m = M(tg); return m && (m.music || m.amb); }); }
@@ -10663,7 +10677,7 @@ var L = (function () {
   }
   L.acts.lvplayed = function (el) { var tg = el.dataset.tg; S.playedOpen[tg] = !S.playedOpen[tg]; L.render(); focusK(el.dataset.k); };
   L.acts.lvupplay = function (el) {
-    var tg = el.dataset.tg, u = upcoming(tg)[+el.dataset.i]; if (!u || !u.e) return; var snap = roomsSnap(); touched();
+    var tg = el.dataset.tg, u = upcoming(tg)[+el.dataset.i]; if (!u || !u.e) return; var snap = roomsSnap([tg]); touched();
     softUndo('Playing now: ' + L.title(L.track(u.e.id)), function () { restoreRooms(snap); }, 'strip', el.dataset.k);
     var rm = RM(tg); rm.now = 'plan'; rm.ret = null; rm.pnCur = null; rm.playing = u.e.id;
     L.play(u.e.id, { lane: 'music', playlistId: u.e.pl, place: u.e.place, seq: u.e.seq, fade: 3, target: tg });
@@ -11284,7 +11298,8 @@ var L = (function () {
     startEntry({ id: id, pl: pl || '', place: place || '', seq: seq }, tg);
   }
   L.acts.lvplay = function (el) {
-    var t = L.track(el.dataset.id); if (!t) return; var snap = t.kind === 'fx' ? null : roomsSnap(); touched();
+    var t = L.track(el.dataset.id); if (!t) return; var tgs = []; eachTo(el.dataset.box || 'music', function (tg) { tgs.push(tg); });
+    var snap = t.kind === 'fx' ? null : roomsSnap(tgs); touched();
     // Round 10 (table review M4): Play on air replaces what the players hear, so it has Undo (the room's track back
     // at its place). An effect layers over the music, like a pad, and needs none.
     eachTo(el.dataset.box || 'music', function (tg) {
@@ -12996,6 +13011,8 @@ var L = (function () {
       '<fieldset class="r9-sp-cuts"><legend>Split at</legend>' + SP.cuts.map(function (c, i) {
         return '<label class="r9-sp-cut"><input type="checkbox" data-input="r9spcut" data-i="' + i + '" data-k="r9sp-cut-' + i + '"' + (c.on ? ' checked' : '') + '>' + esc(c.label) + ' <span class="num faint">' + L.fmt(c.at) + '</span></label>';
       }).join('') + '</fieldset>' +
+      // 0.6.0 review M5 (f-live): one part is the whole track again, so Make is greyed and says why.
+      (ps.length < 2 ? '<p class="hint" id="r9-sp-none">Tick at least one place to split at.</p>' : '') +
       '<table class="r9-sp-table"><caption class="sr-only">The parts</caption><thead><tr><th scope="col">Part name</th><th scope="col">From – to</th><th scope="col">Length</th><th scope="col"><span class="sr-only">Preview</span></th></tr></thead><tbody>' + ps.map(function (x, i) {
         return '<tr><td><input class="input" data-input="r9spname" data-i="' + i + '" data-k="r9sp-name-' + i + '" aria-label="Name of part ' + (i + 1) + '" value="' + esc(x.name) + '"></td><td class="num">' + L.fmt(x.from) + ' – ' + L.fmt(x.to) + '</td><td class="num">' + L.fmt(x.to - x.from) + '</td>' +
           '<td><button class="btn s icon" data-act="r9sppv" data-from="' + x.from + '" data-k="r9sp-pv-' + i + '" title="Preview from ' + L.fmt(x.from) + '" aria-label="Preview part ' + (i + 1) + '">' + L.icon('headphones', 's') + '</button></td></tr>';
@@ -13003,12 +13020,13 @@ var L = (function () {
       '<label class="r9-sp-opt"><input type="checkbox" data-input="r9spopt" data-o="tags" data-k="r9sp-tags"' + (SP.tags ? ' checked' : '') + '>Copy its tags, Type and Use it for to each part</label>' +
       '<label class="r9-sp-opt"><input type="checkbox" data-input="r9spopt" data-o="lists" data-k="r9sp-lists"' + (SP.lists ? ' checked' : '') + '>Add the parts beside it in its manual playlists</label>';
   }
-  function spRepaint(k) { var t = profTrack(), b = document.querySelector('#lyre-sheet .body'); if (!t || !b) return; L.paint(b, splitBody(t)); var f = document.querySelector('#lyre-sheet [data-act="r9spok"]'); if (f) f.textContent = 'Make ' + parts(t).length + ' tracks'; var el = k && document.querySelector('[data-k="' + k + '"]'); if (el) el.focus(); }
+  function spRepaint(k) { var t = profTrack(), b = document.querySelector('#lyre-sheet .body'); if (!t || !b) return; L.paint(b, splitBody(t)); var f = document.querySelector('#lyre-sheet [data-act="r9spok"]'); if (f) { var n = parts(t).length; f.textContent = 'Make ' + n + ' tracks'; f.disabled = n < 2; if (n < 2) f.setAttribute('aria-describedby', 'r9-sp-none'); else f.removeAttribute('aria-describedby'); } var el = k && document.querySelector('[data-k="' + k + '"]'); if (el) el.focus(); }
   L.acts.r9split = function (el) {
     var t = profTrack(); if (!t) return;
     if (el.getAttribute('aria-disabled') === 'true') { L.toast('Add a marker first: each marker starts a new part'); return; }
     var p = L.profileOf(t);
-    SP = { cuts: p.markers.filter(function (m) { return m.at > 0 && m.at < t.dur; }).sort(function (a, b) { return a.at - b.at; }).map(function (m) { return { at: m.at, label: m.label, on: true }; }), names: {}, tags: true, lists: false };
+    // 0.6.0 review M5 (f-live): two markers at the same time are one split point (no part of no length).
+    SP = { cuts: p.markers.filter(function (m) { return m.at > 0 && m.at < t.dur; }).sort(function (a, b) { return a.at - b.at; }).filter(function (m, i, a) { return i === 0 || a[i - 1].at !== m.at; }).map(function (m) { return { at: m.at, label: m.label, on: true }; }), names: {}, tags: true, lists: false };
     L.sheet({ title: 'Split into parts', wide: true, describe: esc(L.title(t)), body: splitBody(t), footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="r9spok" data-k="r9sp-ok">Make ' + parts(t).length + ' tracks</button>' });
   };
   L.inputs.r9spcut = function (el) { SP.cuts[+el.dataset.i].on = el.checked; SP.names = {}; spRepaint(el.dataset.k); };
@@ -13016,7 +13034,7 @@ var L = (function () {
   L.inputs.r9spopt = function (el) { SP[el.dataset.o] = el.checked; };
   L.acts.r9sppv = function (el) { var t = profTrack(); if (!L.previewing(t.id)) L.preview(t.id); if (L.pb.preview) L.pb.preview.pos = +el.dataset.from; };
   L.acts.r9spok = function () {
-    var t = profTrack(); if (!t) return; var ps = parts(t), made = [];
+    var t = profTrack(); if (!t) return; var ps = parts(t), made = []; if (ps.length < 2) return;
     ps.forEach(function (x, i) {
       var n = JSON.parse(JSON.stringify(t)); n.id = t.id + 'p' + (i + 1) + Date.now().toString(36).slice(-3);
       n.title = x.name; n.isNew = false; n.partOf = { tid: t.id, from: x.from, to: x.to }; n.dur = Math.max(1, Math.round(x.to - x.from)); delete n.profile; delete n.end; delete n.parts;
@@ -13225,7 +13243,7 @@ var L = (function () {
     var usual = USUAL_DIP[p.mode], cur = p.dip == null ? 'usual' : p.dip ? 'dip' : 'no';
     var opts = [['usual', 'The usual (' + (usual ? 'dip' : 'don’t dip') + ')'], ['dip', 'Dip the music'], ['no', 'Don’t dip']];
     return '<fieldset class="pb-fs r9-paddip"><legend>While it plays</legend><div class="seg s" role="radiogroup" aria-label="While it plays">' + opts.map(function (x) {
-      return '<button role="radio" aria-checked="' + (cur === x[0]) + '" data-act="r9paddip" data-pid="' + p.id + '" data-v="' + x[0] + '" data-k="r9pd-' + x[0] + '">' + x[1] + '</button>';
+      return '<button role="radio" aria-checked="' + (cur === x[0]) + '" tabindex="' + (cur === x[0] ? 0 : -1) + '" data-act="r9paddip" data-pid="' + p.id + '" data-v="' + x[0] + '" data-k="r9pd-' + x[0] + '">' + x[1] + '</button>';
     }).join('') + '</div>' + (D.dip.amount === 'off' ? '<p class="hint">Dipping is off in Settings › Sound to Discord.</p>' : '') + '</fieldset>';
   };
   L.acts.r9paddip = function (el) {
@@ -13233,6 +13251,15 @@ var L = (function () {
     if (el.dataset.v === 'usual') delete p.dip; else p.dip = el.dataset.v === 'dip';
     L.render(); L.saved(p.label + (L.padDips(p) ? ' dips the music' : ' leaves the music as it is')); var b = document.querySelector('[data-k="r9pd-' + el.dataset.v + '"]'); if (b) b.focus();
   };
+
+  // 0.6.0 (f-live, as the app): a group of radio buttons: Tab reaches the chosen one, the arrow keys choose another.
+  document.addEventListener('keydown', function (e) {
+    var b = e.target.closest && e.target.closest('[data-act="r9paddip"]'); if (!b) return;
+    var step = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0; if (!step) return;
+    e.preventDefault(); e.stopPropagation();
+    var all = [].slice.call(b.parentNode.querySelectorAll('[data-act="r9paddip"]')), next = all[(all.indexOf(b) + step + all.length) % all.length];
+    L.acts.r9paddip(next);
+  }, true);
 
   /* ---------- §6 the queue ---------- */
   var Q = { open: null };
@@ -13301,7 +13328,13 @@ var L = (function () {
   }
   function current(mode) { return lay(mode, DEFAULT[mode]); }
   L.arranging = function () { return A.on && L.current().name === 'live'; };
-  L.liveArranged = function () { return !!A.saved[MODES[mode()]]; };
+  // 0.6.0 review M3 (f-live, as the app's arrangedKeyOrder): F6 and Alt+1 to 7 follow the boxes on screen only once a
+  // box has moved for this window size; a box made taller or a column wider keeps the usual order.
+  L.liveArranged = function () {
+    var m = mode(), s = A.saved[MODES[m]]; if (!s || !s.cols) return false;
+    var cols = s.cols.filter(function (c) { return c.length; });
+    return JSON.stringify(cols) !== JSON.stringify(DEFAULT[m]);
+  };
   L.liveLayout = function (mode, def) {
     DEFAULT[mode] = def;
     var c = lay(mode, def), out = c.cols;
@@ -13416,23 +13449,31 @@ var L = (function () {
     if (edge) {
       var id = edge.dataset.r10edge, inner = edge.parentNode.querySelector('.r9-boxin'), h0 = inner.getBoundingClientRect().height, y0 = e.clientY, hNow = h0; e.preventDefault();
       var mv = function (ev) { hNow = Math.max(120, Math.min(1200, h0 + ev.clientY - y0)); edge.parentNode.style.setProperty('--r9h', hNow + 'px'); edge.parentNode.classList.add('r10-sizing'); };
-      var upE = function () { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', upE); edit(function (s) { s.heights[id] = Math.round(hNow / 10) * 10; }); L.say(NAMES[id] + ' ' + Math.round(hNow / 10) * 10 + ' pixels high'); };
-      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', upE); return;
+      // 0.6.0 review M7 (f-live, as the app): a cancelled pointer (Alt+Tab, a touch taken over) ends the drag, saving nothing.
+      var offE = function () { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', upE); document.removeEventListener('pointercancel', cancelE); edge.parentNode.classList.remove('r10-sizing'); };
+      var cancelE = function () { offE(); edge.parentNode.style.removeProperty('--r9h'); };
+      var upE = function () { offE(); edit(function (s) { s.heights[id] = Math.round(hNow / 10) * 10; }); L.say(NAMES[id] + ' ' + Math.round(hNow / 10) * 10 + ' pixels high'); };
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', upE); document.addEventListener('pointercancel', cancelE); return;
     }
     var bar = e.target.closest && e.target.closest('.r9-split'); if (!bar) return;
     var sp = bar, ci = +sp.dataset.split, grid = sp.parentNode, cols = [].slice.call(grid.querySelectorAll(':scope > .col'));
     var a = cols[ci].getBoundingClientRect().width, b = cols[ci + 1].getBoundingClientRect().width, x0 = e.clientX;
     e.preventDefault();
     function move(ev) { var dx = ev.clientX - x0; cols[ci].dataset.w = Math.max(80, a + dx); cols[ci + 1].dataset.w = Math.max(80, b - dx); sp.classList.add('on'); sp.style.transform = 'translateX(' + Math.max(80 - a, Math.min(b - 80, dx)) + 'px)'; }
+    function off() { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', off); sp.classList.remove('on'); sp.style.transform = ''; }
     function up() {
-      document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); sp.classList.remove('on'); sp.style.transform = '';
+      off();
       var wa = +cols[ci].dataset.w || a, wb = +cols[ci + 1].dataset.w || b;
       edit(function (s) {
         var n = s.cols.length, base = (s.widths || cols.map(function (c) { return c.getBoundingClientRect().width; })).slice(0, n);
-        var total = base[ci] + base[ci + 1]; base[ci] = total * wa / (wa + wb); base[ci + 1] = total * wb / (wa + wb); s.widths = base.map(function (x) { return Math.round(x * 10) / 10; });
+        // 0.6.0 review M4 (f-live): the bar before the empty column to drop into (drawn only while arranging) changes
+        // the last real column's width; the empty column keeps none.
+        if (base[ci + 1] == null || !s.cols[ci + 1].length) base[ci] = base[ci] * wa / a;
+        else { var total = base[ci] + base[ci + 1]; base[ci] = total * wa / (wa + wb); base[ci + 1] = total * wb / (wa + wb); }
+        s.widths = base.map(function (x) { return Math.round(x * 10) / 10; });
       });
     }
-    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', off);
   });
 
   /* ---------- painting what lives outside the view ---------- */
@@ -13873,12 +13914,16 @@ var L = (function () {
   /* ---------- a manual playlist's track, wherever the playlist is shown unfolded ---------- */
   L.acts.r10xpmore = function (el) {
     var p = L.playlist(el.dataset.pid), id = el.dataset.tid; if (!p || !L.track(id)) return;
-    L.menu(el, '<button role="menuitem" data-act="r10xprm" data-pid="' + esc(p.id) + '" data-tid="' + esc(id) + '">' + L.icon('close', 's') + 'Remove from this playlist</button>' +
+    L.menu(el, '<button role="menuitem" data-act="r10xprm" data-pid="' + esc(p.id) + '" data-tid="' + esc(id) + '" data-row="' + esc(el.dataset.row || '') + '">' + L.icon('close', 's') + 'Remove from this playlist</button>' +
       '<div class="sep"></div><button role="menuitem" data-act="r10xplib" data-tid="' + esc(id) + '">' + L.icon('library', 's') + 'Open in Track library</button>', 'More for ' + title(id));
   };
   L.acts.r10xplib = function (el) { L.route('#/library/' + el.dataset.tid); };
   L.acts.r10xprm = function (el) {
     var p = L.playlist(el.dataset.pid), id = el.dataset.tid, i = p ? p.items.indexOf(id) : -1; if (i < 0) return;
+    // 0.6.0 review M6 (f-live): a track listed twice loses the copy on the row it was chosen from (its place among the
+    // playlist's tracks, dividers aside), not its first copy.
+    var row = el.dataset.row === '' || el.dataset.row == null ? -1 : +el.dataset.row, seen = -1;
+    if (row > -1) p.items.forEach(function (x, k) { if (!L.isDivider(x) && ++seen === row && x === id) i = k; });
     var text = 'Removed “' + title(id) + '” from the playlist "' + p.name + '". It is still in the Track library.';
     L.undoNote(text, L.snapshot(['playlists']));
     p.items.splice(i, 1);

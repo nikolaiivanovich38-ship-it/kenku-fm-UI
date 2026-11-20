@@ -153,7 +153,7 @@ export class LibrarySnapshot implements LyreAudioLibrary {
     const { sound } = pad;
     // "Any effect with a tag": every FX track (effects and stings) carrying that tag, in library order.
     const trackIds = sound.kind === "tag" ? (sound.tag ? this.trackList.filter((t) => isFx(t) && (t.tags[sound.tag.group] ?? []).includes(sound.tag.value)).map((t) => t.id) : []) : [...sound.trackIds];
-    return { label: pad.label, trackIds, order: sound.order === "in_turn" ? "roundrobin" : "random", mode: pad.mode, fadeMs: pad.fadeOutMs, volume: pad.volume, ...(pad.steps ? { steps: pad.steps } : {}) };
+    return { label: pad.label, trackIds, order: sound.order === "in_turn" ? "roundrobin" : "random", mode: pad.mode, fadeMs: pad.fadeOutMs, volume: pad.volume, dip: pad.dip ?? null, ...(pad.steps ? { steps: pad.steps } : {}) };
   }
 
   /* ---------- loading ---------- */

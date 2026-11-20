@@ -7,7 +7,8 @@
  * and music on air show together, as do two rooms. The rows share one grid, so their parts line up.
  *   - A room row: the On air tag (naming the room when there are two or more, "no room" while no bot is in a voice
  *     channel), the track (the scene's name for it, its own name on hover), where it comes from, the ambience under it
- *     and how many effects sound there, the time, Pause/Play, Stop (that room only), Next, Shuffle (the playlist's
+ *     and how many effects sound there, the time, Back, Pause/Play, Stop (that room only), Next, Queue n (0.6.0: the
+ *     room's queue in a side panel, as the preview's), Shuffle (the playlist's
  *     own shuffle where it plays from, PLY-13, saved), Repeat (the room's, for what plays now, never saved, PLY-17),
  *     What played (round 7, PLY-1: a sheet with Play again and Play next), that room's volume, and Go to Live on the
  *     first row.
@@ -148,6 +149,16 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
   const playlistName = lane.playlistId ? (playlists?.get(lane.playlistId)?.name ?? null) : null;
   const from = originWords({ place: lane.place, playlistName }, places);
   const canNext = lane.origin.kind !== "single";
+  // --- f-live --- 0.6.0 (R60-GAPS row 20): Back, and the queue for the room's music, as the preview has them.
+  const toCome = room.music ? room.upNextList.reduce((n, e) => n + e.trackIds.length, 0) : 0;
+  const hasQueue = !!room.music && (room.music.origin.kind !== "single" || toCome > 0);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const queueButton = useRef<HTMLButtonElement>(null);
+  const closeQueue = useCallback(() => {
+    setQueueOpen(false);
+    setTimeout(() => queueButton.current?.focus(), 0);
+  }, []);
+  // --- end f-live ---
   // One room volume: the bot's own (kept by the main process, the same slider as on Outputs and in Live). The table,
   // and a page without the Outputs bridge (tests), use the audio host's room level (roomVolume.ts).
   const { outputs, client } = useOutputs();
@@ -197,6 +208,15 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
         <button
           type="button"
           className="btn s icon"
+          aria-label="Back"
+          title={canNext ? "Back: the previous track (after 3 seconds, the start of this one)" : "A single track: back to its start"}
+          onClick={() => audio.roomBack(laneName, target)}
+        >
+          <Icon name="prev" size="s" />
+        </button>
+        <button
+          type="button"
+          className="btn s icon"
           aria-label={paused ? "Play" : "Pause"}
           title={`${paused ? `Play the ${word} again` : `Pause the ${word}`}${where}`}
           onClick={() => {
@@ -228,10 +248,28 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
         >
           <Icon name="next" size="s" />
         </button>
+        {hasQueue && (
+          <button
+            ref={queueButton}
+            type="button"
+            className="btn s r9-qbtn"
+            aria-expanded={queueOpen}
+            title="The queue: what played, what plays now, what comes next"
+            onClick={() => (queueOpen ? closeQueue() : setQueueOpen(true))}
+          >
+            <Icon name="queue" size="s" />
+            Queue <span className="num">{toCome}</span>
+          </button>
+        )}
         {lane.playlistId && <ShuffleButton playlistId={lane.playlistId} place={lane.place} />}
         {room.music && <RepeatButton audio={audio} room={room} where={where} />}
         <WhatPlayed audio={audio} room={room} named={named} />
       </div>
+      {queueOpen && (
+        <SidePanel kind="queue" onClosedByHost={() => setQueueOpen(false)}>
+          <QueuePanel room={room.roomId} onClose={closeQueue} />
+        </SidePanel>
+      )}
       <label className="oab-vol" title={`Volume of what the players hear${where}`}>
         <Icon name="volume" size="s" />
         <span className="sr-only">Volume in {room.name}</span>

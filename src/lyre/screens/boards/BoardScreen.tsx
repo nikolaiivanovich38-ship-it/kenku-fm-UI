@@ -57,6 +57,7 @@ export function padSaveWords(patch: PadPatch, label: string): string {
   if (patch.fadeOutMs !== undefined) return `${label} fade`;
   if (patch.key !== undefined) return `${label} hotkey`;
   if (patch.mode !== undefined) return `${label} play mode`;
+  if (patch.dip !== undefined) return `${label} while it plays`;
   return `${label} sound`;
 }
 

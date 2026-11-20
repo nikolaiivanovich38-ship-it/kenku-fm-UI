@@ -509,6 +509,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     if (!(PAD_MODES as readonly string[]).includes(p.mode)) refuse("invalid", "Choose how the pad plays.", "mode");
     if (typeof p.volume !== "number" || p.volume < 0 || p.volume > 1) refuse("invalid", "Volume goes from 0 to 100.", "volume");
     if (typeof p.fadeOutMs !== "number" || p.fadeOutMs < 0) refuse("invalid", "The fade lasts zero seconds or more.", "fadeOutMs");
+    if (p.dip !== null && typeof p.dip !== "boolean") refuse("invalid", "Choose whether the music dips while the pad plays.", "dip");
     const s = p.sound;
     if (!["single", "variants", "tag"].includes(s.kind) || !["random", "in_turn"].includes(s.order)) refuse("invalid", "That sound cannot be kept.", "sound");
     s.trackIds.forEach(track);
@@ -554,7 +555,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     return { id: newId("scene"), name, startsWhen: "", notes: "", noteLink: "", music: [], ambience: null, boardIds: [], trackNames: {}, repeatOnes: [], steps: null, movesOn: { when: "stay" } };
   }
   function blankPad(): Pad {
-    return { id: newId("pad"), label: "New pad", icon: "star", color: "gold", key: "", mode: "oneshot", sound: { kind: "single", trackIds: [], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500, aside: false, steps: null };
+    return { id: newId("pad"), label: "New pad", icon: "star", color: "gold", key: "", mode: "oneshot", sound: { kind: "single", trackIds: [], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500, aside: false, steps: null, dip: null };
   }
   function history(): HistoryState {
     return { canUndo: undoStack.length > 0, canRedo: redoStack.length > 0, undoLabel: last(undoStack)?.label ?? null, redoLabel: last(redoStack)?.label ?? null };
@@ -1079,12 +1080,15 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           return { added, alreadyIn };
         });
       },
-      async removeTrack(id, trackId) {
+      async removeTrack(id, trackId, at) {
         let label = "";
         return write(() => label, ["playlists"], () => {
           const pl = manual(id);
-          if (!pl.trackIds.includes(trackId)) refuse("not-found", "That track is not in this playlist.");
-          setItems(pl, itemsOf(pl).filter((x) => !("trackId" in x && x.trackId === trackId)));
+          // Review M6: one copy only: the one on the row given (a track listed twice), else its first.
+          const row = at === undefined ? pl.trackIds.indexOf(trackId) : pl.trackIds[at] === trackId ? at : -1;
+          if (row < 0) refuse("not-found", "That track is not in this playlist.");
+          let seen = -1;
+          setItems(pl, itemsOf(pl).filter((x) => !("trackId" in x) || ++seen !== row));
           label = `Remove ${quoted(shownTitle(track(trackId)))} from ${quoted(pl.name)}`;
         });
       },

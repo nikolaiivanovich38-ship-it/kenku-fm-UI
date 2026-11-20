@@ -1414,9 +1414,12 @@ describe("round 10: one Undo place, and Undo for Play on air, Fade all and Stop 
     await userEvent.click(field);
     await userEvent.type(field, "abbess");
     const pl = within(region("Find a track or playlist").getByRole("list", { name: "Playlists" })).getAllByRole("listitem")[0];
+    const snapshot = vi.spyOn(sound.audio, "snapshotRooms");
     await userEvent.click(within(pl).getByRole("button", { name: /^Play on air/ }));
     await playOn(sound);
     expect(undoPlace()).toHaveTextContent(/^Playing on air: /);
+    // Review I3: only the rooms it played in are kept for Undo, so a room that moves on meanwhile stays where it is.
+    expect(snapshot).toHaveBeenCalledWith([expect.anything()]);
     await userEvent.click(within(undoPlace()).getByRole("button", { name: "Undo" }));
     await playOn(sound);
     expect(sound.audio.getNowPlaying().rooms[0].music?.trackId).toBe(scenes);
@@ -1475,6 +1478,22 @@ describe("round 10 fixes (Nik, 18 Nov, answer 1): a track of a manual playlist u
     within(tracks().getAllByRole("listitem")[1]).getByRole("button", { name: /^More for / }).focus();
     press("Delete");
     await waitFor(() => expect(tracks().getAllByRole("listitem")).toHaveLength(n - 1));
+  });
+
+  /* 0.6.0 (f-live 2; round 9 §8, item 42): its dividers are headings here too, each with Play from here. */
+  it("shows the playlist's dividers as headings; Play from here plays the playlist on air from the track under one", async () => {
+    const { api, sound } = await openLive();
+    const third = (await api.playlists.tracks("p-company"))[2];
+    await act(async () => void (await api.playlists.addDivider("p-company", "The voyage home", 2)));
+    await userEvent.click(region("Campaign playlists").getByRole("button", { name: "Campaign Playlists" }));
+    await userEvent.click(region("Campaign playlists").getByRole("button", { name: "Show contents of The Company themes" }));
+    const list = within(region("Campaign playlists").getByRole("list", { name: "Tracks in The Company themes" }));
+    const heading = await list.findByRole("listitem", { name: "Section: The voyage home" });
+    await userEvent.click(within(heading).getByRole("button", { name: "Play from here: The voyage home" }));
+    await playOn(sound);
+    const music = sound.audio.getNowPlaying().rooms[0].music;
+    expect(music?.trackId).toBe(third);
+    expect(music?.playlistId).toBe("p-company");
   });
 
   it("Play on air stands last on a row, with the words Players hear this now", async () => {

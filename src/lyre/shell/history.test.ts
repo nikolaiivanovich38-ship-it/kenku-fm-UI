@@ -11,6 +11,7 @@ const NAMES: PlaceNames = {
   playlist: (id) => (id === "p-abbess" ? "The Abbess" : null),
   board: (id) => (id === "abbey" ? "Drowned Abbey" : null),
   track: (id) => (id === "t13" ? "Ashes" : null),
+  scene: (c, s, sc) => (c === "crown" && s === "s14" && sc === "sc3" ? "The abbey ruins" : null),
 };
 
 describe("Back's history of places (UX-18, round 6 part 7)", () => {
@@ -121,7 +122,26 @@ describe("the trail (round 6 part 6)", () => {
       { href: "#/library", label: "Track library" },
       { href: "#/library/t13", label: "Track details" },
     ]);
-    expect(trailOf("profile/t13/sc:crown:s14:sc3", NAMES)).toEqual(trailOf("profile/t13", NAMES));
+    // 0.6.0 (f-live 4; round 9 §1, r9nav.js): from a playlist or a scene, the trail follows that place and ends with
+    // Track details there (the place with the Track panel open).
+    expect(trailOf("profile/t13/pl:p-abbess", NAMES)).toEqual([
+      { href: "#/playlists", label: "Playlists" },
+      { href: "#/playlist/p-abbess", label: "The Abbess" },
+      { href: "#/playlist/p-abbess/t13", label: "Track details" },
+    ]);
+    expect(trailOf("profile/t13/sc:crown:s14:sc3", NAMES)).toEqual([
+      { href: "#/campaign/crown", label: "The Sunken Crown" },
+      { href: "#/session/crown/s14", label: "Session 14" },
+      { href: "#/session/crown/s14", label: "The abbey ruins" },
+      { href: "#/session/crown/s14/t13", label: "Track details" },
+    ]);
+    expect(trailOf("profile/t13/ss:crown:s14", NAMES)).toEqual([
+      { href: "#/campaign/crown", label: "The Sunken Crown" },
+      { href: "#/session/crown/s14", label: "Session 14" },
+      { href: "#/session/crown/s14/t13", label: "Track details" },
+    ]);
+    // A place that is gone: the Track library's way.
+    expect(trailOf("profile/t13/pl:gone", NAMES)).toEqual(trailOf("profile/t13", NAMES));
     expect(trailOf("backup", NAMES)).toEqual([{ href: "#/library", label: "Track library" }]);
   });
 

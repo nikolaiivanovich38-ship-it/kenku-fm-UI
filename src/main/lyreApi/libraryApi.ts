@@ -615,6 +615,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       fadeOutMs: pad.fadeMs,
       aside: pad.putAside,
       steps: steps[pad.id] ?? null,
+      dip: pad.dip,
     };
   }
   function padBoard(id: string, tags = tagRefsById(), steps = getAllSteps(store).pads, dividers = allBoardDividers(store)): PadBoard {
@@ -1127,10 +1128,12 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           return { added, alreadyIn };
         });
       },
-      async removeTrack(id, trackId) {
+      async removeTrack(id, trackId, at) {
         return write(["playlists"], () => {
           const pl = requireManual(id);
-          const item = listPlaylistItems(store, id).find((i) => i.kind === "track" && i.trackId === trackId) ?? refuse("not-found", "That track is not in this playlist.");
+          const tracks = listPlaylistItems(store, id).filter((i) => i.kind === "track");
+          // Review M6: the copy on the row given, for a track listed twice; else its first.
+          const item = (at === undefined ? tracks.find((i) => i.trackId === trackId) : tracks[at]?.trackId === trackId ? tracks[at] : undefined) ?? refuse("not-found", "That track is not in this playlist.");
           store.change(`Remove ${quoted(shownTitle(requireTrack(trackId)))} from ${quoted(pl.name)}`, () => removePlaylistItems(store, [item.id]));
         });
       },
@@ -1222,7 +1225,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           store.change(`Make ${quoted(`${board.name} (copy)`)}`, () => {
             made = createBoard(store, { title: `${board.name} (copy)`, cols: board.cols, rows: board.rows, placement: { after: id } }).id;
             const copyOf = (p: Pad, at: { row: number; col: number } | "spare") =>
-              addPad(store, made, { label: p.label, icon: p.icon, color: p.color, hotkey: p.hotkey, mode: p.mode, volume: p.volume, fadeMs: p.fadeMs, fadeInMs: p.fadeInMs, sound: { ...p.sound }, at });
+              addPad(store, made, { label: p.label, icon: p.icon, color: p.color, hotkey: p.hotkey, mode: p.mode, volume: p.volume, fadeMs: p.fadeMs, fadeInMs: p.fadeInMs, dip: p.dip, sound: { ...p.sound }, at });
             layout.slots.forEach((p, i) => p && copyOf(p, cellOf(i, board.cols)));
             layout.spare.forEach((p) => copyOf(p, "spare"));
           });
@@ -1250,7 +1253,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const { pad } = requirePad(boardId, padId);
           const changes: Record<string, unknown> = {};
           if (patch.label !== undefined) changes.label = trimmed(patch.label) || refuse("invalid", "Give the pad a label.", "label");
-          for (const key of ["icon", "color", "mode", "volume"] as const) if (patch[key] !== undefined) changes[key] = patch[key];
+          for (const key of ["icon", "color", "mode", "volume", "dip"] as const) if (patch[key] !== undefined) changes[key] = patch[key];
           if (patch.key !== undefined) changes.hotkey = patch.key === "" ? null : patch.key;
           if (patch.fadeOutMs !== undefined) changes.fadeMs = patch.fadeOutMs;
           if (patch.sound !== undefined) {
@@ -1290,6 +1293,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
               volume: pad.volume,
               fadeMs: pad.fadeMs,
               fadeInMs: pad.fadeInMs,
+              dip: pad.dip,
               sound: { ...pad.sound },
               at: place === "spare" ? "spare" : cellOf(place.slot, layout.board.cols),
             }).id;

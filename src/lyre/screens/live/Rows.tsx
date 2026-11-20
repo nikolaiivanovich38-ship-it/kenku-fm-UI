@@ -35,6 +35,7 @@ import { offerSoftUndo, touched, updateLive } from "./liveState";
 import { focusLiveSoon } from "./focus";
 import { PopMenuButton } from "../../kit/PopMenu";
 import { useWrite } from "../campaigns/parts";
+import { DividedTrackList, DividerHeading, dividersBefore } from "../library/PlaylistTrackList";
 
 const KIND_WORDS = { amb: "Ambience", fx: "FX" } as const;
 
@@ -380,6 +381,7 @@ export function PlaylistRow({ playlist: p, rowKey, num, place, box, on, playingA
   const subId = `lv-sub-${rowKey.replace(/[^\w-]/g, "-")}`;
   const what: PlayWhat = { kind: "playlist", playlist: p, place, ...(first ? { first } : {}), name: p.name };
   const kind = p.kind === "dynamic" ? "Dynamic" : "Manual";
+  const target = useBoxTarget(box);
   return (
     <li className={cx("lv-pli", air && "on")}>
       <div className="lv-trk-r">
@@ -417,9 +419,30 @@ export function PlaylistRow({ playlist: p, rowKey, num, place, box, on, playingA
         </span>
       </div>
       {open && (
-        <ol className="lv-list lv-sub" id={subId} aria-label={`Tracks in ${p.name}`}>
-          {list.map(trackRow)}
-        </ol>
+        // 0.6.0 (f-live 2; round 9 §8, item 42): a manual playlist's dividers are headings here too, each with Play from
+        // here: the playlist on air from the track under the heading, in this place's order (live.js plRow).
+        <DividedTrackList
+          className="lv-list lv-sub"
+          id={subId}
+          label={`Tracks in ${p.name}`}
+          items={list}
+          dividers={dividersBefore(p)}
+          renderItem={(t) => trackRow(t)}
+          renderDivider={(name, key, firstTrackId) => {
+            const t = list.find((x) => x.id === firstTrackId);
+            return (
+              <DividerHeading
+                key={key}
+                name={name}
+                onPlay={
+                  t && p.lane !== "fx"
+                    ? () => playOnAir(d, target.targets, { kind: "track", track: t, from: { playlistId: p.id, ...(place ? { place } : {}) }, place, name: trackNameAt(t, place, d.names).name }, `${dataLv}-v`)
+                    : undefined
+                }
+              />
+            );
+          }}
+        />
       )}
     </li>
   );

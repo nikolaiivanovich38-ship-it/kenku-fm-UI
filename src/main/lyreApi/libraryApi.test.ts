@@ -393,3 +393,28 @@ describe("FND-16 (0.5.1): What came across, as the old window and player go", ()
     }
   });
 });
+
+/* Review M6 (R60-CODE-REVIEW): a track can be in a manual playlist twice (an old Kenku FM playlist brought in). Remove
+   from this playlist on its second row takes out that copy, not the first, so the dividers stay where they were. */
+describe("Remove from this playlist with a track listed twice", () => {
+  it("takes out the copy at the row given", async () => {
+    const { dir, library } = await seededLibrary();
+    const api = createLibraryApi(library, testHost());
+    try {
+      const before = await api.playlists.tracks("p-after");
+      const twice = before[0];
+      library.store.changeWithoutHistory(() =>
+        library.store.run("INSERT INTO playlist_items (id, playlist_id, kind, track_id, position) VALUES ('dup', 'p-after', 'track', ?, 1e6)", twice),
+      );
+      expect(await api.playlists.tracks("p-after")).toEqual([...before, twice]);
+      valueOf(await api.playlists.removeTrack("p-after", twice, before.length));
+      expect(await api.playlists.tracks("p-after")).toEqual(before);
+      // A row that does not hold that track is refused.
+      expect(isRefused(await api.playlists.removeTrack("p-after", twice, 1))).toBe(true);
+    } finally {
+      api.stopBackgroundWork();
+      library.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

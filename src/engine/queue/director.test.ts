@@ -138,6 +138,10 @@ function makeData(): ShowData {
   };
 }
 
+/** Review I2, I3: the engine, to count the voices that still sound in a room. */
+let engine: PlaybackEngine;
+const sounding = (lane: RoomLane, room = "table") => engine.voices(lane).filter((v) => v.room === room && !v.isFinal());
+
 beforeEach(() => {
   context = new FakeAudioContext();
   data = makeData();
@@ -145,7 +149,7 @@ beforeEach(() => {
     context.mediaDurations.set(t.url, t.durationMs / 1000);
   }
   const loader = new SourceLoader({ context, createElement: () => context.createMediaElement(), fetchBytes: async () => null });
-  const engine = new PlaybackEngine({ context, scheduler: context.clock, loader });
+  engine = new PlaybackEngine({ context, scheduler: context.clock, loader });
   rooms = new FakeRooms(context, ["Table", "Whisper"]);
   director = new Director({ engine, rooms, library: staticLibrary(data), random: () => 0 });
   errors = [];
@@ -1038,6 +1042,41 @@ describe("round 10: every room's snapshot and its Undo", () => {
     expect(music()).toBe("m1");
   });
 
+  /* Review I2 (R60-CODE-REVIEW): Fade all leaves the voices fading; Undo must not let them play on beside the copy it
+     brings back, or the players hear the track twice. */
+  it("Undo after Fade all stops the copies still fading, so each track sounds once", async () => {
+    await run({ type: "playTrack", trackId: "m1", target: table, fadeMs: 0 });
+    await run({ type: "playTrack", trackId: "amb1", target: table, fadeMs: 0 });
+    await context.advance(2);
+    const snapshot = director.snapshotRooms();
+    await run({ type: "fadeAll" });
+    await context.advance(1);
+    director.restoreRooms(snapshot, { sameTime: true });
+    await context.flush();
+    await context.advance(0.5);
+    expect(sounding("music")).toHaveLength(1);
+    expect(sounding("ambience")).toHaveLength(1);
+  });
+
+  /* Review I3: Undo of Play on air brings back only what it changed: the rooms it played in, and not a lane that is
+     still the same (the ambience under the music), which would otherwise start again. */
+  it("Undo of Play on air leaves alone the ambience it did not change and the rooms it did not play in", async () => {
+    await run({ type: "playTrack", trackId: "m1", target: table, fadeMs: 0 });
+    await run({ type: "playTrack", trackId: "amb1", target: table, fadeMs: 0 });
+    await run({ type: "playTrack", trackId: "m3", target: whisper, fadeMs: 0 });
+    await context.advance(1);
+    const ambienceVoice = sounding("ambience")[0];
+    const snapshot = director.snapshotRooms(table);
+    await run({ type: "playTrack", trackId: "x", target: table });
+    // Meanwhile the other room moves on by itself.
+    await run({ type: "playTrack", trackId: "m2", target: whisper, fadeMs: 0 });
+    director.restoreRooms(snapshot);
+    await context.flush();
+    expect(music()).toBe("m1");
+    expect(sounding("ambience")).toEqual([ambienceVoice]);
+    expect(music("whisper")).toBe("m2");
+  });
+
   it("a snapshot with nothing playing says there is nothing to undo", async () => {
     const snapshot = director.snapshotRooms();
     expect(director.restoreRooms(snapshot).ok).toBe(true);
@@ -1120,6 +1159,20 @@ describe("round 10: dipping the music under effects", () => {
     await context.advance(4);
     await run({ type: "firePad", boardId: "b", padId: "door", target: table });
     await context.advance(0.2);
+    expect(dipped()).toEqual({ music: true, ambience: true });
+  });
+
+  /* Review M1: a change in Settings while an effect dips the music applies at once, and On air says what is applied. */
+  it("a change of the dip while it is under way applies at once: A lot goes deeper, Ambience dips too dips it now", async () => {
+    await run({ type: "startScene", scene: S1 });
+    await context.advance(4.5);
+    const before = rooms.hear("table", "music");
+    await run({ type: "firePad", boardId: "b", padId: "door", target: table });
+    await context.advance(0.2);
+    director.setDip({ ...dip, db: 12, ambience: true });
+    await context.advance(0.2);
+    expect(rooms.hear("table", "music")).toBeCloseTo(before * 10 ** (-12 / 20), 1);
+    expect(rooms.hear("table", "ambience")).toBeCloseTo(10 ** (-12 / 20), 1);
     expect(dipped()).toEqual({ music: true, ambience: true });
   });
 

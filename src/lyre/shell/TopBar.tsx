@@ -303,7 +303,8 @@ function Trail({ parents }: { parents: Crumb[] }) {
         {parents.map((crumb, i) => {
           const last = i === n - 1;
           return (
-            <React.Fragment key={crumb.href}>
+            // A scene's crumb goes to its session, as the session's crumb does: the place in the trail keeps keys apart.
+            <React.Fragment key={`${i}:${crumb.href}`}>
               {last && n > 1 && (
                 <li className={n > 2 ? "c-gap on" : "c-gap"} title={full}>
                   <span aria-hidden="true">…</span>

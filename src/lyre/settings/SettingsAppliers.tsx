@@ -1,5 +1,6 @@
 /**
  * What Settings keeps that must work from the moment Lyre opens, on every screen (w6-rooms):
+ *   - Review I4: the dip under effects (Settings › Sound to Discord) goes to the audio host at once and after a change.
  *   - PRV-2: the preview's device and a split headset go to the audio host after settings.get() and after each change
  *     (ARCHITECTURE.md "What the screen streams must know"); left at the defaults, nothing is sent, since the preview
  *     already plays on the default device in both ears (asking again makes Chromium switch devices for nothing).
@@ -21,6 +22,7 @@ import { nextSceneInLive } from "../kit/liveSession";
 import { useLyreSettings } from "../api";
 import { useLyreAudio } from "../audio";
 import type { LyreKeysBridge } from "../keys/preloadKeys";
+import { dipSettingsOf, useDip } from "../screens/settings/dipSettings";
 
 const RefusalsContext = createContext<GlobalKeyRefusal[]>([]);
 
@@ -63,6 +65,13 @@ export function SettingsAppliers({ keys, children }: { keys?: LyreKeysBridge | n
   const settings = useLyreSettings().data;
   const audio = useLyreAudio();
   const [refused, setRefused] = useState<GlobalKeyRefusal[]>([]);
+
+  // Review I4: Settings › Sound to Discord › Dip the music under effects (this page's storage) goes to the audio host
+  // from the start and after each change, so pads fired on any screen dip (or not) as chosen.
+  const dip = useDip();
+  useEffect(() => {
+    audio.setDip(dipSettingsOf(dip));
+  }, [audio, dip]);
 
   const devices = settings?.devices;
   const devicesKey = devices ? keyOf(devices) : "";
