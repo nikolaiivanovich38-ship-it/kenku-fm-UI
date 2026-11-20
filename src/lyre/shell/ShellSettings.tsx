@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { loadShellSettings, saveShellSettings, type ShellSettings } from "./settings";
+import { loadShellSettings, saveShellSettings, type PanelPlace, type ShellSettings } from "./settings";
 
 interface ShellSettingsValue {
   settings: ShellSettings;
@@ -44,4 +44,18 @@ export function useRememberedOpen(id: string, openByDefault: boolean): [boolean,
   const stored = shared.settings.panes[id];
   const open = stored === undefined ? openByDefault : stored === "o";
   return [open, (next) => shared.update({ panes: { ...shared.settings.panes, [id]: next ? "o" : "c" } })];
+}
+
+/**
+ * Round 10: where a panel that docks or floats was last, remembered by its id (Add music: "addMusic"). Without a
+ * provider (a component test of one panel) it is kept for the visit only.
+ */
+export function useRememberedPlace(id: string, fallback: PanelPlace): [PanelPlace, (place: PanelPlace) => void] {
+  const shared = useContext(ShellSettingsContext);
+  const [local, setLocal] = useState(fallback);
+  if (!shared) {
+    return [local, setLocal];
+  }
+  const place = shared.settings.places?.[id] ?? fallback;
+  return [place, (next) => shared.update({ places: { ...shared.settings.places, [id]: next } })];
 }

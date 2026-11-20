@@ -1,18 +1,14 @@
 /* FND-16 step 2 (0.5.1, design/prototype/ROUND8.md §1; the prototype's r8window.css): Lyre is the whole window.
    Windows draws the window's own buttons at the top right, over the right end of the top strip (titleBarOverlay).
-   --wco-w and --wco-h are the space they take, in CSS pixels (windowFrame.tsx sets them from
+   --wco-w and --wco-h are the space they take, in CSS pixels (windowFrame.tsx sets them on #work, the window, from
    navigator.windowControlsOverlay; 0px where the window draws none). */
-#app { --wco-w: 0px; --wco-h: 0px; }
+#work { --wco-w: 0px; --wco-h: 0px; }
 
 /* Nothing of Lyre's under the buttons: the strips at the top of the window keep their width free at their right end. */
 .viewhead { padding-right: calc(12px + var(--wco-w)); }
 .lv-top { padding-right: calc(8px + var(--wco-w)); }
 .help-head { padding-right: calc(8px + var(--wco-w)); }
-/* Help open beside the screen (a wide window): Help's header is under the buttons, so the screen's strip need not. */
-@container app (min-width: 900px) {
-  #app:has(> #lyre-help) .viewhead { padding-right: 12px; }
-  #app:has(> #lyre-help) .lv-top { padding-right: 8px; }
-}
+/* Round 10: with a side panel at the right, the screen's strip no longer reaches the buttons (styles/side-panels.css). */
 /* A sheet as tall as the window starts below the buttons. */
 .sheet { padding-top: calc(var(--wco-h) + 8px); }
 

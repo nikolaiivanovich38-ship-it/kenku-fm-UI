@@ -26,13 +26,15 @@ export interface MenuButtonProps {
   items: readonly MenuEntry[];
   className?: string;
   size?: "s";
+  /** Hover text for a button with words, when it should say more than its name (UX-6). */
+  title?: string;
 }
 
 /**
  * A button that opens a menu below it (ui.css .menu). The first item takes focus; the arrow keys, Home and End move;
  * Enter chooses; Escape or Tab closes; focus goes back to the button after a choice or Escape.
  */
-export function MenuButton({ label, icon, children, items, className, size }: MenuButtonProps) {
+export function MenuButton({ label, icon, children, items, className, size, title }: MenuButtonProps) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -49,7 +51,7 @@ export function MenuButton({ label, icon, children, items, className, size }: Me
         type="button"
         className={cx("btn", !children && "icon", size, className)}
         aria-label={children ? undefined : label}
-        title={children ? undefined : label}
+        title={children ? title : label}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
