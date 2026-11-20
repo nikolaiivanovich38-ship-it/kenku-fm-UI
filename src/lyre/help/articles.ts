@@ -22,6 +22,10 @@ import backup from "./articles/12-backup.md?raw";
 import missingFiles from "./articles/13-missing-files.md?raw";
 import diagnostics from "./articles/14-diagnostics.md?raw";
 import upNext from "./articles/15-up-next.md?raw";
+// --- r10-live ---
+import roomsAndBots from "./articles/16-rooms-and-bots.md?raw";
+import dipMusic from "./articles/20-dip-music.md?raw";
+// --- end r10-live ---
 
 /** The task groups, in the order the panel lists them. */
 export const HELP_GROUPS = ["Get started", "Prepare", "Run a session", "Your library"] as const;
@@ -115,6 +119,10 @@ const FILES: Record<string, string> = {
   "13-missing-files.md": missingFiles,
   "14-diagnostics.md": diagnostics,
   "15-up-next.md": upNext,
+  // --- r10-live ---
+  "16-rooms-and-bots.md": roomsAndBots,
+  "20-dip-music.md": dipMusic,
+  // --- end r10-live ---
 };
 
 export const ARTICLES: readonly HelpArticle[] = Object.keys(FILES)

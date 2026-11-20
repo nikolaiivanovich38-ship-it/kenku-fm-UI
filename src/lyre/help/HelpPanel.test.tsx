@@ -45,7 +45,7 @@ describe("Help's panel", () => {
     for (const group of ["Get started", "Prepare", "Run a session", "Your library"]) {
       expect(within(help).getByRole("list", { name: group })).toBeInTheDocument();
     }
-    expect(within(help).getAllByRole("listitem")).toHaveLength(15);
+    expect(within(help).getAllByRole("listitem")).toHaveLength(17); // r10-live adds two articles
   });
 
   it("finds articles as you type, and says when nothing matches", async () => {
