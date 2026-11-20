@@ -449,3 +449,57 @@ test.describe("0.5.2: Nik's play test", () => {
     await expect(bar.getByRole("group", { name: /^Only you/ })).toContainText(/1:0\d \//, { timeout: 4000 });
   });
 });
+
+/* Round 9 (ROUND9.md §10, item 8: "Split tracks into multiple at split points in audio profile using markers"): the
+   Markers box's Split into parts… makes a track for each part between markers, each playing its part of the same file
+   (Nik, 18 Nov, Q11 a). Round 9 left these checks to the build stream: written by r10-tracks against the prototype
+   first. t13 has markers at 1:04 (Choir enters), 3:10 (Low swell) and 5:18 (Loop back) in a 7:21 file. */
+test.describe("round 9: Split into parts", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10-tracks"));
+  const markers = (page: Page) => page.getByRole("region", { name: "Markers", exact: true });
+  const library = (page: Page) => page.getByRole("link", { name: /^Track library/ }).first();
+
+  async function split(page: Page) {
+    await openRoute(page, "profile/t13");
+    await markers(page).getByRole("button", { name: "Split into parts…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Split into parts" });
+    await expect(dialog).toContainText("Your file is not changed");
+    const cuts = dialog.getByRole("group", { name: "Split at" }).getByRole("checkbox");
+    await expect(cuts).toHaveCount(3);
+    await expect(dialog.getByRole("button", { name: "Make 4 tracks" })).toBeVisible();
+    // Unticking Low swell joins the two parts either side of it.
+    await cuts.nth(1).uncheck();
+    await expect(dialog.getByRole("button", { name: "Make 3 tracks" })).toBeVisible();
+    await expect(dialog.getByRole("table").getByRole("row")).toHaveCount(4);
+    await expect(dialog.getByRole("table")).toContainText("1:04 – 5:18");
+    await expect(dialog.getByRole("checkbox", { name: "Copy its tags, Type and Use it for to each part" })).toBeChecked();
+    await expect(dialog.getByRole("checkbox", { name: "Add the parts beside it in its manual playlists" })).not.toBeChecked();
+    await dialog.getByRole("textbox", { name: "Name of part 2" }).fill("Choir section");
+    await dialog.getByRole("button", { name: "Make 3 tracks" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("status").filter({ hasText: /3 parts of .* in the Track library/ })).toBeVisible();
+  }
+
+  test("Split into parts… makes a track per part, which says what it is part of, and the whole track lists its parts", async ({ page }) => {
+    await split(page);
+    await library(page).click();
+    await page.getByRole("searchbox", { name: "Search tracks" }).fill("Choir section");
+    const grid = page.getByRole("grid", { name: "Tracks" });
+    await expect(grid.getByRole("row", { name: /^Select Choir section/ })).toContainText("4:14");
+    await grid.getByRole("row", { name: /^Select Choir section/ }).getByRole("gridcell").nth(1).click();
+    const details = page.getByRole("region", { name: "Details", exact: true });
+    await expect(details).toContainText("Part of");
+    await expect(details).toContainText("1:04–5:18");
+    await details.getByRole("link", { name: /^Eerie dread/ }).click();
+    await expect(details).toContainText("Parts");
+    await expect(details.getByRole("link", { name: "Choir section" })).toBeVisible();
+  });
+
+  test("Undo after Split into parts removes the parts again", async ({ page }) => {
+    await split(page);
+    await page.getByRole("button", { name: "Undo", exact: true }).click();
+    await library(page).click();
+    await page.getByRole("searchbox", { name: "Search tracks" }).fill("Choir section");
+    await expect(page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Choir section/ })).toHaveCount(0);
+  });
+});

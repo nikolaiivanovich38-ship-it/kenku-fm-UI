@@ -4,7 +4,7 @@
  */
 import type { Locator, Page } from "@playwright/test";
 import { appOnly, expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
-import { openRoute } from "./support/target";
+import { openRoute, reopen } from "./support/target";
 import { dropFiles } from "./support/drop";
 
 const grid = (page: Page) => page.getByRole("grid", { name: "Tracks" });
@@ -957,5 +957,130 @@ test.describe("round 10: removing tracks from the Track library", () => {
     await row(page, eerie).focus();
     await page.keyboard.press("Delete");
     await expect(page.getByRole("dialog", { name: `Remove “${eerie}” from the library?` })).toBeVisible();
+  });
+});
+
+/* Round 9 (ROUND9.md §7, §9; R60-GAPS.md "Track library"): Columns beside Sort, filters that show or hide, the order of
+   the filters, and At its end's Play… picker. Round 9 left these checks to the build stream: written by r10-tracks
+   against the prototype first. */
+test.describe("round 9: Columns, filters that show or hide, and the Play… picker", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("r10-tracks"));
+  const header = (page: Page, name: string) => grid(page).getByRole("columnheader", { name: new RegExp(`^${name}`) });
+
+  test("Columns beside Sort: Title always, the usual three ticked, more added, kept, and Put back the usual columns", async ({ page }) => {
+    await openRoute(page, "library");
+    await page.getByRole("button", { name: "Columns", exact: true }).click();
+    const menu = page.getByRole("menu", { name: "Columns" });
+    const items = menu.getByRole("menuitemcheckbox");
+    await expect(items).toHaveText([/^Title \(always\)/, "Artist", "Album", "Type", "Use it for", "Tags", "Shape", "Energy", "Length", /^Plays for/, "Added", "Folder"]);
+    for (const on of ["Tags", "Energy", "Length"]) await expect(menu.getByRole("menuitemcheckbox", { name: on, exact: true })).toHaveAttribute("aria-checked", "true");
+    await expect(menu.getByRole("menuitemcheckbox", { name: "Artist", exact: true })).toHaveAttribute("aria-checked", "false");
+    // The menu stays open while columns are ticked, so several change at once.
+    await menu.getByRole("menuitemcheckbox", { name: "Artist", exact: true }).click();
+    await menu.getByRole("menuitemcheckbox", { name: "Energy", exact: true }).click();
+    await expect(menu.getByRole("menuitemcheckbox", { name: "Artist", exact: true })).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    await expect(header(page, "Artist")).toBeVisible();
+    await expect(header(page, "Energy")).toHaveCount(0);
+    // Kept on this computer.
+    await reopen(page);
+    await expect(header(page, "Artist")).toBeVisible();
+    await expect(header(page, "Energy")).toHaveCount(0);
+    await page.getByRole("button", { name: "Columns", exact: true }).click();
+    await page.getByRole("menu", { name: "Columns" }).getByRole("menuitem", { name: "Put back the usual columns" }).click();
+    await expect(header(page, "Artist")).toHaveCount(0);
+    await expect(header(page, "Energy")).toBeVisible();
+  });
+
+  test("a chosen column's header sorts by it, A to Z first and then Z to A", async ({ page }) => {
+    await openRoute(page, "library");
+    await page.getByRole("button", { name: "Columns", exact: true }).click();
+    await page.getByRole("menu", { name: "Columns" }).getByRole("menuitemcheckbox", { name: "Artist", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await header(page, "Artist").getByRole("button").click();
+    await expect(header(page, "Artist")).toHaveAttribute("aria-sort", "ascending");
+    const firstUp = (await shownTitles(page))[0];
+    await header(page, "Artist").getByRole("button").click();
+    await expect(header(page, "Artist")).toHaveAttribute("aria-sort", "descending");
+    expect((await shownTitles(page))[0]).not.toBe(firstUp);
+  });
+
+  test("a filter chip: once shows only those tracks, again hides them (read out as hidden), again clears", async ({ page }) => {
+    await openRoute(page, "library");
+    await openFilters(page);
+    const grief = () => filters(page).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ });
+    await expect(filters(page)).toContainText("Click a filter once to show only those tracks, and again to hide them.");
+    await grief().click();
+    await expect(grief()).toHaveAttribute("aria-pressed", "true");
+    expect(await shownTitles(page)).toHaveLength(5);
+    await grief().click();
+    await expect(grief()).toHaveAttribute("aria-pressed", "false");
+    await expect(grief()).toHaveAccessibleName(/hidden/);
+    expect(await shownTitles(page)).toHaveLength(64);
+    await expect(page.getByRole("region", { name: "Filters", exact: true })).toContainText("not Grief");
+    await grief().click();
+    await expect(grief()).not.toHaveAccessibleName(/hidden/);
+    expect(await shownTitles(page)).toHaveLength(69);
+  });
+
+  test("a folder works like a chip: once shows only it, again hides its tracks, again shows them", async ({ page }) => {
+    await openRoute(page, "library");
+    await openFilters(page);
+    const effects = () => filters(page).getByRole("button", { name: /^H:\\Audio\\Effects/ });
+    await effects().click();
+    await expect(effects()).toHaveAttribute("aria-pressed", "true");
+    const only = (await shownTitles(page)).length;
+    expect(only).toBeLessThan(69);
+    await effects().click();
+    await expect(effects()).toHaveAccessibleName(/hidden/);
+    expect(await shownTitles(page)).toHaveLength(69 - only);
+    await effects().click();
+    await expect(effects()).not.toHaveAccessibleName(/hidden/);
+    expect(await shownTitles(page)).toHaveLength(69);
+  });
+
+  test("the order button sorts the filter chips, and Clear all filters clears shown and hidden ones", async ({ page }) => {
+    await openRoute(page, "library");
+    await openFilters(page);
+    const mood = filters(page).getByRole("group", { name: "Mood" });
+    const words = async () => (await mood.getByRole("button").allTextContents()).map((w) => w.replace(/\d+$/, "").trim()).filter((w) => w && w !== "Clear");
+    await page.getByRole("button", { name: "Order the filters" }).click();
+    const menu = page.getByRole("menu", { name: "Order the filters" });
+    await expect(menu.getByRole("menuitemradio")).toHaveText(["Tag list order", "A to Z", "Z to A", "Most tracks first"]);
+    await expect(menu.getByRole("menuitemradio", { name: "Tag list order" })).toHaveAttribute("aria-checked", "true");
+    await menu.getByRole("menuitemradio", { name: "A to Z" }).click();
+    const az = await words();
+    expect(az).toEqual([...az].sort((a, b) => a.localeCompare(b)));
+    await page.getByRole("button", { name: "Order the filters" }).click();
+    await page.getByRole("menu", { name: "Order the filters" }).getByRole("menuitemradio", { name: "Z to A" }).click();
+    expect(await words()).toEqual([...az].reverse());
+    await mood.getByRole("button", { name: /^Tense/ }).click();
+    await filters(page).getByRole("group", { name: "Scene" }).getByRole("button", { name: /^Combat/ }).click();
+    await filters(page).getByRole("group", { name: "Scene" }).getByRole("button", { name: /^Combat/ }).click();
+    await expect(page.getByRole("region", { name: "Filters", exact: true })).toContainText("Tense · not Combat");
+    // The app's words since 0.5.2 (item 21) are Clear all filters; the prototype's are Clear all.
+    await page.getByRole("button", { name: /^Clear all( filters)?$/ }).click();
+    await expect(mood.getByRole("button", { name: /^Tense/ })).toHaveAttribute("aria-pressed", "false");
+    await expect(filters(page).getByRole("group", { name: "Scene" }).getByRole("button", { name: /^Combat/ })).not.toHaveAccessibleName(/hidden/);
+    expect(await shownTitles(page)).toHaveLength(69);
+  });
+
+  test("At its end › Play…: a picker with search, All · Playlists · Music · Ambience · FX with counts, Nothing at the top; a double-click chooses", async ({ page }) => {
+    await openRoute(page, "library");
+    await openTrack(page, "Dread rising, choir stabs");
+    await details(page).getByRole("group", { name: "At its end" }).getByRole("button", { name: "Play…" }).click();
+    const dialog = page.getByRole("dialog", { name: "When it ends, play" });
+    const tabs = dialog.getByRole("group", { name: "Show" });
+    await expect(tabs.getByRole("button")).toHaveText([/^All \d+$/, /^Playlists \d+$/, /^Music \d+$/, /^Ambience \d+$/, /^FX \d+$/]);
+    const list = dialog.getByRole("list", { name: "When it ends, play" });
+    await expect(list.getByRole("radio").first()).toHaveAccessibleName(/^Nothing/);
+    await tabs.getByRole("button", { name: /^Playlists/ }).click();
+    await expect(tabs.getByRole("button", { name: /^Playlists/ })).toHaveAttribute("aria-pressed", "true");
+    await expect(list.getByRole("radio", { name: /^Ashes/ })).toHaveCount(0);
+    await dialog.getByRole("searchbox", { name: "Search playlists and tracks" }).fill("crypt");
+    await expect(list.getByRole("radio", { name: /^Crypt ambush/ })).toBeVisible();
+    await list.getByRole("radio", { name: /^Crypt ambush/ }).dblclick();
+    await expect(dialog).toHaveCount(0);
+    await expect(details(page).getByRole("group", { name: "At its end" })).toContainText("Play: Crypt ambush");
   });
 });
