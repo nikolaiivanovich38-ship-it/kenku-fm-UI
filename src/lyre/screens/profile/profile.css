@@ -194,6 +194,3 @@
 .ap-mrow .r7-hov:not([aria-pressed="true"]) { opacity: 0; }
 .ap-mrow:is(:hover, :focus-within) .r7-hov, .ap-mrow .r7-hov:focus-visible { opacity: 1; }
 @media (hover: none) { .ap-mrow .r7-hov { opacity: 1; } }
-/* Round 9 (r9.css): the track's name in the heading leads back to its details. */
-.view .r9-h1link { color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-color: var(--line-strong); }
-.view .r9-h1link:hover { text-decoration-color: currentColor; }

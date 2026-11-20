@@ -37,6 +37,7 @@ import { ShapeGlyph } from "../../kit/ShapeGlyph";
 import { matchesShapes, ShapeFilter } from "../../kit/ShapeFilter";
 import { TagStrip } from "../../kit/TagStrip";
 import { DeletePlaylistDialog } from "./DeletePlaylistDialog";
+import { TrackNameLink } from "../../kit/trackName";
 import { deleteKeyOnRow, useRemoveFromPlaylist } from "./PlaylistTrackList";
 import "./library.css";
 import "./round9.css";
@@ -477,9 +478,10 @@ function TrackRow({
         </>
       )}
       <div className="pl-tline">
-        <a className="pl-tname" href={hashOf(`library/${t.id}`)} title={trackTip(t)}>
+        {/* Round 9 and 10 (row 13; item 22): the title opens the Track panel beside the playlist. */}
+        <TrackNameLink trackId={t.id} className="pl-tname" title={trackTip(t)}>
           {title}
-        </a>
+        </TrackNameLink>
         {own && (
           <span className="pl-own" title="Has its own audio profile in this playlist">
             <span className="pl-own-dot" aria-hidden="true" />

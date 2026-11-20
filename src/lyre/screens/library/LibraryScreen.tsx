@@ -578,6 +578,11 @@ export function LibraryScreen({ route }: ScreenProps) {
             <Icon name="plus" size="s" />
             New playlist from these
           </button>
+          {/* Round 10 fixes (R10-FIX §1): Remove from library for the selection, in words; Delete files… in its ⋯. */}
+          <button type="button" className="btn s" onClick={() => setRemoval({ how: "remove", ids: getLibraryState().sel })}>
+            <Icon name="close" size="s" />
+            Remove from library
+          </button>
           <button type="button" className="btn s ghost" onClick={clearSel}>
             Clear selection
           </button>
@@ -660,6 +665,7 @@ export function LibraryScreen({ route }: ScreenProps) {
           normalise={normalise}
           onNewPlaylist={(ids) => void newPlaylist(ids)}
           onUseIn={() => setUseIn(open.id)}
+          onRemove={() => setRemoval({ how: "remove", ids: [open.id] })}
         />
       ) : (
         <div className="lb-d lb-dempty">

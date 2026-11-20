@@ -85,6 +85,9 @@ describe("the Playlists list's order", () => {
     within(rowOf(before[0])).getByRole("button", { name: `More for ${before[0]}` }).focus();
     await user.keyboard("{Alt>}{ArrowUp}{/Alt}");
     await waitFor(() => expect(names().indexOf(before[0])).toBe(1));
+    within(rowOf("The Abbess")).getByRole("button", { name: "More for The Abbess" }).focus();
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    await waitFor(() => expect(names().indexOf("The Abbess")).toBe(1));
     setPlaylistSort("az");
     await user.click(await within(rowOf("Aftermath")).findByRole("button", { name: "More for Aftermath" }));
     await user.click(screen.getByRole("menuitem", { name: "Move to the top" }));
@@ -146,5 +149,21 @@ describe("taking things out in line", () => {
     await waitFor(() => expect(rows()).toHaveLength(3));
     await user.click(await screen.findByRole("button", { name: "Undo" }));
     await waitFor(() => expect(rows()).toHaveLength(4));
+  });
+});
+
+describe("the playlist's page", () => {
+  it("Delete on a focused track row takes it out of the playlist; Undo puts it back where it was", async () => {
+    openAt("playlist/p-abbess");
+    const user = userEvent.setup();
+    const list = () => screen.getByRole("list", { name: "Tracks in order" });
+    const names = () => within(list()).getAllByRole("listitem").map((li) => li.querySelector("a")?.textContent?.trim() ?? "");
+    await waitFor(() => expect(names().length).toBe(5));
+    const before = names();
+    within(list()).getByRole("button", { name: /^More for Alien, unknowable/ }).focus();
+    await user.keyboard("{Delete}");
+    await waitFor(() => expect(names()).toHaveLength(4));
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(names()).toEqual(before));
   });
 });

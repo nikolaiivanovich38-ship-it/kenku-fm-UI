@@ -2,7 +2,7 @@
  * The Audio profile's boxes and its "Settings for" bar (the prototype's listenHTML, endHTML, fadesHTML, markersHTML
  * and placeHTML in views/profile.js), drawn from the screen's controller.
  */
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { shapeName } from "../../../common/domain";
 import { shownTitle } from "../../../common/lyre/text";
@@ -195,7 +195,12 @@ export function EndBox({ c }: C) {
   const pos = c.clock.pos;
   // Round 10 (prep review D5, look D8): the same six ends, in the same words and order, as At its end in the track's
   // details (library/trackEnd.ts). Here they apply to this place; Loop and Loop with a crossfade use the loop start below.
-  const end = endOf(c.editor.track, toInput(p), !c.editor.place);
+  const saved = endOf(c.editor.track, toInput(p), !c.editor.place);
+  // At the track's own place the end is written with the track (a moment later): the choice shows at once, and the
+  // library's answer then takes over.
+  const [chosen, setChosen] = useState<TrackEnd | null>(null);
+  useEffect(() => setChosen(null), [saved, c.editor.track]);
+  const end = chosen ?? saved;
   const radio = (v: TrackEnd, icon: IconName, label: string, sub: string) => (
     <label className={cx("ap-opt", end === v && "on")}>
       <input
@@ -205,7 +210,11 @@ export function EndBox({ c }: C) {
         data-k={`ap-after-${v}`}
         checked={end === v}
         disabled={!editable}
-        onChange={() => (v === "follow" ? setChoosing(true) : actions.setEnd(v))}
+        onChange={() => {
+          if (v === "follow") return setChoosing(true);
+          setChosen(v);
+          actions.setEnd(v);
+        }}
         // Play… already chosen: a click opens the picker again to change it.
         onClick={() => v === "follow" && end === "follow" && setChoosing(true)}
       />

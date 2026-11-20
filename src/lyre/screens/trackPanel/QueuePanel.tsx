@@ -33,7 +33,7 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
       className="r9-queue"
       aria-labelledby="r9-q-title"
       onKeyDown={(e) => {
-        if (e.key !== "Escape" || e.defaultPrevented || document.querySelector(".menu, [role=dialog]")) return;
+        if (e.key !== "Escape" || e.defaultPrevented || document.querySelector('[role="menu"], [role="dialog"][aria-modal="true"]')) return;
         e.preventDefault();
         e.stopPropagation();
         onClose();

@@ -343,12 +343,12 @@ describe("items 1 and 50: Remove from library, Delete file from disk…, Remove 
     const user = userEvent.setup();
     const more = () => screen.getByRole("button", { name: "More for the library" });
     await user.click(more());
-    expect(screen.queryByRole("menuitem", { name: /^Remove all shown/ })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /^Remove the \d+ tracks shown/ })).toBeNull();
     await user.keyboard("{Escape}");
     await user.click(within(within(filters()).getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
     const shown = shownTitles().length;
     await user.click(more());
-    await user.click(screen.getByRole("menuitem", { name: `Remove all shown (${shown})…` }));
+    await user.click(screen.getByRole("menuitem", { name: `Remove the ${shown} tracks shown from the library…` }));
     const dialog = screen.getByRole("dialog", { name: `Remove all ${shown} shown tracks from the library?` });
     const before = (await api.library.listTracks()).length;
     await user.click(within(dialog).getByRole("button", { name: `Remove ${shown} tracks` }));

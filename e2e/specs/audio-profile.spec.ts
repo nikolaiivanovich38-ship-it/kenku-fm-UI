@@ -495,7 +495,7 @@ test.describe("round 9: Split into parts", () => {
 
   test("Undo after Split into parts removes the parts again", async ({ page }) => {
     await split(page);
-    await expect(page.getByText(/^Made 3 parts of /)).toBeVisible();
+    await expect(page.getByText(/^Made 3 parts of /).last()).toBeVisible();
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await library(page).click();
     await page.getByRole("searchbox", { name: "Search tracks" }).fill("Choir section");

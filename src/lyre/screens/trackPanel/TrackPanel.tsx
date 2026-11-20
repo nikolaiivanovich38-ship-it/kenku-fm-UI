@@ -58,7 +58,7 @@ export function TrackPanel({ trackId, onClose }: { trackId: string; onClose: () 
       className="r9-tp"
       aria-labelledby="r9-tp-title"
       onKeyDown={(e) => {
-        if (e.key !== "Escape" || e.defaultPrevented || document.querySelector(".menu, [role=dialog]")) return;
+        if (e.key !== "Escape" || e.defaultPrevented || document.querySelector('[role="menu"], [role="dialog"][aria-modal="true"]')) return;
         e.preventDefault();
         e.stopPropagation();
         onClose();

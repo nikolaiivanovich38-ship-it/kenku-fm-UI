@@ -77,6 +77,8 @@ export interface TrackDetailsProps {
   onNewPlaylist: (ids: string[]) => void;
   /** ORG-12: Use in… for this track. */
   onUseIn: () => void;
+  /** Round 10 fixes (R10-FIX §1): Remove from library, asking first as a row's ⋯ does. */
+  onRemove?: () => void;
 }
 
 export function TrackDetails({
@@ -91,6 +93,7 @@ export function TrackDetails({
   normalise,
   onNewPlaylist,
   onUseIn,
+  onRemove,
 }: TrackDetailsProps) {
   const api = useLyreApi();
   const audio = useLyreAudio();
@@ -310,6 +313,12 @@ export function TrackDetails({
           <Icon name="link" size="s" />
           Use in…
         </button>
+        {onRemove && (
+          <button type="button" className="btn s" onClick={onRemove}>
+            <Icon name="close" size="s" />
+            Remove from library
+          </button>
+        )}
       </div>
       <p className="lb-prof">
         <Icon name="fade" size="s" />

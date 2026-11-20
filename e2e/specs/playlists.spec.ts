@@ -547,12 +547,14 @@ test.describe("round 10: taking tracks out and deleting playlists in line", () =
 
   test("Delete on a focused track row takes it out of the playlist; Undo puts it back where it was", async ({ page }) => {
     await openRoute(page, "playlist/p-abbess");
+    await expect(page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Alien, unknowable/ })).toBeVisible();
     const before = await trackNames(page);
     await page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Alien, unknowable/ }).focus();
     await page.keyboard.press("Delete");
-    expect(await trackNames(page)).toHaveLength(before.length - 1);
+    // The app saves, then draws: the checks wait for it.
+    await expect.poll(async () => (await trackNames(page)).length).toBe(before.length - 1);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect(await trackNames(page)).toEqual(before);
+    await expect.poll(async () => trackNames(page)).toEqual(before);
   });
 
   test("a row on the Playlists page has Delete playlist… in its ⋯: it names the scenes that use it, then Undo", async ({ page }) => {
@@ -616,13 +618,14 @@ test.describe("round 9: the Playlists list's order, → Open and dividers", () =
     const menu = page.getByRole("menu", { name: "More for The Company themes" });
     await expect(menu.getByRole("menuitem", { name: /^Move up/ })).toBeDisabled();
     await menu.getByRole("menuitem", { name: /^Move down/ }).click();
-    expect((await names(page)).slice(0, 2)).toEqual([before[1], before[0]]);
+    // The app saves the order first, then draws it: each check waits for it.
+    await expect.poll(async () => (await names(page)).slice(0, 2)).toEqual([before[1], before[0]]);
     await page.getByRole("button", { name: "More for The Abbess", exact: true }).click();
     await page.getByRole("menu", { name: "More for The Abbess" }).getByRole("menuitem", { name: "Move to the top" }).click();
-    expect((await names(page))[0]).toBe("The Abbess");
+    await expect.poll(async () => (await names(page))[0]).toBe("The Abbess");
     await page.getByRole("button", { name: "More for The Abbess", exact: true }).focus();
     await page.keyboard.press("Alt+ArrowDown");
-    expect((await names(page)).indexOf("The Abbess")).toBe(1);
+    await expect.poll(async () => (await names(page)).indexOf("The Abbess")).toBe(1);
     await expect(page.getByRole("button", { name: "More for The Abbess", exact: true })).toBeFocused();
   });
 
@@ -635,7 +638,7 @@ test.describe("round 9: the Playlists list's order, → Open and dividers", () =
     // The prototype says "Now in your order", then its Saved pop-up names the new order in the same place.
     await expect(page.getByRole("status").filter({ hasText: /order of the playlists/ })).toBeVisible();
     await expect(sortButton(page)).toHaveText(/Your order/);
-    expect((await names(page))[0]).toBe("The Abbess");
+    await expect.poll(async () => (await names(page))[0]).toBe("The Abbess");
   });
 
   test("in Your order each row has a grip: dragging it puts the playlist exactly where the line shows", async ({ page }) => {
@@ -643,8 +646,10 @@ test.describe("round 9: the Playlists list's order, → Open and dividers", () =
     const grips = list(page).getByTitle(/^Drag to change the order/);
     await expect(grips.first()).toBeVisible();
     await rowOf(page, "Aftermath").getByTitle(/^Drag to change the order/).dragTo(rowOf(page, "Coast road travel"), { targetPosition: { x: 200, y: 4 } });
-    const after = await names(page);
-    expect(after.indexOf("Aftermath")).toBe(after.indexOf("Coast road travel") - 1);
+    await expect.poll(async () => {
+      const after = await names(page);
+      return after.indexOf("Aftermath") - after.indexOf("Coast road travel");
+    }).toBe(-1);
   });
 
   test("every row has → Open, which goes to the playlist's page in one click", async ({ page }) => {

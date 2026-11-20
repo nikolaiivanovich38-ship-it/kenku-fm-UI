@@ -163,6 +163,6 @@ export function deleteKeyOnRow(event: React.KeyboardEvent): boolean {
   if (event.key !== "Delete" || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return false;
   const a = document.activeElement as HTMLElement | null;
   if (!a || a.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(a.tagName)) return false;
-  if (document.querySelector(".menu, [role=dialog]")) return false;
+  if (document.querySelector('[role="menu"], [role="dialog"][aria-modal="true"]')) return false;
   return true;
 }
