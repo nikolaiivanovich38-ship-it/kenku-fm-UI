@@ -19,14 +19,19 @@ import { useWrite } from "../campaigns/parts";
 import { ariaKey } from "./Scenes";
 import { useLive } from "./liveData";
 import { currentBoard, isSingleKey, LIVE_BOXES, padKeys } from "./liveModel";
-import { touched } from "./liveState";
+import { fadeAllWithUndo, stopAllWithUndo } from "./liveActions";
 import { Find } from "./Find";
+import { UndoPlace } from "./UndoStrips";
 
 export interface TopProps {
   keysOpen: boolean;
   setKeysOpen: (open: boolean, refocus: boolean) => void;
   setKeys1: (on: boolean) => void;
   loadSession: (campaignId: string, sessionId: string) => void;
+  /** Undo the last change (the Undo place and Ctrl+Z). */
+  undo: () => boolean;
+  /** Round 10: Arrange mode on or off. */
+  setArranging: (on: boolean) => void;
 }
 
 /**
@@ -41,9 +46,9 @@ function goNow(hash: string): void {
 
 const STATUS_WORDS = { next: "next", played: "played", draft: "draft" } as const;
 
-export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopProps) {
+export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession, undo, setArranging }: TopProps) {
   const live = useLive();
-  const { campaign, session, campaigns, audio, keys1 } = live;
+  const { campaign, session, campaigns, keys1 } = live;
   const { say } = useAnnounce();
   const api = useLyreApi();
   const write = useWrite();
@@ -128,16 +133,15 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
         </button>
       </div>
       <Find />
+      <UndoPlace onUndo={undo} />
       <button
         type="button"
         className="btn s lv-fade"
+        data-lv="fade"
         aria-label="Fade all"
         aria-keyshortcuts={ariaKey(live.keys.fadeAll)}
         title={`Fade all: everything fades out over ${DEFAULT_FADES_MS.fadeAll / 1000} seconds (${live.keys.fadeAll})`}
-        onClick={() => {
-          touched();
-          audio.fadeAll();
-        }}
+        onClick={() => fadeAllWithUndo(live)}
       >
         <Icon name="fade" size="s" />
         <span className="lv-btxt">Fade all</span>
@@ -145,12 +149,10 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
       <button
         type="button"
         className="btn s danger lv-stop"
+        data-lv="stop"
         aria-label="Stop all"
-        title="Stop everything at once"
-        onClick={() => {
-          touched();
-          audio.stopAll();
-        }}
+        title="Stop all: everything stops at once, your preview too"
+        onClick={() => stopAllWithUndo(live)}
       >
         <Icon name="stop" size="s" />
         <span className="lv-btxt">Stop all</span>
@@ -170,6 +172,18 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
         </button>
         {keysOpen && <KeysPop setKeysOpen={setKeysOpen} setKeys1={setKeys1} keys1={keys1} />}
       </span>
+      {/* Round 10 (Nik, 18 Nov 03:14, answer 6): move and size the boxes; kept for this window size. */}
+      <button
+        type="button"
+        className="btn s lv-arrange"
+        data-lv="arrange"
+        aria-pressed={live.state.arranging}
+        title={live.state.arranging ? "Done arranging" : "Move and size the boxes on this screen"}
+        onClick={() => setArranging(!live.state.arranging)}
+      >
+        <Icon name="grid" size="s" />
+        <span className="lv-btxt">{live.state.arranging ? "Done" : "Arrange"}</span>
+      </button>
     </div>
   );
 }

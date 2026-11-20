@@ -3,7 +3,7 @@
  * outputs, library, remote control and main-window settings.
  */
 import React from "react";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -22,6 +22,7 @@ import { expectNoAxeViolations } from "../../test/axe";
 import { SettingsBridgesProvider } from "./common";
 import { SettingsScreen } from "./SettingsScreen";
 import { RemotePane } from "./OtherPanes";
+import { reloadDip } from "./dipSettings";
 
 // UX-R16: the version webpack builds in (none in tests unless given).
 vi.mock("../../version", () => ({ LYRE_VERSION: "0.5.0" }));
@@ -296,7 +297,7 @@ describe("Settings: the folded boxes", () => {
     await userEvent.click(box.getByRole("switch", { name: "Split one headset" }));
     expect(await box.findByRole("radio", { name: "Preview in the left ear" })).toBeChecked();
     // 0.5.1 (Nik, 11 Nov): split only while something plays on air, said where it shows.
-    expect(box.getByText("Only while something plays on air; a preview on its own plays in both ears.")).toBeVisible();
+    expect(box.getByText("This works only while something plays on air. A preview on its own plays in both ears.")).toBeVisible();
     await userEvent.click(box.getByRole("radio", { name: "Preview in the right ear" }));
     await waitFor(() => expect(audio.calls).toContainEqual(["setAudioDevices", expect.objectContaining({ split: true, previewEar: "right" })]));
   });
@@ -401,5 +402,46 @@ describe("Settings › Keyboard shortcuts (UX-12)", () => {
     expect(sheet.getByRole("table")).toHaveTextContent("Fade all");
     expect(sheet.getByRole("button", { name: "Print" })).toBeInTheDocument();
     await act(async () => undefined);
+  });
+});
+
+describe("round 10: Settings › Discord bots (Nik, 18 Nov 03:14, answers 2 and 3)", () => {
+  it("each bot has a Starting volume, 85 % at first, and no Joins when Lyre starts; a change is kept", async () => {
+    const { outputs } = open();
+    const table = await bot("Lyre Table");
+    const slider = table.getByRole("slider", { name: "Starting volume" });
+    expect(slider).toHaveValue("85");
+    expect(screen.queryByText("Joins when Lyre starts")).toBeNull();
+    fireEvent.change(slider, { target: { value: "80" } });
+    fireEvent.blur(slider);
+    expect(outputs.calls).toContainEqual(["setStartVolume", expect.any(String), 0.8]);
+    await waitFor(() => expect(toast()).toContain("Lyre Table starting volume 80%"));
+  });
+
+  it("has a Rooms link to the Rooms screen", async () => {
+    open();
+    await bot("Lyre Table");
+    expect(region("Discord bots").getByRole("link", { name: "Rooms" })).toHaveAttribute("href", "#/outputs");
+  });
+
+  it("the keyboard shortcuts say each pad board has its own pad keys", async () => {
+    open();
+    const box = await unfold("Keyboard shortcuts");
+    expect(box.getByText("Each pad board has its own pad keys.")).toBeInTheDocument();
+  });
+});
+
+describe("round 10: Dip the music under effects (item 47; Nik, 18 Nov 03:14, answer 12.1)", () => {
+  it("How far is A little at first; A lot, Slowly and Ambience dips too go to the audio host and are kept", async () => {
+    const { audio } = open();
+    reloadDip();
+    const box = await unfold("Sound to Discord");
+    const group = within(box.getByRole("group", { name: "Dip the music under effects" }));
+    expect(group.getByRole("combobox", { name: "How far" })).toHaveValue("little");
+    await userEvent.selectOptions(group.getByRole("combobox", { name: "How far" }), "A lot");
+    await userEvent.selectOptions(group.getByRole("combobox", { name: "Comes back" }), "Slowly");
+    await userEvent.click(group.getByRole("checkbox", { name: "Ambience dips too" }));
+    expect(audio.calls.filter((c) => c[0] === "setDip").pop()).toEqual(["setDip", { db: 12, backSeconds: 3, ambience: true }]);
+    expect(JSON.parse(localStorage.getItem("lyre-dip") ?? "{}")).toEqual({ amount: "lot", back: "slow", ambience: true });
   });
 });

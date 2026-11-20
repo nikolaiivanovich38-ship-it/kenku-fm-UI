@@ -20,6 +20,7 @@ import {
   currentBoard,
   defaultLiveSession,
   endWords,
+  loopLine,
   findSearch,
   LIVE_KEYS,
   liveKey,
@@ -28,6 +29,8 @@ import {
   moodsByUse,
   offScriptSearch,
   padForKey,
+  padHasNoSound,
+  noSoundWords,
   padStepWords,
   roomStatus,
   sceneBoards,
@@ -312,6 +315,28 @@ describe("what happens at the end, as a tooltip", () => {
     expect(endWords(profile({}), "scene")).toBe("Ends 3:10, then next (scene setting)");
     expect(endWords(profile({ after: "loop", loopStartMs: 64_000 }), "track")).toBe("Ends 3:10, loops from 1:04");
     expect(endWords(profile({ after: "stop" }), "playlist")).toBe("Ends 3:10, then stops (playlist setting)");
+  });
+
+  it("round 10 (look M2): On air's quiet line says how it loops, in words", () => {
+    expect(loopLine(profile({ after: "loop" }))).toBe("Loops");
+    expect(loopLine(profile({ after: "loop", loopCrossfadeMs: 3000 }))).toBe("Loops with a 3 s crossfade");
+    expect(loopLine(profile({}))).toBe("Then the next track");
+    expect(loopLine(profile({ after: "stop" }))).toBe("Stops");
+    expect(loopLine(profile({ after: "stop", fadeOut: { ms: 4000, shape: 50 } }))).toBe("Fades out");
+  });
+});
+
+describe("round 10 (table review S3): a pad with no sound", () => {
+  const pad = (sound: Partial<{ kind: "single" | "variants" | "tag"; trackIds: string[]; tag: { group: string; value: string } | null }>, steps: unknown[] | null = null) =>
+    ({ label: "Thunder crack", sound: { kind: "single", trackIds: [], order: "random", tag: null, ...sound }, steps }) as never;
+  it("has no track, no tag and no steps", () => {
+    expect(padHasNoSound(pad({}))).toBe(true);
+    expect(padHasNoSound(pad({ trackIds: ["t1"] }))).toBe(false);
+    expect(padHasNoSound(pad({ kind: "tag", tag: { group: "g", value: "thunder" } }))).toBe(false);
+    expect(padHasNoSound(pad({}, [{ do: "next" }]))).toBe(false);
+  });
+  it("says so, and where to choose one", () => {
+    expect(noSoundWords(pad({}))).toBe("Thunder crack has no sound. Choose one on its pad board.");
   });
 });
 

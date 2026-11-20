@@ -17,9 +17,10 @@ interface RailProps {
 /** The rail: Lyre's sections (Live first since 0.5.1; then the prototype's order), with Look and feel, Help and "Icons only" at the bottom. */
 export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: RailProps) {
   const { liveLabel, liveName, outputsLabel, outputsHint } = useShellData();
-  const link = (to: Section, icon: IconName, label: string, name?: string, hint?: string) => (
+  const link = (to: Section, icon: IconName, label: string, name?: string, hint?: string, className?: string) => (
     <a
       href={hashOf(to)}
+      className={className}
       aria-current={section === to ? "page" : undefined}
       title={hint ? (min ? `${label}: ${hint}` : hint) : min ? label : undefined}
       // With hover text of its own, the link keeps its words as its name (the label is hidden when the rail is folded).
@@ -43,13 +44,15 @@ export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: Ra
           {link("library", "library", "Track library")}
           {link("playlists", "playlist", "Playlists")}
           {link("boards", "grid", "Pad boards")}
-          {/* OUT-9 (round 6, Nik 6 Nov 13:55): the screen is Rooms; its address stays #/outputs. */}
-          {link("outputs", "users", outputsLabel ?? "Rooms", undefined, outputsHint)}
         </div>
       </nav>
       <div className="bottom stack" style={{ gap: 2 }}>
         {/* w6-rooms (OUT-8): Settings, gear, above Look and feel. */}
         {link("settings", "gear", "Settings")}
+        {/* --- r10-live --- Round 10 (Nik, 18 Nov 03:14, answer 2: "keep the room screen as an option as it stands under
+            settings"): Rooms, under Settings. OUT-9: the screen is Rooms; its address stays #/outputs. */}
+        {link("outputs", "broadcast", outputsLabel ?? "Rooms", undefined, outputsHint ?? "Which bot is in which voice channel", "rail-sub")}
+        {/* --- end r10-live --- */}
         {link("look", "palette", "Look and feel")}
         {onHelp && (
           // FND-8: Help opens a side panel, not a screen, so it is a button (F1 does the same).

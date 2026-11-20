@@ -64,7 +64,7 @@ export function PlaylistsBox({ scope }: { scope: Scope }) {
                 rowKey={`${scope}p:${id}`}
                 place={place}
                 box={scope}
-                trackRow={(t) => <TrackRow key={t.id} track={t} rowKey={`${scope}p:${id}:${t.id}`} place={place} playlistId={id} from={{ playlistId: id, place }} box={scope} on={trackOnAir(d, t.id)} inner />}
+                trackRow={(t) => <TrackRow key={t.id} track={t} rowKey={`${scope}p:${id}:${t.id}`} place={place} playlistId={id} from={{ playlistId: id, place }} box={scope} on={trackOnAir(d, t.id)} inner inPlaylist={p.kind === "manual" ? p : undefined} />}
               />
             );
           })}

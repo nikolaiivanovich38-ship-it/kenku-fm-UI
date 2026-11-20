@@ -177,6 +177,10 @@ export function trailOf(path: string, names?: PlaceNames): Crumb[] {
     case "moved":
     case "relink":
       return [{ href: "#/library", label: "Track library" }];
+    // --- r10-live --- Round 10 (Nik, 18 Nov 03:14, answer 2): Rooms is under Settings.
+    case "outputs":
+      return [{ href: "#/settings", label: "Settings" }];
+    // --- end r10-live ---
     default:
       return [];
   }

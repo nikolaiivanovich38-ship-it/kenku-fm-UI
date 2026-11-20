@@ -22,7 +22,6 @@ import { isSingleKey, sceneBoards } from "./liveModel";
 import { updateLive } from "./liveState";
 import { PadGrid } from "./Pads";
 import { AmbienceRow, SceneMusicList } from "./Rows";
-import { SceneUndoStrip } from "./UndoStrips";
 // PLY-8: a scene that differs from the usual is marked the same way as in the planner.
 import { SceneMarks } from "../steps/StepsDialog";
 
@@ -76,7 +75,6 @@ export function ScenesPane({ compact, actions }: { compact: boolean; actions: Sc
             </span>
           )}
         </button>
-        <SceneUndoStrip onUndo={actions.undo} />
       </div>
       <ol className="lv-scenes">
         {scenes.map((sc, i) => {

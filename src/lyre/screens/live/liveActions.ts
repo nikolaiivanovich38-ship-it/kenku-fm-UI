@@ -63,12 +63,58 @@ function nameOnAir(roomId: string, what: PlayWhat): void {
 }
 
 /**
+ * Round 10 (table review M4; Nik, 18 Nov 08:36, answer 6a): Play on air, Fade all and Stop all change what the players
+ * hear, so each has Undo, which brings every room back where it was (`sameTime`: from the point it had reached, for
+ * Fade all and Stop all). Nothing playing before: nothing to bring back, so no Undo.
+ */
+export function withRoomsUndo(d: LiveData, text: string, focus: string, change: () => void, options: { sameTime?: boolean } = {}): boolean {
+  const before = d.audio.snapshotRooms();
+  const hadSound = d.audio.snapshotHasSound(before);
+  touched();
+  change();
+  if (!hadSound) return false;
+  offerSoftUndo({ text, focus, restore: () => d.audio.restoreRooms(before, options) }, UNDO_MS);
+  return true;
+}
+
+/** Fade all (Shift+Esc): every room fades out over 5 seconds, with Undo. */
+export function fadeAllWithUndo(d: LiveData): void {
+  withRoomsUndo(d, "Fading everything out", "fade", () => d.audio.fadeAll(), { sameTime: true });
+}
+
+/**
+ * Stop all: every room stops at once, with Undo; Nik's headphone preview stops too (Nik, 18 Nov 08:36, answer 7b), and
+ * Undo does not bring it back (it was never on air).
+ */
+export function stopAllWithUndo(d: LiveData): void {
+  withRoomsUndo(
+    d,
+    "Stopped everything",
+    "stop",
+    () => {
+      d.audio.stopAll();
+      d.audio.stopPreview();
+    },
+    { sameTime: true },
+  );
+}
+
+/**
  * Play on air in the box's rooms. A playlist, or a track picked from the running scene or a playlist, is a new plan for
  * the room; a track on its own plays now and the room's list carries on after it; an effect layers over the music;
- * an ambience becomes the room's ambience (crossfading).
+ * an ambience becomes the room's ambience (crossfading). Round 10: music and ambience get Undo (withRoomsUndo); an
+ * effect layers over the music like a pad and needs none.
  */
-export function playOnAir(d: LiveData, targets: readonly RoomTarget[], what: PlayWhat): void {
-  touched();
+export function playOnAir(d: LiveData, targets: readonly RoomTarget[], what: PlayWhat, focus = ""): void {
+  if (isEffect(what)) {
+    touched();
+    playOnAirNow(d, targets, what);
+    return;
+  }
+  withRoomsUndo(d, `Playing on air: ${what.name}`, focus, () => playOnAirNow(d, targets, what));
+}
+
+function playOnAirNow(d: LiveData, targets: readonly RoomTarget[], what: PlayWhat): void {
   for (const target of targets) {
     nameOnAir(roomOf(target), what);
     if (what.kind === "track") {
@@ -109,7 +155,7 @@ export function addToList(d: LiveData, how: "next" | "queue", targets: readonly 
   const verb = how === "next" ? "Plays next" : "Added to the queue";
   const where = d.rooms.length > 1 ? ` in ${targets.length > 1 ? "all rooms" : (d.rooms.find((r) => r.roomId === roomOf(targets[0]))?.name ?? "")}` : "";
   if (added.length) {
-    offerSoftUndo({ text: `${verb}: ${what.name}`, where: `room:${roomOf(added[0])}`, focus, restore: () => added.forEach((t) => d.audio.undoUpNext(t)) }, UNDO_MS);
+    offerSoftUndo({ text: `${verb}: ${what.name}`, focus, restore: () => added.forEach((t) => d.audio.undoUpNext(t)) }, UNDO_MS);
     speaker.say(`${verb}${where}: ${what.name}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
   } else if (started) {
     touched();
@@ -150,7 +196,7 @@ function addAmbience(d: LiveData, how: "next" | "queue", targets: readonly RoomT
       return { aq };
     });
     const verb = how === "next" ? "Ambience next" : "Ambience added to the queue";
-    offerSoftUndo({ text: `${verb}: ${item.name}`, where: `room:${added[0]}`, focus, restore: () => updateLive({ aq: before }) }, UNDO_MS);
+    offerSoftUndo({ text: `${verb}: ${item.name}`, focus, restore: () => updateLive({ aq: before }) }, UNDO_MS);
     speaker.say(`${verb}: ${item.name}. It plays when you press Next on the ambience. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
   } else if (started) speaker.say(`Ambience now: ${item.name}`);
 }
@@ -171,7 +217,7 @@ export function nextInRoom(d: LiveData, lane: "music" | "ambience", roomId: stri
 /** × in Up next: a planned track is skipped this evening, an added one goes; Undo brings it back. */
 export function takeOut(d: LiveData, roomId: string, remove: () => boolean, label: string, focus: string, speaker: Speaker): void {
   if (!remove()) return;
-  offerSoftUndo({ text: `Taken out of Up next: ${label}`, where: `room:${roomId}`, focus, restore: () => d.audio.undoUpNext({ room: roomId }) }, UNDO_MS);
+  offerSoftUndo({ text: `Taken out of Up next: ${label}`, focus, restore: () => d.audio.undoUpNext({ room: roomId }) }, UNDO_MS);
   speaker.say(`Taken out of Up next: ${label}. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
 }
 
@@ -186,7 +232,6 @@ export function clearAdded(d: LiveData, roomId: string, focus: string, speaker: 
   offerSoftUndo(
     {
       text: "Cleared what you added",
-      where: `room:${roomId}`,
       focus,
       restore: () => {
         if (cleared) d.audio.undoUpNext({ room: roomId });

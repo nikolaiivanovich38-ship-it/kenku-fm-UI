@@ -772,3 +772,34 @@ describe("OutputManager: Settings in Lyre (OUT-8)", () => {
     expect(manager.inviteOpenedByDriver("123456789012345678")).toBe(false);
   });
 });
+
+describe("OutputManager: round 10, a bot joins at its starting volume (Nik, 18 Nov 03:14, answer 3)", () => {
+  it("a bot joined to a room from no room gets its starting volume; a move between rooms keeps the volume it has", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    m.setStartVolume(id, 0.5);
+    expect(m.state().bots[0].startVolume).toBe(0.5);
+    await m.moveBot(id, FAKE_CHANNELS.tavern.id);
+    await settle();
+    expect(m.roomVolume(id)).toBe(0.5);
+    m.setRoomVolume(id, 0.7);
+    await m.moveBot(id, FAKE_CHANNELS.dungeon.id);
+    await settle();
+    expect(m.roomVolume(id)).toBe(0.7);
+  });
+});
+
+describe("OutputManager: round 10, Undo of Leave keeps the volume", () => {
+  it("a bot back in a room soon after Leave has the volume it had, not its starting volume", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    await m.moveBot(id, FAKE_CHANNELS.tavern.id);
+    await settle();
+    m.setRoomVolume(id, 0.3);
+    m.leaveAll(id);
+    await settle();
+    await m.moveBot(id, FAKE_CHANNELS.tavern.id);
+    await settle();
+    expect(m.roomVolume(id)).toBe(0.3);
+  });
+});

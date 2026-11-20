@@ -22,13 +22,21 @@ import { CueAction, CueOutcome, DEFAULT_FADES, TrackFrom } from "./actions";
 import type { SceneRef, ShowLibrary } from "./library";
 import { Playing, playlistItem, sceneItem, sequenceOf, single } from "./nowPlaying";
 import type { Random } from "./queue";
-import { RoomPlayer, RoomReport, RoomSnapshot, type ListEntry } from "./roomPlayer";
+import { RoomPlayer, RoomReport, RoomSnapshot, type DipSettings, type ListEntry } from "./roomPlayer";
 
 /** PLY-16: what Play next and Add to queue take: a track (from where it was picked) or a whole playlist. */
 export type ListWhat =
   /** `fromMs` (DAT-3): where in the file it starts, from a marker. */
   | { kind: "track"; trackId: string; from?: TrackFrom; name?: string; fromMs?: number }
   | { kind: "playlist"; playlistId: string; place?: UsePlace | null; name?: string };
+
+/**
+ * Round 10 (table review M4; Nik, 18 Nov 08:36, answer 6a): what every room plays at one moment, taken before Play on
+ * air, Fade all or Stop all, so their Undo brings every room back where it was.
+ */
+export interface RoomsSnapshot {
+  rooms: readonly { roomId: string; snapshot: RoomSnapshot }[];
+}
 
 interface DirectorEvents {
   /** What a room plays changed; read `report()`. */
@@ -76,6 +84,16 @@ export class Director extends TypedEmitter<DirectorEvents> {
   private readonly resumeAt: Map<string, number>;
   private readonly unsubscribe: () => void;
 
+  // --- r10-live ---
+  /** Round 10: how far the music dips under effects (Settings › Sound to Discord); A little and Gently until told. */
+  private dip: DipSettings = { db: 6, backSeconds: 1.5, ambience: false };
+  setDip(dip: DipSettings): void {
+    this.dip = dip;
+    for (const player of this.players.values()) player.updateDip();
+    this.emit("change");
+  }
+  // --- end r10-live ---
+
   constructor(options: { engine: PlaybackEngine; rooms: RoomsAudio; library: ShowLibrary; random?: Random; resumeAt?: Map<string, number> }) {
     super();
     this.engine = options.engine;
@@ -104,6 +122,39 @@ export class Director extends TypedEmitter<DirectorEvents> {
   libraryChanged(): void {
     for (const player of this.players.values()) player.refreshGains();
     this.emit("change");
+  }
+
+  // ---------- round 10: every room's snapshot, for Undo ----------
+
+  snapshotRooms(): RoomsSnapshot {
+    return { rooms: this.rooms.rooms().map((room) => ({ roomId: room.botId, snapshot: this.player(room.botId).snapshot() })) };
+  }
+
+  /** True when a room in the snapshot was playing music or ambience (otherwise there is nothing to bring back). */
+  snapshotHasSound(snapshot: RoomsSnapshot): boolean {
+    return snapshot.rooms.some((r) => r.snapshot.music.current !== null || r.snapshot.ambience !== null);
+  }
+
+  /** Every room still there goes back to the snapshot; a room that has gone since is left out. */
+  restoreRooms(snapshot: RoomsSnapshot, options: { sameTime?: boolean } = {}): CueOutcome {
+    try {
+      const here = new Set(this.rooms.rooms().map((room) => room.botId));
+      for (const { roomId, snapshot: one } of snapshot.rooms) {
+        if (here.has(roomId)) this.player(roomId).restore(one, DEFAULT_FADES.undo, options.sameTime ?? false);
+      }
+      return OK;
+    } finally {
+      this.emit("change");
+    }
+  }
+
+  /** Round 10: Play now on a planned track in Up next, in the target's rooms. */
+  playUpNext(ref: UpNextRef, target: RoomTarget): CueOutcome {
+    try {
+      return this.eachRoom(target, (player) => (player.playUpNext(ref, this.crossfadeSeconds()) ? OK : fail("That track is no longer in Up next.")));
+    } finally {
+      this.emit("change");
+    }
   }
 
   // ---------- round 6: each room's running list and its Repeat (PLY-16, PLY-17) ----------
@@ -538,6 +589,7 @@ export class Director extends TypedEmitter<DirectorEvents> {
         newSeed: () => this.newSeed(),
         timers: this.engine.scheduler,
         resumeAt: this.resumeAt,
+        dip: () => this.dip,
         playsOnce: (scene) => this.library.scene(scene)?.movesOn?.when === "musicEnds",
         planEnded: (scene) => {
           // Only the scene that started last moves on (an older scene's list ending is not a cue).

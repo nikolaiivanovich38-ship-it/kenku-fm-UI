@@ -52,8 +52,10 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
       "Track library",
       "Playlists",
       "Pad boards",
-      "Rooms",
     ]);
+    // Round 10 (Nik, 18 Nov 03:14, answer 2): Rooms is under Settings, at the menu's bottom.
+    const links = [...document.querySelectorAll(".rail .bottom a")].map((a) => a.textContent);
+    expect(links.slice(0, 3)).toEqual(["Settings", "Rooms", "Look and feel"]);
     expect(screen.getByRole("link", { name: "Look and feel" })).toHaveAttribute("href", "#/look");
     expect(within(nav).getByRole("link", { name: "Campaigns" })).toHaveAttribute("aria-current", "page");
   });

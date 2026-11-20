@@ -226,3 +226,21 @@ describe("the test builds' fake keyring (CUE_DESK_FAKE_KEYRING)", () => {
     expect(new BotTokenStore(file, fakeKeyring).token(id)).toBe(TOKEN);
   });
 });
+
+describe("BotTokenStore: round 10, a starting volume per bot (ROUND10.md, Settings › Discord bots)", () => {
+  it("keeps each bot's starting volume across a restart; 85 % when none was chosen", () => {
+    const store = new BotTokenStore(file, fakeSafeStorage());
+    const id = store.addBot();
+    expect(store.startVolume(id)).toBe(0.85);
+    expect(store.setStartVolume(id, 0.6)).toBe(true);
+    expect(new BotTokenStore(file, fakeSafeStorage()).startVolume(id)).toBe(0.6);
+  });
+
+  it("refuses an unknown bot and keeps a volume between 0 and 1", () => {
+    const store = new BotTokenStore(file, fakeSafeStorage());
+    const id = store.addBot();
+    expect(store.setStartVolume("bot-00000000-0000-0000-0000-000000000000", 0.5)).toBe(false);
+    store.setStartVolume(id, 4);
+    expect(store.startVolume(id)).toBe(1);
+  });
+});

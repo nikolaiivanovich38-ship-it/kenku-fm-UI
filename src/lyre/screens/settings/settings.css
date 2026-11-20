@@ -70,3 +70,12 @@ body .sheet a.btn[aria-disabled="true"] { opacity: .5; cursor: default; }
 .st-legacy p:last-child { margin: 0; }
 .st-legacy .btn { flex: none; }
 .st-cache { margin-top: 8px; }
+
+/* Round 10 (look K2): status colours mean status: a connected bot is green, not the accent. */
+.st-bot .pane-status.s-on { border-color: var(--ok); }
+.st-bot .pane-status.s-on::before { background: var(--ok); }
+.st-botstart .st-svol { flex: 0 1 160px; min-width: 80px; }
+/* Round 10: Dip the music under effects. */
+.st-dip { border: 0; padding: 0; margin: 10px 0 0; min-width: 0; }
+.st-dip > legend { font-weight: 700; font-size: var(--fs-s); padding: 0; margin-bottom: 4px; }
+.st-dip-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: var(--fs-s); }

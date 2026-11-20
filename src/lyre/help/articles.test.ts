@@ -44,10 +44,12 @@ describe("the help articles (FND-8)", () => {
       "Find missing files",
       "Save diagnostics for a bug report",
       "Play next, Add to queue and Repeat",
-      // 0.6.0 (r10-tracks): the Track panel, round 9's filters and columns, and Split into parts.
+      // 0.6.0, in file order: r10-live 16 and 20, r10-tracks 17, 18, 19 and 21.
+      "Rooms and bots",
       "A track's details anywhere",
       "Filters, columns and sorting",
       "Split a track into parts",
+      "Dip the music under effects",
       "The queue, Back and Forward",
     ]);
   });

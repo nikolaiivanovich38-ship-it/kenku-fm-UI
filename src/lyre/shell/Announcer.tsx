@@ -20,9 +20,16 @@ interface Announce {
   saved: (what: string, options?: SavedOptions) => void;
   /** UX-19: a save failed. A card that stays, with Try again (which calls `retry`) and Dismiss. */
   saveFailed: (what: string, retry: () => void) => void;
+  // --- r10-live ---
+  /**
+   * Round 10 (table review S3): something did not work as pressed (a pad with no sound). The same pop-up place, amber
+   * with a warning sign, and it stays 10 seconds, so it is not mistaken for a Saved note.
+   */
+  warn: (text: string) => void;
+  // --- end r10-live ---
 }
 
-const AnnouncerContext = createContext<Announce>({ say: () => undefined, toast: () => undefined, saved: () => undefined, saveFailed: () => undefined });
+const AnnouncerContext = createContext<Announce>({ say: () => undefined, toast: () => undefined, saved: () => undefined, saveFailed: () => undefined, warn: () => undefined });
 
 /** The live region is emptied first and filled a moment later, so the same words twice are read twice. */
 const SAY_DELAY_MS = 30;
@@ -34,6 +41,11 @@ export const READ_NOTE_AFTER_MS = 120;
 /** The pop-up's distance from the work area's right edge and from its bottom (or from the Now playing bar). */
 const CORNER_PX = 12;
 
+// --- r10-live ---
+/** Round 10 (table review S3): a warning pop-up stays this long. */
+export const WARN_MS = 10_000;
+// --- end r10-live ---
+
 /** Where the Undo note goes: low in the pop-up's corner (shell/UndoNote.tsx). */
 export const UNDO_SLOT_ID = "lyre-undo-slot";
 /** FND-16: where update news goes, lowest in the corner (src/lyre/window/UpdateNews.tsx). */
@@ -44,6 +56,10 @@ interface Note {
   saved: boolean;
   /** Counts refreshes of the same save, so the tick pulses once each time. */
   pulse: number;
+  // --- r10-live ---
+  /** A warning (warn): amber, with a warning sign, for 10 seconds. */
+  warn?: boolean;
+  // --- end r10-live ---
 }
 
 /**
@@ -86,16 +102,16 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
   );
 
   const show = useCallback(
-    (text: string, key: string, saved: boolean) => {
+    (text: string, key: string, saved: boolean, warn = false) => {
       const rule = rules.current.show(key, Date.now());
-      setNote((was) => ({ text, saved, pulse: rule.refresh && was ? was.pulse + 1 : 0 }));
+      setNote((was) => ({ text, saved, warn, pulse: rule.refresh && was ? was.pulse + 1 : 0 }));
       clearTimeout(timers.current.read);
       if (rule.readOut) timers.current.read = setTimeout(() => speak(text), READ_NOTE_AFTER_MS);
       clearTimeout(timers.current.note);
       timers.current.note = setTimeout(() => {
         rules.current.hidden();
         setNote(null);
-      }, noteDuration(text));
+      }, warn ? WARN_MS : noteDuration(text));
     },
     [speak],
   );
@@ -110,6 +126,9 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
     [show],
   );
   const saveFailed = useCallback((what: string, retry: () => void) => setFail({ what, retry }), []);
+  // --- r10-live ---
+  const warn = useCallback((text: string) => show(text, `warn:${text}`, false, true), [show]);
+  // --- end r10-live ---
 
   useEffect(() => {
     const pending = timers.current;
@@ -147,7 +166,7 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
     };
   }, [note, fail]);
 
-  const value = useMemo(() => ({ say, toast, saved, saveFailed }), [say, toast, saved, saveFailed]);
+  const value = useMemo(() => ({ say, toast, saved, saveFailed, warn }), [say, toast, saved, saveFailed, warn]);
   return (
     <AnnouncerContext.Provider value={value}>
       {children}
@@ -156,9 +175,10 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
       </div>
       <div id="lyre-toasts" className="toasts" ref={box}>
         {/* UX-R6: shown here, read out from the live region above (aria-live off), so one change is one message. */}
-        <div id="lyre-toast" className={note?.saved ? "toast t-saved" : "toast"} role="status" aria-live="off" aria-atomic="true">
+        <div id="lyre-toast" className={note?.saved ? "toast t-saved" : note?.warn ? "toast t-warn" : "toast"} role="status" aria-live="off" aria-atomic="true">
           {note && (
             <>
+              {note.warn && <Icon name="warn" size="s" />}
               {note.saved && (
                 // A new key restarts the pulse on each refresh (no pulse with reduced motion: ui.css).
                 <span key={note.pulse} className={note.pulse ? "t-tick t-again" : "t-tick"} aria-hidden="true">
