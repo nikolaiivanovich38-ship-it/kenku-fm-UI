@@ -405,7 +405,6 @@ test.describe("0.5.2: Nik's play test", () => {
   });
 
   test("round 8 #1: right after Add marker, the Saved pop-up leaves the new marker's row and its buttons in sight (WCAG 2.4.11)", async ({ page }) => {
-    appOnly();
     await openRoute(page, "profile/t13");
     const markers = page.getByRole("region", { name: "Markers", exact: true });
     await markers.scrollIntoViewIfNeeded();

@@ -602,7 +602,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("the Now playing bar's time line is a seek bar: a click jumps the track there (\"choose to skip to a certain point\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("button", { name: /^Play on air: / }).click();
     const air = page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^On air/ });
@@ -618,7 +617,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("the Library's top bar has the Prep | Live switch (\"In library view I still need the Prep and Live toggle\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const modes = page.getByRole("group", { name: "Prep or live" });
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
@@ -649,7 +647,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 35: opening a track keeps the list scrolled where it was", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const box = page.locator(".lb-scroll");
     await box.evaluate((el) => (el.scrollTop = 400));
@@ -689,7 +686,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 25: a click on a column header sorts by it, ascending then descending, and says so with aria-sort", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const title = grid(page).getByRole("columnheader", { name: /^Title/ });
     const length = grid(page).getByRole("columnheader", { name: /^Length/ });
@@ -772,7 +768,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 50: Remove all shown… removes the tracks a filter shows, with the count in its confirmation", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
     if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
@@ -824,7 +819,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("round 8 #5: a track title on a playlist page opens its details, and Open in Track library shows that row in view", async ({ page }) => {
-    appOnly();
     await openRoute(page, "playlist/p-abbess");
     const links = page.getByRole("main").locator('a[href^="#/library/"]');
     await expect(links.first()).toBeVisible();
@@ -841,7 +835,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
 /* 0.5.2: from Nik's play test (14 Nov), built in the app with no prototype round (support/test.ts appOnly). */
 test.describe("0.5.2: Nik's play test", () => {
   test("item 29: with music on air and a preview playing, tracks dragged from the list onto the Drop on panel land, and nothing fails (\"crashed the interface\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "playlists");
     await page.getByRole("button", { name: "Play on air: The Abbess" }).first().click();
     await page.getByRole("button", { name: "Preview The Company themes" }).first().click();

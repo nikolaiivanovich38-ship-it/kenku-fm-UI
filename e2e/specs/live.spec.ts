@@ -1405,7 +1405,6 @@ test.describe("0.5.1: fades of 5 seconds, and Rooms' actions in On air", () => {
 /* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("On air: the playing track's bar is a seek bar: a click jumps there, the arrow keys 5 s (\"click in the tracking bar … and skip\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "live");
     await startAbbey(page);
     const seek = room(page, "Table").getByRole("slider", { name: /^Position in / }).first();
@@ -1522,7 +1521,6 @@ test.describe("0.5.2: Live's empty boxes, loop settings and track names", () => 
   });
 
   test("a double-click on Next scene starts one scene, as its key's guard does (round 9 review M2)", async ({ page }) => {
-    appOnly();
     await openRoute(page, "live");
     await startFirstScene(page);
     await page.waitForTimeout(1100);

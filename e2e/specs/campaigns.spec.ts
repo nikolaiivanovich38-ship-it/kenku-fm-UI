@@ -4,7 +4,7 @@
  */
 import type { Page } from "@playwright/test";
 import { appOnly, expect, test, expectFailureUntilScreenBuilt } from "./support/test";
-import { failNextSave, openRoute } from "./support/target";
+import { failNextSave, joinRoom, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
 const dialog = (page: Page) => page.getByRole("dialog");
@@ -763,7 +763,6 @@ test.describe("0.5.1: the Now playing bar's position, and a session dragged last
 /* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("a campaign's theme shows on its pages whatever Look and feel chose; Look and feel is the base elsewhere", async ({ page }) => {
-    appOnly();
     const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
     await openRoute(page, "campaign/crown", { theme: "parchment" });
     await expect.poll(theme).toBe("hearth");
@@ -814,7 +813,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("Live is first in the menu (\"move the live tab to the top of the left side bar\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "campaigns");
     const links = page.getByRole("navigation", { name: "Lyre" }).getByRole("link");
     await expect(links.first()).toHaveAccessibleName(/^Live/);
@@ -910,4 +908,18 @@ test("0.6.0 finishing (f-live): a room on air has Back, Next and its queue on th
   await expect(air).not.toContainText(next);
   await controls.getByRole("button", { name: "Next", exact: true }).click();
   await expect(air).toContainText(next);
+});
+
+/* 0.6.0 language review C15 (QueuePanel; prototype r9live.js queueHTML): a room's queue says the players hear it, and
+   with two or more rooms it names the room. */
+test("0.6.0: a room's queue says it is on air, and names the room when there are two or more", async ({ page }) => {
+  await openRoute(page, "campaign/crown");
+  await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+  const controls = region(page, "Now playing").getByRole("group", { name: /^On air/ }).first().getByRole("group", { name: /^Control what the players hear/ });
+  await controls.getByRole("button", { name: /^Queue/ }).click();
+  const queue = page.getByRole("region", { name: /^Queue/ });
+  await expect(queue).toContainText("The Company themes · on air");
+  await expect(queue).not.toContainText("on air in ");
+  await joinRoom(page, "Lyre Side", "Side room");
+  await expect(queue).toContainText("The Company themes · on air in Table");
 });

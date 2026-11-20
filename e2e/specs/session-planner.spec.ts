@@ -648,7 +648,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   const scenes = (page: Page) => page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem", { name: /^Scene \d+: / });
 
   test("each track of a scene's playlist has Play on air, as the playlist has (\"I need that at track level\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
     const music = page.getByRole("list", { name: "Music in order" });
@@ -664,7 +663,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("Add scene goes at the end with no scene selected, and right after the scene selected", async ({ page }) => {
-    appOnly();
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "Add scene" }).click();
     await expect(scenes(page)).toHaveCount(7);
@@ -889,7 +887,6 @@ test.describe("0.6.0: dragging a track of an unfolded playlist to another list (
   });
 
   test("the keyboard does the same: Add to… in the track's ⋯, and the list says so to a screen reader", async ({ page }) => {
-    appOnly(); // the prototype drags only; the app adds its Add to… (Library, playlist page) here too
     const { title } = await openBoth(page);
     await expect(abbessTracks(page)).toHaveAccessibleDescription(/Add to…/);
     await abbessTracks(page).getByRole("button", { name: `More for ${title}` }).click();
