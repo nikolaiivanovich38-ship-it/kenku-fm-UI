@@ -22,6 +22,36 @@ export interface ArrangeProps {
   change: (id: ArrangeId, action: ArrangeAction, focus?: boolean) => void;
 }
 
+/**
+ * Review M7 (f-live): a pointer drag that always ends. `start(move, end)` follows the pointer until it is let go
+ * (`end(true)`), cancelled by the system (Alt+Tab, a touch taken over: `end(false)`, nothing is saved), or the component
+ * goes away mid-drag (Done, Esc, another screen: the listeners come off and `end` is not called, so nothing is saved
+ * from a box that is gone).
+ */
+function usePointerDrag(): (move: (event: PointerEvent) => void, end: (committed: boolean) => void) => void {
+  const stop = useRef<(() => void) | null>(null);
+  useEffect(() => () => stop.current?.(), []);
+  return (move, end) => {
+    stop.current?.();
+    const finish = (committed: boolean) => {
+      off();
+      end(committed);
+    };
+    const up = () => finish(true);
+    const cancel = () => finish(false);
+    function off() {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointercancel", cancel);
+      stop.current = null;
+    }
+    stop.current = off;
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", cancel);
+  };
+}
+
 /** The bar over the boxes while arranging: what to do, Put back the usual layout and Done. */
 export function ArrangeBar({ columns, reset, done, dropTop }: { columns: Columns; reset: () => void; done: () => void; dropTop: DropTarget }) {
   return (
@@ -80,6 +110,7 @@ export function ArrangeBox({ id, col, at, props, children }: { id: ArrangeId; co
   const inner = useRef<HTMLDivElement>(null);
   const [line, setLine] = useState<"before" | "after" | null>(null);
   const [sizing, setSizing] = useState<number | null>(null);
+  const drag = usePointerDrag();
   useEffect(() => inner.current?.setAttribute("inert", ""), []);
   const height = layout.heights[id];
   const shown = sizing ?? height;
@@ -139,18 +170,16 @@ export function ArrangeBox({ id, col, at, props, children }: { id: ArrangeId; co
           const start = event.clientY;
           const h0 = inner.current?.getBoundingClientRect().height ?? 300;
           let now = h0;
-          const move = (ev: PointerEvent) => {
-            now = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, h0 + ev.clientY - start));
-            setSizing(now);
-          };
-          const up = () => {
-            document.removeEventListener("pointermove", move);
-            document.removeEventListener("pointerup", up);
-            setSizing(null);
-            change(id, { height: now }, false);
-          };
-          document.addEventListener("pointermove", move);
-          document.addEventListener("pointerup", up);
+          drag(
+            (ev) => {
+              now = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, h0 + ev.clientY - start));
+              setSizing(now);
+            },
+            (committed) => {
+              setSizing(null);
+              if (committed) change(id, { height: now }, false);
+            },
+          );
         }}
       />
     </div>
@@ -189,6 +218,7 @@ function moveItems(layout: LiveLayout, columns: Columns, id: ArrangeId, height: 
 /** The bar between two columns while arranging: dragged, it shares their width out again. */
 export function ColumnSplit({ index, widths, change }: { index: number; widths: number[]; change: (widths: number[]) => void }) {
   const [dx, setDx] = useState(0);
+  const drag = usePointerDrag();
   return (
     <div
       className={cx("lv-split", dx !== 0 && "on")}
@@ -203,23 +233,24 @@ export function ColumnSplit({ index, widths, change }: { index: number; widths: 
         const b = cols[index + 1]?.getBoundingClientRect().width ?? 0;
         const x0 = event.clientX;
         let moved = 0;
-        const move = (ev: PointerEvent) => {
-          moved = Math.max(80 - a, Math.min(b - 80, ev.clientX - x0));
-          setDx(moved);
-        };
-        const up = () => {
-          document.removeEventListener("pointermove", move);
-          document.removeEventListener("pointerup", up);
-          setDx(0);
+        drag(
+          (ev) => {
+            moved = Math.max(80 - a, Math.min(b - 80, ev.clientX - x0));
+            setDx(moved);
+          },
+          (committed) => {
+            setDx(0);
+            if (committed) commit();
+          },
+        );
+        function commit() {
           if (!a || !b || !moved) return;
           const total = widths[index] + widths[index + 1];
           const next = [...widths];
           next[index] = (total * (a + moved)) / (a + b);
           next[index + 1] = total - next[index];
           change(next);
-        };
-        document.addEventListener("pointermove", move);
-        document.addEventListener("pointerup", up);
+        }
       }}
     >
       <span className="lv-split-bar" />

@@ -13449,16 +13449,20 @@ var L = (function () {
     if (edge) {
       var id = edge.dataset.r10edge, inner = edge.parentNode.querySelector('.r9-boxin'), h0 = inner.getBoundingClientRect().height, y0 = e.clientY, hNow = h0; e.preventDefault();
       var mv = function (ev) { hNow = Math.max(120, Math.min(1200, h0 + ev.clientY - y0)); edge.parentNode.style.setProperty('--r9h', hNow + 'px'); edge.parentNode.classList.add('r10-sizing'); };
-      var upE = function () { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', upE); edit(function (s) { s.heights[id] = Math.round(hNow / 10) * 10; }); L.say(NAMES[id] + ' ' + Math.round(hNow / 10) * 10 + ' pixels high'); };
-      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', upE); return;
+      // 0.6.0 review M7 (f-live, as the app): a cancelled pointer (Alt+Tab, a touch taken over) ends the drag, saving nothing.
+      var offE = function () { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', upE); document.removeEventListener('pointercancel', cancelE); edge.parentNode.classList.remove('r10-sizing'); };
+      var cancelE = function () { offE(); edge.parentNode.style.removeProperty('--r9h'); };
+      var upE = function () { offE(); edit(function (s) { s.heights[id] = Math.round(hNow / 10) * 10; }); L.say(NAMES[id] + ' ' + Math.round(hNow / 10) * 10 + ' pixels high'); };
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', upE); document.addEventListener('pointercancel', cancelE); return;
     }
     var bar = e.target.closest && e.target.closest('.r9-split'); if (!bar) return;
     var sp = bar, ci = +sp.dataset.split, grid = sp.parentNode, cols = [].slice.call(grid.querySelectorAll(':scope > .col'));
     var a = cols[ci].getBoundingClientRect().width, b = cols[ci + 1].getBoundingClientRect().width, x0 = e.clientX;
     e.preventDefault();
     function move(ev) { var dx = ev.clientX - x0; cols[ci].dataset.w = Math.max(80, a + dx); cols[ci + 1].dataset.w = Math.max(80, b - dx); sp.classList.add('on'); sp.style.transform = 'translateX(' + Math.max(80 - a, Math.min(b - 80, dx)) + 'px)'; }
+    function off() { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', off); sp.classList.remove('on'); sp.style.transform = ''; }
     function up() {
-      document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); sp.classList.remove('on'); sp.style.transform = '';
+      off();
       var wa = +cols[ci].dataset.w || a, wb = +cols[ci + 1].dataset.w || b;
       edit(function (s) {
         var n = s.cols.length, base = (s.widths || cols.map(function (c) { return c.getBoundingClientRect().width; })).slice(0, n);
@@ -13469,7 +13473,7 @@ var L = (function () {
         s.widths = base.map(function (x) { return Math.round(x * 10) / 10; });
       });
     }
-    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', off);
   });
 
   /* ---------- painting what lives outside the view ---------- */
