@@ -1,15 +1,16 @@
 /**
  * Find a track or playlist (live.js find, found; was the Off script box): a search field in the top strip whose
- * results open under it, over the boxes, which stay where they are. The results open on a click in the field, on / and
+ * results open in a side panel beside Live (round 10, R10-FIX §3: not over On air), and the screen narrows. The results open on a click in the field, on / and
  * on typing (not on Tab, which only passes through), and close with Esc, × or a click or focus elsewhere. Narrow to
  * Music, Ambience or FX; pick moods (All tags shows every group) and clear them with the X beside them. ORG-14: the
  * results are Playlists first (each unfolds to its tracks), then Tracks, each row with the buttons it has everywhere in
  * Live. An effect played on air layers over the music. Sound goes to Find's room (To:).
  */
-import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 
 import type { UsePlace } from "../../../common/domain";
 import { Icon } from "../../kit/Icon";
+import { SidePanel } from "../../kit/SidePanel";
 import { useSayWhenSettled } from "../../kit/useSayWhenSettled";
 import { useAnnounce } from "../../shell/Announcer";
 import { useLive } from "./liveData";
@@ -27,8 +28,6 @@ const LANES: [OffScriptQuery["lane"], string][] = [
 ];
 /** Moods shown before All tags. */
 const FIRST_MOODS = 8;
-/** The results' widest. */
-const RESULTS_PX = 680;
 
 export function openFind(): void {
   if (!getLiveState().findOpen) updateLive({ findOpen: true });
@@ -52,7 +51,7 @@ export function Find() {
     if (!state.findOpen) return;
     const away = (target: EventTarget | null) => {
       const el = target as Element | null;
-      if (!el?.closest || el.closest(".lv-find") || el.closest(".menu")) return;
+      if (!el?.closest || el.closest(".lv-find") || el.closest("#lv-found") || el.closest(".menu")) return;
       closeFind(false);
     };
     const onFocus = (event: FocusEvent) => away(event.target);
@@ -88,12 +87,17 @@ export function Find() {
           </span>
         )}
       </div>
-      {state.findOpen && <Results anchor={wrap} />}
+      {state.findOpen && (
+        // Round 10: the host may close the panel to keep the screen 600 px wide; the field stays as it was.
+        <SidePanel kind="find" onClosedByHost={() => closeFind(false)}>
+          <Results />
+        </SidePanel>
+      )}
     </div>
   );
 }
 
-function Results({ anchor }: { anchor: React.RefObject<HTMLDivElement> }) {
+function Results() {
   const d = useLive();
   const { index, state, tagGroups, session, campaign } = d;
   const { say } = useAnnounce();
@@ -122,16 +126,6 @@ function Results({ anchor }: { anchor: React.RefObject<HTMLDivElement> }) {
   // PLY-13: a session's or the campaign's playlist plays in its order for that place.
   const placeOf = (playlistId: string): UsePlace | null =>
     session.playlistIds.includes(playlistId) ? { kind: "session", campaignId: campaign.id, sessionId: session.id } : campaign.playlistIds.includes(playlistId) ? { kind: "campaign", campaignId: campaign.id } : null;
-
-  // The results stay inside the window: under the field, moved left when the field is near the right edge.
-  useLayoutEffect(() => {
-    const el = box.current;
-    const at = anchor.current?.getBoundingClientRect();
-    if (!el || !at) return;
-    const width = Math.min(RESULTS_PX, window.innerWidth - 24);
-    el.style.width = `${width}px`;
-    el.style.left = `${Math.min(0, window.innerWidth - 12 - width - at.left)}px`;
-  });
 
   const clear = () => {
     setSearch({ q: "", tags: [] });

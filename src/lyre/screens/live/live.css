@@ -709,3 +709,7 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 /* Round 9 (item 47), round 10 (look D6): Dipped is a status in words, not a button-looking chip. */
 .lv-dipped { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: 700; color: var(--warn); }
 .lv-dipped::before { content: ""; width: 9px; height: 6px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: skewX(-25deg); }
+
+/* Round 10 (R10-FIX §3): Find's results are a side panel beside Live (kit/SidePanel), not over On air. */
+.side-panel .lv-found { position: static; width: auto; max-height: none; height: 100%; border: 0; border-radius: 0; box-shadow: none; overflow-y: auto; }
+.side-panel .lv-found .lv-off-f { position: sticky; top: 0; z-index: 1; background: var(--surface); flex-wrap: wrap; }

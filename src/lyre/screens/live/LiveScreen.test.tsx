@@ -1521,3 +1521,18 @@ describe("round 10: the music dips under a pad (item 47)", () => {
     expect(room("Table").queryByText("Dipped")).toBeNull();
   });
 });
+
+describe("round 10 (R10-FIX §3): Find's results beside Live", () => {
+  it("open in the side panel host, not over On air; Close Find closes the panel", async () => {
+    await openLive();
+    const field = screen.getByRole("searchbox", { name: /^Find a track or playlist/ });
+    await userEvent.click(field);
+    await userEvent.type(field, "battle");
+    const results = screen.getByRole("region", { name: "Find a track or playlist" });
+    expect(results.closest(".side-panel")).not.toBeNull();
+    expect(results.closest(".lv")).toBeNull();
+    await userEvent.click(within(results).getByRole("button", { name: "Close Find" }));
+    expect(screen.queryByRole("region", { name: "Find a track or playlist" })).toBeNull();
+    expect(field).toHaveFocus();
+  });
+});
