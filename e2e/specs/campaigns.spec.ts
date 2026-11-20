@@ -886,3 +886,17 @@ test.describe("0.5.2: deleting campaigns and sessions, and session numbers", () 
   });
 });
 
+
+/* Round 10 (prep review S9, ROUND10.md "Help"): New campaign lost a typed name on Esc. With something typed, the first
+   Esc says a second one throws it away; an untouched dialog closes at once. */
+test("round 10: New campaign with something typed: the first Esc says a second one throws it away", async ({ page }) => {
+  await openRoute(page, "campaigns");
+  await page.getByRole("button", { name: "New campaign" }).click();
+  const sheet = page.getByRole("dialog", { name: "New campaign" });
+  await sheet.getByRole("textbox", { name: "Name" }).fill("The Iron Road");
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByText("Press Esc again to throw away the new campaign")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sheet).toHaveCount(0);
+});

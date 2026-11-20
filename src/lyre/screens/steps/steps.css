@@ -10,3 +10,7 @@
 .stp-tools { gap: 8px; flex-wrap: wrap; }
 .stp-then { margin-top: 10px; }
 .r7-mark { display: inline-flex; align-items: center; gap: 4px; }
+
+/* Round 10 (row 11): the Start group under a scene's Story cue. */
+.scene-start-row { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--r-m); background: var(--surface-2); }
+.scene-start-words { min-width: 0; overflow-wrap: anywhere; font-size: var(--fs-s); }

@@ -1,9 +1,11 @@
 import type { TrackShape } from "../../common/domain";
 import { matchesShapes, ShapeFilter } from "./ShapeFilter";
 import type { ShapedTrack } from "./ShapeGlyph";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Button, Segmented } from "./Button";
 import { Dialog } from "./Dialog";
+import { PanelDialog } from "./PanelDialog";
+import type { IconName } from "./Icon";
 import { ExpanderButton } from "./Expander";
 import { SearchField } from "./Fields";
 import { Icon } from "./Icon";
@@ -75,6 +77,36 @@ export interface PickerDialogProps {
   /** The ticked ids, in the order they were ticked (items already ticked first). */
   onDone: (ids: string[]) => void;
   onClose: () => void;
+  /**
+   * Round 10 (rows 12 and 37): a panel that does not block the page (kit/PanelDialog), docked beside the screen or
+   * floating, its place remembered under this id. Without it, a modal sheet.
+   */
+  panelPlace?: string;
+  /** Round 10 (Nik, 18 Nov: answer 1a and round 10 answer 4): make something new from the picker's foot. */
+  makeNew?: PickerMakeNew;
+}
+
+/**
+ * Round 10: "Make a playlist of these…" in Add music, "New board…" in Add pad boards. The foot asks a name; Back keeps
+ * the ticks as they were; "Make it and add it" makes the thing and finishes as Done would, with the ticks `make`
+ * gives back (the new playlist in place of the tracks it holds, the new board at the end).
+ */
+export interface PickerMakeNew {
+  /** The foot's button: "Make a playlist of these…". */
+  label: string;
+  icon?: IconName;
+  /** Its hover text. */
+  hint: string;
+  /** The name field's label: "New playlist". */
+  field: string;
+  /** The name it offers ("New playlist 1"). */
+  suggest: () => string;
+  /** Why it cannot start yet (no track ticked), said in a pop-up, or null. */
+  refuse?: (chosen: readonly string[]) => string | null;
+  /** Makes it; the ticks to finish with, or null when it could not be made (the foot stays). */
+  make: (name: string, chosen: readonly string[]) => Promise<string[] | null>;
+  /** Says what was refused (the screen's pop-up). */
+  onRefuse?: (why: string) => void;
 }
 
 /**
@@ -104,6 +136,8 @@ function PickerBody({
   shapeOf,
   onDone,
   onClose,
+  panelPlace,
+  makeNew,
 }: PickerDialogProps) {
   const [shapes, setShapes] = useState<TrackShape[]>([]);
   const [chosen, setChosen] = useState<string[]>([...selected]);
@@ -152,26 +186,77 @@ function PickerBody({
   };
   const ticks: PickerTicks = { isTicked: (id) => chosen.includes(id), tick: pick };
 
-  return (
-    <Dialog
-      open
-      title={title}
-      onClose={onClose}
-      wide
-      // Round 6: the intro is read out with the dialog and is the list's hover text, not a line on screen.
-      description={intro}
-      footer={
-        <>
-          <span className="muted grow" aria-live="polite">
-            {multi ? `${chosen.length} chosen` : ""}
-          </span>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => onDone(chosen)}>
-            {okLabel}
+  // Round 10: the name of the thing being made, while the foot asks it (null: the usual foot).
+  const [naming, setNaming] = useState<string | null>(null);
+  const makeButton = useRef<HTMLButtonElement>(null);
+  const startMaking = () => {
+    if (!makeNew) return;
+    const why = makeNew.refuse?.(chosen) ?? null;
+    if (why) {
+      makeNew.onRefuse?.(why);
+      return;
+    }
+    setNaming(makeNew.suggest());
+  };
+  const stopMaking = () => {
+    setNaming(null);
+    setTimeout(() => makeButton.current?.focus(), 0);
+  };
+  const finishMaking = async () => {
+    if (!makeNew || naming === null) return;
+    const done = await makeNew.make(naming.trim() || makeNew.suggest(), chosen);
+    if (done) onDone(done);
+  };
+
+  const footer =
+    makeNew && naming !== null ? (
+      <>
+        <label className="pk-mk">
+          <span>{makeNew.field}</span>
+          <input
+            className="input"
+            autoComplete="off"
+            value={naming}
+            // The foot changed to ask a name: the name is where Nik types next.
+            autoFocus
+            onFocus={(event) => event.currentTarget.select()}
+            onChange={(event) => setNaming(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                void finishMaking();
+              } else if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                stopMaking();
+              }
+            }}
+          />
+        </label>
+        <span className="grow" />
+        <Button onClick={stopMaking}>Back</Button>
+        <Button variant="primary" onClick={() => void finishMaking()}>
+          Make it and add it
+        </Button>
+      </>
+    ) : (
+      <>
+        <span className="muted grow pk-count" aria-live="polite">
+          {multi ? `${chosen.length} chosen` : ""}
+        </span>
+        {makeNew && (
+          <Button ref={makeButton} icon={makeNew.icon} title={makeNew.hint} onClick={startMaking}>
+            {makeNew.label}
           </Button>
-        </>
-      }
-    >
+        )}
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="primary" onClick={() => onDone(chosen)}>
+          {okLabel}
+        </Button>
+      </>
+    );
+  const body = (
+    <>
       <div className="row-flex" style={{ marginBottom: 8, flexWrap: "wrap" }}>
         <SearchField className="grow" label="Search the list" value={query} onChange={setQuery} />
         {filters && <Segmented label="Show" value={filter} onChange={setFilter} options={filters.map((f) => ({ value: f.id, label: f.label }))} />}
@@ -243,6 +328,16 @@ function PickerBody({
           The arrow <Icon name="chevdown" size="s" /> beside a name shows what is inside.
         </p>
       ) : null}
+    </>
+  );
+  return panelPlace ? (
+    <PanelDialog open title={title} placeId={panelPlace} onClose={onClose} description={intro} footer={footer}>
+      {body}
+    </PanelDialog>
+  ) : (
+    // Round 6: the intro is read out with the dialog and is the list's hover text, not a line on screen.
+    <Dialog open title={title} onClose={onClose} wide description={intro} footer={footer}>
+      {body}
     </Dialog>
   );
 }

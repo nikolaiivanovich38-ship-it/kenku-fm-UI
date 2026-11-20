@@ -39,23 +39,28 @@ interface Box {
 
 export interface TourProps {
   step: number;
+  /** Round 10: a screen's tour (tours.ts); the first-run tour by default. */
+  steps?: readonly TourStep[];
+  /** Round 10: the tour's name before its count ("Live · 1 of 6"); none for the first-run tour. */
+  name?: string;
   onNext: () => void;
   onBack: () => void;
   onSkip: () => void;
 }
 
-export function Tour({ step, onNext, onBack, onSkip }: TourProps) {
-  const s = TOUR_STEPS[step];
-  const last = step === TOUR_STEPS.length - 1;
+export function Tour({ step, steps = TOUR_STEPS, name, onNext, onBack, onSkip }: TourProps) {
+  const s = steps[Math.min(step, steps.length - 1)];
+  const last = step >= steps.length - 1;
   const popRef = useRef<HTMLDivElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
-  const [place, setPlace] = useState<{ ring: Box; left: number; top: number; arrow: number } | null>(null);
+  const [place, setPlace] = useState<{ ring: Box; left: number; top: number; arrow: number; side: Side } | null>(null);
 
   useLayoutEffect(() => {
     const measure = () => {
       const target = s.target();
       const pop = popRef.current;
       if (!target || !pop) return;
+      target.scrollIntoView?.({ block: "nearest" });
       setPlace(placeFor(target.getBoundingClientRect(), s.bottom === true && !target.classList.contains("onairbar"), !!s.bottom, pop));
     };
     measure();
@@ -83,11 +88,12 @@ export function Tour({ step, onNext, onBack, onSkip }: TourProps) {
         aria-modal="false"
         aria-labelledby="tour-title tour-count"
         aria-describedby="tour-text"
-        data-side={s.bottom ? "top" : "right"}
+        data-side={place?.side ?? (s.bottom ? "top" : "right")}
         style={place ? ({ left: place.left, top: place.top, "--arrow": `${place.arrow}px` } as React.CSSProperties) : { left: 8, top: 8 }}
       >
         <p className="tour-count" id="tour-count">
-          {step + 1} of {TOUR_STEPS.length}
+          {name ? `${name} · ` : ""}
+          {step + 1} of {steps.length}
         </p>
         <h2 className="tour-title" id="tour-title">
           {s.title}
@@ -116,7 +122,9 @@ export function Tour({ step, onNext, onBack, onSkip }: TourProps) {
  * Where the ring and the popover go: right of a rail item (arrow at its middle), or above the foot of the screen
  * for the Now playing bar (`strip`: the bar is not up, so a strip at the foot of the screen stands for it).
  */
-function placeFor(r: DOMRect, strip: boolean, above: boolean, pop: HTMLElement) {
+type Side = "right" | "left" | "top" | "bottom";
+
+function placeFor(r: DOMRect, strip: boolean, above: boolean, pop: HTMLElement): { ring: Box; left: number; top: number; arrow: number; side: Side } {
   const ring: Box = strip
     ? { left: r.left + 8, top: r.bottom - 52, width: Math.max(0, r.width - 16), height: 44 }
     : { left: r.left - 3, top: r.top - 3, width: r.width + 6, height: r.height + 6 };
@@ -124,11 +132,20 @@ function placeFor(r: DOMRect, strip: boolean, above: boolean, pop: HTMLElement) 
   const h = pop.offsetHeight;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  if (above) {
-    const left = Math.max(8, Math.min(ring.left + 16, vw - w - 8));
-    return { ring, left, top: Math.max(8, ring.top - h - 12), arrow: Math.max(16, Math.min(w - 16, ring.left + 40 - left)) };
-  }
-  const left = Math.min(ring.left + ring.width + 12, vw - w - 8);
-  const top = Math.max(8, Math.min(ring.top + ring.height / 2 - h / 2, vh - h - 8));
-  return { ring, left, top, arrow: Math.max(14, Math.min(h - 14, ring.top + ring.height / 2 - top)) };
+  const clampX = (x: number) => Math.max(8, Math.min(x, vw - w - 8));
+  const clampY = (y: number) => Math.max(8, Math.min(y, vh - h - 8));
+  const beside = (left: number, side: Side) => {
+    const top = clampY(ring.top + ring.height / 2 - h / 2);
+    return { ring, left: clampX(left), top, arrow: Math.max(14, Math.min(h - 14, ring.top + ring.height / 2 - top)), side };
+  };
+  const overUnder = (top: number, side: Side) => {
+    const left = clampX(ring.left + 16);
+    return { ring, left, top: clampY(top), arrow: Math.max(16, Math.min(w - 16, ring.left + 40 - left)), side };
+  };
+  if (above) return overUnder(ring.top - h - 12, "top");
+  // Round 10: beside the control on whichever side has room (right, left, below, above).
+  if (ring.left + ring.width + 12 + w <= vw - 8) return beside(ring.left + ring.width + 12, "right");
+  if (ring.left - 12 - w >= 8) return beside(ring.left - 12 - w, "left");
+  if (ring.top + ring.height + 12 + h <= vh - 8) return overUnder(ring.top + ring.height + 12, "bottom");
+  return overUnder(ring.top - h - 12, "top");
 }

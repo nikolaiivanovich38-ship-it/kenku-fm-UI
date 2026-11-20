@@ -4,13 +4,15 @@
  */
 import React from "react";
 import { render, renderHook, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { SidePanelProvider } from "./SidePanel";
 
 import type { UsePlace } from "../../common/domain";
 import { createFakeLyreApi } from "../../common/lyre/fake";
 import { LyreApiProvider } from "../api";
 import { expectNoAxeViolations } from "../test/axe";
-import { TrackName, ownNameTitle, useTrackNames } from "./trackName";
+import { TrackName, TrackNameLink, ownNameTitle, useTrackNames } from "./trackName";
 
 const aftermath: UsePlace = { kind: "scene", campaignId: "crown", sessionId: "s14", sceneId: "sc6" };
 const ruins: UsePlace = { kind: "scene", campaignId: "crown", sessionId: "s14", sceneId: "sc3" };
@@ -57,5 +59,20 @@ describe("TrackName", () => {
       </p>,
     );
     await expectNoAxeViolations(container);
+  });
+});
+
+describe("round 10: a track title opens the Track panel (rows 13 and 38)", () => {
+  it("hands the track and the title to the side-panel host's opener; the link still leads to the Track library", async () => {
+    const opener = vi.fn();
+    render(
+      <SidePanelProvider openTrackPanel={opener}>
+        <TrackNameLink trackId="t41">Brutal battle</TrackNameLink>
+      </SidePanelProvider>,
+    );
+    const link = screen.getByRole("link", { name: "Brutal battle" });
+    expect(link).toHaveAttribute("href", "#/library/t41");
+    await userEvent.click(link);
+    expect(opener).toHaveBeenCalledWith("t41", link, expect.objectContaining({ openSidePanel: expect.any(Function) }));
   });
 });

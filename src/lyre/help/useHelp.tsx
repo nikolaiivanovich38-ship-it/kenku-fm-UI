@@ -13,7 +13,11 @@ import React, { createContext, useCallback, useContext, useEffect, useLayoutEffe
 import { useShellSettings } from "../shell/ShellSettings";
 import type { DiagnosticsBridge } from "../../common/lyreDiagnostics";
 import { HelpPanel } from "./HelpPanel";
-import { TOUR_STEPS, Tour } from "./Tour";
+import { TOUR_STEPS, Tour, type TourStep } from "./Tour";
+import { stepsOnScreen, TOURS, type TourKey, type TourPlaces } from "./tours";
+
+/** How long a screen's tour waits for its screen's controls after going there. */
+const TOUR_WAIT_MS = 1500;
 
 /** The rail's Help button, for focus to come back to. */
 export const HELP_BUTTON_ID = "rail-help";
@@ -34,6 +38,8 @@ export interface HelpInShell {
   closedByHost: () => void;
   /** The tour's popover, or null. */
   tour: React.ReactNode;
+  /** Round 10: start a screen's tour (Help's Tour of this screen, Set up Lyre's Show me). */
+  startScreenTour: (key: TourKey, places: TourPlaces | "here") => void;
 }
 
 /** The page's Save diagnostics, when it runs in Lyre (src/lyre/preload.ts). */
@@ -85,6 +91,29 @@ export function useHelp({ firstRunTour = false }: { firstRunTour?: boolean } = {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [openHelp]);
 
+  // Round 10: a screen's tour: its name and the steps whose controls are on screen.
+  const [guide, setGuide] = useState<{ name: string; steps: TourStep[]; step: number } | null>(null);
+  const startScreenTour = useCallback((key: TourKey, places: TourPlaces | "here") => {
+    const def = TOURS[key];
+    returnTo.current = null;
+    setHelpOpen(false);
+    // "here": Tour of this screen stays on the screen Help was opened from.
+    const to = places === "here" ? "" : def.route(places);
+    if (to && window.location.hash !== to) window.location.hash = to;
+    // The screen draws its controls once its data has loaded: wait for them, then point at those that are there.
+    const started = Date.now();
+    const look = () => {
+      const steps = stepsOnScreen(def);
+      if (steps.length === def.steps.length || (steps.length > 0 && Date.now() - started > TOUR_WAIT_MS)) setGuide({ name: def.name, steps, step: 0 });
+      else if (Date.now() - started <= TOUR_WAIT_MS) setTimeout(look, 100);
+    };
+    setTimeout(look, 60);
+  }, []);
+  const endGuide = useCallback(() => {
+    focusAfter.current = () => document.getElementById(HELP_BUTTON_ID)?.focus();
+    setGuide(null);
+  }, []);
+
   const startTour = useCallback(() => {
     replay.current = true;
     returnTo.current = null;
@@ -107,6 +136,16 @@ export function useHelp({ firstRunTour = false }: { firstRunTour?: boolean } = {
     setStep(-1);
     if (settings.tour !== "done") update({ tour: "done" });
   }, [settings.tour, update]);
+  // Round 10 (Nik, 18 Nov 03:14, answer 5b): the first start's tour ends in Help, at Set up Lyre.
+  const finishTour = useCallback(() => {
+    const first = !replay.current && settings.tour !== "done";
+    endTour();
+    if (first) {
+      focusAfter.current = null;
+      returnTo.current = document.getElementById(HELP_BUTTON_ID);
+      setHelpOpen(true);
+    }
+  }, [endTour, settings.tour]);
 
   return {
     helpOpen,
@@ -116,15 +155,24 @@ export function useHelp({ firstRunTour = false }: { firstRunTour?: boolean } = {
       returnTo.current = null;
       setHelpOpen(false);
     },
-    panel: helpOpen ? <HelpPanel onClose={closeHelp} onTour={startTour} diagnostics={pageDiagnostics()} /> : null,
-    tour:
-      step < 0 ? null : (
-        <Tour
-          step={step}
-          onBack={() => setStep((s) => Math.max(0, s - 1))}
-          onNext={() => (step >= TOUR_STEPS.length - 1 ? endTour() : setStep(step + 1))}
-          onSkip={endTour}
-        />
-      ),
+    panel: helpOpen ? <HelpPanel onClose={closeHelp} onTour={startTour} onScreenTour={startScreenTour} diagnostics={pageDiagnostics()} /> : null,
+    startScreenTour,
+    tour: guide ? (
+      <Tour
+        step={guide.step}
+        steps={guide.steps}
+        name={guide.name}
+        onBack={() => setGuide({ ...guide, step: Math.max(0, guide.step - 1) })}
+        onNext={() => (guide.step >= guide.steps.length - 1 ? endGuide() : setGuide({ ...guide, step: guide.step + 1 }))}
+        onSkip={endGuide}
+      />
+    ) : step < 0 ? null : (
+      <Tour
+        step={step}
+        onBack={() => setStep((s) => Math.max(0, s - 1))}
+        onNext={() => (step >= TOUR_STEPS.length - 1 ? finishTour() : setStep(step + 1))}
+        onSkip={endTour}
+      />
+    ),
   };
 }

@@ -364,9 +364,8 @@ test("0.5.1: Run a session in Live says Fade all takes 5 seconds; Preview or pla
   await expect(helpPanel(page).getByRole("article")).toContainText("A preview on its own plays in both ears");
 });
 
-/* Round 10 (design/prototype/ROUND10.md; Nik, 18 Nov 03:14, answer 5b: the tour, then the checklist). Not built yet. */
+/* Round 10 (design/prototype/ROUND10.md; Nik, 18 Nov 03:14, answer 5b: the tour, then the checklist). Built in 0.6.0. */
 test.describe("round 10: the first start, and the Live tour", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-prep"));
 
   test("on the first start, Done on the tour's last step opens Help at Set up Lyre", async ({ page }) => {
     await openFirstStart(page);
@@ -375,7 +374,6 @@ test.describe("round 10: the first start, and the Live tour", () => {
   });
 
   test("the Live tour shows what the players hear, only you, pads, Undo, Fade all and Stop all", async ({ page }) => {
-    expectFailureUntilBuilt("r10-live"); // its steps point at Live's Undo place and the transport of round 10
     await openRoute(page, "live");
     await page.getByRole("button", { name: "Start scene 3: The abbey ruins" }).click();
     await helpButton(page).click();

@@ -747,7 +747,8 @@ test.describe("round 10: the planner", () => {
     await panel.getByRole("textbox", { name: "New playlist" }).fill("Abbey fight");
     await panel.getByRole("button", { name: "Make it and add it" }).click();
     await expect(dialog(page)).toHaveCount(0);
-    expect(await linkNames(musicOf(abbey(page)))).toContain("Abbey fight");
+    // The new playlist is saved, then the scene shows it: the list is read until it does.
+    await expect.poll(() => linkNames(musicOf(abbey(page)))).toContain("Abbey fight");
   });
 
   test("Add pad boards: New board… makes a board and puts it in the scene, as Make a playlist of these… does (Nik, 18 Nov, round 10 answer 4)", async ({ page }) => {
@@ -760,7 +761,8 @@ test.describe("round 10: the planner", () => {
     await panel.getByRole("textbox", { name: "New board" }).fill("Abbey bells");
     await panel.getByRole("button", { name: "Make it and add it" }).click();
     await expect(dialog(page)).toHaveCount(0);
-    expect(await linkNames(boards)).toEqual([...before, "Abbey bells"]);
+    // The new board is saved, then the scene shows it: the list is read until it does.
+    await expect.poll(() => linkNames(boards)).toEqual([...before, "Abbey bells"]);
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Pad boards" }).click();
     await expect(page.getByRole("main")).toContainText("Abbey bells");
   });

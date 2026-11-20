@@ -17,3 +17,8 @@ export function useLyreApi(): LyreApi {
   if (!api) throw new Error("useLyreApi needs a LyreApiProvider around the screen (src/lyre/api).");
   return api;
 }
+
+/** Round 10: whether the page has a library to read (Help's Set up Lyre reads it; a shell test of its own has none). */
+export function useHasLyreApi(): boolean {
+  return useContext(LyreApiContext) !== null;
+}

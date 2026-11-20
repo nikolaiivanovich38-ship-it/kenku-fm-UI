@@ -63,26 +63,7 @@ export function StepsDialog({ owner, onClose }: { owner: StepsOwner; onClose: ()
   const [steps, setSteps] = useState<DraftStep[]>(() => stepsOf(owner.kind === "scene" ? owner.scene.steps : owner.steps, usual));
   const [then, setThen] = useState<MovesOn["when"]>(owner.kind === "scene" ? owner.scene.movesOn.when : "stay");
 
-  const names: StepNames = useMemo(
-    () => ({
-      sound: (ref) => {
-        if (ref.kind === "playlist") return playlists.find((p) => p.id === ref.id)?.name ?? "a playlist";
-        const t = tracks.find((x) => x.id === ref.id);
-        return t ? shownTitle(t) : "a track";
-      },
-      board: (id) => boards.find((b) => b.id === id)?.name ?? "a pad board",
-      pad: (boardId, padId) => {
-        const b = boards.find((x) => x.id === boardId);
-        const p = b ? [...b.slots, ...b.spare].find((x) => x?.id === padId) : undefined;
-        return b && p ? `${b.name} › ${p.label}` : "a pad";
-      },
-      scene: (a) => {
-        const s = campaigns.find((c) => c.id === a.campaignId)?.sessions.find((x) => x.id === a.sessionId);
-        return s?.scenes.find((x) => x.id === a.sceneId)?.name ?? "a scene";
-      },
-    }),
-    [tracks, playlists, boards, campaigns],
-  );
+  const names = useStepNames();
 
   const playables = useMemo(
     () => [
@@ -297,6 +278,64 @@ export function StepsDialog({ owner, onClose }: { owner: StepsOwner; onClose: ()
         </div>
       )}
     </Dialog>
+  );
+}
+
+/** The names a step's sentence uses: tracks, playlists, boards, pads and scenes from the library. */
+function useStepNames(): StepNames {
+  const tracks = useTracks().data ?? NONE;
+  const playlists = usePlaylists().data ?? NONE;
+  const boards = useBoards().data ?? NONE;
+  const campaigns = useCampaigns().data ?? NONE;
+  return useMemo(
+    () => ({
+      sound: (ref) => {
+        if (ref.kind === "playlist") return playlists.find((p) => p.id === ref.id)?.name ?? "a playlist";
+        const t = tracks.find((x) => x.id === ref.id);
+        return t ? shownTitle(t) : "a track";
+      },
+      board: (id) => boards.find((b) => b.id === id)?.name ?? "a pad board",
+      pad: (boardId, padId) => {
+        const b = boards.find((x) => x.id === boardId);
+        const p = b ? [...b.slots, ...b.spare].find((x) => x?.id === padId) : undefined;
+        return b && p ? `${b.name} › ${p.label}` : "a pad";
+      },
+      scene: (a) => {
+        const s = campaigns.find((c) => c.id === a.campaignId)?.sessions.find((x) => x.id === a.sessionId);
+        return s?.scenes.find((x) => x.id === a.sceneId)?.name ?? "a scene";
+      },
+    }),
+    [tracks, playlists, boards, campaigns],
+  );
+
+}
+
+/** Round 10 (prep review S2, row 11): how a scene's start reads, "Plays …, then it waits until you press Next scene". */
+export function sceneStartWords(scene: Pick<SceneInfo, "steps" | "movesOn" | "music" | "ambience" | "boardIds">, names: StepNames): string {
+  const steps = stepsOf(scene.steps, usualSceneSteps(scene));
+  const said = steps.map((step) => sentence(step, names)).join(", then ");
+  const when = scene.movesOn.when;
+  const then = when === "musicEnds" ? "then the next scene when its music ends" : when === "after" ? `then the next scene after ${Math.round(scene.movesOn.ms / 60_000)} minutes` : "then it waits until you press Next scene";
+  const text = said ? `${said.charAt(0).toUpperCase()}${said.slice(1)}, ${then}` : `${then.charAt(0).toUpperCase()}${then.slice(1)}`;
+  return text.replace(/, then (\w)/g, (_m, c: string) => `, then ${c.toLowerCase()}`);
+}
+
+/** Round 10 (row 11): the Start group under a scene's Story cue: its start in words and Change…, which opens the steps. */
+export function SceneStart({ scene, onChange }: { scene: SceneInfo; onChange: () => void }) {
+  const names = useStepNames();
+  const id = `scstart-${scene.id}`;
+  return (
+    <div className="field cp-span scene-start" role="group" aria-labelledby={id}>
+      <span className="label" id={id}>
+        Start
+      </span>
+      <div className="scene-start-row">
+        <span className="grow scene-start-words">{sceneStartWords(scene, names)}</span>
+        <Button size="s" aria-label={`Change the start of ${scene.name || "the scene"}`} data-k={`scstart-${scene.id}`} onClick={onChange}>
+          Change…
+        </Button>
+      </div>
+    </div>
   );
 }
 

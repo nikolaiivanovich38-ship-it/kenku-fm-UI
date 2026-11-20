@@ -158,6 +158,17 @@ describe("a scene's music", () => {
     expect((await s14(api)).scenes[2].music.map((m) => m.id)).toEqual(["p-abbess", "t13", "p-abbey-eerie"]);
   });
 
+  it("round 10: Delete on a focused row takes it out of the scene, and Undo puts it back in its place", async () => {
+    const { api } = await openAbbey();
+    const before = musicNames();
+    abbey().getByRole("button", { name: "More for The Abbess" }).focus();
+    await userEvent.keyboard("{Delete}");
+    await waitFor(() => expect(musicNames()).not.toContain("The Abbess"));
+    await userEvent.click(within(screen.getByRole("group", { name: "Undo" })).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(musicNames()).toEqual(before));
+    expect((await s14(api)).scenes[2].music).toHaveLength(before.length);
+  });
+
   it("a change shows at once while the library saves it, and goes back when the library refuses it", async () => {
     const api = createFakeLyreApi();
     let release: (answer: Awaited<ReturnType<typeof api.sessions.setSceneMusic>>) => void = () => undefined;
@@ -216,6 +227,55 @@ describe("a scene's music", () => {
       { kind: "track", id: grief?.id },
       { kind: "playlist", id: "p-coast" },
     ]);
+  });
+
+  it("round 10: Add music docks beside the page, which stays usable, and is not modal", async () => {
+    await openAbbey();
+    await userEvent.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
+    const sheet = screen.getByRole("dialog", { name: 'Music for "The abbey ruins"' });
+    expect(sheet).not.toHaveAttribute("aria-modal");
+    expect(sheet.closest("[data-panel]")).toHaveAttribute("data-panel", "addMusic");
+    expect(within(sheet).getByRole("button", { name: /^Dock/ })).toBeInTheDocument();
+  });
+
+  it("round 10: Make a playlist of these… makes a playlist of the ticked tracks and puts it in the scene in their place", async () => {
+    const { api } = await openAbbey();
+    await userEvent.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
+    const sheet = within(screen.getByRole("dialog", { name: 'Music for "The abbey ruins"' }));
+    await userEvent.click(sheet.getByRole("checkbox", { name: /^Quiet grief, solo voice/ }));
+    await userEvent.click(sheet.getByRole("button", { name: "Make a playlist of these…" }));
+    const name = sheet.getByRole("textbox", { name: "New playlist" });
+    expect(name).toHaveFocus();
+    await userEvent.clear(name);
+    await userEvent.type(name, "Abbey grief");
+    await userEvent.click(sheet.getByRole("button", { name: "Make it and add it" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(musicNames()).toContain("Abbey grief"));
+    const made = (await api.playlists.list()).find((p) => p.name === "Abbey grief");
+    expect(made?.kind).toBe("manual");
+    // Every ticked track goes into it (the scene's own tracks are ticked too), in the place of the first one.
+    const music = (await s14(api)).scenes[2].music;
+    expect(music).toContainEqual({ kind: "playlist", id: made?.id });
+    expect(music.filter((m) => m.kind === "track")).toEqual([]);
+  });
+
+  it("round 10: New board… with Back keeps the ticks; Make it and add it puts an empty 4 × 3 board at the end", async () => {
+    const { api } = await openAbbey();
+    const before = (await s14(api)).scenes[2].boardIds;
+    await userEvent.click(abbey().getByRole("button", { name: /^Add pad boards… to / }));
+    const sheet = within(screen.getByRole("dialog"));
+    const ticked = sheet.getAllByRole("checkbox", { checked: true }).length;
+    await userEvent.click(sheet.getByRole("button", { name: "New board…" }));
+    expect(sheet.getByRole("textbox", { name: "New board" })).toHaveFocus();
+    await userEvent.click(sheet.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(sheet.getByRole("button", { name: "New board…" })).toHaveFocus());
+    expect(sheet.getAllByRole("checkbox", { checked: true })).toHaveLength(ticked);
+    await userEvent.click(sheet.getByRole("button", { name: "New board…" }));
+    await userEvent.click(sheet.getByRole("button", { name: "Make it and add it" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    const board = (await api.boards.list()).find((b) => b.name === "New board 1");
+    expect(board && [board.cols, board.rows]).toEqual([4, 3]);
+    await waitFor(async () => expect((await s14(api)).scenes[2].boardIds).toEqual([...before, board?.id]));
   });
 
   it("Cancel in the picker changes nothing", async () => {
@@ -440,12 +500,22 @@ describe("scenes", () => {
     expect(await screen.findByText('Deleted scene "Aftermath" and its notes.')).toBeInTheDocument();
   });
 
-  it("Open all scenes opens every scene, and folds them again", async () => {
+  it("round 10: has no Open all; each scene stays open until it is closed (Nik, 18 Nov, 2b)", async () => {
     openAt("session/crown/s14");
-    await userEvent.click(await screen.findByRole("button", { name: "Open all scenes" }));
-    expect(screen.getAllByRole("list", { name: "Music in order" })).toHaveLength(6);
-    await userEvent.click(screen.getByRole("button", { name: "Fold all scenes" }));
-    expect(screen.queryByRole("list", { name: "Music in order" })).not.toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "Scene 2: Greyhollow inn" }));
+    await userEvent.click(screen.getByRole("button", { name: "Scene 3: The abbey ruins" }));
+    expect(screen.queryByRole("button", { name: /^(Open|Fold) all scenes$/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("list", { name: "Music in order" }).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("round 10: an open scene says how it starts, under its Story cue, and Change… opens its steps; no note link", async () => {
+    openAt("session/crown/s14");
+    await userEvent.click(await screen.findByRole("button", { name: "Scene 3: The abbey ruins" }));
+    const start = screen.getByRole("group", { name: "Start" });
+    expect(start).toHaveTextContent("then it waits until you press Next scene");
+    await userEvent.click(within(start).getByRole("button", { name: "Change the start of The abbey ruins" }));
+    expect(screen.getByRole("dialog", { name: "Start of The abbey ruins" })).toBeInTheDocument();
+    expect(screen.queryByText("Coming later")).not.toBeInTheDocument();
   });
 
   it("opening a session from its campaign puts the focus on the session's heading once it is ready", async () => {

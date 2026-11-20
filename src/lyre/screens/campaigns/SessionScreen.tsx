@@ -11,7 +11,7 @@ import type { SoundRef, TrackNames, UsePlace } from "../../../common/domain";
 import { isRefused, MAX_SESSION_NUMBER, type CampaignInfo, type SceneAddress, type SceneInfo, type SessionInfo, type SessionStatus } from "../../../common/lyre/api";
 import { shownTitle } from "../../../common/lyre/text";
 import { useCampaign, useLyreApi, useTagGroups } from "../../api";
-import { Button, IconButton } from "../../kit/Button";
+import { Button } from "../../kit/Button";
 import { Dialog } from "../../kit/Dialog";
 import { ExpanderButton } from "../../kit/Expander";
 import { Icon } from "../../kit/Icon";
@@ -21,7 +21,7 @@ import type { MenuEntry } from "../../kit/Menu";
 import { Column, Pane } from "../../kit/Pane";
 import { useAnnounce } from "../../shell/Announcer";
 import { useUndoNote } from "../../shell/UndoNote";
-import { SceneMarks, StepsDialog } from "../steps/StepsDialog";
+import { SceneMarks, SceneStart, StepsDialog } from "../steps/StepsDialog";
 import { RepeatOneButton } from "../../kit/RepeatOneButton";
 import type { ScreenProps } from "..";
 import { carriesFiles, dropIndex, droppedPaths } from "./drops";
@@ -32,7 +32,6 @@ import {
   DraftField,
   ModeSwitch,
   NotFound,
-  ObsidianButton,
   Opening,
   useHeadingFocusWhenReady,
   RowMenu,
@@ -51,6 +50,7 @@ import { trackNameAt, useTrackNames } from "../../kit/trackName";
 import type { TagGroup } from "../../../common/lyre/api";
 import { NameInSceneDialog, TrackUseInDialog } from "./trackDialogs";
 import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
+import type { PickerMakeNew } from "../../kit/Picker";
 import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { DeleteSessionDialog } from "./deleting";
 import { useDragReorder, type DragReorder } from "../../kit/reorder";
@@ -311,8 +311,50 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
     }
   };
 
+  /* Round 10 (Nik, 18 Nov 08:36, answer 1a): Make a playlist of these… in Add music makes a manual playlist of the
+     ticked tracks, in the order ticked, and the scene gets it in their place. */
+  const freeName = (base: string, taken: readonly string[]) => {
+    let n = 1;
+    while (taken.includes(`${base} ${n}`)) n++;
+    return `${base} ${n}`;
+  };
+  const tickedTracks = (chosen: readonly string[]) => chosen.filter((key) => refOfKey(key).kind === "track");
+  const makePlaylist: PickerMakeNew = {
+    label: "Make a playlist of these…",
+    icon: "playlist",
+    hint: "Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in their place.",
+    field: "New playlist",
+    suggest: () => freeName("New playlist", index.playlists.map((p) => p.name)),
+    refuse: (chosen) => (tickedTracks(chosen).length ? null : "Tick the tracks first. They go into the new playlist."),
+    onRefuse: (why) => toast(why),
+    make: async (name, chosen) => {
+      const keys = tickedTracks(chosen);
+      const made = await write(api.playlists.create({ name, lane: "music", kind: "manual", trackIds: keys.map((key) => refOfKey(key).id) }));
+      if (!made) return null;
+      const at = chosen.indexOf(keys[0]);
+      const rest = chosen.filter((key) => !keys.includes(key));
+      rest.splice(Math.max(0, Math.min(at, rest.length)), 0, playlistKey(made.value.id));
+      say(`${name} made with ${plural(keys.length, "track")}, and put in the scene`);
+      return rest;
+    },
+  };
+  /* Round 10 (Nik, 18 Nov, round 10 answer 4): New board… in Add pad boards makes an empty 4 × 3 board at the end of
+     the scene's boards; its pads are added on its own page. */
+  const makeBoard: PickerMakeNew = {
+    label: "New board…",
+    icon: "plus",
+    hint: "An empty pad board, made here and put in this scene; you give it pads on its own page",
+    field: "New board",
+    suggest: () => freeName("New board", index.boards.map((b) => b.name)),
+    make: async (name, chosen) => {
+      const made = await write(api.boards.create({ name, cols: 4, rows: 3 }));
+      if (!made) return null;
+      say(`${name} made, an empty 4 by 3 board, and put in the scene. Give it pads on its page.`);
+      return [...chosen, made.value.id];
+    },
+  };
+
   const drag = useDragReorder("scenes", (from, to) => void moveScene(from, to));
-  const allOpen = s.scenes.length > 0 && s.scenes.every((x) => open[x.id]);
   const deletingScene = sceneAt(deleting);
   const stepsScene = sceneAt(stepsOf);
   const campaignBoards = c.boardIds.map((id) => index.board(id)?.name).filter(Boolean);
@@ -415,19 +457,6 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
               status={s.scenes.length ? undefined : { text: "Empty" }}
               actions={
                 <>
-                  {s.scenes.length > 0 && (
-                    <IconButton
-                      quiet
-                      icon={allOpen ? "chevup" : "chevdown"}
-                      label={allOpen ? "Fold all scenes" : "Open all scenes"}
-                      data-k="allscenes"
-                      onClick={() => {
-                        const any = !allOpen;
-                        setOpen(Object.fromEntries(s.scenes.map((x) => [x.id, any])));
-                        say(any ? "All scenes open" : "All scenes folded");
-                      }}
-                    />
-                  )}
                   <Button size="s" icon="plus" data-k="addscene" onClick={() => void addScene(selectedScene())}>
                     Add scene
                   </Button>
@@ -448,6 +477,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
                         setCurrent(scene.id);
                       }}
                       drag={drag}
+                      onStart={() => setStepsOf(scene.id)}
                       menu={[
                         ...(i > 0 ? [{ label: "Move up", icon: "chevup" as const, onSelect: () => { void moveScene(i, i - 1); } }] : []),
                         ...(i < s.scenes.length - 1 ? [{ label: "Move down", icon: "chevdown" as const, onSelect: () => { void moveScene(i, i + 1); } }] : []),
@@ -507,20 +537,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
               <OnHandList ids={c.playlistIds} trackIds={c.trackIds} kind="playlists" index={index} scope="r" place={{ kind: "campaign", campaignId: c.id }} />
               <p className="hint cp-make">Campaign pads: {campaignBoards.length ? campaignBoards.join(", ") : "none"}.</p>
             </Pane>
-            <Pane id="ss-obs" title="Obsidian" icon="link" size="auto" collapsed kind="plain" status={{ text: "Coming later" }}>
-              <div className="field">
-                <label htmlFor="cp-s-obs">Session note</label>
-                <DraftField
-                  className="input"
-                  id="cp-s-obs"
-                  autoComplete="off"
-                  value={s.noteLink}
-                  placeholder={`${c.obsidian.sessionsFolder || "Sessions"}/Session ${s.number}.md`}
-                  onSave={(noteLink) => void saveSession({ noteLink }, `Session ${s.number} Obsidian note`)}
-                />
-              </div>
-              <ObsidianButton idPrefix="cp-s-o-" />
-            </Pane>
+            {/* Round 10 (row 14, P8): no Obsidian box on the session; the campaign's stays. */}
           </Column>
         </div>
       </div>
@@ -528,6 +545,9 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
         <LibraryPicker
           open
           kind={picking.kind === "boards" ? "boards" : picking.kind}
+          // Round 10 (rows 12 and 37): Add music lets the page be seen and used: docked beside it, or floating.
+          panelPlace={picking.kind === "music" ? "addMusic" : undefined}
+          makeNew={picking.kind === "music" ? makePlaylist : picking.kind === "boards" ? makeBoard : undefined}
           index={index}
           title={`${picking.kind === "music" ? "Music" : picking.kind === "ambience" ? "Ambience" : "Pad boards"} for "${pickedScene.name || "this scene"}"`}
           intro={
@@ -602,6 +622,8 @@ interface SceneCardProps {
   onToggle: () => void;
   drag: ReturnType<typeof useDragReorder>;
   menu: MenuEntry[];
+  /** Round 10: Change… in the Start group opens the scene's steps. */
+  onStart: () => void;
 }
 
 /** What a folded scene's tooltip says: its Story cue, music, ambience and pad boards. */
@@ -617,7 +639,7 @@ function sceneTip(scene: SceneInfo, index: LibraryIndex, names: TrackNames, plac
   ].join("\n");
 }
 
-function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCardProps) {
+function SceneCard({ scene, position, ctx, open, onToggle, drag, menu, onStart }: SceneCardProps) {
   const api = useLyreApi();
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [fileOver, setFileOver] = useState(false);
@@ -769,6 +791,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
             <label htmlFor={`${f}w`}>Story cue</label>
             <DraftField className="input" id={`${f}w`} placeholder="The moment in the story" autoComplete="off" value={scene.startsWhen} onSave={(value) => save({ startsWhen: value }, `story cue of ${scene.name || "the scene"}`)} />
           </div>
+          <SceneStart scene={scene} onChange={onStart} />
           <div className="field cp-span" role="group" aria-labelledby={`${f}m`}>
             <span className="label" id={`${f}m`}>
               Music
@@ -790,20 +813,6 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
           <div className="field">
             <label htmlFor={`${f}x`}>Notes</label>
             <DraftField multiline className="input" id={`${f}x`} rows={2} placeholder="Reminders for this scene" value={scene.notes} onSave={(value) => save({ notes: value }, `${scene.name || "scene"} notes`)} />
-          </div>
-          <div className="field cp-obsfield">
-            <label htmlFor={`${f}o`}>
-              Note link <span className="cp-later">Coming later</span>
-            </label>
-            <DraftField
-              className="input"
-              id={`${f}o`}
-              placeholder="Optional: an Obsidian note"
-              title="Kept for later. Lyre cannot open Obsidian notes yet."
-              autoComplete="off"
-              value={scene.noteLink}
-              onSave={(value) => save({ noteLink: value }, `${scene.name || "scene"} note link`)}
-            />
           </div>
         </div>
       )}
@@ -872,7 +881,16 @@ function ItemRow({
     { label: "Remove from this scene", icon: "close", onSelect: () => onChange("remove") },
   ];
   return (
-    <li className={`cp-it${position === 0 ? " first" : ""}${dropBefore ? " cp-ins-before" : ""} ${drag.rowClass(position)}`} {...drag.rowProps(position)}>
+    <li
+      className={`cp-it${position === 0 ? " first" : ""}${dropBefore ? " cp-ins-before" : ""} ${drag.rowClass(position)}`}
+      {...drag.rowProps(position)}
+      onKeyDown={(event) => {
+        // Round 10 (row 36): Delete on a focused row does what its ⋯'s Remove from this scene does, with Undo.
+        if (event.key !== "Delete" || event.defaultPrevented || isTypingIn(event.target) || (event.target as Element).closest(".xp-body")) return;
+        event.preventDefault();
+        onChange("remove");
+      }}
+    >
       <div className="cp-it-row">
         {count > 1 && (
           <span className="cp-handle" title="Drag to change the order (or use ⋯ Move up and Move down)" aria-hidden="true" {...drag.handleProps}>
@@ -959,6 +977,7 @@ function ItemRow({
 /** Moves, "starts the scene" and removes in a scene's music or pad boards, with what the prototype says. */
 function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
   const { say } = useAnnounce();
+  const { offerUndo } = useUndoNote();
   const nameOf = (id: string) => (list === "boards" ? ctx.index.board(id)?.name : soundInfo(scene.music.find((r) => r.id === id) ?? { kind: "track", id }, ctx.index)?.name) ?? "item";
   return async (at: number, op: "first" | "up" | "down" | "remove" | { to: number }) => {
     ctx.workedOn(scene.id);
@@ -969,10 +988,16 @@ function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
     const lead = list === "boards" ? " now shows first" : " now starts the scene";
     const save = async () => ((await ctx.saveScene(scene, list === "music" ? { music: items as SoundRef[] } : { boardIds: items as string[] })) ? true : undefined);
     if (op === "remove") {
+      const before = items.slice();
       items.splice(at, 1);
       ctx.focusLater(items.length ? `im-${scene.id}-${list}-${idOf(items[Math.min(at, items.length - 1)])}` : `${list === "boards" ? "ab" : "am"}-${scene.id}`);
       if ((await save()) === undefined) return;
       say(`Removed ${name} from this scene${at === 0 && items.length ? `. ${nameOf(idOf(items[0]))}${lead}` : ""}`);
+      // Round 10 (R10-FIX §1, row 36): Undo puts it back in its place; the track, playlist or board itself stays.
+      offerUndo(`Removed ${name} from ${scene.name || "this scene"}.`, () => {
+        ctx.focusLater(`im-${scene.id}-${list}-${id}`);
+        void ctx.saveScene(scene, list === "music" ? { music: before as SoundRef[] } : { boardIds: before as string[] });
+      });
       return;
     }
     const to = typeof op === "object" ? op.to : op === "first" ? 0 : op === "up" ? at - 1 : at + 1;
@@ -1099,10 +1124,15 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
     ctx.workedOn(scene.id);
     ctx.pick({ kind: "ambience", sceneId: scene.id });
   };
+  const { offerUndo } = useUndoNote();
   const clear = async () => {
     ctx.workedOn(scene.id);
     ctx.focusLater(`pa-${scene.id}`);
-    if (await ctx.saveScene(scene, { ambience: null })) say("No ambience in this scene");
+    const was = scene.ambience;
+    if (!(await ctx.saveScene(scene, { ambience: null }))) return;
+    say("No ambience in this scene");
+    // Round 10 (row 36): Undo puts the ambience back.
+    if (was) offerUndo(`Removed ${info?.name ?? "the ambience"} from ${scene.name || "this scene"}.`, () => void ctx.saveScene(scene, { ambience: was }));
   };
   const dropProps = {
     onDragOver: (event: React.DragEvent<HTMLDivElement>) => {
@@ -1166,4 +1196,9 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
       )}
     </div>
   );
+}
+
+/** A field that takes typing, where Delete deletes text. */
+function isTypingIn(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 }
