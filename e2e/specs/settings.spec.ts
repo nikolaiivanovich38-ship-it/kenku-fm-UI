@@ -343,7 +343,6 @@ test.describe("0.5.1: a bot token from Kenku FM", () => {
 test.describe("0.5.1: a split headset only while On air plays too", () => {
   test("Split one headset says it splits only while something plays on air; a preview alone plays in both ears", async ({ page }) => {
     // The prototype's language pass (0cd99c0) wrote the note as two sentences; the app's note still has a semicolon.
-    expectFailureUntilBuilt("feat", "r10-live");
     await openRoute(page, "settings");
     const box = await unfold(page, "Headphones and speakers");
     const split = box.getByRole("switch", { name: "Split one headset" });
@@ -354,7 +353,6 @@ test.describe("0.5.1: a split headset only while On air plays too", () => {
 
 /* Round 10 (design/prototype/ROUND10.md; Nik, 18 Nov 03:14, answers 2 and 3). Not built yet. */
 test.describe("round 10: bots join only when Nik joins them; Rooms under Settings", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-live"));
 
   test("a bot has a Starting volume and no Joins when Lyre starts", async ({ page }) => {
     await openRoute(page, "settings");
@@ -369,4 +367,19 @@ test.describe("round 10: bots join only when Nik joins them; Rooms under Setting
     await expect(page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Settings" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Back to Settings" })).toBeVisible();
   });
+});
+
+/* Round 9 §11, built in round 10 (item 47; Nik, 18 Nov 03:14, answer 12.1): Dip the music under effects. Written by
+   r10-live before the app had it. */
+test("round 10: Sound to Discord › Dip the music under effects: How far (A little at first), Comes back, Ambience dips too", async ({ page }) => {
+  await openRoute(page, "settings");
+  const box = await unfold(page, "Sound to Discord");
+  const dip = box.getByRole("group", { name: "Dip the music under effects" });
+  const far = dip.getByRole("combobox", { name: "How far" });
+  await expect(far).toHaveValue("little");
+  await expect(far.getByRole("option")).toHaveText(["Off", "A little", "A lot"]);
+  await expect(dip.getByRole("combobox", { name: "Comes back" }).getByRole("option")).toHaveText(["Quickly", "Gently", "Slowly"]);
+  await far.selectOption({ label: "A lot" });
+  await dip.getByRole("checkbox", { name: "Ambience dips too" }).check();
+  await expect(far).toHaveValue("lot");
 });

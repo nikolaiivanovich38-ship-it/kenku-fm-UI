@@ -512,7 +512,6 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
 
   test("each screen with a parent has its trail right after Back: every part a link, the screen's title last", async ({ page }) => {
     // Round 10 (Nik, 18 Nov 03:14, answer 2): Rooms is under Settings, so its trail is Settings › Rooms.
-    expectFailureUntilBuilt("shell", "rooms-settings", "r10-live"); // it opens Settings
     // 0.5.2 item 23: the app calls the Library the Track library; the prototype "Library".
     const cases: [string, (string | RegExp)[], RegExp][] = [
       ["session/crown/s14", ["Campaigns", "The Sunken Crown"], /Session 14/],

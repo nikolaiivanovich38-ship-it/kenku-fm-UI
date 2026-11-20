@@ -66,14 +66,15 @@ export const trackDetailsHref = (trackId: string): string => `#/library/${trackI
  * arrival). Only where the name is not itself a play or unfold button: in Live a name never takes a play action's place.
  */
 export function TrackNameLink({ trackId, className, title, children }: { trackId: string; className?: string; title?: string; children: React.ReactNode }) {
-  // Round 10 (rows 13 and 38): a title opens the Track panel beside the screen (kit/SidePanel.tsx); the link's address
-  // stays the Track library, for a new window or a copied link.
+  // --- r10-tracks --- Round 9 and 10 (rows 13, 38): a plain click opens the Track panel beside the screen (on the
+  // Track library and the Audio profile it goes to the Library's details); the address stays the Library's, so a
+  // middle click or Ctrl+click still opens the Library.
   const openTrackPanel = useOpenTrackPanel();
   return (
     <a
       className={className ? `track-link ${className}` : "track-link"}
       href={trackDetailsHref(trackId)}
-      title={title ?? "Open its details in the Track library"}
+      title={title ?? "Open its details"}
       onClick={(event) => {
         if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
         event.preventDefault();

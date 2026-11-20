@@ -30,7 +30,7 @@ export function LibraryMoreMenu({ onNormalise, onRemoveShown }: { onNormalise?: 
         ...(onNormalise ? [{ separator: true as const }, { label: "Normalise volume…", icon: "volume" as const, onSelect: onNormalise }] : []),
         // Round 7 (DAT-10): the tag vocabulary has its own screen.
         { label: "Tags and groups…", icon: "tag", onSelect: go("tags") },
-        ...(onRemoveShown ? [{ separator: true as const }, { label: `Remove all shown (${onRemoveShown.count})…`, icon: "close" as const, disabled: onRemoveShown.count === 0, onSelect: onRemoveShown.remove }] : []),
+        ...(onRemoveShown ? [{ separator: true as const }, { label: `Remove the ${onRemoveShown.count} tracks shown from the library…`, icon: "close" as const, disabled: onRemoveShown.count === 0, onSelect: onRemoveShown.remove }] : []),
       ]}
     />
   );

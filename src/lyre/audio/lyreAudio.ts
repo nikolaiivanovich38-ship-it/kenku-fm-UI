@@ -63,11 +63,11 @@ import {
 } from "../../engine/preview/previewPlayer";
 import type { DeviceStatus, OutputDeviceChooser, OutputDeviceInfo } from "../../engine/preview/outputDevices";
 import { DEFAULT_FADES, type CueAction, type CueOutcome, type TrackFrom } from "../../engine/queue/actions";
-import { Director, padWithoutSound, type ListWhat } from "../../engine/queue/director";
+import { Director, padWithoutSound, type ListWhat, type RoomsSnapshot } from "../../engine/queue/director";
 import type { PadSound, SceneRef, ShowLibrary } from "../../engine/queue/library";
 import { itemAt, locate, playlistItem, playOrderOf, sequenceOf, single, type Origin, type Playing } from "../../engine/queue/nowPlaying";
 import type { Random } from "../../engine/queue/queue";
-import type { PlayingReport, RoomReport } from "../../engine/queue/roomPlayer";
+import type { DipSettings, PlayingReport, RoomReport } from "../../engine/queue/roomPlayer";
 import type { RoomLane } from "../../engine/rooms.contract";
 import { TABLE_ROOM, type RoomMixer } from "../../engine/rooms";
 import { endsAtFileEnd, laneProfile, profileInputFor, repeatProfile } from "../../engine/profile/trackProfile";
@@ -77,6 +77,9 @@ import { endingLine } from "./playbackLog";
 import { StableRooms } from "./stableRooms";
 
 export type { CueAction, CueOutcome, TrackFrom, SceneRef, Origin, RoomLane, OutputDeviceInfo, DeviceStatus, PreviewKind, ListWhat, UpNextRef };
+// --- r10-live ---
+export type { RoomsSnapshot, DipSettings };
+// --- end r10-live ---
 
 // ---------- what the screens give LyreAudio ----------
 
@@ -191,6 +194,10 @@ export interface RoomNowPlaying {
    * playTrack(trackId, { from }); Play next is playNext({ kind: "track", trackId, from }).
    */
   played: { trackId: string; title: string; at: number; from: PlayedFrom | null }[];
+  // --- r10-live ---
+  /** Round 10 (item 47): the music (and the ambience, when it dips too) is dipped under an effect now. */
+  dipped?: { music: boolean; ambience: boolean };
+  // --- end r10-live ---
 }
 
 /** One entry of a room's Up next (RoomNowPlaying.upNextList). */
@@ -368,6 +375,20 @@ export interface LyreAudio {
   sessionLoaded(): void;
   /** Any cue action (hotkeys, cues, later the remote API). */
   run(action: CueAction): CueOutcome;
+  // --- r10-live ---
+  /**
+   * Round 10 (table review M4; Nik, 18 Nov 08:36, answer 6a): what every room plays now, kept by Live before Play on
+   * air, Fade all or Stop all, and brought back by their Undo (`sameTime`: from where it was, not where it would be).
+   */
+  snapshotRooms(): RoomsSnapshot;
+  restoreRooms(snapshot: RoomsSnapshot, options?: { sameTime?: boolean }): CueOutcome;
+  /** True when a room in the snapshot was playing music or ambience. */
+  snapshotHasSound(snapshot: RoomsSnapshot): boolean;
+  /** Play now on a planned track in a room's Up next: that step plays now and the plan goes on from there. */
+  playUpNext(ref: UpNextRef, target?: RoomTarget): CueOutcome;
+  /** Settings › Sound to Discord › Dip the music under effects (db 0: off). */
+  setDip(dip: DipSettings): void;
+  // --- end r10-live ---
 
   // ----- preview: the game master's headphones only, never on air -----
   /**
@@ -393,6 +414,16 @@ export interface LyreAudio {
    */
   tryPad(boardId: string, padId: string, phase?: "down" | "up", options?: PreviewFrom): CueOutcome;
   stopPreview(): void;
+  // --- r10-tracks --- Round 9 (row 20: "see the now playing queue, select any track in it to play, and have back and
+  // forward buttons on the now playing bar"): a previewed playlist's queue.
+  /** What the preview played, plays now and plays next (a playlist's round in its play order); null with no preview. */
+  previewQueue(): PreviewQueue | null;
+  /** Back: the start of this track, or within its first 3 s the track played before it. */
+  previewBack(): CueOutcome;
+  /** Forward: the next track of the previewed playlist. */
+  previewForward(): CueOutcome;
+  /** Play from the queue: the step `index` of the playlist's round (PreviewQueue.upNext[].index). */
+  previewPlayAt(index: number): CueOutcome;
   /** UX-16: pause the preview, or carry on if it is paused. */
   togglePreviewPause(): CueOutcome;
   /** UX-16: the headphone volume, 0 to 1, kept for the next preview too. */
@@ -497,6 +528,21 @@ export interface LyreAudioParts {
  * What the preview plays through (9, 30): a track, which its Followed by may follow, or a playlist in its place's play
  * order, track after track.
  */
+/** Round 9 (row 20): one track in the preview's queue. */
+export interface PreviewQueueTrack {
+  trackId: string;
+  title: string;
+}
+/** Round 9 (row 20): the preview's queue: Played (oldest first), Now playing and Up next (with its step's index). */
+export interface PreviewQueue {
+  playlistId: string | null;
+  played: PreviewQueueTrack[];
+  now: PreviewQueueTrack;
+  upNext: (PreviewQueueTrack & { index: number })[];
+}
+/** Back within this many seconds of a track's start goes to the track before it (Nik, 18 Nov, Q7 a). */
+export const BACK_TO_PREVIOUS_S = 3;
+
 interface PreviewRun {
   /** The preview's key: the track's id, or "pl:<id>" for a playlist. */
   key: string;
@@ -506,6 +552,8 @@ interface PreviewRun {
   from: string | null;
   /** The Audio profile gave it its profile and moves on by itself, until it lets go (changePreview with none). */
   held: boolean;
+  /** Round 9: the tracks this preview played before this one, oldest first (Back goes to the last). */
+  played?: Playing[];
 }
 
 /** OUT-10: one room's level meter. */
@@ -854,6 +902,30 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     return this.perform(action);
   }
 
+  // --- r10-live ---
+  snapshotRooms(): RoomsSnapshot {
+    return this.director.snapshotRooms();
+  }
+
+  restoreRooms(snapshot: RoomsSnapshot, options?: { sameTime?: boolean }): CueOutcome {
+    return this.director.restoreRooms(snapshot, options);
+  }
+
+  snapshotHasSound(snapshot: RoomsSnapshot): boolean {
+    return this.director.snapshotHasSound(snapshot);
+  }
+
+  setDip(dip: DipSettings): void {
+    this.director.setDip(dip);
+  }
+
+  playUpNext(ref: UpNextRef, target: RoomTarget = FIRST_ROOM): CueOutcome {
+    const outcome = this.director.playUpNext(ref, this.rooms.target(target));
+    if ("message" in outcome) this.emit("error", outcome.message);
+    return outcome;
+  }
+  // --- end r10-live ---
+
   // ---------- preview ----------
 
   previewTrack(trackId: string, options?: PreviewTrackOptions): CueOutcome {
@@ -970,7 +1042,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     this.previewRun = null;
     const next = run.item.origin.kind === "playlist" ? this.nextInPreview(run.item) : null;
     if (next) {
-      this.previewStep({ ...run, item: next });
+      this.previewStep({ ...run, item: next, played: [...(run.played ?? []), run.item] });
       return;
     }
     const follow = this.library.track(run.item.trackId)?.follow;
@@ -1000,6 +1072,46 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       round = sequenceOf(origin, this.show);
     }
     return round.length ? itemAt({ ...item, origin }, round, 0) : null;
+  }
+
+  // --- r10-tracks --- Round 9 (row 20): the preview's queue, Back and Forward.
+  previewQueue(): PreviewQueue | null {
+    const run = this.previewRun;
+    if (!run) return null;
+    const named = (trackId: string): PreviewQueueTrack => ({ trackId, title: trackTitle(this.library.track(trackId)) });
+    const played = (run.played ?? []).map((p) => named(p.trackId));
+    const now = named(run.item.trackId);
+    if (run.item.origin.kind !== "playlist") return { playlistId: null, played, now, upNext: [] };
+    const seq = sequenceOf(run.item.origin, this.show);
+    const { index, found } = locate(seq, run.item);
+    const from = found ? index + 1 : index;
+    return { playlistId: run.item.playlistId, played, now, upNext: seq.slice(from).map((step, k) => ({ ...named(step.trackId), index: from + k })) };
+  }
+
+  previewBack(): CueOutcome {
+    const run = this.previewRun;
+    const at = this.parts.preview.position();
+    if (!run || !at) return this.fail("Nothing is previewing.");
+    const start = (this.library.track(run.item.trackId) ? this.stepProfile(this.library.track(run.item.trackId) as DomainTrack, run.item, run.place).startMs : 0) / 1000;
+    const before = run.played ?? [];
+    if (at.seconds - start > BACK_TO_PREVIOUS_S || before.length === 0) return this.seekPreview(start);
+    return this.previewStep({ ...run, item: before[before.length - 1], played: before.slice(0, -1) });
+  }
+
+  previewForward(): CueOutcome {
+    const run = this.previewRun;
+    if (!run) return this.fail("Nothing is previewing.");
+    const next = run.item.origin.kind === "playlist" ? this.nextInPreview(run.item) : null;
+    if (!next) return this.fail("Nothing comes after this track.");
+    return this.previewStep({ ...run, item: next, played: [...(run.played ?? []), run.item] });
+  }
+
+  previewPlayAt(index: number): CueOutcome {
+    const run = this.previewRun;
+    if (!run || run.item.origin.kind !== "playlist") return this.fail("Nothing is previewing.");
+    const seq = sequenceOf(run.item.origin, this.show);
+    if (!Number.isInteger(index) || index < 0 || index >= seq.length) return this.fail("That track is no longer in the queue.");
+    return this.previewStep({ ...run, item: itemAt(run.item, seq, index), played: [...(run.played ?? []), run.item] });
   }
 
   /** A seed to deal a shuffled preview with (46: from cryptographic random numbers unless a test gives its own). */
@@ -1490,6 +1602,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       canUndoUpNext: room.canUndoList,
       effects: room.effects.map((effect) => ({ ...effect, title: title(effect.trackId) })),
       played: room.played.map((p) => ({ ...p, title: title(p.trackId) })),
+      dipped: room.dipped,
     };
   }
 

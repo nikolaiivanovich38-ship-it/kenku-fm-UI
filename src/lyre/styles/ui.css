@@ -433,3 +433,11 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
    a long name ends in "…" (its full name is the title) instead of running out of a box that does not scroll. */
 a.track-link { color: inherit; text-decoration: none; display: inline-block; max-width: 100%; min-height: 24px; line-height: 24px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.track-link:hover, a.track-link:focus-visible { text-decoration: underline; }
+
+/* --- r10-live --- Round 10 (table review S3): the warning pop-up, amber with a warning sign (Announcer warn). */
+.toast.t-warn { background: var(--surface); color: var(--ink); border: 2px solid var(--warn); border-left-width: 6px; padding: 7px 12px 7px 10px; }
+.toast.t-warn > svg { color: var(--warn); }
+/* Round 10: Rooms sits under Settings in the menu, set in a little. */
+.rail a.rail-sub { padding-left: 28px; font-size: var(--fs-s); }
+.rail.min a.rail-sub { padding-left: 0; }
+/* --- end r10-live --- */

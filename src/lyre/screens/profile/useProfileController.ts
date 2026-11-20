@@ -10,7 +10,11 @@ import { shownTitle } from "../../../common/lyre/text";
 import type { TrackFrom } from "../../audio";
 import { useLyreAudio, useLyreAudioEvent, useNowPlaying } from "../../audio/LyreAudioProvider";
 import type { PreviewPosition } from "../../audio";
-import { useTrackPeaks } from "../../api";
+import { useLyreApi, useTrackPeaks } from "../../api";
+import { useSave } from "../../shell/useSave";
+import { endWrite, type TrackEnd } from "../library/trackEnd";
+import { followNameOf } from "../library/TrackBehaviour";
+import type { SoundRef } from "../../../common/domain";
 import { useAnnounce } from "../../shell/Announcer";
 import { useUndoNote } from "../../shell/UndoNote";
 import { nextContexts, placeName, sceneOf, type NextContext } from "./places";
@@ -29,6 +33,7 @@ import {
   toInput,
   valueOf,
   wholeTrack,
+  withEnd,
   type Prof,
   type Which,
 } from "./profileModel";
@@ -66,13 +71,26 @@ const READ_ONLY_NOTE = "These are the track's settings. To change them only here
 
 export type ProfileController = ReturnType<typeof useProfileController>;
 
+/** What a change of end says (the prototype's apafter words). */
+const END_SAID: Record<TrackEnd, (loopStart: string) => string> = {
+  loop: (at) => `loops back to ${at}`,
+  xloop: () => "loops with a crossfade",
+  next: () => "the next track",
+  fade: () => "fades out",
+  stop: () => "stops",
+  follow: () => "plays something after it",
+};
+
 export function useProfileController(editor: ProfileEditor, rootRef: React.RefObject<HTMLElement>) {
   const { track, dur, prof: p, editable, key, view } = editor;
   const audio = useLyreAudio();
   const { say, toast } = useAnnounce();
   const { offer } = useUndoNote();
+  const api = useLyreApi();
+  const save = useSave();
   const [keys1, setKeys1Raw] = useKeys1();
   const title = shownTitle(track);
+  const followName = (ref: SoundRef) => followNameOf(ref, view.playlists, view.tracks);
   /** The file's loudness across its length (0 to 1, from -60 dBFS), null until the library has worked it out. */
   const levels = useTrackPeaks(track.id);
 
@@ -460,6 +478,30 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       if (!editor.write({ ...p, after })) return;
       setClock({ ...clockRef.current, event: null, handover: null });
       say(after === "loop" ? `At the end: loop back to ${fmt(p.loopStart)}` : after === "next" ? "At the end: move to the next track" : "At the end: stop");
+    },
+    /**
+     * Round 10 (prep review D5): one of the six ends. At the track's own place it also changes the track's loop advice,
+     * Fades out and Follow with, in the same undo step as its profile (as the track's details do); at another place
+     * only that place's settings change, and Play… still names what the track plays after it.
+     */
+    setEnd(end: TrackEnd, followRef: SoundRef | null = null) {
+      if (!editable) {
+        readOnlyNote();
+        return;
+      }
+      const next = withEnd(p, end);
+      const said = END_SAID[end](fmt(p.loopStart));
+      const what = end === "follow" && followRef ? `${title} then plays ${followName(followRef)}` : `${title} at its end: ${said}`;
+      if (!editor.place) {
+        editor.flush();
+        const w = endWrite(end, toInput(p), followRef);
+        void save(what, () => api.library.updateTrack(track.id, { ...w.track, profile: toInput(next) }));
+      } else {
+        if (!editor.write(next)) return;
+        if (end === "follow") void save(what, () => api.library.updateTrack(track.id, { follow: followRef }));
+      }
+      setClock({ ...clockRef.current, event: null, handover: null });
+      say(`At its end: ${said}`);
     },
     setShape(kind: "in" | "out", shape: number) {
       const f = kind === "in" ? p.fadeIn : p.fadeOut;

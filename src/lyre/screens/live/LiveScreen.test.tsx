@@ -77,6 +77,8 @@ const roomEl = (name: string) => within(screen.getByRole("region", { name: "On a
 const upNextEl = (name = "Table") => within(roomEl(name)).getByRole("list", { name: "Up next" });
 const upNext = (name = "Table") => within(upNextEl(name));
 const press = (key: string, init: KeyboardEventInit = {}) => fireEvent.keyDown(document.activeElement ?? document.body, { key, ...init });
+/** Round 10: Live's one Undo place, in the top bar. */
+const undoPlace = () => screen.getByRole("group", { name: "Undo" });
 const blur = () => act(() => (document.activeElement as HTMLElement | null)?.blur());
 const startAbbey = () => userEvent.click(screen.getByRole("button", { name: "Start scene 3: The abbey ruins" }));
 
@@ -204,7 +206,7 @@ describe("scenes and undo", () => {
     await playOn(sound);
     // UX-R6: the strip is a group named Undo, not a status: the live region alone reads the change out.
     expect(region("Scenes").queryByRole("status")).toBeNull();
-    expect(region("Scenes").getByRole("group", { name: "Undo" })).toHaveTextContent("Started Crypt ambush");
+    expect(undoPlace()).toHaveTextContent("Started Crypt ambush");
     blur();
     press("z", { ctrlKey: true });
     await playOn(sound);
@@ -235,7 +237,7 @@ describe("scenes and undo", () => {
     const pad = current().getAllByRole("button").find((b) => b.classList.contains("lv-pad"))!;
     await userEvent.click(pad);
     await playOn(sound, 0.3);
-    expect(region("Scenes").getByRole("group", { name: "Undo" })).toHaveTextContent("Started Crypt ambush");
+    expect(undoPlace()).toHaveTextContent("Started Crypt ambush");
     blur();
     press("z", { ctrlKey: true });
     await playOn(sound);
@@ -506,13 +508,14 @@ describe("0.5.1: the fade buttons take 5 s", () => {
 });
 
 describe("0.5.1: Stop and Shuffle on air (Nik, 11 Nov)", () => {
-  it("the playing music has Stop beside Pause (both kept); Stop ends the music in that room", async () => {
+  it("the playing music has Stop as well as Pause; round 10: Previous, Pause, Next, then Stop apart; Stop ends the music in that room", async () => {
     const { sound } = await openLive();
     await startAbbey();
     await playOn(sound);
     const controls = within(room("Table").getByRole("group", { name: "Music in Table" }));
     const names = controls.getAllByRole("button").map((b) => b.getAttribute("aria-label"));
-    expect(names.indexOf("Stop music")).toBe(names.indexOf("Pause music") + 1);
+    expect(names.slice(0, 4)).toEqual(["Previous music track", "Pause music", "Next music track", "Stop music"]);
+    expect(room("Table").getByText(/ · (Loops|Loops with a \d+ s crossfade|Then the next track|Stops|Fades out)$|^(Loops|Then the next track)/)).toBeInTheDocument();
     await userEvent.click(controls.getByRole("button", { name: "Stop music" }));
     await playOn(sound, 2);
     expect(sound.audio.getNowPlaying().rooms[0].music).toBeNull();
@@ -575,8 +578,7 @@ describe("0.5.1: rooms from Live, without going to Rooms (Nik, 11 Nov)", () => {
     menu = within(screen.getByRole("menu", { name: "Room Table" }));
     await userEvent.click(menu.getByRole("menuitem", { name: "Make Lyre Table leave Table" }));
     await act(async () => outputs.settle());
-    const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("group", { name: "Undo" }).find((st) => st.textContent?.includes("Lyre Table left Table"))!;
-    expect(strip).toBeTruthy();
+    expect(undoPlace()).toHaveTextContent("Lyre Table left Table");
   });
 
   it("Add a room is there with every bot in a room: it offers Add a bot…, which opens Settings", async () => {
@@ -855,7 +857,7 @@ describe("PLY-16: Play next, Add to queue and Up next", () => {
     await userEvent.click(within(added).getByRole("button", { name: `Remove ${shanty} from Up next` }));
     expect(upNext().queryAllByRole("listitem").filter((li) => li.textContent?.includes(`Added: ${shanty}`))).toHaveLength(0);
     await userEvent.click(current().getByRole("button", { name: "Add to queue: The Abbess" }));
-    expect(room("Table").getByRole("group", { name: "Undo" })).toHaveTextContent("Added to the queue: The Abbess");
+    expect(undoPlace()).toHaveTextContent("Added to the queue: The Abbess");
     blur();
     press("z", { ctrlKey: true });
     expect(upNext().queryByText("The Abbess")).toBeNull();
@@ -871,7 +873,7 @@ describe("PLY-16: Play next, Add to queue and Up next", () => {
     await playOn(sound);
     expect(room("Table").queryByText(/^Added:/)).toBeNull();
     expect(sound.audio.getNowPlaying().rooms[0].upNextList.some((e) => e.kind === "added")).toBe(false);
-    await userEvent.click(within(screen.getByRole("region", { name: "Scenes" })).getByRole("button", { name: "Undo" }));
+    await userEvent.click(within(undoPlace()).getByRole("button", { name: "Undo" }));
     await playOn(sound);
     expect(upNextEl()).toHaveTextContent("Added: The Abbess");
   });
@@ -1167,7 +1169,7 @@ describe("rooms", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => expect(within(screen.getByRole("region", { name: "On air" })).queryByRole("group", { name: "Side room" })).toBeNull());
     expect(screen.queryByRole("button", { name: /choose a room/i })).toBeNull();
-    const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("group", { name: "Undo" }).find((st) => st.textContent?.includes("Lyre Side left Side room"))!;
+    const strip = undoPlace();
     await userEvent.click(within(strip).getByRole("button", { name: "Undo" }));
     await act(async () => outputs.settle());
     await findRoom("Side room");
@@ -1211,7 +1213,7 @@ describe("rooms", () => {
     await playOn(sound);
     await userEvent.click(screen.getByRole("button", { name: "Make Lyre Table leave Table" }));
     await act(async () => outputs.settle());
-    const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("group", { name: "Undo" }).find((st) => st.textContent?.includes("Lyre Table left Table"))!;
+    const strip = undoPlace();
     await userEvent.click(within(strip).getByRole("button", { name: "Undo" }));
     await act(async () => outputs.settle());
     await playOn(sound);
@@ -1235,7 +1237,7 @@ describe("rooms", () => {
     expect(side.getByRole("button", { name: "Move to Table" })).toBeInTheDocument();
     // The Now playing bar tags the room's row the same way, outlined in the warning colour.
     expect(screen.getByTitle("Nobody hears it: nobody is in Side room")).toHaveTextContent("On air · nobody there");
-    await userEvent.click(side.getByRole("button", { name: "Undo" }));
+    await userEvent.click(within(undoPlace()).getByRole("button", { name: "Undo" }));
     await act(async () => outputs.settle());
     expect(await findRoom("Table")).toBeTruthy();
   });
@@ -1306,7 +1308,7 @@ describe("UX-R4: focus after the control in use goes", () => {
     await playOn(sound);
     await userEvent.click(screen.getByRole("button", { name: "Make Lyre Table leave Table" }));
     await act(async () => outputs.settle());
-    await userEvent.click(within(screen.getByRole("region", { name: "On air" })).getByRole("button", { name: "Undo" }));
+    await userEvent.click(within(undoPlace()).getByRole("button", { name: "Undo" }));
     await act(async () => outputs.settle());
     await playOn(sound);
     await waitFor(() => expect(focusName()).toBe("Lyre Table in Table: change"));
@@ -1350,3 +1352,187 @@ describe("track names lead to the track's details", () => {
   });
 });
 
+
+/* Round 10 (ROUND10.md; table review M1, M4; Nik, 18 Nov 08:36, answers 6a and 7b): one Undo place in the top bar, and
+   Undo for what the players hear. */
+describe("round 10: one Undo place, and Undo for Play on air, Fade all and Stop all", () => {
+  it("the Undo place is in the top bar, never inside a box", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    expect(undoPlace()).toHaveTextContent("Started The abbey ruins");
+    expect(region("Scenes").queryByRole("group", { name: "Undo" })).toBeNull();
+    expect(region("On air").queryByRole("group", { name: "Undo" })).toBeNull();
+    expect(undoPlace().closest(".lv-top")).not.toBeNull();
+  });
+
+  it("Stop all stops every room and the preview; Undo brings every room back where it was", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound, 2);
+    const before = sound.audio.getNowPlaying().rooms[0];
+    expect(before.music).not.toBeNull();
+    sound.audio.previewTrack(before.music!.trackId);
+    await playOn(sound);
+    expect(sound.audio.getNowPlaying().preview).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Stop all" }));
+    await playOn(sound);
+    expect(sound.audio.getNowPlaying().rooms[0].music).toBeNull();
+    expect(sound.audio.getNowPlaying().preview).toBeNull();
+    expect(undoPlace()).toHaveTextContent("Stopped everything");
+    await userEvent.click(within(undoPlace()).getByRole("button", { name: "Undo" }));
+    await playOn(sound);
+    const after = sound.audio.getNowPlaying().rooms[0];
+    expect(after.music?.trackId).toBe(before.music!.trackId);
+    expect(after.ambience?.trackId).toBe(before.ambience?.trackId);
+    // The preview was never on air, so Undo leaves it stopped.
+    expect(sound.audio.getNowPlaying().preview).toBeNull();
+  });
+
+  it("Fade all has Undo too, and Shift+Esc does the same", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound, 2);
+    const playing = sound.audio.getNowPlaying().rooms[0].music!.trackId;
+    blur();
+    press("Escape", { shiftKey: true });
+    await playOn(sound, 6);
+    expect(sound.audio.getNowPlaying().rooms[0].music).toBeNull();
+    expect(undoPlace()).toHaveTextContent("Fading everything out");
+    blur();
+    press("z", { ctrlKey: true });
+    await playOn(sound);
+    expect(sound.audio.getNowPlaying().rooms[0].music?.trackId).toBe(playing);
+  });
+
+  it("Play on air has Undo, which puts back what the room was playing", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const scenes = sound.audio.getNowPlaying().rooms[0].music!.trackId;
+    const field = screen.getByRole("searchbox", { name: /^Find a track or playlist/ });
+    await userEvent.click(field);
+    await userEvent.type(field, "abbess");
+    const pl = within(region("Find a track or playlist").getByRole("list", { name: "Playlists" })).getAllByRole("listitem")[0];
+    await userEvent.click(within(pl).getByRole("button", { name: /^Play on air/ }));
+    await playOn(sound);
+    expect(undoPlace()).toHaveTextContent(/^Playing on air: /);
+    await userEvent.click(within(undoPlace()).getByRole("button", { name: "Undo" }));
+    await playOn(sound);
+    expect(sound.audio.getNowPlaying().rooms[0].music?.trackId).toBe(scenes);
+  });
+
+  it("with nothing playing, Stop all offers no Undo", async () => {
+    await openLive();
+    await userEvent.click(screen.getByRole("button", { name: "Stop all" }));
+    expect(screen.queryByRole("group", { name: "Undo" })).toBeNull();
+  });
+});
+
+describe("round 10: Up next rows (R10-FIX §1; round 9 §6)", () => {
+  const shanty = "Haunted sea shanty, grey and slow - the drowned bells";
+
+  it("Delete on a focused Up next row takes it out, as its × does, with Undo", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    await userEvent.click(current().getByRole("button", { name: `Add to queue: ${shanty}` }));
+    const added = upNext().getAllByRole("listitem").find((li) => li.textContent?.includes(`Added: ${shanty}`))!;
+    within(added).getByRole("button", { name: `Remove ${shanty} from Up next` }).focus();
+    press("Delete");
+    expect(upNext().queryAllByRole("listitem").filter((li) => li.textContent?.includes(`Added: ${shanty}`))).toHaveLength(0);
+    expect(undoPlace()).toHaveTextContent(`Taken out of Up next: ${shanty}`);
+  });
+
+  it("a planned track has Play now: it plays at once and Up next goes on from there", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const planned = sound.audio.getNowPlaying().rooms[0].upNextList.find((e) => e.kind === "planned")!;
+    const play = upNext().getAllByRole("button", { name: /^Play now: / })[0];
+    await userEvent.click(play);
+    await playOn(sound);
+    expect(sound.audio.getNowPlaying().rooms[0].music?.trackId).toBe(planned.trackIds[0]);
+    expect(undoPlace()).toHaveTextContent(/^Playing now: /);
+  });
+});
+
+describe("round 10 fixes (Nik, 18 Nov, answer 1): a track of a manual playlist unfolded in Live", () => {
+  it("keeps its four buttons and has a ⋯ with Remove from this playlist, with Undo and the Delete key", async () => {
+    await openLive();
+    await userEvent.click(region("Campaign playlists").getByRole("button", { name: "Campaign Playlists" }));
+    await userEvent.click(region("Campaign playlists").getByRole("button", { name: "Show contents of The Company themes" }));
+    const tracks = () => within(region("Campaign playlists").getByRole("list", { name: "Tracks in The Company themes" }));
+    const n = tracks().getAllByRole("listitem").length;
+    const first = within(tracks().getAllByRole("listitem")[0]);
+    expect(first.getAllByRole("button", { name: /^(Preview|Play next|Add to queue|Play on air)/ })).toHaveLength(4);
+    await userEvent.click(first.getByRole("button", { name: /^More for / }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Remove from this playlist" }));
+    await waitFor(() => expect(tracks().getAllByRole("listitem")).toHaveLength(n - 1));
+    expect(undoPlace()).toHaveTextContent(/^Removed .* from The Company themes/);
+    await userEvent.click(within(undoPlace()).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(tracks().getAllByRole("listitem")).toHaveLength(n));
+    within(tracks().getAllByRole("listitem")[1]).getByRole("button", { name: /^More for / }).focus();
+    press("Delete");
+    await waitFor(() => expect(tracks().getAllByRole("listitem")).toHaveLength(n - 1));
+  });
+
+  it("Play on air stands last on a row, with the words Players hear this now", async () => {
+    await openLive();
+    await userEvent.click(region("Campaign playlists").getByRole("button", { name: "Campaign Playlists" }));
+    const row = region("Campaign playlists").getAllByRole("listitem")[0];
+    const buttons = within(row).getAllByRole("button").filter((b) => b.closest(".lv-trk-acts"));
+    expect(buttons[buttons.length - 1]).toHaveAttribute("title", expect.stringMatching(/^Play on air.*Players hear this now$/));
+  });
+});
+
+describe("round 10: Arrange (Nik, 18 Nov 03:14, answer 6)", () => {
+  it("gives each box, On air included, one Move…; On air moves into a column and back; the boxes cannot be used meanwhile", async () => {
+    await openLive();
+    await userEvent.click(screen.getByRole("button", { name: "Arrange" }));
+    expect(screen.getAllByRole("button", { name: /^Move or size: / })).toHaveLength(7);
+    expect(screen.getByRole("region", { name: "On air" }).closest("[inert]")).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Move or size: On air" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Into column 1" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Move or size: On air" })).toHaveFocus());
+    expect(screen.getByRole("region", { name: "On air" }).closest(".col")).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem("lyre-live-layouts") ?? "{}")).toHaveProperty("half");
+    await userEvent.click(screen.getByRole("button", { name: "Move or size: On air" }));
+    expect(screen.getByRole("menuitem", { name: "To the top, the whole width" })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(within(screen.getByRole("region", { name: "Arrange" })).getByRole("button", { name: "Put back the usual layout" }));
+    expect(screen.getByRole("region", { name: "On air" }).closest(".col")).toBeNull();
+    await userEvent.click(within(screen.getByRole("region", { name: "Arrange" })).getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("button", { name: /^Move or size: / })).toBeNull();
+    expect(screen.getByRole("region", { name: "On air" }).closest("[inert]")).toBeNull();
+  });
+});
+
+describe("round 10: the music dips under a pad (item 47)", () => {
+  it("while a one-shot pad sounds, the room's music line says Dipped; then it goes", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound, 4);
+    const pad = current().getAllByRole("button").find((b) => b.classList.contains("lv-pad") && !b.classList.contains("lv-pad-none") && /one-shot|Play once/i.test(b.title))!;
+    await userEvent.click(pad);
+    await playOn(sound, 0.3);
+    expect(room("Table").getByText("Dipped")).toBeInTheDocument();
+    await playOn(sound, 30);
+    expect(room("Table").queryByText("Dipped")).toBeNull();
+  });
+});
+
+describe("round 10 (R10-FIX §3): Find's results beside Live", () => {
+  it("open in the side panel host, not over On air; Close Find closes the panel", async () => {
+    await openLive();
+    const field = screen.getByRole("searchbox", { name: /^Find a track or playlist/ });
+    await userEvent.click(field);
+    await userEvent.type(field, "battle");
+    const results = screen.getByRole("region", { name: "Find a track or playlist" });
+    expect(results.closest(".side-panel")).not.toBeNull();
+    expect(results.closest(".lv")).toBeNull();
+    await userEvent.click(within(results).getByRole("button", { name: "Close Find" }));
+    expect(screen.queryByRole("region", { name: "Find a track or playlist" })).toBeNull();
+    expect(field).toHaveFocus();
+  });
+});

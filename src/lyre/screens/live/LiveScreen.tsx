@@ -18,7 +18,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 
 import { DEFAULT_LIBRARY_NORMALISE, guardAllows, keyName, shortcutKey } from "../../../common/domain";
 import { GLOBAL_KEY_EVENT } from "../../../common/globalKeys";
-import { useBoards, useCampaigns, useLyreQuery, useProfileOverrides, useSettings, useTagGroups, usePlaylists, useTracks } from "../../api";
+import { useBoards, useCampaigns, useLyreQuery, useMissingTracks, useProfileOverrides, useSettings, useTagGroups, usePlaylists, useTracks } from "../../api";
 import { useLyreAudio, useLyreAudioEvent, useNowPlaying, type LyreAudio } from "../../audio";
 import { loadInLive, takeNextScene, useLiveSession } from "../../kit/liveSession";
 import { usePlayOrders } from "../../kit/playOrders";
@@ -34,13 +34,17 @@ import { CurrentScenePane } from "./CurrentScene";
 import { closeFind, openFind } from "./Find";
 import { focusBox, focusLiveSoon, focusLive } from "./focus";
 import { LiveDataProvider, sceneRefOf, type LiveData } from "./liveData";
-import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, padForKey, padStepWords, trayShown, UNDO_MS, type LiveKeys } from "./liveModel";
-import { getLiveState, lastActed, standbyFor, touched, updateLive, useLiveState } from "./liveState";
+import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, noSoundWords, padForKey, padHasNoSound, padStepWords, trayShown, UNDO_MS, type LiveKeys } from "./liveModel";
+import { getLiveState, lastActed, standbyFor, updateLive, useLiveState } from "./liveState";
 import { LiveTop } from "./LiveTop";
 import { OnAirPane } from "./OnAir";
 import { firePads } from "./Pads";
+import { fadeAllWithUndo } from "./liveActions";
 import { ScenesPane } from "./Scenes";
 import { PadsBox, PlaylistsBox } from "./Trays";
+import { ArrangeBar, ArrangeBox, ColumnSplit, columnDrop, focusMove, useTopDrop } from "./Arrange";
+import { dipSettingsOf, useDip } from "../settings/dipSettings";
+import { arrange, layoutFor, loadLayouts, movedWords, readingOrder, saveLayouts, SIZE_NAMES, whereIs, widthsOf, withLayout, type ArrangeAction, type ArrangeId, type BoxId } from "./liveLayout";
 import "./live.css";
 
 /** Where the single-key shortcuts choice is kept (this page only). */
@@ -50,20 +54,6 @@ const TWO_COLUMNS_PX = 820;
 const THREE_COLUMNS_PX = 1200;
 /** What plays from another session fades this long when a session is loaded. */
 const SESSION_FADE_MS = 3000;
-
-type BoxId = "scenes" | "current" | "ssp" | "ssd" | "cpp" | "cpd";
-/**
- * On air is above, the whole width (round 6 part 6); under it Scenes and Current scene where the eye starts, then the
- * session's things, then the campaign's. Alt+1 to 7 and F6 follow LIVE_BOXES, the same in every layout.
- */
-const LAYOUT: Record<1 | 2 | 3, BoxId[][]> = {
-  1: [["scenes", "current", "ssp", "ssd", "cpp", "cpd"]],
-  2: [
-    ["scenes", "ssp", "ssd", "cpp", "cpd"],
-    ["current"],
-  ],
-  3: [["scenes"], ["current"], ["ssp", "ssd", "cpp", "cpd"]],
-};
 
 function readKeys1(): boolean {
   try {
@@ -133,15 +123,20 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   // UX-12: Live waits for the keys Settings has, so a key changed there never does what it did before for a moment.
   const keysKnown = settings !== undefined || settingsQuery.error !== null;
   const normalise = useLyreQuery("normalise-settings", (api) => api.library.normaliseSettings(), ["tracks"]).data;
+  const missingList = useMissingTracks().data;
+  const missing = useMemo(() => new Set((missingList ?? []).map((m) => m.id)), [missingList]);
   const orders = usePlayOrders();
   const names = useTrackNames();
   const { outputs, client } = useOutputs();
   const loaded = useLiveSession();
   const inHand = useCampaignInHand();
   const state = useLiveState();
-  const { say, toast } = useAnnounce();
+  const { say, toast, warn } = useAnnounce();
   const width = useAppWidth();
   const columns = columnsFor(width);
+  // Round 10: the layouts kept on this computer, one per window size (liveLayout.ts).
+  const [savedLayouts, setSavedLayouts] = useState(loadLayouts);
+  const layout = useMemo(() => layoutFor(columns, savedLayouts), [columns, savedLayouts]);
   const [keys1, setKeys1State] = useState(readKeys1);
   const [keysOpen, setKeysOpenState] = useState(false);
 
@@ -191,6 +186,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           keys,
           guard: settings?.nextSceneGuard ?? true,
           normalise: normalise ?? DEFAULT_LIBRARY_NORMALISE,
+          missing,
         }
       : null;
   const dataRef = useRef(data);
@@ -292,6 +288,53 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   }, [nextScene, say]);
   const sceneActions = useMemo(() => ({ start: changeScene, next: pressNextScene, undo }), [changeScene, pressNextScene, undo]);
 
+  /* ---------- round 10: Arrange (Nik, 18 Nov 03:14, answer 6) ---------- */
+
+  const layoutRef = useRef(layout);
+  layoutRef.current = layout;
+  /** One move or size change, kept for this window size at once; focus back on the box's Move… (it may have moved). */
+  const changeLayout = useCallback(
+    (id: ArrangeId, action: ArrangeAction, focus = true) => {
+      const height = document.querySelector(`#view [data-box="${id}"] .lv-arrin`)?.getBoundingClientRect().height ?? 300;
+      const next = arrange(layoutRef.current, columns, id, action, height);
+      setSavedLayouts((was) => {
+        const all = withLayout(was, columns, next);
+        saveLayouts(all);
+        return all;
+      });
+      say(movedWords(id, action, next));
+      if (focus) focusMove(id);
+    },
+    [columns, say],
+  );
+  const resetLayout = useCallback(() => {
+    setSavedLayouts((was) => {
+      const all = withLayout(was, columns, null);
+      saveLayouts(all);
+      return all;
+    });
+    say("The usual layout is back");
+    focusLive("arr-done");
+  }, [columns, say]);
+  const { saved: announceSaved } = useAnnounce();
+  const setArranging = useCallback(
+    (on: boolean) => {
+      updateLive({ arranging: on });
+      focusLive("arrange");
+      if (on) say("Arranging the boxes. Drag a box by its header, or use its Move… button. Press Done when you have finished.");
+      else announceSaved("layout of Live for this window size");
+    },
+    [say, announceSaved],
+  );
+  const dropTop = useTopDrop(changeLayout);
+  // Round 10 (item 47): the audio host dips the music as Settings › Sound to Discord says.
+  const dip = useDip();
+  useEffect(() => {
+    audio.setDip(dipSettingsOf(dip));
+  }, [audio, dip]);
+  // Leaving Live ends Arrange mode, so the boxes can be used when you come back.
+  useEffect(() => () => updateLive({ arranging: false }), []);
+
   // PLY-8: a scene started by another's step, or moving on by itself, is the scene on now; a step can show a board.
   useLyreAudioEvent("scene-started", (at) => {
     const d = dataRef.current;
@@ -328,8 +371,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   /** 0.5.2 (round 9 review M4): the text box last typed into, and when (its own Ctrl+Z, until something plays). */
   const lastTyped = useRef<{ el: EventTarget | null; at: number }>({ el: null, at: 0 });
   // The latest callbacks, so the key listeners are added once and a held pad is never let go by a redraw.
-  const calls = useRef({ nextScene, undo, say, toast, setKeysOpen });
-  calls.current = { nextScene, undo, say, toast, setKeysOpen };
+  const calls = useRef({ nextScene, undo, say, toast, warn, setKeysOpen });
+  calls.current = { nextScene, undo, say, toast, warn, setKeysOpen };
   const heldKeys = useRef(new Map<string, () => void>());
   useEffect(() => {
     const onTab = (event: KeyboardEvent) => {
@@ -340,7 +383,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
         const d = dataRef.current;
         const board = d && currentBoard(getLiveState().boards.sc, d.scene, d.index);
         if (d?.keys1 && board && padForKey(board, "f6")) return;
-        const heads = LIVE_BOXES.filter((b) => document.querySelector(`#view [data-pane="${b.id}"] .pane-toggle`));
+        // Round 10: in the boxes' order on screen, as Arrange left them.
+        const heads = boxesInOrder();
         if (!heads.length) return;
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -372,8 +416,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     };
     const fadeAllKey = (d: LiveData) => {
       calls.current.setKeysOpen(false, false);
-      touched();
-      d.audio.fadeAll();
+      fadeAllWithUndo(d);
     };
     /**
      * Keys that Settings lets work in other programs too reach the page only as this event (Windows gives them to the
@@ -423,9 +466,11 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
         case "swallow":
           return handled();
         case "goBox": {
-          const words = focusBox(LIVE_BOXES[decision.box].id);
+          // Round 10: Alt+1 to 7 follow the boxes' order on screen, as Arrange left them.
+          const box = boxInPlace(decision.box);
+          const words = focusBox(box.id);
           // 0.5.2 (item 49): a tray box with nothing in it is not shown; its key says so.
-          say(words ?? `${LIVE_BOXES[decision.box].name}: nothing in it, so it is not shown`);
+          say(words ?? `${box.name}: nothing in it, so it is not shown`);
           return handled();
         }
         case "fadeAll":
@@ -477,6 +522,11 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           if (!board || !pad) return;
           handled();
           if (event.repeat || heldKeys.current.has(decision.key)) return;
+          // Round 10 (table review S3): a pad with no sound says so instead of doing nothing.
+          if (padHasNoSound(pad)) {
+            calls.current.warn(noSoundWords(pad));
+            return;
+          }
           const targets = boxTarget(d.rooms, s.to.music).targets;
           // 0.5.2 (round 9 review M5): a pad does not end the scene's Undo.
           firePads(d.audio, d.now, targets, board, pad, "down");
@@ -539,38 +589,97 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   };
   // 0.5.2 (Nik's item 49): a tray box with nothing in it is not shown, nor a tray with no box left.
   const shown = (id: BoxId) => !/^(ss|cp)/.test(id) || trayShown(id as "ssp" | "ssd" | "cpp" | "cpd", data.session, data.campaign, data.index);
+  // Round 10 (Nik, 18 Nov 03:14, answer 6): the layout kept for this window size; On air at the top unless moved.
+  const arranging = state.arranging;
+  const arrangeProps = { layout, columns, change: changeLayout };
+  const onAirTop = whereIs(layout, "onair") === null;
+  const cols = arranging && columns > 1 && layout.cols.length < columns ? [...layout.cols, []] : layout.cols;
+  const widths = widthsOf({ ...layout, cols }, columns).map((w, i) => (cols[i].length || !arranging ? w : 18));
+  const template = cols.length > 1 ? widths.map((w, i) => `minmax(0, ${w}fr)${arranging && i < cols.length - 1 ? " 12px" : ""}`).join(" ") : undefined;
+  /** A box as it is drawn: in Arrange mode with its row and edge; with a fixed height, scrolling inside. */
+  const place = (id: ArrangeId, col: number, at: number, node: React.ReactNode) => {
+    if (arranging) {
+      return (
+        <ArrangeBox key={id} id={id} col={col} at={at} props={arrangeProps}>
+          {node}
+        </ArrangeBox>
+      );
+    }
+    const h = layout.heights[id];
+    return h ? (
+      <div key={id} className="lv-fixed" style={{ ["--lv-h" as string]: `${h}px` } as React.CSSProperties}>
+        {node}
+      </div>
+    ) : (
+      <React.Fragment key={id}>{node}</React.Fragment>
+    );
+  };
+  const onAir = (inColumn: boolean) => <OnAirPane key="onair" inColumn={inColumn} />;
   return (
     <LiveDataProvider value={data}>
       <div className="lv">
-        <LiveTop keysOpen={keysOpen} setKeysOpen={setKeysOpen} setKeys1={setKeys1} loadSession={loadSession} />
-        <OnAirPane undo={undo} />
-        <div className={`lv-cols c${columns}`} data-scroll="lv-page">
-          {LAYOUT[columns].map((ids) => (
-            <div className={columns === 3 && /^(ss|cp)/.test(ids[0]) ? "col lv-c-trays" : "col"} key={ids.join("-")}>
-              {trays(ids.filter(shown)).map((group) =>
-                group.scope ? (
-                  // A tray per scope: the session's boxes on a filled tray, the campaign's on an outlined one (Should 6).
-                  <div className={`lv-grp lv-grp-${group.scope}`} key={group.scope}>
-                    <p className="lv-grp-h" aria-hidden="true">
-                      {group.scope === "ss" ? "This session" : "Whole campaign"}
-                    </p>
-                    {group.ids.map((id) => boxes[id])}
-                  </div>
-                ) : (
-                  boxes[group.ids[0]]
-                ),
-              )}
-            </div>
-          ))}
+        <LiveTop keysOpen={keysOpen} setKeysOpen={setKeysOpen} setKeys1={setKeys1} loadSession={loadSession} undo={undo} setArranging={setArranging} />
+        {arranging && <ArrangeBar columns={columns} reset={resetLayout} done={() => setArranging(false)} dropTop={dropTop} />}
+        {onAirTop && place("onair", -1, 0, onAir(false))}
+        <div className={`lv-cols c${Math.min(3, cols.length)}${arranging ? " lv-arranging" : ""}`} data-scroll="lv-page" style={template ? { gridTemplateColumns: template } : undefined}>
+          {cols.map((ids, ci) => {
+            const visible = ids.filter((id) => id === "onair" || shown(id));
+            const column = (
+              <div className={columns === 3 && /^(ss|cp)/.test(visible[0] ?? "") ? "col lv-c-trays" : "col"} key={`col-${ci}`} data-col={ci} {...(arranging ? columnDrop(ci, ids.length, changeLayout) : {})}>
+                {arranging
+                  ? visible.map((id) => place(id, ci, ids.indexOf(id), id === "onair" ? onAir(true) : boxes[id]))
+                  : trays(visible).map((group) =>
+                      group.scope ? (
+                        // A tray per scope: the session's boxes on a filled tray, the campaign's on an outlined one (Should 6).
+                        <div className={`lv-grp lv-grp-${group.scope}`} key={group.scope}>
+                          <p className="lv-grp-h" aria-hidden="true">
+                            {group.scope === "ss" ? "This session" : "Whole campaign"}
+                          </p>
+                          {group.ids.map((id) => place(id, ci, ids.indexOf(id), boxes[id as BoxId]))}
+                        </div>
+                      ) : (
+                        place(group.ids[0], ci, ids.indexOf(group.ids[0]), group.ids[0] === "onair" ? onAir(true) : boxes[group.ids[0] as BoxId])
+                      ),
+                    )}
+              </div>
+            );
+            return arranging && ci < cols.length - 1 ? [column, <ColumnSplit key={`split-${ci}`} index={ci} widths={widths} change={(w) => changeLayout(ids[0] ?? "scenes", { widths: w }, false)} />] : column;
+          })}
         </div>
       </div>
     </LiveDataProvider>
   );
 };
 
+type LiveBoxEntry = (typeof LIVE_BOXES)[number];
+
+/**
+ * Round 10: the boxes in the order F6 and Alt+1 to 7 follow. In the usual layout that is On air, Scenes, Current scene,
+ * then the session's and the campaign's boxes, whatever the columns; once Arrange has moved the boxes for this window
+ * size, their reading order on screen (column by column, top to bottom).
+ */
+function keyOrder(): LiveBoxEntry[] {
+  const columns = columnsFor(appWidth());
+  const saved = loadLayouts();
+  if (!saved[SIZE_NAMES[columns] as keyof typeof saved]) return [...LIVE_BOXES];
+  return readingOrder(layoutFor(columns, saved))
+    .map((id) => LIVE_BOXES.find((b) => b.id === `lv-${id}`))
+    .filter((b): b is LiveBoxEntry => !!b);
+}
+
+/** The boxes drawn now, in key order: F6 goes through these. */
+function boxesInOrder(): LiveBoxEntry[] {
+  return keyOrder().filter((b) => document.querySelector(`#view [data-pane="${b.id}"] .pane-toggle`));
+}
+
+/** The box Alt+n goes to (a box not shown keeps its place in the count). */
+function boxInPlace(n: number): LiveBoxEntry {
+  return keyOrder()[n] ?? LIVE_BOXES[n];
+}
+
 /** The boxes of a column, the session's and the campaign's grouped in their trays. */
-function trays(ids: BoxId[]): { scope: "ss" | "cp" | ""; ids: BoxId[] }[] {
-  const out: { scope: "ss" | "cp" | ""; ids: BoxId[] }[] = [];
+function trays(ids: ArrangeId[]): { scope: "ss" | "cp" | ""; ids: ArrangeId[] }[] {
+  const out: { scope: "ss" | "cp" | ""; ids: ArrangeId[] }[] = [];
   for (const id of ids) {
     const scope = id.startsWith("ss") ? "ss" : id.startsWith("cp") ? "cp" : "";
     const last = out[out.length - 1];

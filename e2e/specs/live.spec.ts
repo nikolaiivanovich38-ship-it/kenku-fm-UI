@@ -4,7 +4,7 @@
  */
 import type { Page } from "@playwright/test";
 import { appOnly, expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
-import { joinRoom, leaveAllRooms, openRoute } from "./support/target";
+import { dropConnection, joinRoom, leaveAllRooms, openRoute } from "./support/target";
 
 /* The app's Live is still 0.4.1's (an On air box per room, Off script, the Pads box). A check written for round 6
    part 3's Live (one On air box with a part per room, Find a track in the top strip, the scene's pads and row buttons
@@ -1629,7 +1629,6 @@ test.describe("0.5.2: Live's empty boxes, loop settings and track names", () => 
 /* Round 10 (design/prototype/ROUND10.md, item 58): the final design for 0.6.0. Not built yet: each check is expected to
    fail in the app until the "r10-live" stream is built (support/built.ts). */
 test.describe("round 10: Live keeps its place, one Undo place, and Undo for what the players hear", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-live"));
   const topOf = async (page: Page, name: string) => (await region(page, name).boundingBox())!.y;
 
   test("starting a scene and firing a pad leave the boxes under On air where they were (table review M1)", async ({ page }) => {
@@ -1704,7 +1703,7 @@ test.describe("round 10: Live keeps its place, one Undo place, and Undo for what
   test("a lost connection says so, with Try again; the room hears the music again after it (0.5.2, table review M3)", async ({ page }) => {
     await openRoute(page, "live");
     await startAbbey(page);
-    await page.getByRole("button", { name: "Drop the connection" }).click();
+    await dropConnection(page);
     await expect(room(page, "Table").getByRole("alert")).toContainText("Connection lost · players hear nothing");
     await room(page, "Table").getByRole("button", { name: "Try again" }).click();
     await expect(room(page, "Table").getByText("Playing")).toBeVisible({ timeout: 4000 });
@@ -1712,7 +1711,6 @@ test.describe("round 10: Live keeps its place, one Undo place, and Undo for what
 });
 
 test.describe("round 10: Arrange with a grip, an edge and one Move… per box; On air moves too (Nik, 18 Nov, answer 6)", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-live"));
 
   test("each box, On air included, has one Move… button; Move… › Into column 1 moves On air, Put back the usual layout brings it back", async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 960 });
@@ -1738,7 +1736,6 @@ test.describe("round 10: Arrange with a grip, an edge and one Move… per box; O
 /* Round 10, Nik's answers to its questions (18 Nov; R6-NIK-DECISIONS.md, "answers to the round 10 merge agent's 4
    questions"). Not built yet. */
 test.describe("round 10: Nik's answers on the strip at half a screen and on Rooms", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-live"));
   /** The words a person sees on a button (innerText leaves out what is not shown). */
   const shown = (page: Page, name: string) => page.getByRole("button", { name, exact: true }).evaluate((b) => (b as HTMLElement).innerText.trim());
 
@@ -1788,7 +1785,6 @@ test.describe("round 10: Nik's answers on the strip at half a screen and on Room
 
 /* Round 10 fixes (R10-FIX §1): Up next keeps its × on each row; Delete on a focused row does the same, with Undo. */
 test("round 10: Delete on a focused Up next row takes it out, as its × does", async ({ page }) => {
-  expectFailureUntilBuilt("r10-live");
   await openRoute(page, "live");
   await startAbbey(page);
   const track = "Haunted sea shanty, grey and slow - the drowned bells";
@@ -1804,7 +1800,6 @@ test("round 10: Delete on a focused Up next row takes it out, as its × does", a
 /* Round 10 fixes, Nik's answer of 18 Nov to open question 1: a track in a manual playlist unfolded in Live has a ⋯ with
    Remove from this playlist, as in Prep (Undo, and Delete on a focused row); Live's four row buttons stay. */
 test("round 10: a track in a playlist unfolded in Live has a ⋯ with Remove from this playlist, with Undo and the Delete key", async ({ page }) => {
-  expectFailureUntilBuilt("r10-live");
   await openRoute(page, "live");
   const box = region(page, "Campaign playlists");
   await box.getByRole("button", { name: "Campaign Playlists", exact: true }).click();
@@ -1821,4 +1816,28 @@ test("round 10: a track in a playlist unfolded in Live has a ⋯ with Remove fro
   await tracks.getByRole("listitem").nth(1).getByRole("button", { name: /^More for / }).focus();
   await page.keyboard.press("Delete");
   await expect(tracks.getByRole("listitem")).toHaveCount(n - 1);
+});
+
+/* Round 10 (table review S5; round 9 §6), written by r10-live before the app had them. */
+test.describe("round 10: rows and Up next", () => {
+
+  test("a row's Play on air is last, apart from the others, and says the players hear it now", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const air = sceneMusic(page).getByRole("button", { name: /^Play on air/ }).first();
+    await expect(air).toHaveAttribute("title", /Players hear this now$/);
+    expect(await air.evaluate((b) => b.parentElement?.lastElementChild === b)).toBe(true);
+    const names = await air.evaluate((b) => Array.from(b.parentElement?.querySelectorAll("button") ?? []).map((x) => x.getAttribute("aria-label") ?? ""));
+    expect(names[0]).toMatch(/^Preview/);
+  });
+
+  test("a planned track in Up next has Play now, which plays it in that room", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const upNext = room(page, "Table").getByRole("list", { name: "Up next" });
+    const play = upNext.getByRole("button", { name: /^Play now: / }).first();
+    const name = ((await play.getAttribute("aria-label")) ?? "").replace(/^Play now: /, "");
+    await play.click();
+    await expect(room(page, "Table").getByRole("group", { name: "Music in Table", exact: true }).locator("xpath=..")).toContainText(name.slice(0, 20));
+  });
 });

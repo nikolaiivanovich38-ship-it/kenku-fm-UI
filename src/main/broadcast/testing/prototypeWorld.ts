@@ -5,7 +5,7 @@
  * PlaybackManager require it, behind __CUE_DESK_TEST_BUILD__.
  */
 import type { OutputManager } from "../OutputManager";
-import type { FakeWorld } from "./fakeDiscord";
+import { sharedFakeDiscord, type FakeWorld } from "./fakeDiscord";
 
 export const PROTOTYPE_WORLD: FakeWorld = {
   guilds: [
@@ -108,6 +108,15 @@ export function outputsTestHook(outputs: OutputManager) {
     leaveAll(): void {
       for (const id of outputs.bots.keys()) outputs.leaveAll(id);
     },
+    // --- r10-live ---
+    /** Round 10: a bot's voice connection drops, as when the network goes (the prototype strip's Drop the connection). */
+    dropConnection(bot: string): void {
+      const id = botNamed(bot);
+      const channelId = outputs.bots.get(id)?.voice().find((s) => s.status === "connected")?.channelId;
+      if (!channelId) throw new Error(`${bot} is in no room`);
+      for (const connection of sharedFakeDiscord().connectionsIn(channelId)) if (connection.joinConfig.group === id) connection.disconnect();
+    },
+    // --- end r10-live ---
     /** w51-audio: per bot (by name), the packets its player was given, its holes and its drops. */
     timing(): Record<string, ReturnType<OutputManager["audioTiming"]>[string]> {
       const timing = outputs.audioTiming();

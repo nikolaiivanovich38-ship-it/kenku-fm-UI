@@ -199,9 +199,10 @@ function oneTrackPerFile<T>(fileName: unknown, fn: () => T): T {
  * query-plan tests.
  */
 export const TRACK_BY_PATH_SQL = {
-  root: "SELECT id FROM tracks WHERE root_id = ? AND path = ? COLLATE NOCASE",
-  absolute: "SELECT id FROM tracks WHERE root_id IS NULL AND path = ? COLLATE NOCASE",
-  url: "SELECT id FROM tracks WHERE url = ?",
+  // Schema version 11: a part shares its whole track's file; the file's track is the whole one.
+  root: "SELECT id FROM tracks WHERE root_id = ? AND path = ? COLLATE NOCASE AND part_of IS NULL",
+  absolute: "SELECT id FROM tracks WHERE root_id IS NULL AND path = ? COLLATE NOCASE AND part_of IS NULL",
+  url: "SELECT id FROM tracks WHERE url = ? AND part_of IS NULL",
   underRoot: "SELECT id, path FROM tracks WHERE root_id = ?",
 } as const;
 

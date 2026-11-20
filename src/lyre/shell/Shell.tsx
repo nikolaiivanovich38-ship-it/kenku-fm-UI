@@ -14,6 +14,7 @@ import { themeFor } from "./themes";
 import { useThemeShownByTests } from "./themeForTests";
 import { SidePanel, SidePanelHost, SidePanelProvider, useSidePanelOpen } from "../kit/SidePanel";
 import { openTrackPanel } from "../screens/trackPanel/openTrackPanel";
+import { TrackPanelFromRoute } from "../screens/trackPanel/TrackPanelFromRoute";
 import { OpenHelpContext, useHelp } from "../help/useHelp";
 import { fallbackNow, NavigationProvider, useBackKeys, useNavigationState } from "./TopBar";
 import { keepTitles, showFullTextOnFocus } from "../kit/noHiddenText";
@@ -185,6 +186,8 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
         <main id="view" className="view" data-view={route.name}>
           <OpenHelpContext.Provider value={help.openHelp}>
           <NavigationProvider value={navigation}>
+            {/* --- r10-tracks --- #/playlist/<pid>/<tid> and #/session/<cid>/<sid>/<tid> open the Track panel. */}
+            <TrackPanelFromRoute route={route} />
             <UndoNoteProvider live={route.name === "live"}>
               {/* w51-fix2: the boundary stays while screens change (the screen is keyed inside it), so a screen that
                   fails as it is left is caught here instead of blanking the page; a new address clears its message. */}

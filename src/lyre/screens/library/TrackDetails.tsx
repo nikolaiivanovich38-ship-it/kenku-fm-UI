@@ -26,22 +26,19 @@ import type {
 } from "../../../common/lyre/api";
 import { trackNamesOf } from "../../../common/lyre/lookup";
 import { tagValue } from "../../../common/lyre/text";
-import { useLyreApi } from "../../api";
+import { useLyreApi, useTracks } from "../../api";
 import { useLyreAudio } from "../../audio";
 import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
 import {
   addedText,
-  EFFECT_ROLE,
   ENERGY_WORDS,
   fmt,
   inVocabularyOrder,
   KIND_NAMES,
-  LOOPS,
   plural,
   profileSummary,
-  ROLES,
   SHAPES,
   shownTitle,
 } from "./model";
@@ -80,6 +77,8 @@ export interface TrackDetailsProps {
   onNewPlaylist: (ids: string[]) => void;
   /** ORG-12: Use in… for this track. */
   onUseIn: () => void;
+  /** Round 10 fixes (R10-FIX §1): Remove from library, asking first as a row's ⋯ does. */
+  onRemove?: () => void;
 }
 
 export function TrackDetails({
@@ -94,6 +93,7 @@ export function TrackDetails({
   normalise,
   onNewPlaylist,
   onUseIn,
+  onRemove,
 }: TrackDetailsProps) {
   const api = useLyreApi();
   const audio = useLyreAudio();
@@ -152,7 +152,6 @@ export function TrackDetails({
   const typeChange = useTypeChange(store, { offerUndo: false });
   const shown = shownTitle({ ...t, title });
   const previewOn = previewing === previewKeyOf({ kind: "track", id: t.id });
-  const roles = t.kind === "fx" ? [EFFECT_ROLE, ...ROLES] : ROLES;
   const names = useMemo(
     () => namesInScenes(t.id, campaigns),
     [t.id, campaigns],
@@ -261,6 +260,7 @@ export function TrackDetails({
         <dd>{t.album}</dd>
         <dt>Length</dt>
         <dd className="num">{fmt(t.durationMs)}</dd>
+        <PartLines t={t} />
         <dt>Added</dt>
         <dd>
           {addedText(t.addedAt)}
@@ -313,6 +313,12 @@ export function TrackDetails({
           <Icon name="link" size="s" />
           Use in…
         </button>
+        {onRemove && (
+          <button type="button" className="btn s" onClick={onRemove}>
+            <Icon name="close" size="s" />
+            Remove from library
+          </button>
+        )}
       </div>
       <p className="lb-prof">
         <Icon name="fade" size="s" />
@@ -376,26 +382,7 @@ export function TrackDetails({
             }}
           />
         </div>
-        <div className="lb-tg">
-          <div className="lb-tgl">Role</div>
-          <ChoiceChips
-            label="Role"
-            options={roles}
-            value={t.role}
-            onChoose={(v) => void write({ role: t.role === v ? null : v })}
-          />
-        </div>
-        <div className="lb-tg">
-          <div className="lb-tgl">Looping</div>
-          <ChoiceChips
-            label="Loop advice"
-            options={LOOPS}
-            value={t.loop}
-            onChoose={(v) => void write({ loop: t.loop === v ? null : v })}
-            // PLY-4: a sting never loops, so its loop choices are off, and say why.
-            disabledWhy={t.role === "sting" ? "A sting plays once; it never loops." : undefined}
-          />
-        </div>
+        {/* Round 9 (item 18): Use it for and At its end in place of Role, Looping, Ending and Then. */}
         <TrackBehaviour t={t} playlists={playlists} store={store} />
         <div className="lb-tg">
           <label className="lb-tgl" htmlFor="lb-notes">
@@ -424,6 +411,49 @@ export function TrackDetails({
         onUseIn={onUseIn}
       />
     </div>
+  );
+}
+
+/**
+ * Round 9 (ROUND9.md §10, r9track.js L.partLine): a part says what it is part of and where it was cut ("Part of
+ * Bridge of Death 1:04–5:18 · Plays this part of the same file"); a whole track lists its parts.
+ */
+function PartLines({ t }: { t: LibraryTrack }) {
+  const all = useTracks().data ?? [];
+  if (t.partOf) {
+    const whole = all.find((x) => x.id === t.partOf?.trackId);
+    return (
+      <>
+        <dt>Part of</dt>
+        <dd>
+          {whole ? <a href={hashOf(`library/${whole.id}`)}>{shownTitle(whole)}</a> : <span className="lb-none">a track no longer in your library</span>}{" "}
+          <span className="num faint">
+            {fmt(t.partOf.startMs)}–{fmt(t.partOf.endMs)}
+          </span>
+          <br />
+          <span className="hint">Plays this part of the same file.</span>
+        </dd>
+      </>
+    );
+  }
+  const parts = all.filter((x) => x.partOf?.trackId === t.id).sort((a, b) => (a.partOf?.startMs ?? 0) - (b.partOf?.startMs ?? 0));
+  if (!parts.length) return null;
+  return (
+    <>
+      <dt>Parts</dt>
+      <dd>
+        <ul className="lb-scnames">
+          {parts.map((x) => (
+            <li key={x.id}>
+              <a href={hashOf(`library/${x.id}`)}>{shownTitle(x)}</a>{" "}
+              <span className="num faint">
+                {fmt(x.partOf?.startMs ?? 0)}–{fmt(x.partOf?.endMs ?? 0)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </dd>
+    </>
   );
 }
 

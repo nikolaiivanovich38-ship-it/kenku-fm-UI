@@ -110,6 +110,11 @@ export class FakeOutputs implements OutputsClient {
     this.calls.push(["retry", botId]);
   }
 
+  setStartVolume(botId: string, volume: number): void {
+    this.calls.push(["setStartVolume", botId, volume]);
+    this.change(botId, { startVolume: volume });
+  }
+
   private invited = false;
   private removed = new Map<string, { bot: LyreBot; index: number }>();
   private made = 0;

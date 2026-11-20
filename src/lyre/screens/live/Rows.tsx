@@ -30,8 +30,11 @@ import { useSave } from "../../shell/useSave";
 import { formatLength } from "../campaigns/model";
 import { addToList, playOnAir, type PlayWhat } from "./liveActions";
 import { playedMs, playlistInPlace, sameRef, sceneRefOf, scenePlace, sceneSteps, seedOfScene, showLibraryOf, useBoxTarget, useLive, type LiveData } from "./liveData";
-import { LOOP_WORDS, loopSettingAt, type LiveBox, type LoopSetting } from "./liveModel";
-import { touched, updateLive } from "./liveState";
+import { LOOP_WORDS, loopSettingAt, UNDO_MS, type LiveBox, type LoopSetting } from "./liveModel";
+import { offerSoftUndo, touched, updateLive } from "./liveState";
+import { focusLiveSoon } from "./focus";
+import { PopMenuButton } from "../../kit/PopMenu";
+import { useWrite } from "../campaigns/parts";
 
 const KIND_WORDS = { amb: "Ambience", fx: "FX" } as const;
 
@@ -87,13 +90,14 @@ function PlayButton({ box, what, dataLv, extra }: { box: LiveBox; what: PlayWhat
   const d = useLive();
   const target = useBoxTarget(box);
   return (
+    // Round 10 (table review S5): Play on air stands apart, last, after a gap, in the On air colour on hover and focus.
     <button
       type="button"
-      className="closer"
+      className="closer lv-air"
       data-lv={`${dataLv}-p`}
       aria-label={`Play on air${target.inWhere}: ${what.name}`}
-      title={`Play on air${target.inWhere}${extra}`}
-      onClick={() => playOnAir(d, target.targets, what)}
+      title={`Play on air${target.inWhere}${extra}. Players hear this now`}
+      onClick={() => playOnAir(d, target.targets, what, `${dataLv}-p`)}
     >
       <Icon name="playair" />
     </button>
@@ -163,9 +167,11 @@ export interface TrackRowProps {
   facts?: boolean;
   /** A scene's track: its Repeat one (saved with that scene). */
   repeatIn?: { ref: { campaignId: string; sessionId: string; sceneId: string }; name: string };
+  /** Round 10 fixes (Nik, 18 Nov, answer 1): a track of a manual playlist unfolded here: a ⋯ with Remove from this playlist. */
+  inPlaylist?: PlaylistInfo;
 }
 
-export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on, inner, prefer, facts, repeatIn }: TrackRowProps) {
+export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on, inner, prefer, facts, repeatIn, inPlaylist }: TrackRowProps) {
   const d = useLive();
   const { audio, names, overrides, state, rooms, tagGroups } = d;
   const target = useBoxTarget(box);
@@ -181,8 +187,19 @@ export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on,
   const layered = track.kind === "amb" || track.kind === "fx";
   const moods = [...(track.tags.mood ?? [])].sort((a, b) => Number(prefer?.includes(b) ?? false) - Number(prefer?.includes(a) ?? false));
   const what: PlayWhat = { kind: "track", track, from, place, name: n.name };
+  const missing = d.missing.has(track.id);
+  const removeFromPlaylist = useRemoveFromPlaylist();
+  const onRowKey = inPlaylist
+    ? (event: React.KeyboardEvent) => {
+        // Round 10 fixes: Delete on a focused row does what Remove from this playlist does (a text box keeps its key).
+        if (event.key !== "Delete" || event.ctrlKey || event.altKey || event.metaKey || (event.target as HTMLElement).matches("input, textarea")) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void removeFromPlaylist(inPlaylist, track, n.name, dataLv);
+      }
+    : undefined;
   return (
-    <li className={cx("lv-trk", on && "on", track.kind === "amb" && "amb", open && "open", inner && "inner")}>
+    <li className={cx("lv-trk", on && "on", track.kind === "amb" && "amb", open && "open", inner && "inner", missing && "lv-missing")} onKeyDown={onRowKey}>
       <div className="lv-trk-r">
         {num !== undefined && (
           <span className="num lv-num" aria-hidden="true">
@@ -220,6 +237,12 @@ export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on,
           </>
         )}
         {place?.kind === "scene" && <LoopMark setting={loopSettingAt(track, place, playlistId, overrides)} />}
+        {/* Round 10 (table review S3): a track whose file is missing says so before anything is pressed. */}
+        {missing && (
+          <span className="badge warn lv-miss" title="Lyre cannot find this file. Open Find missing files in the Track library to look for it.">
+            Missing
+          </span>
+        )}
         <span className="num lv-dur" title={Math.round(len / 1000) !== Math.round(track.durationMs / 1000) ? `Plays ${formatLength(len)} of the file's ${formatLength(track.durationMs)}` : `Length ${formatLength(track.durationMs)}`}>
           {formatLength(len)}
         </span>
@@ -238,6 +261,29 @@ export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on,
           {track.kind !== "fx" && <ListButtons box={box} what={what} dataLv={dataLv} />}
           {repeatIn && track.kind === "music" && <RepeatOne scene={repeatIn.ref} sceneName={repeatIn.name} trackId={track.id} name={n.name} dataLv={dataLv} shown={on} />}
           <PlayButton box={box} what={what} dataLv={dataLv} extra={track.kind === "fx" ? ", over the music" : ", crossfading from what is playing"} />
+          {inPlaylist && (
+            <PopMenuButton
+              label={`More for ${n.name}`}
+              className="closer lv-hov lv-more-b"
+              ariaLabel={`More for ${n.name}`}
+              title="More"
+              dataK={`${dataLv}-m`}
+              items={() => [
+                {
+                  key: "remove",
+                  content: (
+                    <>
+                      <Icon name="close" size="s" />
+                      Remove from this playlist
+                    </>
+                  ),
+                  onSelect: () => void removeFromPlaylist(inPlaylist, track, n.name, dataLv),
+                },
+              ]}
+            >
+              <Icon name="more" />
+            </PopMenuButton>
+          )}
         </span>
       </div>
       {open && (
@@ -271,6 +317,30 @@ export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on,
       )}
     </li>
   );
+}
+
+/**
+ * Round 10 fixes (Nik, 18 Nov, answer 1): Remove from this playlist on a track of a manual playlist unfolded in Live,
+ * with Live's Undo in the top bar (it goes back at its place). The track stays in the Track library. Focus goes to the
+ * next track's ⋯, else the one before, else Undo.
+ */
+function useRemoveFromPlaylist(): (p: PlaylistInfo, track: LibraryTrack, name: string, dataLv: string) => Promise<void> {
+  const api = useLyreApi();
+  const write = useWrite();
+  const { say } = useAnnounce();
+  return async (p, track, name, dataLv) => {
+    if (p.kind !== "manual") return;
+    const at = p.trackIds.indexOf(track.id);
+    if (at < 0) return;
+    if ((await write(api.playlists.removeTrack(p.id, track.id))) === undefined) return;
+    const text = `Removed ${name} from ${p.name}`;
+    offerSoftUndo({ text, focus: `${dataLv}-m`, restore: () => void write(api.playlists.addTracks(p.id, [track.id], at)) }, UNDO_MS);
+    say(`${text}. It is still in the Track library. To undo this, press Undo or Ctrl+Z within 8 seconds.`);
+    const rest = p.trackIds.filter((id) => id !== track.id);
+    const next = rest[at] ?? rest[at - 1];
+    const prefix = dataLv.slice(0, dataLv.length - track.id.length);
+    focusLiveSoon(next ? [`${prefix}${next}-m`, "undo"] : ["undo"]);
+  };
 }
 
 /** The Audio profile's place for a row: the scene, else the playlist; none for a track on its own. */

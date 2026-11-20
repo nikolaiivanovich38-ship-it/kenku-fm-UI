@@ -47,10 +47,17 @@ export function BotsPane() {
       silent
       describe="Each bot is one voice in Discord: one room at a time."
       actions={
-        <button type="button" className="btn s" data-k="st-add" onClick={() => setAdding(true)} disabled={!client}>
-          <Icon name="plus" size="s" />
-          Add a bot
-        </button>
+        <>
+          {/* Round 10 (Nik, 18 Nov 03:14, answer 2): the Rooms screen, as it stands, is reached from here too. */}
+          <a className="btn s ghost" href="#/outputs" data-k="st-rooms" title="Which bot is in which voice channel">
+            <Icon name="broadcast" size="s" />
+            Rooms
+          </a>
+          <button type="button" className="btn s" data-k="st-add" onClick={() => setAdding(true)} disabled={!client}>
+            <Icon name="plus" size="s" />
+            Add a bot
+          </button>
+        </>
       }
     >
       {outputs?.legacyTokenNote && client && <LegacyTokenNote encrypted={outputs.encryption} client={client} />}
@@ -254,6 +261,7 @@ function BotRow({ bot, outputs, client }: { bot: LyreBot; outputs: LyreOutputs; 
           </>
         )}
       </div>
+      <StartVolume bot={bot} client={client} />
       {bot.login === "ready" && (
         <div className="st-bot-2">
           <span className="st-l">Servers</span>
@@ -303,6 +311,49 @@ function InviteLink({ applicationId, client, className, children, dataK, onOpene
     </a>
   );
 }
+
+/**
+ * Round 10 (Nik, 18 Nov 03:14, answer 3): the bot's volume when Nik joins it to a room. Bots never join by themselves at
+ * start, so there is no "Joins when Lyre starts". The thumb follows at once; the main process keeps the number.
+ */
+function StartVolume({ bot, client }: { bot: LyreBot; client: OutputsClient }) {
+  const { saved } = useAnnounce();
+  const id = useId();
+  const kept = Math.round((bot.startVolume ?? DEFAULT_START_VOLUME) * 100);
+  const [shown, setShown] = useState(kept);
+  useEffect(() => setShown(kept), [kept]);
+  return (
+    <div className="st-bot-2 st-botstart">
+      <label className="st-l" htmlFor={id}>
+        Starting volume
+      </label>
+      <input
+        type="range"
+        id={id}
+        className="st-svol"
+        min={0}
+        max={100}
+        step={5}
+        value={shown}
+        aria-valuetext={`${shown} percent`}
+        title="The bot’s volume when it joins a room"
+        onChange={(event) => setShown(Number(event.target.value))}
+        onPointerUp={() => commit()}
+        onKeyUp={() => commit()}
+        onBlur={() => commit()}
+      />
+      <span className="num faint">{shown}%</span>
+    </div>
+  );
+  function commit() {
+    if (shown === kept) return;
+    client.setStartVolume(bot.id, shown / 100);
+    saved(`${bot.name} starting volume ${shown}%`, { key: `startvol-${bot.id}` });
+  }
+}
+
+/** Round 10: a bot's starting volume until one is chosen (rooms start at 85 % in the audio host too). */
+const DEFAULT_START_VOLUME = 0.85;
 
 function RenameSheet({ bot, client, onClose }: { bot: LyreBot; client: OutputsClient; onClose: () => void }) {
   const saved = useSaved();

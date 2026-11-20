@@ -72,6 +72,10 @@ export interface BotState {
    * Lyre's player and the tabs routed there); missing means 1. Muting is `muted`.
    */
   volume?: number;
+  // --- r10-live ---
+  /** Round 10: the volume its room starts at when it joins a room from none (Settings › Discord bots), 0 to 1. */
+  startVolume?: number;
+  // --- end r10-live ---
 }
 
 export interface OutputsState {

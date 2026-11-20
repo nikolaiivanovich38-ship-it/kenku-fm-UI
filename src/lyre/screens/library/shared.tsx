@@ -5,7 +5,7 @@
  */
 import React, { useCallback } from "react";
 import type { DomainTrack } from "../../../common/domain";
-import { isRefused, type TagGroup, type WriteResult } from "../../../common/lyre/api";
+import { isRefused, type PlaylistInfo, type TagGroup, type WriteResult } from "../../../common/lyre/api";
 import { TagStrip } from "../../kit/TagStrip";
 import { ProfileLink } from "../../kit/ProfileLink";
 import { TrackNameLink } from "../../kit/trackName";
@@ -13,6 +13,7 @@ import { PreviewButton } from "../../kit/SoundButtons";
 import type { NowPlaying } from "../../audio";
 import { useAnnounce } from "../../shell/Announcer";
 import { fmt } from "./model";
+import { deleteKeyOnRow, DividedTrackList, dividersBefore, TrackInPlaylistMenu, useRemoveFromPlaylist } from "./PlaylistTrackList";
 
 /* ---------- writes ---------- */
 
@@ -89,13 +90,51 @@ export interface ContentsTrack extends Pick<DomainTrack, "tags" | "shape" | "sug
   durationMs: number;
 }
 
-/** The inside of a playlist's expander: its tracks in order, each with its tags (ORG-11), its Audio profile here and Preview. */
-export function PlaylistContents({ playlistId, name, dynamic, tracks, groups }: { playlistId: string; name: string; dynamic: boolean; tracks: ContentsTrack[]; groups: readonly TagGroup[] }) {
+/**
+ * The inside of a playlist's expander: its tracks in order, each with its tags (ORG-11), its Audio profile here and
+ * Preview; round 9: its dividers as headings (item 42); round 10: a manual playlist's track has a ⋯ with Remove from this
+ * playlist (with Undo) and Delete on its row does the same (R10-FIX §1).
+ */
+export function PlaylistContents({
+  playlistId,
+  name,
+  dynamic,
+  tracks,
+  groups,
+  playlist,
+}: {
+  playlistId: string;
+  name: string;
+  dynamic: boolean;
+  tracks: ContentsTrack[];
+  groups: readonly TagGroup[];
+  /** The playlist itself: its dividers, and Remove from this playlist for a manual one. */
+  playlist?: PlaylistInfo;
+}) {
+  const remove = useRemoveFromPlaylist();
   if (!tracks.length) return <p className="hint">No tracks yet{dynamic ? ": no track matches its tags." : "."}</p>;
+  const manual = playlist?.kind === "manual";
+  const take = async (index: number) => {
+    const t = tracks[index];
+    if (!playlist || !t || !(await remove(playlist, t.id))) return;
+    // Focus goes to the next track's ⋯ (or the one before), as on the playlist's page.
+    const next = tracks[index + 1] ?? tracks[index - 1];
+    focusSoon(next ? `xpm-${playlist.id}-${next.id}` : "plfq");
+  };
   return (
-    <ol className="list" aria-label={`Tracks in ${name}`}>
-      {tracks.map((t, i) => (
-        <li key={t.id} className="xp-row">
+    <DividedTrackList
+      label={`Tracks in ${name}`}
+      items={tracks}
+      dividers={playlist ? dividersBefore(playlist) : new Map()}
+      onKeyDown={(event) => {
+        if (!manual || !deleteKeyOnRow(event)) return;
+        const row = (event.target as HTMLElement).closest<HTMLElement>("li[data-tid]");
+        if (!row) return;
+        event.preventDefault();
+        void take(Number(row.dataset.index));
+      }}
+      renderItem={(t, i) => (
+        <li key={`${t.id}:${i}`} className="xp-row" data-tid={t.id} data-index={i}>
           <span className="faint num">{i + 1}</span>
           <TrackNameLink trackId={t.id} className="grow ellipsis" title={t.title}>
             {t.title}
@@ -104,9 +143,10 @@ export function PlaylistContents({ playlistId, name, dynamic, tracks, groups }: 
           <span className="num faint">{fmt(t.durationMs)}</span>
           <ProfileLink trackId={t.id} title={t.title} place={`pl:${playlistId}`} placeName={`the playlist ${name}`} iconOnly />
           <PreviewButton target={{ kind: "track", id: t.id }} name={t.title} />
+          {manual && playlist && <TrackInPlaylistMenu pl={playlist} trackId={t.id} title={t.title} onRemove={() => void take(i)} />}
         </li>
-      ))}
-    </ol>
+      )}
+    />
   );
 }
 

@@ -42,6 +42,10 @@ export interface LyreBot {
   muted: boolean;
   /** The room's volume, 0 to 1. */
   volume: number;
+  // --- r10-live ---
+  /** Round 10: the room's volume when the bot joins a room from none (Settings › Discord bots), 0 to 1; 0.85 if missing. */
+  startVolume?: number;
+  // --- end r10-live ---
   /** The servers this bot can join channels in. */
   serverIds: string[];
 }
@@ -156,6 +160,7 @@ function botOf(bot: BotState, canRemove: boolean): LyreBot {
     room: roomOf(bot.voice),
     muted: bot.muted,
     volume: bot.volume ?? 1,
+    ...(bot.startVolume !== undefined ? { startVolume: bot.startVolume } : {}),
     serverIds: bot.guilds.map((guild) => guild.id),
   };
 }

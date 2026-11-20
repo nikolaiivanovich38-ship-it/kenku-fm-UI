@@ -995,3 +995,140 @@ describe("volume normalisation (PLY-15)", () => {
     expect(report().ambience?.gainDb).toBe(0);
   });
 });
+
+/* Round 10 (ROUND10.md, table review M4; Nik, 18 Nov 08:36, answer 6a): Play on air, Fade all and Stop all have Undo,
+   which brings every room back where it was. */
+describe("round 10: every room's snapshot and its Undo", () => {
+  it("after Stop all, restoring the snapshot brings back each room's music and ambience from where they were", async () => {
+    await run({ type: "startScene", scene: S1 });
+    await run({ type: "playTrack", trackId: "m3", target: whisper });
+    await context.advance(2);
+    const snapshot = director.snapshotRooms();
+    await run({ type: "stopAll" });
+    await context.advance(1);
+    expect([music(), ambience(), music("whisper")]).toEqual([null, null, null]);
+    expect(director.restoreRooms(snapshot, { sameTime: true })).toEqual({ ok: true });
+    await context.flush();
+    expect([music(), ambience(), music("whisper")]).toEqual(["m1", "amb1", "m3"]);
+    await context.advance(0.1);
+    // Back where it was when the snapshot was taken (2 s in), not where it would be had it kept playing.
+    expect(director.report()[0].music?.positionSeconds).toBeCloseTo(2, 0);
+  });
+
+  it("after Play on air, restoring puts back what the room played, with the scene's plan after it", async () => {
+    await run({ type: "startScene", scene: S1 });
+    await context.advance(1);
+    const snapshot = director.snapshotRooms();
+    await run({ type: "playTrack", trackId: "x", target: table });
+    expect(music()).toBe("x");
+    director.restoreRooms(snapshot);
+    await context.flush();
+    expect(music()).toBe("m1");
+    expect(await listenToMusic(6)).toEqual(["m1", "m2"]);
+  });
+
+  it("a room that has gone since the snapshot is left out; the others come back", async () => {
+    await run({ type: "playTrack", trackId: "m1", target: table });
+    await run({ type: "playTrack", trackId: "m2", target: whisper });
+    const snapshot = director.snapshotRooms();
+    await run({ type: "stopAll" });
+    rooms.setRooms(["Table"]);
+    expect(director.restoreRooms(snapshot)).toEqual({ ok: true });
+    await context.flush();
+    expect(music()).toBe("m1");
+  });
+
+  it("a snapshot with nothing playing says there is nothing to undo", async () => {
+    const snapshot = director.snapshotRooms();
+    expect(director.restoreRooms(snapshot).ok).toBe(true);
+    expect(director.snapshotHasSound(snapshot)).toBe(false);
+  });
+});
+
+/* Round 9 §6 (item 31: "select any track in it to play"), built in round 10: Play now on a planned Up next row. */
+describe("round 10: Play now on a planned track in Up next", () => {
+  it("plays that step of the plan now, and the plan goes on from there", async () => {
+    await run({ type: "startScene", scene: S3 });
+    await context.advance(1);
+    const later = director.report()[0].list.find((e) => e.kind === "plan" && e.trackId === "m2")!;
+    expect(director.playUpNext(later.ref, table)).toEqual({ ok: true });
+    await context.flush();
+    expect(music()).toBe("m2");
+    expect(director.report()[0].list.find((e) => e.kind === "plan")?.trackId).not.toBe("sting");
+  });
+
+  it("an added entry or one that has gone says so", async () => {
+    await run({ type: "startScene", scene: S3 });
+    expect(director.playUpNext({ kind: "plan", key: "s:99" }, table).ok).toBe(false);
+  });
+});
+
+/* Round 9 §11, built in round 10 (item 47: "Let's definitely build dip music for sound effects (pad effects)"; Nik
+   18 Nov 03:14, answer 12): the music dips under an effect, -6 or -12 dB, 0.1 s down, back over 0.5, 1.5 or 3 s,
+   lasting until the last dipping effect ends, never stacking. */
+describe("round 10: dipping the music under effects", () => {
+  const dip = { db: 6, backSeconds: 1.5, ambience: false };
+  beforeEach(() => director.setDip(dip));
+  const dipped = () => director.report()[0].dipped;
+
+  it("a one-shot pad dips the music by 6 dB in 0.1 s and it comes back when the pad ends; the ambience stays", async () => {
+    await run({ type: "startScene", scene: S1 });
+    await context.advance(4.5);
+    const before = rooms.hear("table", "music");
+    await run({ type: "firePad", boardId: "b", padId: "door", target: table });
+    await context.advance(0.2);
+    expect(dipped()).toEqual({ music: true, ambience: false });
+    expect(rooms.hear("table", "music")).toBeCloseTo(before * 10 ** (-6 / 20), 1);
+    expect(rooms.hear("table", "ambience")).toBeCloseTo(1, 1);
+    await context.advance(4);
+    expect(dipped()).toEqual({ music: false, ambience: false });
+    expect(rooms.hear("table", "music")).toBeCloseTo(before, 1);
+  });
+
+  it("two dipping effects do not stack; the dip lasts until the last one ends", async () => {
+    await run({ type: "playTrack", trackId: "m1", target: table });
+    await context.advance(4);
+    const before = rooms.hear("table", "music");
+    await run({ type: "firePad", boardId: "b", padId: "door", target: table });
+    await context.advance(1);
+    await run({ type: "firePad", boardId: "b", padId: "knock", target: table });
+    await context.advance(0.2);
+    expect(rooms.hear("table", "music")).toBeCloseTo(before * 10 ** (-6 / 20), 1);
+    await context.advance(1.2); // the door's 2 s are over, the knock still sounds
+    expect(dipped().music).toBe(true);
+  });
+
+  it("a toggle pad does not dip by default; a pad chosen to dip does; Off never dips", async () => {
+    await run({ type: "playTrack", trackId: "m1", target: table });
+    await run({ type: "firePad", boardId: "b", padId: "rain", target: table });
+    await context.advance(0.3);
+    expect(dipped().music).toBe(false);
+    data.pads.find((p) => p.padId === "rain")!.dip = true;
+    await run({ type: "firePad", boardId: "b", padId: "rain", target: table }); // off
+    await run({ type: "firePad", boardId: "b", padId: "rain", target: table }); // on again, dipping
+    await context.advance(0.3);
+    expect(dipped().music).toBe(true);
+    director.setDip({ ...dip, db: 0 });
+    await run({ type: "firePad", boardId: "b", padId: "door", target: table });
+    await context.advance(0.3);
+    expect(dipped().music).toBe(false);
+  });
+
+  it("Ambience dips too, when chosen", async () => {
+    director.setDip({ ...dip, ambience: true });
+    await run({ type: "startScene", scene: S1 });
+    await context.advance(4);
+    await run({ type: "firePad", boardId: "b", padId: "door", target: table });
+    await context.advance(0.2);
+    expect(dipped()).toEqual({ music: true, ambience: true });
+  });
+
+  it("a Short cue played over the music dips it the same way", async () => {
+    await run({ type: "playTrack", trackId: "m1", target: table });
+    data.tracks.push(track("cue", 3, { kind: "fx", role: "sting" }));
+    context.mediaDurations.set("file:///cue.ogg", 3);
+    await run({ type: "playTrack", trackId: "cue", target: table });
+    await context.advance(0.3);
+    expect(dipped().music).toBe(true);
+  });
+});

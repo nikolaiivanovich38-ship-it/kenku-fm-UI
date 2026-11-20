@@ -256,6 +256,11 @@ export const IPC_CHANNELS = {
   // arguments). Replaces LYRE_CLEAR_WEBSITE_DATA; the Website tabs and Local files channels (LYRE_WINDOW_SETTINGS_*,
   // LYRE_LOCAL_FOLDERS_*) went with their boxes.
   LYRE_EMPTY_AUDIO_CACHE: { from: ["lyre-view"], args: noArgs },
+  // --- r10-live ---
+  // Round 10 (src/main/broadcast/lyreOutputsBridge.ts): Settings › Discord bots › Starting volume (send): a bot id from
+  // the store's pattern and a number from 0 to 1. The main process keeps it in discord-bots.json and gives the bot's
+  // room that volume the next time it joins a room from none.
+  LYRE_OUTPUT_SET_START_VOLUME: { from: ["lyre-view"], args: argsMatch(isBotId, isUnitInterval) },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

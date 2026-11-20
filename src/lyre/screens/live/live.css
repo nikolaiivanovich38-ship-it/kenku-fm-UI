@@ -281,9 +281,12 @@
 .lv-warn { flex: none; }
 /* Narrow strip: the session name keeps room; Fade all and Stop all become icon buttons (names kept for screen readers). */
 .lv-sess { min-width: 140px; }
-@container app (max-width: 900px) {
-  .lv-top .lv-btxt { display: none; }
-  .lv-top .lv-fade, .lv-top .lv-stop { width: var(--ctl-s); padding: 0; }
+/* Round 10 (Nik, 18 Nov, answer 2): Fade all and Stop all keep their words from 1000 px of app (a whole window, half a
+   2560 screen); at half a 1920 screen there is no room beside Back, the trail, the session, Prep | Live, Find and Undo,
+   so they are icons there, their names read out and on hover. */
+@container app (max-width: 999px) {
+  .lv-top .lv-fade .lv-btxt, .lv-top .lv-stop .lv-btxt { display: none; }
+  .lv-top .lv-fade, .lv-top .lv-stop { width: var(--ctl-s); padding: 0; justify-content: center; }
 }
 
 /* ---------- Outputs inline in On air; one section per mix ---------- */
@@ -432,7 +435,7 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
   background: var(--surface); border: 1px solid var(--line-strong); border-top: 3px solid var(--line-strong); border-radius: var(--r-l); box-shadow: var(--shadow); }
 .lv-found .lv-off-f { padding: 6px 6px 6px 8px; }
 .lv-top { gap: 8px; }
-.lv-top > .lv-find + .btn { margin-left: auto; }
+.lv-top > .lv-find + .lv-undoplace { margin-left: auto; }
 /* Rows (Nik, 6 Nov 13:55, Should 8 of the round 6 review): Preview, Play next and Add to queue always show, greyed at
    rest (icons, so nothing more to read), in full colour on the row on air, on hover and on keyboard focus. */
 .lv-trk-acts:not(.shown) .lv-hov { color: var(--ink-3); }
@@ -485,7 +488,12 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
    scene a thick accent edge down its left side; the box icons are 18 px. The session's and the campaign's boxes sit
    in two trays, headed "This session" (filled) and "Whole campaign" (outlined), so their position says which is which. */
 .lv .pane > header .pane-toggle > svg.i:not(.chev) { width: 18px; height: 18px; }
-.lv-dock .pane.k-onair > header { background: color-mix(in srgb, var(--onair) 34%, var(--surface-2)); border-bottom-color: var(--onair); }
+/* Round 10 (look M1, K1): one red lamp in On air's header, lit while any room plays; no tinted band. */
+.lv-dock .pane.k-onair > header { background: var(--surface-2); border-bottom-color: var(--line); box-shadow: inset 4px 0 0 var(--onair); }
+.lv-dock .pane.k-onair > header .pane-title::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 50%;
+  border: 2px solid var(--onair); vertical-align: 0; background: var(--onair); box-shadow: 0 0 8px var(--onair); }
+.lv-dock .pane.k-onair:not(:has(.lv-rm:not(.is-silent))) > header .pane-title::before { background: transparent; box-shadow: none; }
+.lv-rm:not(.is-silent) { box-shadow: inset 4px 0 0 var(--onair); background: color-mix(in srgb, var(--onair) 5%, transparent); }
 .lv .pane.k-current { border-left: 5px solid var(--accent); }
 .lv-grp { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 4px 6px 6px; border-radius: var(--r-l); }
 .lv-grp-ss { background: color-mix(in srgb, var(--ink) 12%, var(--bg)); }
@@ -503,7 +511,7 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
   .lv-top .crumbs { order: 5; }
   .lv-top .lv-sess { order: 6; flex: 0 1 auto; min-width: 0; }
   .lv-top .lv-find { order: 7; flex: 1 1 120px; max-width: none; min-width: 0; }
-  .lv-top > .lv-find + .btn { margin-left: 0; }
+  .lv-top > .lv-find + .lv-undoplace { margin-left: 0; }
 }
 /* Must 4 (WCAG 1.4.10 Reflow): below 640 px of app (320 px windows, 200 % zoom) the top strip wraps (Prep | Live and
    the icon buttons, then the session, then Find a track the whole width), a room's header wraps (its name and status,
@@ -511,7 +519,7 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 @container app (max-width: 639px) {
   .lv-top { flex-wrap: wrap; row-gap: 6px; }
   .lv-top .lv-find { order: 10; flex: 1 1 100%; max-width: none; min-width: 0; }
-  .lv-top > .lv-find + .btn { margin-left: 0; }
+  .lv-top > .lv-find + .lv-undoplace { margin-left: 0; }
   .lv-top .lv-sess { order: 5; min-width: 0; flex: 1 1 100%; }
   .lv-top .mode-switch button { padding: 0 6px; }
   .lv-rm-h { flex-wrap: wrap; row-gap: 2px; padding-top: 4px; padding-bottom: 4px; }
@@ -566,13 +574,9 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
   .lv-top .lv-sess { order: 6; flex: 1 1 0; }
   .lv-dock { padding: 6px 6px 0; }
 }
-/* With Back and the trail in the strip, below 1100 px of app (960 windows) Fade all and Stop all are icons (their names
-   are read out and on hover), so Find keeps its words. The session shows its number only at every width (its name is
-   read out and on hover): the trail reads Campaign › Session, and Live's words stay at part 5's. */
-@container app (max-width: 1100px) {
-  .lv-top .lv-btxt { display: none; }
-  .lv-top .lv-fade, .lv-top .lv-stop { width: var(--ctl-s); padding: 0; }
-}
+/* The session shows its number only at every width (its name is read out and on hover): the trail reads Campaign ›
+   Session. Round 10: Fade all and Stop all are icons below 1000 px of app (Nik, 18 Nov, answer 2; the rule above), not
+   1100 px. */
 /* Part 6 follow-up: names in Scenes and Current scene stay readable at 1280 and 960 (UX-6: a name wraps to two lines,
    then shows whole on hover (its title) and while its row has keyboard focus). While every box in the trays is folded,
    the trays' column is only as wide as its folded headers need, and Scenes and Current scene get the room. A name keeps
@@ -622,3 +626,93 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-lane-tl > .lv-loop { flex: none; }
 .lv-lane-tl > a.track-link { min-width: 0; flex: 0 1 auto; }
 .lv-loop-none { opacity: .7; }
+
+/* ---------- Round 10: one Undo place in the top bar (table review M1, T1) ----------
+   The place is kept whether Undo shows or not, so nothing in the bar moves when it appears or goes. At half a screen
+   the bar has no room to keep: the place opens when Undo shows, and only Find gives way. Below 1100 px the button is an
+   icon (its word was cut to "U" there); its name and the hover text (Ctrl+Z) stay. */
+.lv-undoplace { flex: 0 1 260px; min-width: 0; display: flex; align-items: center; height: 28px; }
+.lv-undoplace:empty { flex: 0 1 200px; }
+.lv-undoplace:not(:empty) { min-width: 104px; }
+.lv-undoplace .lv-undo { margin: 0; flex: 1; min-width: 0; min-height: 0; height: 28px; box-sizing: border-box; padding: 0 2px 0 8px; gap: 6px;
+  border: 1px solid var(--accent); border-radius: var(--r-m); background: var(--accent-soft); font-size: var(--fs-s); }
+.lv-undoplace .lv-undo > .ellipsis { min-width: 0; }
+.lv-undoplace .lv-undo .btn { flex: none; max-width: none; }
+.lv-undoplace .lv-undo-bar > span { background: var(--accent); }
+.lv-top .lv-stop { margin-left: 6px; }
+@container app (max-width: 1099px) {
+  .lv-undoplace:empty { flex-basis: 0; }
+  .lv-undoplace { flex-shrink: 2; }
+  .lv-undoplace:not(:empty) { min-width: 0; flex: none; }
+  .lv-undoplace .lv-undo > .ellipsis { display: none; }
+  .lv-undoplace .lv-undo { padding: 0 2px; }
+  .lv-undoplace .lv-undo .btn { width: var(--ctl-s); padding: 0; justify-content: center; }
+  .lv-undoplace .lv-undo .btn > .lv-btxt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+
+/* ---------- Round 10: On air keeps its height (table review M1); the transport (look M3, table S2) ----------
+   Music and ambience keep one height, playing or not, and the title has room for two lines; the Effects line is always
+   there and Up next keeps room for its first line, so starting a scene or firing a pad moves nothing. */
+.lv-lane.lv-m { min-height: 114px; }
+.lv-lane.lv-a { min-height: 96px; }
+.lv-lane.lv-lane-empty { border-bottom: 1px solid var(--line); }
+.lv-line.lv-fx { min-height: 32px; }
+.lv-line.lv-fx-empty { border-bottom: 1px solid transparent; }
+.lv-lane-tl { min-height: 40px; align-items: flex-start; }
+.lv-lane-tl > .lv-loop { margin-top: 2px; }
+.lv-lane-tl > a.lv-clamp2-l { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; overflow-wrap: anywhere;
+  line-height: 20px; min-height: 24px; }
+.lv-rm-up { min-height: 32px; }
+.lv-transport { display: flex; align-items: center; gap: 3px; }
+.lv-transport .lv-tmain { width: 34px; height: 34px; min-width: 34px; background: var(--ink); color: var(--bg); border-color: var(--ink); border-radius: 50%; }
+.lv-transport .lv-tmain:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.lv-tgap { width: 10px; flex: none; }
+.lv-tblank { width: var(--ctl-s); height: var(--ctl-s); flex: none; }
+.lv-transport .lv-tstop:not(:hover):not(:focus-visible) { opacity: .8; }
+
+/* ---------- Round 10: rows (table review S3, S5) ----------
+   Play on air stands apart, last, after a gap, in the On air colour on hover and focus; a missing file says Missing. */
+.lv-trk-acts .lv-air { margin-left: 8px; }
+.lv-trk-acts .lv-air:is(:hover, :focus-visible) { color: var(--onair); border-color: var(--onair); }
+.lv-miss { flex: none; }
+.lv-missing .lv-trk-t { color: var(--ink-2); }
+/* A pad with no sound is dashed and says so on its face (table review S3); pressing it shows the warning pop-up. */
+.lv-pad.lv-pad-none { border-style: dashed; border-color: var(--warn); background: transparent; color: var(--ink-2); flex-wrap: wrap; align-content: center; row-gap: 0; }
+.lv-pad-none .lv-pad-l { flex: 1 1 60%; }
+.lv-pad-nosound { flex: 0 0 100%; order: 5; font-size: var(--fs-xs); line-height: 14px; font-weight: 700; color: var(--warn); }
+
+/* ---------- Round 10: Arrange (Nik, 18 Nov 03:14, answer 6; r9live.js §5) ----------
+   Each box gets a row above it (grip, name, Move…), never over its title; its bottom edge is dragged for height and the
+   bar between columns for widths. The boxes cannot be used while arranging (inert), and look so. */
+.lv-arrbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px; margin: 6px 8px; border: 1px dashed var(--accent); border-radius: var(--r-m);
+  background: var(--accent-soft); font-size: var(--fs-s); flex: none; }
+.lv-arrbar.lv-topover { box-shadow: 0 4px 0 var(--accent); }
+.lv-arrbox { position: relative; border: 1px dashed var(--accent); border-radius: var(--r-l); margin-bottom: 8px; min-width: 0; }
+.lv-arrbox.lv-arrtop { margin: 0 8px 8px; flex: none; }
+.lv-arrbox.lv-before { box-shadow: 0 -4px 0 var(--accent); }
+.lv-arrbox.lv-after { box-shadow: 0 4px 0 var(--accent); }
+.lv-arr { display: flex; align-items: center; gap: 6px; margin: 4px 4px 0; min-width: 0; font-size: var(--fs-s); }
+.lv-arr-grip { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; flex: none; border-radius: var(--r-s);
+  background: var(--accent); color: var(--accent-ink); cursor: grab; }
+.lv-arr-n { flex: 1; min-width: 0; color: var(--ink-2); }
+.lv-arr-move { flex: none; background: var(--surface); border-color: var(--accent); }
+.lv-arrin { opacity: .7; }
+.lv-arrbox .lv-arrin > .lv-dock { max-height: none; padding: 0; }
+.lv-arrin.lv-fixed, .lv-fixed { max-height: var(--lv-h); overflow: auto; }
+.lv-fixed { margin-bottom: 8px; border-radius: var(--r-l); }
+.lv-edge-b { position: absolute; left: 30%; right: 30%; bottom: -5px; height: 10px; border-radius: 5px; background: var(--accent); opacity: .55; cursor: ns-resize; }
+.lv-edge-b:hover, .lv-arrbox.lv-sizing .lv-edge-b { opacity: 1; }
+.lv-split { display: flex; flex-direction: column; align-items: center; padding-top: 36px; position: relative; cursor: col-resize; }
+.lv-split-bar { width: 6px; flex: 1; border-radius: 3px; background: var(--line-strong); }
+.lv-split.on .lv-split-bar, .lv-split:hover .lv-split-bar { background: var(--accent); }
+.lv-cols.lv-arranging > .col:empty { min-height: 120px; outline: 2px dashed var(--line-strong); outline-offset: -2px; border-radius: var(--r-l); }
+/* On air moved into a column: the dock is a box like the others there. */
+.lv-dock.lv-dock-in { max-height: none; padding: 0; margin-bottom: 8px; overflow: visible; }
+
+/* Round 9 (item 47), round 10 (look D6): Dipped is a status in words, not a button-looking chip. */
+.lv-dipped { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: 700; color: var(--warn); }
+.lv-dipped::before { content: ""; width: 9px; height: 6px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: skewX(-25deg); }
+
+/* Round 10 (R10-FIX §3): Find's results are a side panel beside Live (kit/SidePanel), not over On air. */
+.side-panel .lv-found { position: static; width: auto; max-height: none; height: 100%; border: 0; border-radius: 0; box-shadow: none; overflow-y: auto; }
+.side-panel .lv-found .lv-off-f { position: sticky; top: 0; z-index: 1; background: var(--surface); flex-wrap: wrap; }

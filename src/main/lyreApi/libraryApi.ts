@@ -77,6 +77,7 @@ import {
   clearPlayOrder,
   clearProfileOverride,
   copyPlaylist,
+  movePlaylist,
   createBoard,
   createCampaign,
   createPlaylist,
@@ -178,6 +179,9 @@ import {
   type TagReader,
   type UseTarget,
 } from "../data";
+import { newId } from "../data/repo/common";
+import type { SQLInputValue } from "../data/sqlite";
+import { partProfile, SHARED_FILE, splitProblem } from "../../common/lyre/trackParts";
 import { nextTurn } from "../data/store";
 import { diskProbe, type FileProbe, type SoundProbe } from "../data/import/relink";
 import { joinRoot, unsafeFolderReason } from "../data/paths";
@@ -319,8 +323,18 @@ type TrackExtra = {
   source_album: string | null;
   created_at: number;
   is_new: number;
+  // Schema version 11 (r10-tracks): a part's whole track and its cut.
+  part_of: string | null;
+  part_start_ms: number | null;
+  part_end_ms: number | null;
 };
-const TRACK_EXTRA_SQL = "SELECT id, root_id, path, url, file_size, notes, source_composer, source_album, created_at, is_new FROM tracks";
+const TRACK_EXTRA_SQL = "SELECT id, root_id, path, url, file_size, notes, source_composer, source_album, created_at, is_new, part_of, part_start_ms, part_end_ms FROM tracks";
+/**
+ * Round 9 (Split into parts): the columns a part copies from its whole track as they are (its file and where it came
+ * from), and those it copies only with "Copy its tags, Type and Use it for". Everything else starts as a new track's.
+ */
+const PART_FILE_COLUMNS = ["kind", "meta_title", "root_id", "path", "url", "file_name", "file_size", "file_mtime_ms", "checksum", "duration_ms", "source_composer", "source_album", "source_cue_number", "normalise"];
+const PART_TAG_COLUMNS = ["energy", "role", "loopable", "shape"];
 
 export function createLibraryApi(library: Library, host: LibraryHost, options: LibraryApiOptions = {}): LibraryApi {
   const { store, history } = library;
@@ -500,6 +514,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         fadesOut: t.fadesOut ?? false,
         resume: t.resume ?? false,
         follow: t.follow ?? null,
+        partOf: row.part_of === null ? null : { trackId: row.part_of, startMs: row.part_start_ms ?? 0, endMs: row.part_end_ms ?? t.durationMs },
       };
     });
   }
@@ -570,8 +585,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       const order = orders.get(p.id) ?? null;
       const normalise = choices.get(p.id) ?? null;
       return p.kind === "dynamic"
-        ? { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes, folderId: p.folderId, dividers: [] }
-        : { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes, folderId: p.folderId, dividers: dividers.get(p.id) ?? [] };
+        ? { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes, folderId: p.folderId, dividers: [], createdAt: p.createdAt }
+        : { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes, folderId: p.folderId, dividers: dividers.get(p.id) ?? [], createdAt: p.createdAt };
     });
   }
   const requirePlaylist = (id: string) => playlistInfos().find((p) => p.id === id) ?? refuse("not-found", ENTITY_WORDS.playlist);
@@ -835,6 +850,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const changes: Record<string, unknown> = {};
           for (const key of ["title", "notes", "energy", "role", "kind"] as const) if (patch[key] !== undefined) changes[key] = patch[key];
           if (patch.loop !== undefined) changes.loopable = patch.loop;
+          // Round 9 (At its end, r10-tracks): the track's own profile in the same undo step.
+          if (patch.profile !== undefined) changes.profile = patch.profile;
           // Round 7 (PLY-4, SHW-3): how it plays, in the same undo step.
           const play: Record<string, unknown> = {};
           for (const key of ["fadesOut", "resume", "follow"] as const) if (patch[key] !== undefined) play[key] = patch[key];
@@ -904,6 +921,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           for (const id of ids) {
             const file = fullPath(store.get<TrackExtra>(`${TRACK_EXTRA_SQL} WHERE id = ?`, id) as TrackExtra, roots);
             if (file === null) problems.push({ trackId: id, reason: "It plays from a web address, not a file on this computer." });
+            // Round 9: a part shares its whole track's file, so neither goes to the Recycle Bin.
+            else if (store.get("SELECT 1 FROM tracks WHERE id = ? AND part_of IS NOT NULL UNION ALL SELECT 1 FROM tracks WHERE part_of = ? LIMIT 1", id, id)) problems.push({ trackId: id, reason: SHARED_FILE });
             else if (!(await probe.exists(file))) problems.push({ trackId: id, reason: "Its file is not where your library expects it." });
             else {
               try {
@@ -918,6 +937,36 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           return { removed, problems };
         }).finally(() => {
           deletingFiles = false;
+        });
+      },
+      // --- r10-tracks --- Round 9 (ROUND9.md §10): tracks that play their part of the same file, in one undo step.
+      async splitIntoParts(trackId, request) {
+        return write(["tracks", "playlists", "profiles"], () => {
+          const whole = requireTrack(trackId);
+          if (whole.partOf) refuse("invalid", "This track is a part already: split the whole track instead.");
+          const problem = splitProblem(request, whole.durationMs);
+          if (problem) refuse("invalid", problem);
+          const row = store.get<Record<string, SQLInputValue>>("SELECT * FROM tracks WHERE id = ?", trackId) as Record<string, SQLInputValue>;
+          const copied = [...PART_FILE_COLUMNS, ...(request.copyTags ? PART_TAG_COLUMNS : [])].filter((c) => c in row);
+          const ids = request.parts.map(() => newId());
+          store.change(`Split ${quoted(shownTitle(whole))} into ${request.parts.length} parts`, () => {
+            request.parts.forEach((part, i) => {
+              const columns: Record<string, SQLInputValue> = { id: ids[i], title: part.name.trim(), is_new: 0, part_of: trackId, part_start_ms: part.startMs, part_end_ms: part.endMs, created_at: store.now(), updated_at: store.now() };
+              for (const c of copied) columns[c] = row[c];
+              const names = Object.keys(columns);
+              store.run(`INSERT INTO tracks (${names.join(", ")}) VALUES (${names.map(() => "?").join(", ")})`, ...names.map((n) => columns[n]));
+              if (request.copyTags) store.run("INSERT INTO track_tags (track_id, tag_id) SELECT ?, tag_id FROM track_tags WHERE track_id = ?", ids[i], trackId);
+              updateTrack(store, ids[i], { profile: partProfile(part, whole.profile?.markers ?? []) });
+            });
+            if (request.addToPlaylists) {
+              for (const pl of playlistInfos()) {
+                if (pl.kind !== "manual") continue;
+                const item = listPlaylistItems(store, pl.id).find((x) => x.kind === "track" && x.trackId === trackId);
+                if (item) addTracksToPlaylist(store, pl.id, ids, { after: item.id });
+              }
+            }
+          });
+          return { trackIds: ids };
         });
       },
       async setKind(trackIds, kind) {
@@ -1046,6 +1095,14 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           let made = "";
           store.change(`Make ${quoted(name)}`, () => (made = copyPlaylist(store, id, { title: name, kind: "manual" }).id));
           return requirePlaylist(made);
+        });
+      },
+      async move(id, toIndex) {
+        // Round 9 (item 38): Your order, among the playlists in the same folder.
+        return write(["playlists"], () => {
+          const pl = requirePlaylist(id);
+          const siblings = playlistInfos().filter((p) => p.folderId === pl.folderId).map((p) => p.id);
+          store.change(`Move the playlist ${quoted(pl.name)}`, () => movePlaylist(store, id, { placement: placementAt(siblings, id, toIndex) }));
         });
       },
       async delete(id) {

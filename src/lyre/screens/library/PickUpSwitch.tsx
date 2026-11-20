@@ -1,5 +1,5 @@
 /**
- * "Pick up where it stopped" (PLY-4): the track starts again where it was last stopped. One switch, shown in the
+ * "Pick up where it stopped" (PLY-4; round 9's words: "Next time, start where it stopped"): the track starts again where it was last stopped. One switch, shown in the
  * Library's How it plays (TrackBehaviour) and, since 0.5.1, in the Audio profile's At the end (Nik, 11 Nov: "I don't
  * see pickup where it stops in details or audio profile views"). It belongs to the track wherever it plays.
  */
@@ -19,7 +19,7 @@ export function PickUpSwitch({ checked, onChange }: { checked: boolean; onChange
       <label className="lv-switch lb-resume" title="A long underscore or bed starts again where it was last stopped">
         <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
         <span className="lv-switch-t">
-          <b>Pick up where it stopped</b>
+          <b>Next time, start where it stopped</b>
         </span>
       </label>
     </div>

@@ -64,6 +64,11 @@ interface OutputManagerEvents {
  * and changes it there (LYRE_BOT_*, LYRE_OUTPUT_*). FND-16: the old main
  * window's channels (OUTPUTS_*, BOT_*, OUTPUT_*) went with it.
  */
+// --- r10-live ---
+/** Round 10: a bot back in a room this soon after Leave (Live's 8-second Undo, and its rejoin) keeps its old volume. */
+const BACK_AFTER_LEAVE_MS = 15_000;
+// --- end r10-live ---
+
 export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   readonly bots = new Map<string, DiscordBot>();
   private localMuted = false;
@@ -79,6 +84,10 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   private retries = new RetryClock();
   /** OUT-5: the rooms last announced, to tell when they change. */
   private lastRooms: Room[] = [];
+  // --- r10-live ---
+  /** Round 10: when each bot last left its room and at what volume, so the Undo of Leave puts that volume back. */
+  private readonly leftAt = new Map<string, { at: number; volume: number }>();
+  // --- end r10-live ---
   /** OUT-5: room volumes by bot id; a bot not listed is at full volume. */
   private volumes = new Map<string, number>();
   /** w51-audio: each bot's counts at the last log line, and the minute timer (running only while packets flow). */
@@ -141,6 +150,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
           }),
           muted: bot.muted,
           volume: this.roomVolume(bot.id),
+          startVolume: this.tokens.startVolume(bot.id),
         };
       }),
       rooms: this.rooms(),
@@ -229,6 +239,8 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
       return;
     }
     const before = bot.voice().filter((session) => session.channelId !== channelId);
+    // Round 10 (Nik, 18 Nov 03:14, answer 3): a bot that joins a room from none starts at its starting volume.
+    const fromNone = !bot.voice().some((session) => session.status !== "error");
     await bot.join(channelId);
     const moved = bot.voice().find((session) => session.channelId === channelId);
     if (!moved || moved.status === "error") {
@@ -243,11 +255,26 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
         bot.leave(session.channelId);
       }
     }
+    if (fromNone) {
+      const left = this.leftAt.get(id);
+      this.leftAt.delete(id);
+      this.setRoomVolume(id, left && Date.now() - left.at < BACK_AFTER_LEAVE_MS ? left.volume : this.tokens.startVolume(id));
+    }
   }
+
+  // --- r10-live ---
+  /** Round 10: Settings › Discord bots › Starting volume (used the next time the bot joins a room from none). */
+  setStartVolume(id: string, volume: number): void {
+    if (!this.bots.has(id) || !this.tokens.setStartVolume(id, volume)) return;
+    this.publish();
+  }
+  // --- end r10-live ---
 
   /** w4-outputs: take a bot out of every voice channel it is in (the Outputs screen's Leave). */
   leaveAll(id: string): void {
     const bot = this.bots.get(id);
+    // Round 10: Undo of Leave puts the bot back at the volume it had, not at its starting volume.
+    if (bot?.voice().some((session) => session.status !== "error")) this.leftAt.set(id, { at: Date.now(), volume: this.roomVolume(id) });
     for (const session of bot?.voice() ?? []) {
       bot?.leave(session.channelId);
     }

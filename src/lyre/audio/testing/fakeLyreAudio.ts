@@ -77,6 +77,18 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   stopPads = this.record("stopPads");
   removeQueued = this.record("removeQueued");
   undoSceneStart = this.record("undoSceneStart");
+  // --- r10-live ---
+  snapshotRooms = (): { rooms: never[] } => {
+    this.calls.push(["snapshotRooms"]);
+    return { rooms: [] };
+  };
+  restoreRooms = this.record("restoreRooms");
+  /** A test says whether the rooms were playing; by default they were, so Live offers Undo. */
+  roomsHadSound = true;
+  snapshotHasSound = (): boolean => this.roomsHadSound;
+  playUpNext = this.record("playUpNext");
+  setDip = this.record("setDip");
+  // --- end r10-live ---
   playNext = this.record("playNext");
   addToQueue = this.record("addToQueue");
   removeFromUpNext = this.record("removeFromUpNext");
@@ -106,6 +118,15 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   stopPreview(): void {
     this.calls.push(["stopPreview"]);
   }
+
+  // --- r10-tracks --- Round 9 (row 20): the preview's queue, as a test sets it.
+  previewQueueNow: import("../lyreAudio").PreviewQueue | null = null;
+  previewQueue() {
+    return this.previewQueueNow;
+  }
+  previewBack = this.record("previewBack");
+  previewForward = this.record("previewForward");
+  previewPlayAt = this.record("previewPlayAt");
 
   setPreviewVolume(volume: number): void {
     this.calls.push(["setPreviewVolume", volume]);

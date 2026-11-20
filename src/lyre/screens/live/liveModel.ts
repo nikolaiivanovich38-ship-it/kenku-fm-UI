@@ -354,6 +354,16 @@ export function endWords(profile: AudioProfile, source: ProfileSource): string {
 }
 
 /**
+ * Round 10 (look M2; 0.5.2 item 53): how the music on air loops, in words, for On air's quiet line under the title,
+ * beside where it comes from (the words of At its end in the Track library).
+ */
+export function loopLine(profile: AudioProfile): string {
+  if (profile.after === "loop") return profile.loopCrossfadeMs > 0 ? `Loops with a ${Math.round(profile.loopCrossfadeMs / 1000)} s crossfade` : "Loops";
+  if (profile.after === "stop") return profile.fadeOut.ms > 0 ? "Fades out" : "Stops";
+  return "Then the next track";
+}
+
+/**
  * 0.5.2 (Nik's item 53): a track's loop setting where it plays (Loop, Crossfade loop, Don't loop): its audio profile
  * there (the place's own, else the track's), else its own choice in the Library. A profile that loops with a crossfade
  * time is Crossfade loop; one that loops without saying is the track's choice.
@@ -367,6 +377,22 @@ export function loopSettingAt(track: LibraryTrack, place: UsePlace | null, playl
   if (profile.loopCrossfadeMs > 0) return "crossfade";
   const own = places.map((p) => overrides[placeKey(p)]?.[track.id]).find(Boolean) ?? track.profile ?? {};
   return own.loopCrossfadeMs === undefined && track.loop === "crossfade" ? "crossfade" : "loop";
+}
+
+/* ---------- pads ---------- */
+
+/**
+ * Round 10 (table review S3): a pad with nothing to play (no track, no tag) and no steps of its own. Its tile is dashed
+ * and says No sound; pressing it shows a warning pop-up instead of doing nothing.
+ */
+export function padHasNoSound(pad: Pick<Pad, "sound" | "steps">): boolean {
+  const s = pad.sound;
+  return s.trackIds.length === 0 && !(s.kind === "tag" && s.tag) && !pad.steps?.length;
+}
+
+/** The warning pop-up's words for a pad with no sound (live.js r10 L.warn). */
+export function noSoundWords(pad: Pick<Pad, "label">): string {
+  return `${pad.label.trim() || "This pad"} has no sound. Choose one on its pad board.`;
 }
 
 /* ---------- keys ---------- */

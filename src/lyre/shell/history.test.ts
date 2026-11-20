@@ -125,7 +125,13 @@ describe("the trail (round 6 part 6)", () => {
     expect(trailOf("backup", NAMES)).toEqual([{ href: "#/library", label: "Track library" }]);
   });
 
-  it.each(["campaigns", "library", "library/t13", "playlists", "boards", "outputs", "settings", "look", "live"])("%s has none", (path) => {
+  it.each(["campaigns", "library", "library/t13", "playlists", "boards", "settings", "look", "live"])("%s has none", (path) => {
     expect(trailOf(path, NAMES)).toEqual([]);
+  });
+});
+
+describe("round 10: Rooms under Settings (Nik, 18 Nov 03:14, answer 2)", () => {
+  it("the Rooms screen's trail is Settings", () => {
+    expect(trailOf("outputs")).toEqual([{ href: "#/settings", label: "Settings" }]);
   });
 });
