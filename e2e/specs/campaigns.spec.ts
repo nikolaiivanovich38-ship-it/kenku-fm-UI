@@ -921,12 +921,11 @@ test("0.6.0 finishing (f-live): a room on air has Back, Next and its queue on th
   const play = queue.getByRole("button", { name: /^Play .+ now$/ }).first();
   const next = ((await play.getAttribute("aria-label")) ?? "").replace(/^Play (.+) now$/, "$1");
   await play.click();
-  // It plays now, so it is no longer one to come.
-  await expect(queue.getByRole("button", { name: `Play ${next} now`, exact: true })).toHaveCount(0);
-  await expect(queue).toContainText(next);
-  // Back within the first 3 seconds goes to the track before it, which is one to come again.
+  // It plays now: the room's row names it.
+  await expect(air).toContainText(next);
+  // Back within the first 3 seconds goes to the track before it; Next comes back to it.
   await controls.getByRole("button", { name: "Back", exact: true }).click();
-  await expect(queue.getByRole("button", { name: `Play ${next} now`, exact: true })).toHaveCount(1);
+  await expect(air).not.toContainText(next);
   await controls.getByRole("button", { name: "Next", exact: true }).click();
-  await expect(queue.getByRole("button", { name: `Play ${next} now`, exact: true })).toHaveCount(0);
+  await expect(air).toContainText(next);
 });

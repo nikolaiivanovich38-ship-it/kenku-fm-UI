@@ -642,6 +642,18 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     expect(rig.audio.roomQueue()).toBeNull();
   });
 
+  it("f-live: Play now from a room's queue plays that planned track", async () => {
+    rig.audio.playPlaylist("P", { fadeMs: 0 });
+    await rig.advance(0.5);
+    const planned = state().rooms[0].upNextList.find((e) => e.kind === "planned")!;
+    expect(planned.trackIds).toEqual(["m3"]);
+    expect(rig.audio.playUpNext(planned.ref)).toEqual({ ok: true });
+    await rig.advance(0.5);
+    expect(state().rooms[0].music?.trackId).toBe("m3");
+    // The playlist goes round again (its usual Repeat all), so Up next starts its next round.
+    expect(state().rooms[0].upNextList.map((e) => e.trackIds[0])).toEqual(["m2", "m3"]);
+  });
+
   it("previews a playlist's first track and a pad's sound, and says when a playlist is empty", async () => {
     rig.audio.previewPlaylist("P");
     expect(state().preview).toMatchObject({ key: "pl:P", label: "Battle: M2" });
