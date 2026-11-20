@@ -22,3 +22,8 @@
 .shape-filter .chip svg.i { width: 12px; height: 12px; }
 .pl-addshapes { padding: 0 10px 8px; }
 .pk-shapes { margin-bottom: 8px; }
+/* The playing title: the loop mark, then the name as a link with the two-line clamp on the link (the app's live.css; the
+   sweep found a clamp on the box cut the link and squeezed the position bar). */
+.lv-lane-tl { display: flex; align-items: flex-start; min-height: 40px; }
+.lv-lane-tl > .lv-loop { flex: none; margin-top: 2px; }
+.lv-lane-tl > a.lv-clamp2-l { min-width: 0; flex: 0 1 auto; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; overflow-wrap: anywhere; line-height: 20px; min-height: 24px; }

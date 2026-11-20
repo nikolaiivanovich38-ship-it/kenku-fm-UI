@@ -448,8 +448,8 @@
       // Round 10 (look M2): the playing title gets up to two lines; it is the most important text on screen.
       // 0.5.2 items 53, 3 and 11 (the app's OnAir; 0.6.0 sync): its loop setting first, so a long name never hides it, and
       // the name is a link to the track's details (the Track panel beside Live, r9nav.js).
-      '<div class="lv-lane-m"><div class="lv-lane-t lv-lane-tl r10-clamp2" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + loopMark(t, L.laneContext(ln, tg)) +
-        '<a class="lv-lane-link" href="#/library/' + t.id + '" data-k="lv-lane-' + ln + at + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + '</a>' + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
+      '<div class="lv-lane-m"><div class="lv-lane-t lv-lane-tl" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + loopMark(t, L.laneContext(ln, tg)) +
+        '<a class="lv-lane-link lv-clamp2-l" href="#/library/' + t.id + '" data-k="lv-lane-' + ln + at + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + '</a>' + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
         // Round 8 (Nik, 11 Nov: "click in the tracking bar for the currently playing track and skip to a certain point"):
         // the bar is a slider (core's L.seekBar), with the markers on it as before.
         '<div class="lv-lane-pr">' + L.seekBar(ln + at, shown, 'lv-mkbar ' + ln, markTicks(t, c, ln, tg)) + '<span class="num lv-time" data-time="' + ln + at + '"></span></div>';
