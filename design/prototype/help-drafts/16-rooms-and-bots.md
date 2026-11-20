@@ -6,8 +6,8 @@ words: room rooms bot bots discord voice channel join leave move token start sta
 A room is a Discord voice channel Lyre plays into. A bot is the Discord account that plays the sound there. Each bot can be in one room at a time.
 
 During play, you do everything with rooms in Live:
-- To add a room, press **Add a room** in On air and pick a voice channel. Lyre uses a bot that is not in a room yet.
-- Press a room's bot button to move it to another channel, copy what another room plays, or make it leave.
+- To add a room, press **+ Room** in On air and pick a voice channel. Lyre uses a bot that is not in a room yet.
+- Press a room's name to move it to another channel, copy what another room plays, or make it leave.
 - To take the bot out of the channel, press **Leave**. If you press **Undo** (or `Ctrl+Z`) within 8 seconds, the bot comes back with what it was playing.
 - Each room has its own volume and **Mute**.
 
