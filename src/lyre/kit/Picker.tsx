@@ -241,7 +241,7 @@ function PickerBody({
       </>
     ) : (
       <>
-        <span className="muted grow" aria-live="polite">
+        <span className="muted grow pk-count" aria-live="polite">
           {multi ? `${chosen.length} chosen` : ""}
         </span>
         {makeNew && (

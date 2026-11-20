@@ -42,3 +42,5 @@ body :is(.tray, .lv-grp) { border: 0; background: none; }
 
 /* A dialog's note after the first Esc with something typed (kit/Dialog.tsx escapeTwice). */
 .dlg-esc { font-size: var(--fs-s); color: var(--warn); font-weight: 700; }
+/* The foot's count keeps room for its words, so a narrow panel's buttons wrap below it instead of over it. */
+.pk-count { min-width: 6em; overflow-wrap: anywhere; }
