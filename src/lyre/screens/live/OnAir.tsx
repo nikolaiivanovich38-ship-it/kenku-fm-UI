@@ -605,11 +605,11 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
         )}
       </div>
       <div className="lv-lane-m">
-        <div className="lv-lane-t lv-lane-tl lv-clamp2" title={title}>
+        <div className="lv-lane-t lv-lane-tl" title={title}>
           {/* 0.5.2 (Nik's item 53): its loop setting first, so a long name never hides it. */}
           {track && <LoopMark setting={loopSettingAt(track, playing.place, playing.playlistId, overrides)} />}
           {/* 0.5.2 (Nik's items 3 and 11): the name leads to the track's details in the Library. */}
-          <TrackNameLink trackId={playing.trackId} title={shown.name}>
+          <TrackNameLink trackId={playing.trackId} title={shown.name} className="lv-clamp2-l">
             {shown.name}
             {shown.name !== shown.own && <span className="sr-only"> (its own name: {shown.own})</span>}
           </TrackNameLink>

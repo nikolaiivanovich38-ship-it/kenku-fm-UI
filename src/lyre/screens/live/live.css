@@ -658,8 +658,10 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-lane.lv-lane-empty { border-bottom: 1px solid var(--line); }
 .lv-line.lv-fx { min-height: 32px; }
 .lv-line.lv-fx-empty { border-bottom: 1px solid transparent; }
-.lv-lane-t.lv-clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; overflow-wrap: anywhere; min-height: 40px; }
-.lv-lane-t.lv-clamp2 > * { display: inline; }
+.lv-lane-tl { min-height: 40px; align-items: flex-start; }
+.lv-lane-tl > .lv-loop { margin-top: 2px; }
+.lv-lane-tl > a.lv-clamp2-l { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; overflow-wrap: anywhere;
+  line-height: 20px; min-height: 24px; }
 .lv-rm-up { min-height: 32px; }
 .lv-transport { display: flex; align-items: center; gap: 3px; }
 .lv-transport .lv-tmain { width: 34px; height: 34px; min-width: 34px; background: var(--ink); color: var(--bg); border-color: var(--ink); border-radius: 50%; }
@@ -675,8 +677,9 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-miss { flex: none; }
 .lv-missing .lv-trk-t { color: var(--ink-2); }
 /* A pad with no sound is dashed and says so on its face (table review S3); pressing it shows the warning pop-up. */
-.lv-pad.lv-pad-none { border-style: dashed; background: transparent; color: var(--ink-2); }
-.lv-pad-nosound { flex: none; font-size: var(--fs-xs); font-weight: 700; color: var(--warn); }
+.lv-pad.lv-pad-none { border-style: dashed; border-color: var(--warn); background: transparent; color: var(--ink-2); flex-wrap: wrap; align-content: center; row-gap: 0; }
+.lv-pad-none .lv-pad-l { flex: 1 1 60%; }
+.lv-pad-nosound { flex: 0 0 100%; order: 5; font-size: var(--fs-xs); line-height: 14px; font-weight: 700; color: var(--warn); }
 
 /* ---------- Round 10: Arrange (Nik, 18 Nov 03:14, answer 6; r9live.js §5) ----------
    Each box gets a row above it (grip, name, Move…), never over its title; its bottom edge is dragged for height and the
@@ -713,3 +716,6 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 /* Round 10 (R10-FIX §3): Find's results are a side panel beside Live (kit/SidePanel), not over On air. */
 .side-panel .lv-found { position: static; width: auto; max-height: none; height: 100%; border: 0; border-radius: 0; box-shadow: none; overflow-y: auto; }
 .side-panel .lv-found .lv-off-f { position: sticky; top: 0; z-index: 1; background: var(--surface); flex-wrap: wrap; }
+/* Round 10: with the Undo place and Arrange in the bar its controls sat half a pixel high (content 33 px, centred); one
+   pixel more at the top keeps On air within 24 px of the Find field, as round 6 part 6 asks. */
+.lv-top { padding-top: 6px; padding-bottom: 4px; }

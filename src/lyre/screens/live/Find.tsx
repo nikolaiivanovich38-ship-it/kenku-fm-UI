@@ -51,7 +51,9 @@ export function Find() {
     if (!state.findOpen) return;
     const away = (target: EventTarget | null) => {
       const el = target as Element | null;
-      if (!el?.closest || el.closest(".lv-find") || el.closest("#lv-found") || el.closest(".menu")) return;
+      // Round 10: the Undo place keeps Find open too: closing the panel widens the screen and would move Undo from
+      // under the click.
+      if (!el?.closest || el.closest(".lv-find") || el.closest("#lv-found") || el.closest(".lv-undoplace") || el.closest(".menu")) return;
       closeFind(false);
     };
     const onFocus = (event: FocusEvent) => away(event.target);
