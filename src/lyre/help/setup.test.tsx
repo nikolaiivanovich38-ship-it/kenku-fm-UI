@@ -1,6 +1,6 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createFakeLyreApi } from "../../common/lyre/fake";
 import { AppProviders } from "../AppProviders";
@@ -97,11 +97,20 @@ describe("the tours (row 9)", () => {
     expect(TOURS.live.steps.map((s) => s.title)).toEqual(["Next scene", "On air: what the players hear", "Preview: only you", "Pads and their keys", "Undo", "Fade all and Stop all"]);
   });
 
-  it("Tour of this screen stays on the screen and leaves out steps whose control is not there", async () => {
+  it("Tour of this screen stays on a screen that is the tour's own", async () => {
+    start("library");
+    await userEvent.click(screen.getByRole("button", { name: "Help" }));
+    await userEvent.click(within(help()).getByRole("button", { name: "Tour of this screen" }));
+    expect(await screen.findByRole("dialog", { name: /Track library · 1 of \d$/ }, { timeout: 3000 })).toBeInTheDocument();
+    expect(window.location.hash).toBe("#/library");
+  });
+
+  it("from a screen that leads to the tour's own, Tour of this screen goes there first, as the prototype does", async () => {
+    // Campaigns leads to planning a session, a playlist's page to Playlists, the Audio profile to a track's details.
     start("campaigns");
     await userEvent.click(screen.getByRole("button", { name: "Help" }));
     await userEvent.click(within(help()).getByRole("button", { name: "Tour of this screen" }));
-    act(() => undefined);
-    expect(window.location.hash).toBe("#/campaigns");
+    await waitFor(() => expect(window.location.hash).toMatch(/^#\/session\/[\w-]+\/[\w-]+$/));
+    expect(await screen.findByRole("dialog", { name: /Planning a session · 1 of \d$/ }, { timeout: 3000 })).toBeInTheDocument();
   });
 });

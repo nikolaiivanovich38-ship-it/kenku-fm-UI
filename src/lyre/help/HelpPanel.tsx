@@ -15,7 +15,7 @@ import { HelpText } from "./HelpText";
 import { keepKeysHere } from "./keys";
 import { diagnosticsResultWords, type DiagnosticsBridge, type DiagnosticsResult } from "../../common/lyreDiagnostics";
 import { LYRE_VERSION } from "../version";
-import { SCREEN_HELP, TOURS, type TourKey, type TourPlaces } from "./tours";
+import { SCREEN_HELP, TOURS, type ScreenTourStart, type TourKey, type TourPlaces } from "./tours";
 import { useSetupProgress } from "./setup";
 import { routeFromHash } from "../shell/routes";
 import { useHasLyreApi, useBoards, useCampaigns, useTracks } from "../api";
@@ -28,7 +28,7 @@ export interface HelpPanelProps {
   onClose: () => void;
   onTour: () => void;
   /** Round 10: Tour of this screen and Set up Lyre's Show me. */
-  onScreenTour?: (key: TourKey, places: TourPlaces | "here") => void;
+  onScreenTour?: ScreenTourStart;
   /** The main process's Save diagnostics (window.lyre.diagnostics); null where there is none (tests, a browser). */
   diagnostics: DiagnosticsBridge | null;
 }
@@ -219,50 +219,67 @@ function HelpFoot({ onTour, diagnostics }: Pick<HelpPanelProps, "onTour" | "diag
  * Round 9 §4 and round 10 (ROUND10.md "Help"): Help starts with On this screen (Tour of this screen and the screen's
  * article), then Set up Lyre (with a library to read).
  */
-function HelpTop({ onScreenTour, onArticle }: { onScreenTour: (key: TourKey, places: TourPlaces | "here") => void; onArticle: (article: HelpArticle) => void }) {
-  const route = routeFromHash(window.location.hash);
-  const here = SCREEN_HELP[route.name];
-  const article = here?.article ? ARTICLES.find((a) => a.id === here.article) : undefined;
+function HelpTop({ onScreenTour, onArticle }: { onScreenTour: ScreenTourStart; onArticle: (article: HelpArticle) => void }) {
+  // The tours need the library's first session, board and track to open their screens; a page with no library (some
+  // tests) has none, and Set up Lyre is not shown.
+  return useHasLyreApi() ? <HelpTopWithLibrary onScreenTour={onScreenTour} onArticle={onArticle} /> : <OnThisScreen places={{}} onScreenTour={onScreenTour} onArticle={onArticle} />;
+}
+
+function HelpTopWithLibrary({ onScreenTour, onArticle }: { onScreenTour: ScreenTourStart; onArticle: (article: HelpArticle) => void }) {
+  const places = useTourPlaces();
   return (
     <>
-      {here && (
-        <div className="help-screen">
-          <h3 className="help-group">On this screen</h3>
-          <div className="help-screen-row">
-            <Button size="s" icon="play" onClick={() => onScreenTour(here.tour, "here")}>
-              Tour of this screen
-            </Button>
-            {/* Named for the screen, as in the prototype, so it is not the same button as the article's in its group. */}
-            {article && (
-              <button type="button" className="help-item help-screen-art" onClick={() => onArticle(article)}>
-                {TOURS[here.tour].name}: how it works
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-      {useHasLyreApi() && <SetUpLyre onShowMe={(key, places) => onScreenTour(key, places)} />}
+      <OnThisScreen places={places} onScreenTour={onScreenTour} onArticle={onArticle} />
+      <SetUpLyre onShowMe={(key) => onScreenTour(key, places)} />
     </>
   );
 }
 
-/** Set up Lyre: nine tasks ticked from the library, each with Show me; one line once all are done or it is hidden. */
-function SetUpLyre({ onShowMe }: { onShowMe: (key: TourKey, places: TourPlaces) => void }) {
-  const progress = useSetupProgress(themeWasChosen());
+/** On this screen: Tour of this screen and the screen's article. */
+function OnThisScreen({ places, onScreenTour, onArticle }: { places: TourPlaces; onScreenTour: ScreenTourStart; onArticle: (article: HelpArticle) => void }) {
+  const route = routeFromHash(window.location.hash);
+  const here = SCREEN_HELP[route.name];
+  const article = here?.article ? ARTICLES.find((a) => a.id === here.article) : undefined;
+  if (!here) return null;
+  return (
+    <div className="help-screen">
+      <h3 className="help-group">On this screen</h3>
+      <div className="help-screen-row">
+        <Button size="s" icon="play" onClick={() => onScreenTour(here.tour, places, { here: true })}>
+          Tour of this screen
+        </Button>
+        {/* Named for the screen, as in the prototype, so it is not the same button as the article's in its group. */}
+        {article && (
+          <button type="button" className="help-item help-screen-art" onClick={() => onArticle(article)}>
+            {TOURS[here.tour].name}: how it works
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Where the tours go: the first untagged track (else the first), the first campaign's next session, the first board. */
+function useTourPlaces(): TourPlaces {
   const tracks = useTracks().data ?? [];
   const campaigns = useCampaigns().data ?? [];
   const boards = useBoards().data ?? [];
-  const [showDone, setShowDone] = useState(false);
-  const all = progress.done === progress.of;
-  const folded = progress.hidden || (all && !showDone);
   const untagged = tracks.find((t) => !Object.values(t.tags).some((x) => x.length)) ?? tracks[0];
   const campaign = campaigns[0];
   const session = campaign?.sessions.find((s) => s.status !== "played") ?? campaign?.sessions[0];
-  const places: TourPlaces = {
+  return {
     trackId: untagged?.id,
     session: campaign && session ? { campaignId: campaign.id, sessionId: session.id } : undefined,
     boardId: boards[0]?.id,
   };
+}
+
+/** Set up Lyre: nine tasks ticked from the library, each with Show me; one line once all are done or it is hidden. */
+function SetUpLyre({ onShowMe }: { onShowMe: (key: TourKey) => void }) {
+  const progress = useSetupProgress(themeWasChosen());
+  const [showDone, setShowDone] = useState(false);
+  const all = progress.done === progress.of;
+  const folded = progress.hidden || (all && !showDone);
   return (
     <section className="help-setup" aria-labelledby="help-setup-h">
       <div className="help-setup-head">
@@ -295,7 +312,7 @@ function SetUpLyre({ onShowMe }: { onShowMe: (key: TourKey, places: TourPlaces) 
                   {task.title}
                   <span className="sr-only">{done ? ", done" : ", to do"}</span>
                 </span>
-                <Button size="s" variant={done ? "ghost" : undefined} aria-label={`${done ? "Show me again" : "Show me"}: ${task.title}`} onClick={() => onShowMe(task.tour, places)}>
+                <Button size="s" variant={done ? "ghost" : undefined} aria-label={`${done ? "Show me again" : "Show me"}: ${task.title}`} onClick={() => onShowMe(task.tour)}>
                   {done ? "Show me again" : "Show me"}
                 </Button>
               </li>
