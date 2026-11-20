@@ -1913,7 +1913,8 @@ test.describe("round 9, item 56: a room's name is the button that moves it", () 
     const none = page.getByRole("menu", { name: "New room" });
     await expect(none).toContainText("Every bot is in a room. Add a bot in Settings › Discord bots.");
     await expect(none.getByRole("menuitemradio")).toHaveCount(0);
-    await none.getByRole("link", { name: "Settings › Discord bots" }).click();
+    // The words are the link (a link in the prototype, one of the menu's items in the app, as a menu holds only items).
+    await none.getByText("Settings › Discord bots", { exact: true }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
   });
 });

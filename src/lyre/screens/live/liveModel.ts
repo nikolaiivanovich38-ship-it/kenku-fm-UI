@@ -127,26 +127,39 @@ const peopleWords = (n: number) => (n === 0 ? "empty" : `${n} ${n === 1 ? "perso
  * is and (Must 2 of the round 6 review) where the players are: the channel most people are in.
  */
 export function channelChoices(outputs: LyreOutputs, bot: LyreBot): { server: string; items: ChannelChoice[] }[] {
-  const view = viewOf(outputs);
-  const players = busiestChannel(outputs);
-  return outputs.servers
-    .filter((s) => bot.serverIds.includes(s.id))
-    .map((s) => ({
-      server: s.name,
-      items: s.channels.map((c) => {
-        const here = view.bots.some((b) => b.bot.id === bot.id && b.inRoom && b.bot.room?.channelId === c.id);
-        const taken = view.bots.some((b) => b.bot.id !== bot.id && b.inRoom && b.bot.room?.channelId === c.id);
-        const most = !!players && players.people > 0 && players.channelId === c.id;
-        return { channelId: c.id, name: c.name, here, taken, empty: c.members.length === 0, sub: taken ? "a room already" : `${peopleWords(c.members.length)}${most ? " · players" : ""}` };
-      }),
-    }));
+  return outputs.servers.filter((s) => bot.serverIds.includes(s.id)).map((s) => ({ server: s.name, items: channelsIn(outputs, s, bot) }));
 }
 
-/** Add a room: each logged-in bot in no voice channel, with the channels it could join. */
+function channelsIn(outputs: LyreOutputs, server: LyreOutputs["servers"][number], bot: LyreBot): ChannelChoice[] {
+  const view = viewOf(outputs);
+  const players = busiestChannel(outputs);
+  return server.channels.map((c) => {
+    const here = view.bots.some((b) => b.bot.id === bot.id && b.inRoom && b.bot.room?.channelId === c.id);
+    const taken = view.bots.some((b) => b.bot.id !== bot.id && b.inRoom && b.bot.room?.channelId === c.id);
+    const most = !!players && players.people > 0 && players.channelId === c.id;
+    return { channelId: c.id, name: c.name, here, taken, empty: c.members.length === 0, sub: taken ? "a room already" : `${peopleWords(c.members.length)}${most ? " · players" : ""}` };
+  });
+}
+
+/** Each logged-in bot in no voice channel, with the channels it could join. */
 export function addRoomChoices(outputs: LyreOutputs | null): { bot: LyreBot; servers: { server: string; items: ChannelChoice[] }[] }[] {
   if (!outputs) return [];
   const view = viewOf(outputs);
   return view.bots.filter((b) => b.bot.login === "ready" && !b.inRoom).map((b) => ({ bot: b.bot, servers: channelChoices(outputs, b.bot) }));
+}
+
+/**
+ * Round 9 (item 56): + Room lists voice channels and Lyre picks the bot itself: in each server, the first logged-in bot
+ * in no voice channel that can join it. (The prototype prefers a bot chosen to join that channel when Lyre starts; the
+ * app has no such choice, Nik's round 10 answer 3.) A server that no such bot can join is left out.
+ */
+export function newRoomChoices(outputs: LyreOutputs | null): { server: string; items: (ChannelChoice & { botId: string })[] }[] {
+  const free = addRoomChoices(outputs).map((c) => c.bot);
+  if (!outputs) return [];
+  return outputs.servers.flatMap((s) => {
+    const bot = free.find((b) => b.serverIds.includes(s.id));
+    return bot ? [{ server: s.name, items: channelsIn(outputs, s, bot).map((c) => ({ ...c, botId: bot.id })) }] : [];
+  });
 }
 
 /** The channel most people are in: where the one-click fix sends a bot when nobody hears anything. */

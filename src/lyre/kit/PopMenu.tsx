@@ -75,7 +75,7 @@ export function PopMenu({ id, label, items, anchor, onClose, top }: PopMenuProps
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     const list = enabledItems(menuRef.current);
-    const index = list.indexOf(document.activeElement as HTMLButtonElement);
+    const index = list.indexOf(document.activeElement as HTMLElement);
     const focusAt = (i: number) => list[(i + list.length) % list.length]?.focus();
     switch (event.key) {
       case "Escape":
@@ -159,8 +159,9 @@ export function PopMenu({ id, label, items, anchor, onClose, top }: PopMenuProps
   );
 }
 
-function enabledItems(menu: HTMLElement | null): HTMLButtonElement[] {
-  return menu ? Array.from(menu.querySelectorAll<HTMLButtonElement>('button:is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]):not([disabled])')) : [];
+/** The items arrows move between: buttons, and a link that is an item (+ Room's Settings › Discord bots, in a note). */
+function enabledItems(menu: HTMLElement | null): HTMLElement[] {
+  return menu ? Array.from(menu.querySelectorAll<HTMLElement>(':is(button, a[href]):is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]):not([disabled])')) : [];
 }
 
 /** A button that opens a PopMenu; `items` is worked out when the menu opens. */

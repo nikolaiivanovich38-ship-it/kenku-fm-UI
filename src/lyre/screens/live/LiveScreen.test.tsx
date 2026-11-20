@@ -580,6 +580,7 @@ describe("rooms from Live: the room's name is its button (item 56)", () => {
     expect(menu.getByRole("menuitemradio", { name: /^Table/ })).toHaveAttribute("aria-checked", "true");
     expect(menu.queryByRole("menuitem", { name: /Add a (room|bot)/ })).toBeNull();
     expect(text).not.toContain("Add a room");
+    await expectNoAxeViolations(screen.getByRole("menu", { name: "Room Table" }));
     // Leave from the menu, with Undo.
     await userEvent.click(menu.getByRole("menuitem", { name: "Make Lyre Table leave Table" }));
     await act(async () => outputs.settle());
@@ -623,8 +624,11 @@ describe("rooms from Live: the room's name is its button (item 56)", () => {
     const menu = within(screen.getByRole("menu", { name: "New room" }));
     expect(menu.getByText(/Every bot is in a room\. Add a bot in/)).toHaveTextContent("Every bot is in a room. Add a bot in Settings › Discord bots.");
     expect(menu.queryAllByRole("menuitemradio")).toHaveLength(0);
-    const link = menu.getByRole("link", { name: "Settings › Discord bots" });
+    // The link is one of the menu's items, so arrows reach it and the menu holds only items.
+    const link = menu.getByRole("menuitem", { name: "Settings › Discord bots" });
+    expect(link).toHaveAttribute("href", "#/settings");
     await waitFor(() => expect(link).toHaveFocus());
+    await expectNoAxeViolations(screen.getByRole("menu", { name: "New room" }));
     await userEvent.click(link);
     expect(window.location.hash).toBe("#/settings");
   });

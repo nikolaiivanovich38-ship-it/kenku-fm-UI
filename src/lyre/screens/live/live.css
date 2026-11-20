@@ -376,11 +376,15 @@ button.lv-sc-name[aria-expanded="true"] { text-decoration: underline; text-under
 .lv-in-row .closer, .lv-in-line .closer { color: var(--ink-2); }
 .lv-in-line { color: var(--ink-2); }
 /* OUT-7: the room's bot, as a button, and Kick. */
-.lv-botpick { max-width: 140px; min-width: 0; gap: 4px; }
-.lv-botpick .ellipsis { min-width: 0; }
+/* Round 9 (item 56, r9.css .r9-roombtn): the room's name is the button that moves it. */
+.lv-roombtn { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; cursor: pointer; font: inherit; font-weight: 700; padding: 2px 6px; margin-left: -6px; border-radius: var(--r-s); border: 1px solid transparent; min-height: 24px; }
+.lv-roombtn .ellipsis { min-width: 0; }
+.lv-roombtn:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.lv-roombtn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.menu .lv-via { display: flex; gap: 6px; align-items: center; }
+.menu .lv-nobot { display: block; max-width: 280px; white-space: normal; }
 .lv-kick:hover { color: var(--onair); border-color: var(--onair); }
 .lv-onair .lv-undo2, .col > .lv-undo2 { border: 1px solid var(--line); border-radius: var(--r-m); }
-@container app (max-width: 900px) { .lv-botpick { max-width: 96px; } }
 button.lv-sc-name { display: flex; min-width: 0; }
 button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 /* "Current scene music" is a longer title: it gives way before the header's buttons do. */
@@ -470,7 +474,7 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-lane-sub:empty { display: none; }
 
 /* ---------- Round 6 review fixes ---------- */
-/* Should 9: Kick has its own icon (a door and an arrow out) and, from 1280 px, its word; 8 px away from the bot button. */
+/* Should 9: Kick has its own icon (a door and an arrow out) and, from 1280 px, its word; 8 px away from the volume. */
 .lv-kick { margin-left: 8px; flex: none; gap: 4px; }
 @media (max-width: 1279px) { .lv-kick-t { display: none; } .lv-kick { width: var(--ctl-s); padding: 0; justify-content: center; } }
 /* Should 11: a pad's name wraps to two lines in every pad box (Current scene too); its key sits in the top-right corner

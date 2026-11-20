@@ -14,7 +14,7 @@ export function focusLive(key: string): void {
 
 /**
  * UX-R4: once the control in use goes, focus the first of these controls (by data-lv or data-k) that is drawn, never
- * the page. `move`: focus it as soon as it is drawn (a new room's bot button). See kit/focusSoon.
+ * the page. `move`: focus it as soon as it is drawn (a new room's button, its name). See kit/focusSoon.
  */
 export function focusLiveSoon(keys: readonly string[], options?: { move?: boolean; ms?: number }): void {
   focusSoon(
