@@ -329,7 +329,9 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   const dropTop = useTopDrop(changeLayout);
   // Round 10 (item 47): the audio host dips the music as Settings › Sound to Discord says.
   const dip = useDip();
-  useEffect(() => audio.setDip(dipSettingsOf(dip)), [audio, dip]);
+  useEffect(() => {
+    audio.setDip(dipSettingsOf(dip));
+  }, [audio, dip]);
   // Leaving Live ends Arrange mode, so the boxes can be used when you come back.
   useEffect(() => () => updateLive({ arranging: false }), []);
 
