@@ -1605,13 +1605,19 @@ test.describe("0.5.2: Live's empty boxes, loop settings and track names", () => 
     await expect(region(page, "Campaign playlists")).toBeVisible();
   });
 
-  test("the music on air shows its loop setting and leads to its details in the Track library (items 53, 3 and 11)", async ({ page }) => {
+  // Round 10 (Nik, 18 Nov 03:14, answer 1a): a track's details from Live open in the Track panel beside Live, which
+  // leads on to the Track library; 0.5.2 went to the Library straight away.
+  test("the music on air shows its loop setting and leads to its details in the Track panel, then the Track library (items 53, 3 and 11)", async ({ page }) => {
     appOnly();
     await openRoute(page, "live");
     await startAbbey(page);
     const table = room(page, "Table");
     await expect(table.getByRole("img", { name: /^(Loop|Crossfade loop|Don't loop)$/ }).first()).toBeVisible();
     await table.getByRole("link", { name: /^Eerie dread/ }).click();
+    const panel = page.getByRole("complementary").filter({ has: page.getByRole("heading", { level: 2, name: /^Eerie dread/ }) });
+    await expect(panel).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).not.toHaveText("Track library");
+    await panel.getByRole("link", { name: "Open in Track library" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Track library");
     await expect(page.getByRole("region", { name: "Details", exact: true }).getByRole("textbox", { name: "Your title" })).toBeVisible();
   });

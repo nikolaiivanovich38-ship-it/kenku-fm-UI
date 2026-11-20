@@ -225,3 +225,9 @@ a.btn.cp-prof:hover { color: var(--ink); }
 /* PLY-17: Repeat one, saved with the scene. */
 .rep1 { position: relative; }
 .rep1[aria-pressed="true"] { color: var(--accent-text); }
+
+/* Round 10 (row 13): a track's name in an unfolded playlist keeps room to be read and clicked; its tags give way
+   first (they are in the row's text for screen readers and in the Track panel). Found in the app: the name was
+   squeezed to nothing in a scene's music column. */
+.ro-list .xp-row > .track-link { flex: 1 1 8em; min-width: 8em; }
+.ro-list .xp-row > .tagstrip { flex: 0 1 auto; min-width: 0; overflow: hidden; }
