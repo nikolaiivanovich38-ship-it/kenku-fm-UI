@@ -40,6 +40,6 @@ export const LIVE_TOUR: readonly TourStep[] = [
   {
     target: '[data-lv="fade"]',
     title: "Fade all and Stop all",
-    text: "Everything fades out with Fade all (Shift+Esc), or stops at once with Stop all, in your headphones too. You can undo both.",
+    text: "Everything fades out with Fade all (Shift+Esc), or stops at once with Stop all, your preview too. You can undo both.",
   },
 ];

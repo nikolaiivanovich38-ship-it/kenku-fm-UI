@@ -490,7 +490,7 @@
       return '<li class="lv-up-i' + (added ? ' added' : '') + (u.kind === 'aq' ? ' amb' : '') + '">' + (added ? icon + '<span class="sr-only">' + (u.kind === 'aq' ? 'Ambience next: ' : u.kind.indexOf('pn') === 0 ? 'Play next: ' : 'Added: ') + '</span>' : '') +
         '<span class="ellipsis grow" title="' + esc(label + (more ? ' (' + more + ')' : '')) + '">' + esc(label) + '</span>' + (more ? '<span class="faint num">' + more + '</span>' : '') +
         // Round 9 (item 31): a planned track can be played now from Up next; the list carries on from there.
-        (u.e ? '<button class="x r9-upplay" data-act="lvupplay" data-i="' + i + '"' + tga + ' data-k="lv-upp-' + i + kx + '" title="Play it now" aria-label="Play now: ' + esc(label) + '">' + L.icon('play', 's') + '</button>' : '') +
+        (u.e ? '<button class="x r9-upplay" data-act="lvupplay" data-i="' + i + '"' + tga + ' data-k="lv-upp-' + i + kx + '" title="Play it now. Up next continues from there." aria-label="Play now: ' + esc(label) + '">' + L.icon('play', 's') + '</button>' : '') +
         '<button class="x" data-act="lvupx" data-kind="' + u.kind + '"' + tga + ' data-i="' + (u.i != null ? u.i : '') + '" data-key="' + esc(u.e ? u.e.key : '') + '" data-k="lv-upx-' + i + kx + '" title="Take out of Up next (this evening only)" aria-label="Remove ' + esc(label) + ' from Up next">' + L.icon('close', 's') + '</button>' + (tail || '') + '</li>';
     }
     var all = list.concat(amb.map(function (it, i) { return { kind: 'aq', it: it, i: i }; }));

@@ -272,7 +272,7 @@ function OpenPanelDialog({ title, onClose, placeId, kind = "addMusic", footer, d
           <IconButton
             icon="drag"
             size="s"
-            label="Move or size with the arrow keys"
+            label="Move or resize with the arrow keys"
             hint="Move it with the arrow keys. Hold Shift and use the arrows to change its size."
             onKeyDown={onMoveKey}
           />

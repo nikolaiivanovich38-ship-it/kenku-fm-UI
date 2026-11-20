@@ -1509,20 +1509,20 @@ describe("round 10: Arrange (Nik, 18 Nov 03:14, answer 6)", () => {
   it("gives each box, On air included, one Move…; On air moves into a column and back; the boxes cannot be used meanwhile", async () => {
     await openLive();
     await userEvent.click(screen.getByRole("button", { name: "Arrange" }));
-    expect(screen.getAllByRole("button", { name: /^Move or size: / })).toHaveLength(7);
+    expect(screen.getAllByRole("button", { name: /^Move or resize: / })).toHaveLength(7);
     expect(screen.getByRole("region", { name: "On air" }).closest("[inert]")).not.toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Move or size: On air" }));
+    await userEvent.click(screen.getByRole("button", { name: "Move or resize: On air" }));
     await userEvent.click(screen.getByRole("menuitem", { name: "Into column 1" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Move or size: On air" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Move or resize: On air" })).toHaveFocus());
     expect(screen.getByRole("region", { name: "On air" }).closest(".col")).not.toBeNull();
     expect(JSON.parse(localStorage.getItem("lyre-live-layouts") ?? "{}")).toHaveProperty("half");
-    await userEvent.click(screen.getByRole("button", { name: "Move or size: On air" }));
+    await userEvent.click(screen.getByRole("button", { name: "Move or resize: On air" }));
     expect(screen.getByRole("menuitem", { name: "To the top, the whole width" })).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     await userEvent.click(within(screen.getByRole("region", { name: "Arrange" })).getByRole("button", { name: "Put back the usual layout" }));
     expect(screen.getByRole("region", { name: "On air" }).closest(".col")).toBeNull();
     await userEvent.click(within(screen.getByRole("region", { name: "Arrange" })).getByRole("button", { name: "Done" }));
-    expect(screen.queryByRole("button", { name: /^Move or size: / })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Move or resize: / })).toBeNull();
     expect(screen.getByRole("region", { name: "On air" }).closest("[inert]")).toBeNull();
   });
 });

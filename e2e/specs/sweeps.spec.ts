@@ -1024,7 +1024,7 @@ test.describe("round 10: nothing drawn on top of anything else (R10-FIX §3)", (
     await dock("Float")(page);
     const panel = page.getByRole("dialog");
     const before = (await panel.boundingBox())!;
-    await panel.getByRole("button", { name: "Move or size with the arrow keys" }).press("ArrowLeft");
+    await panel.getByRole("button", { name: "Move or resize with the arrow keys" }).press("ArrowLeft");
     expect((await panel.boundingBox())!.x).toBeLessThan(before.x - 10);
     const main = page.getByRole("main");
     const wide = (await main.boundingBox())!.width;

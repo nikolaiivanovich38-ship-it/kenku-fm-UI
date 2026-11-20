@@ -154,7 +154,7 @@ export function ArrangeBox({ id, col, at, props, children }: { id: ArrangeId; co
           <Icon name="drag" size="s" />
         </span>
         <span className="lv-arr-n ellipsis">{BOX_NAMES[id]}</span>
-        <PopMenuButton label={`Move or size ${BOX_NAMES[id]}`} className="btn s lv-arr-move" ariaLabel={`Move or size: ${BOX_NAMES[id]}`} title={`Move or size ${BOX_NAMES[id]} with the keyboard`} dataK={`arr-${id}`} items={items}>
+        <PopMenuButton label={`Move or resize ${BOX_NAMES[id]}`} className="btn s lv-arr-move" ariaLabel={`Move or resize: ${BOX_NAMES[id]}`} title={`Move or resize ${BOX_NAMES[id]} with the keyboard`} dataK={`arr-${id}`} items={items}>
           Move…
         </PopMenuButton>
       </div>

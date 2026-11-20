@@ -147,7 +147,7 @@ function PadTile({ board, pad, box, rooms, now, keys, inWhere, mine, press, hold
       style={{ ["--pad" as string]: (PAD_COLOUR[pad.color] ?? PAD_COLOUR.bone).hex }}
       aria-pressed={many ? onHere : on}
       aria-keyshortcuts={pad.key && keys ? pad.key : undefined}
-      title={none ? `${pad.label}: no sound yet. Choose one on its pad board.` : `${pad.label}${pad.key && keys ? ` (key ${pad.key.toUpperCase()})` : ""}: ${MODE_NAME[pad.mode]}${inWhere}${inRooms.length ? `. Sounding in ${inRooms.join(" and ")}` : ""}`}
+      title={none ? noSoundWords(pad) : `${pad.label}${pad.key && keys ? ` (key ${pad.key.toUpperCase()})` : ""}: ${MODE_NAME[pad.mode]}${inWhere}${inRooms.length ? `. Sounding in ${inRooms.join(" and ")}` : ""}`}
       onClick={isHold ? undefined : () => press("down")}
       onPointerDown={
         isHold

@@ -170,7 +170,7 @@
     return out;
   };
   L.arrangeButton = function () {
-    return '<button class="btn s" data-act="r9arrange" data-k="lv-arrange" aria-pressed="' + A.on + '" title="' + (A.on ? 'Done arranging' : 'Move and size the boxes on this screen') + '">' + L.icon('grid', 's') + '<span class="lv-btxt">' + (A.on ? 'Done' : 'Arrange') + '</span></button>';
+    return '<button class="btn s" data-act="r9arrange" data-k="lv-arrange" aria-pressed="' + A.on + '" title="' + (A.on ? 'Done arranging' : 'Move and resize the boxes on this screen') + '">' + L.icon('grid', 's') + '<span class="lv-btxt">' + (A.on ? 'Done' : 'Arrange') + '</span></button>';
   };
   L.arrangeBar = function (mode) {
     if (!A.on) return '';
@@ -182,7 +182,7 @@
     if (!A.on) return h ? '<div class="r9-fixed' + (id === 'onair' ? ' r10-fixed-air' : '') + '" data-box="' + id + '" style="--r9h:' + h + 'px">' + html + '</div>' : html;
     return '<div class="r9-box r10-box' + (id === 'onair' && ci < 0 ? ' r10-box-top' : '') + '" data-box="' + id + '" data-col="' + ci + '"' + (h ? ' style="--r9h:' + h + 'px"' : '') + '>' +
       '<div class="r10-arr" role="group" aria-label="Arrange ' + NAMES[id] + '"><span class="r10-arr-grip" draggable="true" data-r9grip="' + id + '" title="Drag to move ' + NAMES[id] + '" aria-hidden="true">' + L.icon('drag', 's') + '</span>' +
-      '<button class="btn s r10-arr-move" data-act="r10move" data-box="' + id + '" data-k="r10m-' + id + '" aria-haspopup="menu" aria-expanded="false" aria-label="Move or size: ' + NAMES[id] + '" title="Move or size ' + NAMES[id] + ' with the keyboard">Move…</button></div>' +
+      '<button class="btn s r10-arr-move" data-act="r10move" data-box="' + id + '" data-k="r10m-' + id + '" aria-haspopup="menu" aria-expanded="false" aria-label="Move or resize: ' + NAMES[id] + '" title="Move or resize ' + NAMES[id] + ' with the keyboard">Move…</button></div>' +
       '<div class="r9-boxin" inert>' + html + '</div>' +
       '<span class="r10-edge-b" data-r10edge="' + id + '" title="Drag to make ' + NAMES[id] + ' taller or shorter" aria-hidden="true"></span></div>';
   };
@@ -214,7 +214,7 @@
     }
     h += '<div class="sep" role="separator"></div>' + it('taller', 'Taller', 'plus') + it('shorter', 'Shorter (it scrolls inside)', 'minus') + it('fit', 'Fit to its contents', 'restart', !c.heights[id]);
     if (m > 1 && p) h += it('narrower', 'Narrower', 'chevleft', cols.length < 2) + it('wider', 'Wider', 'chevright', cols.length < 2);
-    L.menu(el, h, 'Move or size ' + NAMES[id]);
+    L.menu(el, h, 'Move or resize ' + NAMES[id]);
   };
   L.acts.r10do = function (el) {
     var id = el.dataset.box, d = el.dataset.do, said = NAMES[id] + ' moved';

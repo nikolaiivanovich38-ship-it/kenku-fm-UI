@@ -90,6 +90,8 @@
     document.querySelectorAll('.lv-pad[data-bid]').forEach(function (el) {
       var b = L.board(el.dataset.bid), p = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === el.dataset.pid; })[0];
       var none = noSound(p); el.classList.toggle('r10-nosound', none);
+      // 0.6.0 language review A3: the same words as the warning pop-up, as on the app's tile.
+      if (none) el.title = p.label + ' has no sound. Choose one on its pad board.';
       if (none && !el.querySelector('.r10-nosound-w')) el.insertAdjacentHTML('beforeend', '<span class="r10-nosound-w">No sound</span>');
     });
   };
