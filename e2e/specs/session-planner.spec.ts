@@ -911,3 +911,105 @@ test.describe("0.6.0: dragging a track of an unfolded playlist to another list (
     await expect.poll(() => linkNames(musicOf(crypt(page)))).toContain(title);
   });
 });
+
+/* 0.6.0 usability test (/root/kenku-wt/R60-USABILITY.md): what slowed or confused a first-time user preparing a session.
+   Each check was written before its fix and failed in the app (and in the prototype where the finding says both). */
+test.describe("0.6.0 usability test: preparing a session", () => {
+  const addMusic = async (page: Page) => {
+    await abbey(page).getByRole("button", { name: "Add tracks or playlists…" }).click();
+    return dialog(page);
+  };
+
+  test("F-C7: Add music docked at the right at 1280 px shows the track names, not four letters of each", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openAbbey(page);
+    const panel = await addMusic(page);
+    await panel.getByRole("group", { name: "Show" }).getByRole("button", { name: "Tracks" }).click();
+    const widths = await panel.getByRole("checkbox").evaluateAll((boxes) =>
+      boxes.slice(0, 6).map((b) => {
+        const name = b.closest("label")?.querySelector<HTMLElement>(".ellipsis");
+        return name ? name.clientWidth : 0;
+      }),
+    );
+    expect(widths.length).toBeGreaterThan(3);
+    for (const w of widths) expect(w, "a track name has room for a few words").toBeGreaterThanOrEqual(160);
+  });
+
+  test("F-C8: the new playlist's name field is named New playlist for a screen reader", async ({ page }) => {
+    await openAbbey(page);
+    const panel = await addMusic(page);
+    await panel.getByRole("searchbox", { name: "Search the list" }).fill("Brutal battle");
+    await panel.getByRole("checkbox", { name: /Brutal battle/ }).first().check();
+    await panel.getByRole("button", { name: "Make a playlist of these…" }).click();
+    await expect(panel.getByRole("textbox", { name: /^New playlist$/ })).toBeFocused();
+  });
+
+  test("F-C10: Add music starts with nothing chosen; a playlist made from it takes only the tracks you tick, the scene's own included", async ({ page }) => {
+    await openAbbey(page);
+    const before = await linkNames(musicOf(abbey(page)));
+    const own = before.find((n) => n.startsWith("Eerie dread"))!;
+    expect(own).toBeTruthy();
+    const panel = await addMusic(page);
+    await expect(panel.getByRole("checkbox", { checked: true })).toHaveCount(0);
+    await expect(panel).toContainText("0 chosen");
+    const search = panel.getByRole("searchbox", { name: "Search the list" });
+    await search.fill("Brutal battle");
+    await panel.getByRole("checkbox", { name: /Brutal battle/ }).first().check();
+    await search.fill("Eerie dread");
+    await panel.getByRole("checkbox", { name: /^Eerie dread/ }).first().check();
+    await expect(panel).toContainText("2 chosen");
+    await panel.getByRole("button", { name: "Make a playlist of these…" }).click();
+    await panel.getByRole("textbox", { name: /^New playlist$/ }).fill("Abbey fight");
+    await panel.getByRole("button", { name: "Make it and add it" }).click();
+    await expect(dialog(page)).toHaveCount(0);
+    await expect.poll(() => linkNames(musicOf(abbey(page)))).toContain("Abbey fight");
+    const after = await linkNames(musicOf(abbey(page)));
+    expect(after, "the scene's own track went into the playlist, the rest stayed").toHaveLength(before.length);
+    expect(after).not.toContain(own);
+    expect(after.indexOf("Abbey fight"), "the playlist takes the place of the scene's track").toBe(before.indexOf(own));
+    await musicOf(abbey(page)).getByRole("button", { name: "Show contents of Abbey fight" }).click();
+    await expect(musicOf(abbey(page)).getByRole("list", { name: /^Tracks in Abbey fight/ }).getByRole("listitem")).toHaveCount(2);
+  });
+
+  test("F-C10: Done adds what you ticked at the end, and the scene keeps what it had", async ({ page }) => {
+    await openAbbey(page);
+    const before = await linkNames(musicOf(abbey(page)));
+    const panel = await addMusic(page);
+    await panel.getByRole("searchbox", { name: "Search the list" }).fill("Coast road travel");
+    await panel.getByRole("checkbox", { name: /^Coast road travel/ }).check();
+    await panel.getByRole("button", { name: "Done" }).click();
+    await expect.poll(() => linkNames(musicOf(abbey(page)))).toEqual([...before, "Coast road travel"]);
+  });
+
+  test("F-C11: tracks in an unfolded playlist start with Preview, as other track rows do, and Audio profile says what it is", async ({ page }) => {
+    await openAbbey(page);
+    const list = musicOf(abbey(page));
+    await list.getByRole("button", { name: "Show contents of The Abbess" }).click();
+    const row = list.getByRole("list", { name: /^Tracks in The Abbess/ }).getByRole("listitem").first();
+    const names = await row.evaluate((r) =>
+      Array.from(r.querySelectorAll("button, a[href]"))
+        .map((b) => (b.getAttribute("aria-label") ?? b.textContent ?? "").trim())
+        .map((n) => n.replace(/^(Preview|Play on air|Audio profile|Repeat one|More for)\b.*$/, "$1"))
+        .filter((n) => /^(Preview|Play on air|Audio profile|Repeat one|More for)$/.test(n)),
+    );
+    expect(names).toEqual(["Preview", "Play on air", "Audio profile", "Repeat one", "More for"]);
+    await expect(row.getByRole("link", { name: /^Audio profile in this scene: / })).toBeVisible();
+  });
+
+  test("prototype brought up: Esc closes Add music and focus goes back to Add tracks or playlists…", async ({ page }) => {
+    await openAbbey(page);
+    await addMusic(page);
+    await page.keyboard.press("Escape");
+    await expect(dialog(page)).toHaveCount(0);
+    await expect(abbey(page).getByRole("button", { name: "Add tracks or playlists…" })).toBeFocused();
+  });
+
+  test("F-P12: a dynamic playlist's tracks have no ⋯ in a scene, as its tags choose them (round 10 §1)", async ({ page }) => {
+    await openAbbey(page);
+    const list = musicOf(abbey(page));
+    await list.getByRole("button", { name: "Show contents of Abbey: eerie, low energy" }).click();
+    const tracks = list.getByRole("list", { name: /^Tracks in Abbey: eerie, low energy/ });
+    await expect(tracks.getByRole("listitem").first()).toBeVisible();
+    await expect(tracks.getByRole("button", { name: /^More for / })).toHaveCount(0);
+  });
+});

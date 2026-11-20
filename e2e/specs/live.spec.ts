@@ -18,7 +18,7 @@ const sceneMusic = (page: Page) => page.getByRole("region", { name: /^(Current s
    the page, which finds it in the app's boxes as well. */
 /** Round 9 (item 56, built in 0.6.0): a room's name is the button that moves it (the bot's button is gone), and Kick is
  *  Leave. */
-const ROOM_TABLE = /^Room Table: move or change$/;
+const ROOM_TABLE = /^Table: move or change this room$/;
 const LEAVE_TABLE = /^Make Lyre Table leave Table$/;
 const room = (page: Page, name: string) => region(page, "On air").getByRole("group", { name, exact: true });
 /** Round 6 part 3: Find a track is a field in the top strip (it was the Off script box); its results open under it. */
@@ -252,8 +252,8 @@ test.describe("BUG-20: stopping pads", () => {
     await openRoute(page, "live");
     await startAbbey(page);
     const stop = sceneMusic(page).getByRole("button", { name: "Stop pads" });
-    // Round 6: Stop pads shows only while a pad sounds (before: shown, and unavailable).
-    await expect(stop).toHaveCount(0);
+    // Round 10 (T1), built after the 0.6.0 usability test (F-C1): Stop pads is always there, greyed while no pad sounds.
+    await expect(stop).toBeDisabled();
     await clickAway(page);
     // R: Stone door grinds (one-shot); F: Heartbeat, a hold pad, held down.
     await page.keyboard.press("r");
@@ -261,7 +261,7 @@ test.describe("BUG-20: stopping pads", () => {
     await expect(room(page, "Table")).toContainText("2 sounding");
     await stop.click();
     await expect(room(page, "Table")).not.toContainText("sounding");
-    // Stop pads goes with the last sound; focus goes to the first pad, not to the page.
+    // Stop pads is greyed again with the last sound; focus goes to the first pad, not to the page.
     await expect(abbeyPads(page).getByRole("button", { name: /^Abbey bell/ })).toBeFocused();
     await expect(room(page, "Table").getByText("Playing")).toBeVisible();
     await expect(room(page, "Table")).toContainText("Eerie dread, low cello and choir");
@@ -738,7 +738,7 @@ test.describe("round 6: see a scene before it starts, Add to queue, Repeat, and 
     expectFailureUntilBuilt("live", "rooms-settings");
     await openRoute(page, "live");
     await page.getByRole("button", { name: ROOM_TABLE }).click();
-    const menu = page.getByRole("menu", { name: "Room Table" });
+    const menu = page.getByRole("menu", { name: "Move or change Table" });
     await expect(menu).toContainText("Move Table to"); // round 9: the room comes first
     await menu.getByRole("menuitemradio", { name: /^Whispers/ }).click();
     await expect(room(page, "Whispers")).toBeVisible();
@@ -880,7 +880,7 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
     await openRoute(page, "live");
     await startAbbey(page);
     await page.getByRole("button", { name: ROOM_TABLE }).click();
-    const menu = page.getByRole("menu", { name: "Room Table" });
+    const menu = page.getByRole("menu", { name: "Move or change Table" });
     await expect(menu.getByRole("menuitemradio", { name: /^Side room\s*empty$/ })).toBeVisible();
     await expect(menu.getByRole("menuitemradio", { name: /players/ })).toHaveCount(1);
     await menu.getByRole("menuitemradio", { name: /^Side room/ }).click();
@@ -1759,7 +1759,7 @@ test.describe("round 10: Nik's answers on the strip at half a screen and on Room
     await openRoute(page, "live");
     await startAbbey(page);
     await page.getByRole("button", { name: ROOM_TABLE }).click();
-    const menu = page.getByRole("menu", { name: "Room Table" });
+    const menu = page.getByRole("menu", { name: "Move or change Table" });
     await expect(menu.getByRole("menuitem", { name: LEAVE_TABLE })).toBeVisible();
     await expect(menu.getByRole("menuitem", { name: /Rooms/ })).toHaveCount(0);
     await expect(menu.getByRole("link", { name: /Rooms/ })).toHaveCount(0);
@@ -1865,25 +1865,25 @@ test.describe("round 9, item 56: a room's name is the button that moves it", () 
     await openRoute(page, "live");
     const button = room(page, "Table").getByRole("button", { name: ROOM_TABLE });
     await expect(button).toHaveText("Table");
-    await expect(button).toHaveAttribute("title", "Table (via Lyre Table): move it to another voice channel");
+    await expect(button).toHaveAttribute("title", "Move Table to another voice channel. Lyre Table plays there now.");
     await expect(button).toHaveAttribute("aria-haspopup", "menu");
     await expect(region(page, "On air").getByRole("button", { name: /: change$/ })).toHaveCount(0);
   });
 
-  test("its menu: Move Table to each voice channel, Make Lyre Table leave Table, then via Lyre Table and Use Lyre Side instead", async ({ page }) => {
+  test("its menu: Move Table to each voice channel, Make Lyre Table leave Table, then via Lyre Table and Use Lyre Side instead of Lyre Table", async ({ page }) => {
     await openRoute(page, "live");
     await room(page, "Table").getByRole("button", { name: ROOM_TABLE }).click();
-    const menu = page.getByRole("menu", { name: "Room Table" });
+    const menu = page.getByRole("menu", { name: "Move or change Table" });
     await expect(menu.getByRole("menuitemradio", { name: /^Whispers/ })).toBeEnabled();
     await expect(menu.getByRole("menuitemradio", { name: /^Table/ })).toHaveAttribute("aria-checked", "true");
     await expect(menu.getByRole("menuitem", { name: LEAVE_TABLE })).toBeVisible();
-    await expect(menu.getByRole("menuitem", { name: "Use Lyre Side instead" })).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Use Lyre Side instead of Lyre Table" })).toBeVisible();
     const text = await menu.innerText();
     const at = (words: string) => text.indexOf(words);
     expect(at("Move Table to")).toBeGreaterThanOrEqual(0);
     expect(at("Move Table to")).toBeLessThan(at("Make Lyre Table leave Table"));
     expect(at("Make Lyre Table leave Table")).toBeLessThan(at("via Lyre Table"));
-    expect(at("via Lyre Table")).toBeLessThan(at("Use Lyre Side instead"));
+    expect(at("via Lyre Table")).toBeLessThan(at("Use Lyre Side instead of Lyre Table"));
     // Adding rooms and bots is + Room's and Settings' business.
     await expect(menu.getByRole("menuitem", { name: /Add a (room|bot)/ })).toHaveCount(0);
     await expect(menu).not.toContainText("Add a room");
@@ -1893,8 +1893,8 @@ test.describe("round 9, item 56: a room's name is the button that moves it", () 
     await openRoute(page, "live");
     await startAbbey(page);
     await room(page, "Table").getByRole("button", { name: ROOM_TABLE }).click();
-    await page.getByRole("menu", { name: "Room Table" }).getByRole("menuitem", { name: "Use Lyre Side instead" }).click();
-    await expect(room(page, "Table").getByRole("button", { name: ROOM_TABLE })).toHaveAttribute("title", "Table (via Lyre Side): move it to another voice channel", { timeout: 5000 });
+    await page.getByRole("menu", { name: "Move or change Table" }).getByRole("menuitem", { name: "Use Lyre Side instead of Lyre Table" }).click();
+    await expect(room(page, "Table").getByRole("button", { name: ROOM_TABLE })).toHaveAttribute("title", "Move Table to another voice channel. Lyre Side plays there now.", { timeout: 5000 });
     await expect(room(page, "Table").getByText("Playing")).toBeVisible({ timeout: 5000 });
   });
 
@@ -1903,18 +1903,217 @@ test.describe("round 9, item 56: a room's name is the button that moves it", () 
     const add = page.getByRole("button", { name: "Add a room" });
     await expect(add).toHaveText("Room");
     await add.click();
-    const menu = page.getByRole("menu", { name: "New room" });
-    await expect(menu).toContainText("New room in");
+    const menu = page.getByRole("menu", { name: "Add a room" });
+    await expect(menu).toContainText("Add a room in");
     await expect(menu).not.toContainText("Lyre Side");
     await expect(menu.getByRole("menuitemradio", { name: /^Table/ })).toBeDisabled();
     await menu.getByRole("menuitemradio", { name: /^Side room/ }).click();
-    await expect(room(page, "Side room").getByRole("button", { name: "Room Side room: move or change" })).toHaveAttribute("title", "Side room (via Lyre Side): move it to another voice channel");
+    await expect(room(page, "Side room").getByRole("button", { name: "Side room: move or change this room" })).toHaveAttribute("title", "Move Side room to another voice channel. Lyre Side plays there now.");
     await add.click();
-    const none = page.getByRole("menu", { name: "New room" });
+    const none = page.getByRole("menu", { name: "Add a room" });
     await expect(none).toContainText("Every bot is in a room. Add a bot in Settings › Discord bots.");
     await expect(none.getByRole("menuitemradio")).toHaveCount(0);
     // The words are the link (a link in the prototype, one of the menu's items in the app, as a menu holds only items).
     await none.getByText("Settings › Discord bots", { exact: true }).click();
     await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+  });
+});
+
+/* 0.6.0 usability test (/root/kenku-wt/R60-USABILITY.md, findings F-C and F-P): what slowed or confused a first-time
+   user of Live, and the polish. Each check was written before its fix and failed in the app (and in the prototype where
+   the finding says both builds). */
+test.describe("0.6.0 usability test: Live", () => {
+  const box = async (l: ReturnType<Page["getByRole"]>) => (await l.boundingBox())!;
+  const musicLine = (page: Page) => room(page, "Table").getByRole("group", { name: "Music in Table", exact: true });
+
+  test("F-C1: Stop pads is always in the board's row, greyed while nothing sounds, so the pads never move", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    const stop = sceneMusic(page).getByRole("button", { name: "Stop pads" });
+    await expect(stop).toBeVisible();
+    await expect(stop).toBeDisabled();
+    const pad = sceneMusic(page).getByRole("button", { name: /^Thunder crack/ });
+    const before = await box(pad);
+    await pad.click();
+    await expect(stop).toBeEnabled();
+    expect(Math.abs((await box(pad)).y - before.y)).toBeLessThanOrEqual(1);
+  });
+
+  test("F-C9: a pad's hover says it dips the music when its While it plays dips", async ({ page }) => {
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    await expect(sceneMusic(page).getByRole("button", { name: /^Thunder crack/ })).toHaveAttribute("title", /One-shot, dips the music/);
+  });
+
+  test("F-C2: What played opens over the room's lines, which stay where they were, and Esc closes it", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const air = region(page, "On air");
+    const [airBefore, musicBefore] = [await box(air), await box(musicLine(page))];
+    const button = room(page, "Table").getByRole("button", { name: "What played" });
+    await button.click();
+    await expect(room(page, "Table").getByRole("list", { name: "What played in Table" })).toBeVisible();
+    expect(Math.abs((await box(musicLine(page))).y - musicBefore.y), "the music line stays put").toBeLessThanOrEqual(1);
+    expect(Math.abs((await box(air)).height - airBefore.height), "On air keeps its height").toBeLessThanOrEqual(1);
+    await page.keyboard.press("Escape");
+    await expect(room(page, "Table").getByRole("list", { name: "What played in Table" })).toHaveCount(0);
+    await expect(button).toBeFocused();
+  });
+
+  test("F-C3: Connection lost leaves the room's lines where they were", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const air = region(page, "On air");
+    const [airBefore, musicBefore] = [await box(air), await box(musicLine(page))];
+    await dropConnection(page);
+    await expect(room(page, "Table").getByRole("alert")).toContainText("Connection lost · players hear nothing");
+    expect(Math.abs((await box(musicLine(page))).y - musicBefore.y), "the music line stays put").toBeLessThanOrEqual(1);
+    expect(Math.abs((await box(air)).height - airBefore.height), "On air keeps its height").toBeLessThanOrEqual(1);
+  });
+
+  test("F-C4: Connection lost offers the bot that is not in a room yet, which takes the room over", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await dropConnection(page);
+    const lost = room(page, "Table").getByRole("alert");
+    await lost.getByRole("button", { name: "Use Lyre Side instead of Lyre Table" }).click();
+    await expect(room(page, "Table").getByRole("button", { name: ROOM_TABLE })).toHaveAttribute("title", /Lyre Side plays there now/, { timeout: 5000 });
+    await expect(room(page, "Table").getByText("Playing")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("F-C5: after Try again, focus is on the room's name, not lost to the page", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await dropConnection(page);
+    await room(page, "Table").getByRole("button", { name: "Try again" }).focus();
+    await page.keyboard.press("Enter");
+    const name = room(page, "Table").getByRole("button", { name: ROOM_TABLE });
+    await expect(name).toBeFocused();
+    await expect(room(page, "Table").getByText("Playing")).toBeVisible({ timeout: 5000 });
+    await expect(name).toBeFocused();
+  });
+
+  test("F-P1 and F-P2: nothing in the top bar moves when Undo appears, and its words are not cut at 1280 px", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "live");
+    const fade = page.getByRole("button", { name: "Fade all", exact: true });
+    const [fadeBefore, findBefore] = [await box(fade), await box(findField(page))];
+    await startAbbey(page);
+    const undo = page.getByRole("group", { name: "Undo" });
+    await expect(undo).toContainText("Started The abbey ruins");
+    expect(Math.abs((await box(fade)).x - fadeBefore.x), "Fade all stays put").toBeLessThanOrEqual(1);
+    expect(Math.abs((await box(findField(page))).width - findBefore.width), "Find keeps its width").toBeLessThanOrEqual(1);
+    const cut = await undo.evaluate((g) => Array.from(g.querySelectorAll<HTMLElement>("*")).filter((e) => /Started/.test(e.textContent ?? "") && e.scrollWidth > e.clientWidth + 1).length);
+    expect(cut, "the words 'Started The abbey ruins' show whole").toBe(0);
+  });
+
+  test("F-P4: screen readers hear no stray words: no 'Item 1 of 1', no space before a comma", async ({ page }) => {
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    await expect(room(page, "Table")).toContainText("Coast road travel");
+    await expect(room(page, "Table")).not.toContainText("Item 1 of 1");
+    const pads = await sceneMusic(page).getByRole("group", { name: /^Pads on / }).getByRole("button").all();
+    expect(pads.length).toBeGreaterThan(0);
+    for (const pad of pads) await expect(pad).not.toHaveAccessibleName(/\s,/);
+    await page.getByRole("button", { name: "Add a room" }).click();
+    await expect(page.getByRole("menu").getByRole("menuitemradio", { name: /^Table, a room already$/ })).toBeVisible();
+  });
+
+  test("F-P5: Stop all's hover says it stops your preview too (the word the language review chose)", async ({ page }) => {
+    await openRoute(page, "live");
+    await expect(page.getByRole("button", { name: "Stop all", exact: true })).toHaveAttribute("title", "Stop all: everything stops at once, your preview too");
+  });
+
+  test("F-P6 and F-P7: Arrange says the layout is kept for this window size, and Esc ends arranging as Done does", async ({ page }) => {
+    await openRoute(page, "live");
+    const arrange = page.getByRole("button", { name: "Arrange" });
+    await arrange.click();
+    await expect(page.getByRole("region", { name: "Arrange" })).toContainText("The layout is kept for this window size.");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("region", { name: "Arrange" })).toHaveCount(0);
+    await expect(arrange).toBeFocused();
+    await expect(arrange).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("F-P8: at 700 px the playing title has the room's width, not one or two words beside the buttons", async ({ page }) => {
+    await page.setViewportSize({ width: 700, height: 900 });
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    const title = room(page, "Table").getByRole("link", { name: /^Open road, wonder/ }).first();
+    await expect(title).toBeVisible();
+    const roomBox = await box(room(page, "Table"));
+    expect((await box(title)).width, "the title runs across most of the room").toBeGreaterThan(roomBox.width * 0.6);
+  });
+
+  test("F-P10: Find's clear button keeps clear of the typed words", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    await findField(page).fill("Brutal battle");
+    // The field's own × (the browser's) is not drawn: Esc and Clear in the results empty it.
+    const cancel = await findField(page).evaluate((f) => getComputedStyle(f, "::-webkit-search-cancel-button").display);
+    expect(cancel).toBe("none");
+  });
+
+  test("F-P13: F6 reaches the top bar, the boxes, an open Help and the menu, and comes round again", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "live");
+    await page.keyboard.press("F1");
+    await expect(page.getByRole("complementary", { name: "Help" })).toBeVisible();
+    await region(page, "On air").getByRole("heading", { level: 2 }).getByRole("button").focus();
+    const where = async () =>
+      page.evaluate(() => {
+        const a = document.activeElement;
+        if (!a) return "none";
+        if (a.closest("nav")) return "menu";
+        if (a.closest("aside")) return "help";
+        if (a.closest("[data-pane]")) return `box:${a.closest("[data-pane]")!.getAttribute("data-pane")}`;
+        if (a.closest(".lv-top")) return "top bar";
+        return a.tagName;
+      });
+    const seen: string[] = [];
+    for (let i = 0; i < 12; i++) {
+      await page.keyboard.press("F6");
+      seen.push(await where());
+    }
+    expect(seen).toContain("top bar");
+    expect(seen).toContain("help");
+    expect(seen).toContain("menu");
+    expect(seen.filter((s) => s.startsWith("box:")).length).toBeGreaterThan(2);
+  });
+
+  test("F-P14: with Find open at half a 1920 screen, On air does not scroll inside and Up next's 'more' is in view", async ({ page }) => {
+    await page.setViewportSize({ width: 960, height: 1000 });
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    await openFind(page);
+    const air = region(page, "On air");
+    const scrolls = await air.evaluate((el) => [el, ...Array.from(el.querySelectorAll("*"))].some((e) => /(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 1));
+    expect(scrolls, "On air scrolls inside").toBe(false);
+    const more = room(page, "Table").getByRole("button", { name: /^\d+ more$/ });
+    const [m, a] = [await box(more), await box(air)];
+    expect(m.y + m.height).toBeLessThanOrEqual(a.y + a.height);
+  });
+
+  for (const size of [{ width: 960, height: 1000 }, { width: 700, height: 900 }]) {
+    test(`prototype brought up: at ${size.width} px the Undo icon is at least 24 px wide and high`, async ({ page }) => {
+      await page.setViewportSize(size);
+      await openRoute(page, "live");
+      await startAbbey(page);
+      const b = await box(page.getByRole("group", { name: "Undo" }).getByRole("button", { name: "Undo" }));
+      expect(b.width).toBeGreaterThanOrEqual(24);
+      expect(b.height).toBeGreaterThanOrEqual(24);
+    });
+  }
+
+  test("prototype brought up: Fade all offers Undo at once", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await page.waitForTimeout(1100);
+    await page.getByRole("button", { name: "Fade all", exact: true }).click();
+    await expect(page.getByRole("group", { name: "Undo" })).toContainText("Fading everything out", { timeout: 400 });
   });
 });

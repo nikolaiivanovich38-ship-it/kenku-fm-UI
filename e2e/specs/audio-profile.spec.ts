@@ -537,3 +537,22 @@ test("0.6.0 finishing (f-live): the Audio profile's trail follows the playlist o
   await expect(trail).toHaveAttribute("title", /^Track library › Track details › /);
   await expect(details).toHaveAttribute("href", "#/library/t13");
 });
+
+/* 0.6.0 usability test (/root/kenku-wt/R60-USABILITY.md): F-P15 and F-P17. */
+test.describe("0.6.0 usability test: the Audio profile", () => {
+  test("F-P15: the end box is called At its end, as its choices and the Track panel say (round 10: one name)", async ({ page }) => {
+    await openRoute(page, "profile/t13");
+    await expect(page.getByRole("region", { name: "At its end", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "At the end", exact: true })).toHaveCount(0);
+  });
+
+  test("F-P17: Split into parts names the parts from the track's title in Lyre, not the title in the file", async ({ page }) => {
+    await openRoute(page, "profile/t13");
+    const title = (await page.getByRole("main").getByRole("heading", { level: 1 }).innerText()).trim();
+    await page.getByRole("region", { name: "Markers", exact: true }).getByRole("button", { name: "Split into parts…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Split into parts" });
+    const first = await dialog.getByRole("textbox", { name: "Name of part 1" }).inputValue();
+    expect(first.startsWith(title.slice(0, 12)), `"${first}" starts with the title "${title}"`).toBe(true);
+    expect(first).not.toMatch(/^Bridge of Death/);
+  });
+});
