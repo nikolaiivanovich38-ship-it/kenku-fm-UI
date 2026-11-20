@@ -141,6 +141,18 @@ function Normalise({ editor }: { editor: ProfileEditor }) {
   );
 }
 
+/**
+ * --- r10-tracks --- Round 9 (r9nav.js, the trail): where the track's details are from here: the playlist or session it
+ * was opened from with the Track panel on the track, else the Track library.
+ */
+function detailsHrefOf(editor: ProfileEditor): string {
+  const place = editor.place;
+  const tid = editor.track.id;
+  if (place?.kind === "playlist") return `#/playlist/${place.playlistId}/${tid}`;
+  if (place?.kind === "scene" || place?.kind === "session") return `#/session/${place.campaignId}/${place.sessionId}/${tid}`;
+  return `#/library/${tid}`;
+}
+
 function ProfileBody({ editor }: { editor: ProfileEditor }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const c = useProfileController(editor, rootRef);
@@ -154,7 +166,10 @@ function ProfileBody({ editor }: { editor: ProfileEditor }) {
           <div className="ap-titlerow">
             <TopLead fallback={backFallback(editor)} />
             <h1 title={`${title} › Audio profile`}>
-              <span className="ap-h1-t">{title}</span>
+              {/* Round 9 (r9nav.js): the track's name leads back to its details, in the place it was opened from. */}
+              <a className="ap-h1-t r9-h1link" href={detailsHrefOf(editor)} title={`${title}: its details`}>
+                {title}
+              </a>
               <span className="ap-h1-k">
                 <span aria-hidden="true">›</span> Audio profile
               </span>

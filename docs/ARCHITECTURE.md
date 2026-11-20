@@ -952,3 +952,25 @@ Built straight in the app, as 0.5.1's changes were. Each item's unit or componen
   column. #4: Follow with's line under its list is the list's description and stands 8 px below it, clear of the focus
   ring (WCAG 2.4.11). #5: the Library opened at a track from elsewhere (a playlist's track title) scrolls the open row
   into the middle of the list once, when the list is first drawn; a row already in sight (item 35) is left where it is.
+
+## 0.6.0: r10-tracks (the Track library, Playlists, the Audio profile, the Track panel, the queue)
+
+From the round 10 prototype (design/prototype/ROUND9.md §3, §7–§10, ROUND10.md; R60-GAPS.md).
+
+- **Use it for and At its end** (`library/trackEnd.ts`, `TrackBehaviour.tsx`): the old roles keep their stored values
+  with new words (`USE_WORDS`); one end choice (`endOf`, `endWrite`) reads and writes the loop advice, Fades out,
+  Follow with and the track's own profile, in one `updateTrack`. The Audio profile offers the same six ends
+  (`profileModel.withEnd`, `useProfileController.setEnd`). Play… is a picker (`PlayAfterPicker.tsx`).
+- **Columns and filters** (`TracksTable.tsx`, `FiltersBody.tsx`, `listPrefs.ts`, `model.ts`): columns and the filter
+  order are kept in the page's storage (`lyre-library-columns`, `lyre-library-filter-order`); a chip is off, Show or
+  Hide (`LibraryFilter.hide`, `hideShapes`, `hideFolders`).
+- **Playlists** (`PlaylistsScreen.tsx`, `playlistOrder.ts`, `DeletePlaylistDialog.tsx`, `PlaylistTrackList.tsx`):
+  Sort (`lyre-playlists-sort`), Your order per folder (`playlists.move`), Delete playlist… in line and Remove from
+  this playlist with Undo, and one list for a playlist's tracks with its dividers, for the other screens to use.
+- **Split into parts** (`profile/SplitPartsDialog.tsx`, `splitParts.ts`, `library.splitIntoParts`, schema version 11
+  in docs/data-model.md): a part is a track sharing its whole's file, with its own profile at its cut.
+- **The Track panel** (`screens/trackPanel/TrackPanel.tsx`, `openTrackPanel.ts`, `TrackPanelFromRoute.tsx`): the
+  Library's details in the side-panel host; `TrackNameLink` opens it; `#/playlist/<pid>/<tid>` and
+  `#/session/<cid>/<sid>/<tid>` open it on arrival.
+- **The queue** (`trackPanel/QueuePanel.tsx`, `NowPlayingBar.tsx`, `lyreAudio.ts` `previewQueue`, `previewBack`,
+  `previewForward`, `previewPlayAt`): a previewed playlist's queue in the side panel `queue`.
