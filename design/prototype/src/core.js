@@ -1306,7 +1306,7 @@ var L = (function () {
       '<div class="oab-time">' + L.seekBar(pk, nm, ln) + '<span class="num" data-time="' + pk + '"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control what the players hear' + esc(where) + '">' +
         // Round 9 (item 31): Back and Forward on the bar, the same buttons in the same order for a room and a preview.
-        '<button class="btn s icon" data-act="oabprev" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-prev" aria-label="Back" title="' + (canNext ? 'Back: the previous track (after 3 seconds, the start of this one)' : 'A single track: back to its start') + '">' + L.icon('prev', 's') + '</button>' +
+        '<button class="btn s icon" data-act="oabprev" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-prev" aria-label="Back" title="' + (canNext ? 'Go back to the start of this track. In its first 3 seconds, go back to the track before it.' : 'Go back to the start of this track.') + '">' + L.icon('prev', 's') + '</button>' +
         '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + esc(where) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
         '<button class="btn s" data-act="oabstop" data-room="' + target + '" data-k="' + k + '-stop" title="Stop what the players hear' + esc(where) + ' (fades out in a second)">' + L.icon('stop', 's') + 'Stop</button>' +
         '<button class="btn s icon" data-act="oabnext" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-next" aria-label="Next" title="' + (canNext ? 'Next track (crossfade)' : 'A single track has no next one') + '"' + (canNext ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
@@ -1325,10 +1325,10 @@ var L = (function () {
         '<div class="oab-from ellipsis" title="' + esc(from) + '">' + esc(from) + '</div></div>' +
       '<div class="oab-time">' + L.seekBar('preview', p.label, 'preview') + '<span class="num" data-time="preview"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control your preview">' +
-        '<button class="btn s icon" data-act="pvprev" data-k="oab-pv-prev" aria-label="Back" title="' + (p.queue ? 'Back: the previous track (after 3 seconds, the start of this one)' : 'Back to the start') + '">' + L.icon('prev', 's') + '</button>' +
+        '<button class="btn s icon" data-act="pvprev" data-k="oab-pv-prev" aria-label="Back" title="' + (p.queue ? 'Go back to the start of this track. In its first 3 seconds, go back to the track before it.' : 'Go back to the start of this track.') + '">' + L.icon('prev', 's') + '</button>' +
         '<button class="btn s icon" data-act="pvpause" data-k="oab-pv-pause" aria-label="' + (paused ? 'Play the preview' : 'Pause the preview') + '" title="' + (paused ? 'Play the preview again' : 'Pause the preview') + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
         '<button class="btn s" data-act="pvstop" data-k="oab-pv-stop" aria-label="Stop the preview" title="Stop the preview">' + L.icon('stop', 's') + 'Stop</button>' +
-        '<button class="btn s icon" data-act="pvnext" data-k="oab-pv-next" aria-label="Forward" title="' + (p.queue ? 'Forward: the next track' : 'A single track has no next one') + '"' + (p.queue ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
+        '<button class="btn s icon" data-act="pvnext" data-k="oab-pv-next" aria-label="Forward" title="' + (p.queue ? 'Go to the next track' : 'A single track has no next one') + '"' + (p.queue ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
         (L.queueButton && p.queue ? L.queueButton('preview', '', 'oab-pv') : '') + '</div>' +
       '<label class="oab-vol" title="Volume in your headphones">' + L.icon('headphones', 's') + '<span class="sr-only">Headphone volume</span><input type="range" min="0" max="100" step="5" value="' + L.previewVol + '" data-input="pvvol" data-k="oab-pv-vol" aria-valuetext="' + L.previewVol + ' percent"></label></div>';
   }

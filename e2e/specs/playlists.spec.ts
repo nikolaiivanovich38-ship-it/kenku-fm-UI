@@ -668,7 +668,7 @@ test.describe("round 9: the Playlists list's order, → Open and dividers", () =
     await page.getByRole("button", { name: "Show contents of The Abbess" }).click();
     const items = page.getByRole("list", { name: /^Tracks in The Abbess/ }).getByRole("listitem");
     const divider = items.filter({ hasText: "After the font" });
-    await expect(divider).toHaveAccessibleName("Section: After the font");
+    await expect(divider).toHaveAccessibleName("Divider: After the font");
     const all = await items.allTextContents();
     const at = all.findIndex((t) => t.includes("After the font"));
     expect(all[at + 1]).toContain("Lullaby, sad");

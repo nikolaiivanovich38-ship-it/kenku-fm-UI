@@ -45,7 +45,7 @@ describe("all campaigns", () => {
     await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "The Iron Road");
     await userEvent.keyboard("{Escape}");
     expect(screen.getByRole("dialog", { name: "New campaign" })).toBeInTheDocument();
-    expect(screen.getByText("Press Esc again to throw away the new campaign")).toBeInTheDocument();
+    expect(screen.getByText("Press Esc or click outside once more to throw away the new campaign.")).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "New campaign" })).toBeNull();
   });

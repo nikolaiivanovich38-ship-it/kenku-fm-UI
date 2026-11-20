@@ -59,7 +59,7 @@ export function ArrangeBar({ columns, reset, done, dropTop }: { columns: Columns
       <span className="grow">
         <b>Arrange the boxes</b>{" "}
         <span className="faint">
-          · drag a box by its header to move it, drag its bottom edge to resize it, or use Move…. The layout is kept for {SIZE_WORDS[columns]}.
+          · Drag a box by its header to move it, or by its bottom edge to resize it. You can also use its Move… button. The layout is kept for {SIZE_WORDS[columns]}.
         </span>
       </span>
       <button type="button" className="btn s ghost" data-lv="arr-reset" onClick={reset}>
@@ -154,7 +154,7 @@ export function ArrangeBox({ id, col, at, props, children }: { id: ArrangeId; co
           <Icon name="drag" size="s" />
         </span>
         <span className="lv-arr-n ellipsis">{BOX_NAMES[id]}</span>
-        <PopMenuButton label={`Move or size ${BOX_NAMES[id]}`} className="btn s lv-arr-move" ariaLabel={`Move or size: ${BOX_NAMES[id]}`} title={`Move or size ${BOX_NAMES[id]} with the keyboard`} dataK={`arr-${id}`} items={items}>
+        <PopMenuButton label={`Move or resize ${BOX_NAMES[id]}`} className="btn s lv-arr-move" ariaLabel={`Move or resize: ${BOX_NAMES[id]}`} title={`Move or resize ${BOX_NAMES[id]} with the keyboard`} dataK={`arr-${id}`} items={items}>
           Move…
         </PopMenuButton>
       </div>

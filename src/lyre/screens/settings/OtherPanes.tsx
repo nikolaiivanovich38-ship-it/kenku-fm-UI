@@ -125,7 +125,7 @@ function DipFields() {
             onChange={(event) => {
               const amount = event.target.value as DipAmount;
               setDip({ amount }, audio);
-              saved(`dip the music: ${DIP_AMOUNTS.find(([v]) => v === amount)![1].toLowerCase()}`, { key: "dip" });
+              saved(`how far the music dips, ${DIP_AMOUNTS.find(([v]) => v === amount)![1].toLowerCase()}`, { key: "dip" });
             }}
           >
             {DIP_AMOUNTS.map(([value, label]) => (
@@ -166,7 +166,7 @@ function DipFields() {
         />
         Ambience dips too
       </label>
-      <p className="hint">The music gets quieter while an effect with Dip the music on is playing.</p>
+      <p className="hint">The music gets quieter while a One-shot or Restart on press pad, or a Short cue, plays over it. You can change this for each pad under While it plays.</p>
     </fieldset>
   );
 }

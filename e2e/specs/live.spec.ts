@@ -1722,15 +1722,15 @@ test.describe("round 10: Arrange with a grip, an edge and one Move… per box; O
     await page.setViewportSize({ width: 1600, height: 960 });
     await openRoute(page, "live");
     await page.getByRole("button", { name: "Arrange" }).click();
-    const moves = page.getByRole("button", { name: /^Move or size: / });
+    const moves = page.getByRole("button", { name: /^Move or resize: / });
     await expect(moves).toHaveCount(7);
     await expect(page.getByRole("button", { name: /^Move up: / })).toHaveCount(0);
-    await page.getByRole("button", { name: "Move or size: On air" }).click();
+    await page.getByRole("button", { name: "Move or resize: On air" }).click();
     await page.getByRole("menuitem", { name: "Into column 1" }).click();
-    await expect(page.getByRole("button", { name: "Move or size: On air" })).toBeFocused();
+    await expect(page.getByRole("button", { name: "Move or resize: On air" })).toBeFocused();
     const air = (await region(page, "On air").boundingBox())!, scenes = (await region(page, "Scenes").boundingBox())!;
     expect(Math.abs(air.x - scenes.x)).toBeLessThan(40);
-    await page.getByRole("button", { name: "Move or size: On air" }).click();
+    await page.getByRole("button", { name: "Move or resize: On air" }).click();
     await page.getByRole("menuitem", { name: "Taller" }).click();
     await page.getByRole("button", { name: "Put back the usual layout" }).click();
     await page.getByRole("region", { name: "Arrange" }).getByRole("button", { name: "Done", exact: true }).click();
@@ -1841,7 +1841,7 @@ test("0.6.0 finishing (f-live): a playlist unfolded in Live shows its dividers, 
   await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
   const items = box.getByRole("list", { name: "Tracks in The Company themes" }).getByRole("listitem");
   const heading = items.filter({ hasText: "The voyage home" });
-  await expect(heading).toHaveAccessibleName("Section: The voyage home");
+  await expect(heading).toHaveAccessibleName("Divider: The voyage home");
   const all = await items.allTextContents();
   expect(all[all.findIndex((t) => t.includes("The voyage home")) + 1]).toContain(title.slice(0, 20));
   await heading.getByRole("button", { name: "Play from here: The voyage home" }).click();
@@ -1855,7 +1855,7 @@ test.describe("round 10: rows and Up next", () => {
     await openRoute(page, "live");
     await startAbbey(page);
     const air = sceneMusic(page).getByRole("button", { name: /^Play on air/ }).first();
-    await expect(air).toHaveAttribute("title", /Players hear this now$/);
+    await expect(air).toHaveAttribute("title", /The players hear this now\.$/);
     expect(await air.evaluate((b) => b.parentElement?.lastElementChild === b)).toBe(true);
     const names = await air.evaluate((b) => Array.from(b.parentElement?.querySelectorAll("button") ?? []).map((x) => x.getAttribute("aria-label") ?? ""));
     expect(names[0]).toMatch(/^Preview/);

@@ -394,13 +394,13 @@ describe("f-live: Back and the queue for a room on air", () => {
     audio.roomQueueNow = { playlistId: "p-company", played: [], now: { trackId: "t24", title: "Epic choir hero anthem" } };
     const controls = within(within(bar()).getByRole("group", { name: /^Control what the players hear/ }));
     const names = controls.getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent?.trim());
-    expect(names.slice(0, 5)).toEqual(["Back", "Pause", "Stop", "Next", "Queue 1"]);
+    expect(names.slice(0, 5)).toEqual(["Back", "Pause", "Stop", "Next", "Queue, 1 to come"]);
     await userEvent.click(controls.getByRole("button", { name: "Back" }));
     expect(audio.calls).toContainEqual(["roomBack", "music", { room: "table" }]);
     await userEvent.click(controls.getByRole("button", { name: /^Queue/ }));
     const queue = within(await screen.findByRole("region", { name: "Queue" }));
     expect(queue.getByText("Epic choir hero anthem")).toBeInTheDocument();
-    await userEvent.click(queue.getByRole("button", { name: "Play Sea shanty now" }));
+    await userEvent.click(queue.getByRole("button", { name: "Play now: Sea shanty" }));
     expect(audio.calls).toContainEqual(["playUpNext", planned.ref, { room: "table" }]);
   });
 });

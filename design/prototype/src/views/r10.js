@@ -73,12 +73,15 @@
   /* ---------- Esc in New campaign keeps what was typed (prep review S9) ---------- */
   // With something typed, the first Esc says what a second one does; an untouched dialog closes at once.
   document.addEventListener('input', function (e) { var s = e.target.closest && e.target.closest('#lyre-sheet'); if (s && /^New campaign$/.test((s.querySelector('#sheet-title') || {}).textContent || '')) s.dataset.typed = '1'; }, true);
-  document.addEventListener('keydown', function (e) {
-    var s = document.getElementById('lyre-sheet'); if (e.key !== 'Escape' || !s || s.dataset.typed !== '1' || document.querySelector('.menu')) return;
-    if (s.dataset.armed === '1') return;                                  // the second Esc closes, as before
+  // 0.6.0 (language review C14, as the app's Dialog): a click outside warns the same way, and a second one closes.
+  function warnOnce(e) {
+    var s = document.getElementById('lyre-sheet'); if (!s || s.dataset.typed !== '1' || document.querySelector('.menu')) return;
+    if (s.dataset.armed === '1') return;                                  // the second Esc or click closes, as before
     e.preventDefault(); e.stopImmediatePropagation(); s.dataset.armed = '1';
-    var f = s.querySelector('footer'); if (f && !f.querySelector('.r10-esc')) f.insertAdjacentHTML('afterbegin', '<span class="r10-esc grow" role="status">Press Esc again to throw away the new campaign</span>');
-  }, true);
+    var f = s.querySelector('footer'); if (f && !f.querySelector('.r10-esc')) f.insertAdjacentHTML('afterbegin', '<span class="r10-esc grow" role="status">Press Esc or click outside once more to throw away the new campaign.</span>');
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') warnOnce(e); }, true);
+  document.addEventListener('pointerdown', function (e) { if (e.target === document.getElementById('lyre-sheet')) warnOnce(e); }, true);
 
   /* ---------- after every render ---------- */
   var render0 = L.render;
@@ -90,6 +93,8 @@
     document.querySelectorAll('.lv-pad[data-bid]').forEach(function (el) {
       var b = L.board(el.dataset.bid), p = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === el.dataset.pid; })[0];
       var none = noSound(p); el.classList.toggle('r10-nosound', none);
+      // 0.6.0 language review A3: the same words as the warning pop-up, as on the app's tile.
+      if (none) el.title = p.label + ' has no sound. Choose one on its pad board.';
       if (none && !el.querySelector('.r10-nosound-w')) el.insertAdjacentHTML('beforeend', '<span class="r10-nosound-w">No sound</span>');
     });
   };

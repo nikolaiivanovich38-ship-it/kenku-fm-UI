@@ -185,7 +185,7 @@
   }
   function folderBtn(f, label, n, sub) {
     var watched = D.watched.indexOf(f) > -1, hidden = st.hideFolders.indexOf(f) > -1, fk = f.replace(/\W/g, '_');
-    return '<li class="r9-fo' + (sub ? ' sub' : '') + (hidden ? ' is-hide' : '') + '"><button data-act="lbfolder" data-f="' + esc(f) + '" data-k="lb-fo-' + fk + '" aria-pressed="' + (st.folder === f) + '" title="' + esc(f || 'Every folder') + (f ? (st.folder === f ? ': click again to hide its tracks' : hidden ? ': hidden; click to show it again' : '') : '') + '">' +
+    return '<li class="r9-fo' + (sub ? ' sub' : '') + (hidden ? ' is-hide' : '') + '"><button data-act="lbfolder" data-f="' + esc(f) + '" data-k="lb-fo-' + fk + '" aria-pressed="' + (st.folder === f) + '" title="' + esc(f || 'Every folder') + (f ? (st.folder === f ? ': click again to hide its tracks' : hidden ? ': hidden. Click to show it again' : '') : '') + '">' +
       (hidden ? L.icon('close', 's') : L.icon(watched ? 'eye' : 'folder', 's')) + '<span class="ellipsis grow">' + esc(label) + (hidden ? '<span class="sr-only">, hidden</span>' : '') + '</span>' + (watched ? '<span class="hint">watched</span>' : '') + '<span class="num lb-n">' + n + '</span></button>' +
       '</li>';
   }
@@ -207,7 +207,7 @@
       '<button class="btn s" data-act="lbbpl" data-k="lb-bpl">' + L.icon('playlist', 's') + 'Add to playlist…</button>' +
       '<button class="btn s" data-act="lbbnew" data-k="lb-bnew">' + L.icon('plus', 's') + 'New playlist from these</button>' +
       // Round 10 fixes (R10-FIX §1): Remove from library for the selection, in words; Delete files from disk… in its ⋯.
-      '<button class="btn s" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '" data-k="lb-brm">' + L.icon('close', 's') + 'Remove from library</button>' +
+      '<button class="btn s" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '" data-k="lb-brm">' + L.icon('close', 's') + 'Remove from library…</button>' +
       '<button class="btn s icon" data-act="r10selmore" data-k="lb-bmore" aria-haspopup="menu" aria-expanded="false" aria-label="More for the selected tracks" title="More">' + L.icon('more', 's') + '</button>' +
       '<button class="btn s ghost" data-act="lbbclear" data-k="lb-bclear">Clear selection</button></div>';
     var allOn = list.length && shownSel === list.length;
@@ -338,7 +338,7 @@
       '<button class="btn s" data-act="lbonair" data-k="lb-onair">' + L.icon('broadcast', 's') + 'Play on air</button>' + (L.profileLink ? L.profileLink(t.id) : '')  +
       '<button class="btn s" data-act="lbusein" data-k="lb-usein">' + L.icon('link', 's') + 'Use in…</button>' +
       // Round 10 fixes (R10-FIX §1): Remove from library in a track's details too (its file stays; Undo).
-      '<button class="btn s" data-act="r10rmask" data-how="remove" data-ids="' + t.id + '" data-k="lb-drm">' + L.icon('close', 's') + 'Remove from library</button></div>' +
+      '<button class="btn s" data-act="r10rmask" data-how="remove" data-ids="' + t.id + '" data-k="lb-drm">' + L.icon('close', 's') + 'Remove from library…</button></div>' +
       (profileSummary(t) ? '<p class="lb-prof">' + L.icon('fade', 's') + '<span>' + profileSummary(t) + '</span></p>' : '');
     h += '<section class="lb-sec" aria-labelledby="lb-h-tags"><h3 class="lb-h" id="lb-h-tags">Tags</h3>' + D.tagGroups.map(function (g) { return tagRow(t, g); }).join('') + '</section>';
     h += '<section class="lb-sec" aria-labelledby="lb-h-play"><h3 class="lb-h" id="lb-h-play">How it plays</h3>' +
@@ -568,7 +568,7 @@
       (L.profileLink ? '<button role="menuitem" data-act="lbrmprof" data-tid="' + id + '">' + L.icon('fade', 's') + 'Audio profile</button>' : '') +
       // Round 10 fixes (R10-FIX §1; 0.5.2 items 1 and 50): a ticked row takes the other ticked rows along, as Add to… does.
       // Delete file from disk… is last, apart and plain, with a confirmation that names the files.
-      '<div class="sep"></div><button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + (sel ? st.sel.join(',') : id) + '">' + L.icon('close', 's') + 'Remove from library' + (sel && st.sel.length > 1 ? ' (' + st.sel.length + ')' : '') + '</button>' +
+      '<div class="sep"></div><button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + (sel ? st.sel.join(',') : id) + '">' + L.icon('close', 's') + 'Remove from library…' + (sel && st.sel.length > 1 ? ' (' + st.sel.length + ')' : '') + '</button>' +
       '<div class="sep"></div><button role="menuitem" class="r10-mi-quiet" data-act="r10rmask" data-how="delete" data-ids="' + (sel ? st.sel.join(',') : id) + '">' + L.icon('warn', 's') + 'Delete file from disk' + (sel && st.sel.length > 1 ? ' (' + st.sel.length + ')' : '') + '…</button>', 'More for ' + L.title(t));
   };
   L.acts.lbrmopen = function (el) { openTrack(el.dataset.tid, true); };
@@ -638,7 +638,7 @@
   }
   L.acts.r10rmask = function (el) { if (el.disabled) return; askRemove(el.dataset.how, (el.dataset.ids || '').split(',').filter(Boolean), !!el.dataset.shown); };
   L.acts.r10selmore = function (el) {
-    L.menu(el, '<button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '">' + L.icon('close', 's') + 'Remove from library</button>' +
+    L.menu(el, '<button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '">' + L.icon('close', 's') + 'Remove from library…</button>' +
       '<div class="sep"></div><button role="menuitem" class="r10-mi-quiet" data-act="r10rmask" data-how="delete" data-ids="' + st.sel.join(',') + '">' + L.icon('warn', 's') + (st.sel.length === 1 ? 'Delete file from disk…' : 'Delete files from disk…') + '</button>', 'More for the selected tracks');
   };
   L.acts.r10rmdo = function () {

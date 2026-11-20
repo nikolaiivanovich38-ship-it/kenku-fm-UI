@@ -28,7 +28,7 @@
   // Lyre starts". The starting volume stays: it is the volume a bot has when Nik joins it to a room.
   L.botStartHTML = function (b, k) {
     var vol = b.startVolume != null ? b.startVolume : 85;
-    return '<div class="st-bot-2 r9-botstart"><label class="st-l" for="' + k + '-svol">Starting volume</label><input type="range" min="0" max="100" step="5" id="' + k + '-svol" value="' + vol + '" data-input="r9botvol" data-id="' + b.id + '" data-k="' + k + '-svol" aria-valuetext="' + vol + ' percent" title="The bot’s volume when it joins a room"><span class="num faint">' + vol + '%</span></div>';
+    return '<div class="st-bot-2 r9-botstart"><label class="st-l" for="' + k + '-svol">Starting volume</label><input type="range" min="0" max="100" step="5" id="' + k + '-svol" value="' + vol + '" data-input="r9botvol" data-id="' + b.id + '" data-k="' + k + '-svol" aria-valuetext="' + vol + ' percent" title="This bot starts at this volume when it joins a room."><span class="num faint">' + vol + '%</span></div>';
   };
   L.inputs.r9botstart = function (el) {
     var b = L.bot(el.dataset.id); if (!b) return; var v = el.value.split('/');
@@ -38,7 +38,7 @@
   L.inputs.r9botvol = function (el, ev) {
     var b = L.bot(el.dataset.id); if (!b) return; b.startVolume = +el.value; el.setAttribute('aria-valuetext', el.value + ' percent');
     var n = el.nextElementSibling; if (n) n.textContent = el.value + '%';
-    if (ev.type === 'change') L.saved(b.name + ' starting volume ' + el.value + '%', { key: 'r9bv-' + b.id });
+    if (ev.type === 'change') L.saved(b.name + '’s starting volume, ' + el.value + '%', { key: 'r9bv-' + b.id });
   };
   // Round 10 (Nik, 18 Nov 03:14, answer 2): the Rooms screen stays, as it was, under Settings (core.js rail, r10.js).
 
@@ -59,9 +59,9 @@
     return '<fieldset class="r9-dip"><legend>Dip the music under effects</legend><div class="st-xf">' +
       pick('r9-dipamt', 'How far', AMOUNTS, D.dip.amount, 'r9dipamt') + pick('r9-dipback', 'Comes back', BACKS, D.dip.back, 'r9dipback') + '</div>' +
       '<label class="r9-dip-row"><input type="checkbox" data-input="r9dipamb" data-k="r9-dipamb"' + (D.dip.amb ? ' checked' : '') + '>Ambience dips too</label>' +
-      '<p class="hint">The music gets quieter while an effect with Dip the music on is playing.</p></fieldset>';
+      '<p class="hint">The music gets quieter while a One-shot or Restart on press pad, or a Short cue, plays over it. You can change this for each pad under While it plays.</p></fieldset>';
   };
-  L.inputs.r9dipamt = function (el) { D.dip.amount = el.value; L.saved('dip the music: ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dip' }); };
+  L.inputs.r9dipamt = function (el) { D.dip.amount = el.value; L.saved('how far the music dips, ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dip' }); };
   L.inputs.r9dipback = function (el) { D.dip.back = el.value; L.saved('the music comes back ' + el.options[el.selectedIndex].text.toLowerCase(), { key: 'r9dipb' }); };
   L.inputs.r9dipamb = function (el) { D.dip.amb = el.checked; L.saved(el.checked ? 'ambience dips too' : 'ambience keeps its level', { key: 'r9dipamb' }); };
   L.padDipHTML = function (p) {
@@ -74,7 +74,7 @@
   L.acts.r9paddip = function (el) {
     var p = null; D.boards.forEach(function (b) { b.slots.concat(b.spare).forEach(function (x) { if (x && x.id === el.dataset.pid) p = x; }); }); if (!p) return;
     if (el.dataset.v === 'usual') delete p.dip; else p.dip = el.dataset.v === 'dip';
-    L.render(); L.saved(p.label + (L.padDips(p) ? ' dips the music' : ' leaves the music as it is')); var b = document.querySelector('[data-k="r9pd-' + el.dataset.v + '"]'); if (b) b.focus();
+    L.render(); L.saved(p.label + (L.padDips(p) ? ' dips the music' : ' leaves the music as it is') + ' while it plays'); var b = document.querySelector('[data-k="r9pd-' + el.dataset.v + '"]'); if (b) b.focus();
   };
 
   // 0.6.0 (f-live, as the app): a group of radio buttons: Tab reaches the chosen one, the arrow keys choose another.
@@ -99,7 +99,7 @@
   L.queueButton = function (kind, tg, k) {
     var q = queueOf(kind, tg); if (!q || q.ids.length < 2) return '';
     var key = kind + ':' + tg, open = Q.open === key, left = q.ids.length - q.at - 1;
-    return '<button class="btn s r9-qbtn" data-act="r9queue" data-kind="' + kind + '" data-tg="' + esc(tg) + '" data-k="' + k + '-queue" aria-expanded="' + open + '" aria-controls="r9-queue" title="The queue: what played, what plays now, what comes next">' + L.icon('queue', 's') + 'Queue <span class="num">' + left + '</span></button>';
+    return '<button class="btn s r9-qbtn" data-act="r9queue" data-kind="' + kind + '" data-tg="' + esc(tg) + '" data-k="' + k + '-queue" aria-expanded="' + open + '" aria-controls="r9-queue" aria-label="Queue, ' + left + ' to come" title="Open the queue of what played and what comes next">' + L.icon('queue', 's') + 'Queue <span class="num">' + left + '</span></button>';
   };
   L.acts.r9queue = function (el) { var key = el.dataset.kind + ':' + el.dataset.tg; Q.open = Q.open === key ? null : key; Q.back = el.dataset.k; L.render(); var f = document.querySelector('#r9-queue .r9-q-now button, #r9-queue button'); if (Q.open && f) f.focus(); };
   function queueHTML() {
@@ -112,9 +112,9 @@
       var head = i === 0 && q.at > 0 ? '<li class="r9-q-h">Played</li>' : i === q.at ? '<li class="r9-q-h">Now playing</li>' : i === q.at + 1 ? '<li class="r9-q-h">Up next</li>' : '';
       return head + (divs[id] ? divs[id].map(function (d) { return L.dividerHeading(d); }).join('') : '') +
         '<li class="r9-q-' + cls + '"' + (i === q.at ? ' aria-current="true"' : '') + '><span class="num faint">' + (i + 1) + '</span><span class="ellipsis grow" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</span><span class="num faint">' + L.fmt(t.dur) + '</span>' +
-        (i === q.at ? '<span class="badge">Now</span>' : '<button class="btn s icon" data-act="r9qplay" data-i="' + i + '" data-k="r9q-' + i + '" aria-label="Play ' + esc(L.title(t)) + ' now" title="Play it now. The queue continues from there.">' + L.icon('play', 's') + '</button>') + '</li>';
+        (i === q.at ? '<span class="badge">Now</span>' : '<button class="btn s icon" data-act="r9qplay" data-i="' + i + '" data-k="r9q-' + i + '" aria-label="Play now: ' + esc(L.title(t)) + '" title="' + (a[0] === 'preview' ? 'Play it now. The queue continues from there.' : 'Play it now on air. Up next continues from there.') + '">' + L.icon('play', 's') + '</button>') + '</li>';
     }).join('');
-    return '<section id="r9-queue" class="r9-queue" aria-label="Queue: ' + esc(q.name) + '"><header><b>Queue</b><span class="faint ellipsis">' + esc(q.name) + (a[0] === 'preview' ? ' · only you' : '') + '</span><span class="grow"></span>' +
+    return '<section id="r9-queue" class="r9-queue" aria-label="Queue: ' + esc(q.name) + '"><header><b>Queue</b><span class="faint ellipsis">' + esc(q.name) + (a[0] === 'preview' ? ' · only you' : ' · on air') + '</span><span class="grow"></span>' +
       '<button class="closer" data-act="r9qclose" data-k="r9q-x" title="Close (Esc)" aria-label="Close the queue">' + L.icon('close') + '</button></header><ol class="r9-q-list">' + rows + '</ol></section>';
   }
   L.acts.r9qclose = function () { Q.open = null; L.render(); var b = Q.back && document.querySelector('[data-k="' + Q.back + '"]'); if (b) b.focus(); };
@@ -170,11 +170,11 @@
     return out;
   };
   L.arrangeButton = function () {
-    return '<button class="btn s" data-act="r9arrange" data-k="lv-arrange" aria-pressed="' + A.on + '" title="' + (A.on ? 'Done arranging' : 'Move and size the boxes on this screen') + '">' + L.icon('grid', 's') + '<span class="lv-btxt">' + (A.on ? 'Done' : 'Arrange') + '</span></button>';
+    return '<button class="btn s" data-act="r9arrange" data-k="lv-arrange" aria-pressed="' + A.on + '" title="' + (A.on ? 'Done arranging' : 'Move and resize the boxes on this screen') + '">' + L.icon('grid', 's') + '<span class="lv-btxt">' + (A.on ? 'Done' : 'Arrange') + '</span></button>';
   };
   L.arrangeBar = function (mode) {
     if (!A.on) return '';
-    return '<div class="r9-arrbar" role="region" aria-label="Arrange"><span class="grow"><b>Arrange the boxes</b> <span class="faint">· drag a box by its header to move it, drag its bottom edge to resize it, or use Move…. The layout is kept for ' + (mode === 3 ? 'a whole window' : mode === 2 ? 'half a screen' : 'a narrow window') + '.</span></span>' +
+    return '<div class="r9-arrbar" role="region" aria-label="Arrange"><span class="grow"><b>Arrange the boxes</b> <span class="faint">· Drag a box by its header to move it, or by its bottom edge to resize it. You can also use its Move… button. The layout is kept for ' + (mode === 3 ? 'a whole window' : mode === 2 ? 'half a screen' : 'a narrow window') + '.</span></span>' +
       '<button class="btn s ghost" data-act="r9arrreset" data-k="r9-arr-reset">' + L.icon('restart', 's') + 'Put back the usual layout</button><button class="btn s primary" data-act="r9arrange" data-k="r9-arr-done">Done</button></div>';
   };
   L.arrangeWrap = function (id, html, ci, mode) {
@@ -182,7 +182,7 @@
     if (!A.on) return h ? '<div class="r9-fixed' + (id === 'onair' ? ' r10-fixed-air' : '') + '" data-box="' + id + '" style="--r9h:' + h + 'px">' + html + '</div>' : html;
     return '<div class="r9-box r10-box' + (id === 'onair' && ci < 0 ? ' r10-box-top' : '') + '" data-box="' + id + '" data-col="' + ci + '"' + (h ? ' style="--r9h:' + h + 'px"' : '') + '>' +
       '<div class="r10-arr" role="group" aria-label="Arrange ' + NAMES[id] + '"><span class="r10-arr-grip" draggable="true" data-r9grip="' + id + '" title="Drag to move ' + NAMES[id] + '" aria-hidden="true">' + L.icon('drag', 's') + '</span>' +
-      '<button class="btn s r10-arr-move" data-act="r10move" data-box="' + id + '" data-k="r10m-' + id + '" aria-haspopup="menu" aria-expanded="false" aria-label="Move or size: ' + NAMES[id] + '" title="Move or size ' + NAMES[id] + ' with the keyboard">Move…</button></div>' +
+      '<button class="btn s r10-arr-move" data-act="r10move" data-box="' + id + '" data-k="r10m-' + id + '" aria-haspopup="menu" aria-expanded="false" aria-label="Move or resize: ' + NAMES[id] + '" title="Move or resize ' + NAMES[id] + ' with the keyboard">Move…</button></div>' +
       '<div class="r9-boxin" inert>' + html + '</div>' +
       '<span class="r10-edge-b" data-r10edge="' + id + '" title="Drag to make ' + NAMES[id] + ' taller or shorter" aria-hidden="true"></span></div>';
   };
@@ -214,7 +214,7 @@
     }
     h += '<div class="sep" role="separator"></div>' + it('taller', 'Taller', 'plus') + it('shorter', 'Shorter (it scrolls inside)', 'minus') + it('fit', 'Fit to its contents', 'restart', !c.heights[id]);
     if (m > 1 && p) h += it('narrower', 'Narrower', 'chevleft', cols.length < 2) + it('wider', 'Wider', 'chevright', cols.length < 2);
-    L.menu(el, h, 'Move or size ' + NAMES[id]);
+    L.menu(el, h, 'Move or resize ' + NAMES[id]);
   };
   L.acts.r10do = function (el) {
     var id = el.dataset.box, d = el.dataset.do, said = NAMES[id] + ' moved';
@@ -225,13 +225,13 @@
       if ((d === 'left' && p && p.ci > 0) || (d === 'right' && p && p.ci < s.cols.length - 1)) { col.splice(p.i, 1); s.cols[p.ci + (d === 'left' ? -1 : 1)].push(id); }
       if (d === 'top' && p) { col.splice(p.i, 1); said = 'On air is at the top again'; }
       if (/^into/.test(d)) { var ci = +d.slice(4); while (s.cols.length <= ci) s.cols.push([]); s.cols[ci].unshift(id); said = 'On air moved into column ' + (ci + 1); }
-      if (d === 'taller' || d === 'shorter') { var box = boxEl(id), now = s.heights[id] || (box ? Math.round(box.getBoundingClientRect().height) : 300); s.heights[id] = Math.max(120, Math.min(1200, Math.round((now + (d === 'taller' ? 60 : -60)) / 10) * 10)); said = NAMES[id] + ' ' + s.heights[id] + ' pixels high'; }
+      if (d === 'taller' || d === 'shorter') { var box = boxEl(id), now = s.heights[id] || (box ? Math.round(box.getBoundingClientRect().height) : 300); s.heights[id] = Math.max(120, Math.min(1200, Math.round((now + (d === 'taller' ? 60 : -60)) / 10) * 10)); said = NAMES[id] + ' is now ' + s.heights[id] + ' pixels high'; }
       if (d === 'fit') { delete s.heights[id]; said = NAMES[id] + ' now fits its contents'; }
       if ((d === 'narrower' || d === 'wider') && p) {
         var n = s.cols.length, base = (s.widths || s.cols.map(function (x, i) { return (m === 3 ? [27, 43, 30, 25][i] : [38, 62, 30][i]) || 30; })).slice(0, n); while (base.length < n) base.push(25);
         var nb = p.ci < n - 1 ? p.ci + 1 : p.ci - 1, step = (d === 'wider' ? 4 : -4);
         if (nb >= 0 && base[p.ci] + step >= 12 && base[nb] - step >= 12) { base[p.ci] += step; base[nb] -= step; s.widths = base; }
-        said = NAMES[id] + (d === 'wider' ? ' wider' : ' narrower');
+        said = NAMES[id] + (d === 'wider' ? ' is now wider' : ' is now narrower');
       }
     });
     focusMove(id); L.say(said);
@@ -277,7 +277,7 @@
       // 0.6.0 review M7 (f-live, as the app): a cancelled pointer (Alt+Tab, a touch taken over) ends the drag, saving nothing.
       var offE = function () { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', upE); document.removeEventListener('pointercancel', cancelE); edge.parentNode.classList.remove('r10-sizing'); };
       var cancelE = function () { offE(); edge.parentNode.style.removeProperty('--r9h'); };
-      var upE = function () { offE(); edit(function (s) { s.heights[id] = Math.round(hNow / 10) * 10; }); L.say(NAMES[id] + ' ' + Math.round(hNow / 10) * 10 + ' pixels high'); };
+      var upE = function () { offE(); edit(function (s) { s.heights[id] = Math.round(hNow / 10) * 10; }); L.say(NAMES[id] + ' is now ' + Math.round(hNow / 10) * 10 + ' pixels high'); };
       document.addEventListener('pointermove', mv); document.addEventListener('pointerup', upE); document.addEventListener('pointercancel', cancelE); return;
     }
     var bar = e.target.closest && e.target.closest('.r9-split'); if (!bar) return;

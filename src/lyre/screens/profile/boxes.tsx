@@ -465,7 +465,7 @@ export function SplitPartsButton({ c }: C) {
   const [open, setOpen] = useState(false);
   const markers = c.p.markers.map((m) => ({ atMs: Math.round(m.at * 1000), label: m.label }));
   const inside = markers.filter((m) => m.atMs > 0 && m.atMs < c.editor.track.durationMs).length;
-  const none = "Add a marker first: each marker starts a new part";
+  const none = "Add a marker first. Each marker starts a new part.";
   return (
     <>
       <button

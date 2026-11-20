@@ -153,7 +153,7 @@ export function PlaceTracks({
       </div>
       <p className="sr-only" id={descId}>
         Drag a track, or press Alt+Up or Alt+Down on it, to change the order {words} only. To add a track to another playlist or a scene, drag its name
-        there, or use Add to… in its ⋯ menu.
+        there, or use Add to… in its More menu.
       </p>
       <ol ref={listRef} className="list ro-list" aria-label={`Tracks in ${name}, in the order ${words}`} aria-describedby={descId}>
         {ordered.map((t, i) => {

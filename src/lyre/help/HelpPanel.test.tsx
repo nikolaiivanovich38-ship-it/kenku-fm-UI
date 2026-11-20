@@ -79,7 +79,7 @@ describe("Help's panel", () => {
     const article = within(help).getByRole("article", { name: "Run a session in Live" });
     expect(within(article).getByRole("heading", { level: 3 })).toHaveFocus();
     expect(article.querySelectorAll("kbd").length).toBeGreaterThan(2);
-    expect(within(article).getByText("Fade all", { selector: "b" })).toBeInTheDocument();
+    expect(within(article).getAllByText("Fade all", { selector: "b" })[0]).toBeInTheDocument();
     await user.click(within(help).getByRole("button", { name: "Back" }));
     expect(within(help).getByRole("button", { name: "Run a session in Live" })).toHaveFocus();
   });

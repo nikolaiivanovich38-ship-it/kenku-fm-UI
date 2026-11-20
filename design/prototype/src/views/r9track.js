@@ -71,7 +71,7 @@
     var chips = ENDS.filter(function (x) { return !(sting && (x[0] === 'loop' || x[0] === 'xloop')); }).map(function (x) {
       var on = e === x[0];
       if (x[0] === 'follow' && f) return '<span class="chip r9-follow-on">' + L.icon('check', 's') + '<span>Play: ' + esc(itemName(f)) + '</span>' +
-        '<button class="x" data-act="r7follownone" data-k="lb-follow-x" title="Remove" aria-label="Stop playing ' + esc(itemName(f)) + ' after it">' + L.icon('close') + '</button></span>' +
+        '<button class="x" data-act="r7follownone" data-k="lb-follow-x" title="Stop playing ' + esc(itemName(f)) + ' after it" aria-label="Stop playing ' + esc(itemName(f)) + ' after it">' + L.icon('close') + '</button></span>' +
         '<button class="btn s ghost" data-act="r7follow" data-k="lb-follow">Change…</button>';
       return '<button class="chip lb-pick" data-act="' + (x[0] === 'follow' ? 'r7follow' : 'r9end') + '" data-v="' + x[0] + '" data-k="' + (x[0] === 'follow' ? 'lb-follow' : 'r9-end-' + x[0]) + '" aria-pressed="' + on + '"' +
         (x[0] === 'follow' ? ' title="When it ends, play a playlist or a track"' : '') + '>' + (on ? L.icon('check', 's') : '') + esc(x[1]) + '</button>';
@@ -157,7 +157,7 @@
   function profTrack() { var r = L.current(); return r.name === 'profile' ? L.track(r.p.tid) : null; }
   L.splitButton = function (t, p) {
     var n = p.markers.filter(function (m) { return m.at > 0 && m.at < t.dur; }).length;
-    return '<button class="btn s" data-act="r9split" data-k="r9-split"' + (n ? '' : ' aria-disabled="true"') + ' title="' + (n ? 'Make a track for each part between markers. Your file is not changed.' : 'Add a marker first: each marker starts a new part') + '">' + L.icon('list', 's') + 'Split into parts…</button>';
+    return '<button class="btn s" data-act="r9split" data-k="r9-split"' + (n ? '' : ' aria-disabled="true"') + ' title="' + (n ? 'Make a track for each part between markers. Your file is not changed.' : 'Add a marker first. Each marker starts a new part.') + '">' + L.icon('list', 's') + 'Split into parts…</button>';
   };
   function parts(t) {
     var cuts = SP.cuts.filter(function (c) { return c.on; }), out = [], from = 0, label = 'opening', base = t.metaTitle || L.title(t);
@@ -172,7 +172,7 @@
         return '<label class="r9-sp-cut"><input type="checkbox" data-input="r9spcut" data-i="' + i + '" data-k="r9sp-cut-' + i + '"' + (c.on ? ' checked' : '') + '>' + esc(c.label) + ' <span class="num faint">' + L.fmt(c.at) + '</span></label>';
       }).join('') + '</fieldset>' +
       // 0.6.0 review M5 (f-live): one part is the whole track again, so Make is greyed and says why.
-      (ps.length < 2 ? '<p class="hint" id="r9-sp-none">Tick at least one place to split at.</p>' : '') +
+      (ps.length < 2 ? '<p class="hint" id="r9-sp-none">Tick at least one marker under Split at.</p>' : '') +
       '<table class="r9-sp-table"><caption class="sr-only">The parts</caption><thead><tr><th scope="col">Part name</th><th scope="col">From – to</th><th scope="col">Length</th><th scope="col"><span class="sr-only">Preview</span></th></tr></thead><tbody>' + ps.map(function (x, i) {
         return '<tr><td><input class="input" data-input="r9spname" data-i="' + i + '" data-k="r9sp-name-' + i + '" aria-label="Name of part ' + (i + 1) + '" value="' + esc(x.name) + '"></td><td class="num">' + L.fmt(x.from) + ' – ' + L.fmt(x.to) + '</td><td class="num">' + L.fmt(x.to - x.from) + '</td>' +
           '<td><button class="btn s icon" data-act="r9sppv" data-from="' + x.from + '" data-k="r9sp-pv-' + i + '" title="Preview from ' + L.fmt(x.from) + '" aria-label="Preview part ' + (i + 1) + '">' + L.icon('headphones', 's') + '</button></td></tr>';
@@ -180,14 +180,14 @@
       '<label class="r9-sp-opt"><input type="checkbox" data-input="r9spopt" data-o="tags" data-k="r9sp-tags"' + (SP.tags ? ' checked' : '') + '>Copy its tags, Type and Use it for to each part</label>' +
       '<label class="r9-sp-opt"><input type="checkbox" data-input="r9spopt" data-o="lists" data-k="r9sp-lists"' + (SP.lists ? ' checked' : '') + '>Add the parts beside it in its manual playlists</label>';
   }
-  function spRepaint(k) { var t = profTrack(), b = document.querySelector('#lyre-sheet .body'); if (!t || !b) return; L.paint(b, splitBody(t)); var f = document.querySelector('#lyre-sheet [data-act="r9spok"]'); if (f) { var n = parts(t).length; f.textContent = 'Make ' + n + ' tracks'; f.disabled = n < 2; if (n < 2) f.setAttribute('aria-describedby', 'r9-sp-none'); else f.removeAttribute('aria-describedby'); } var el = k && document.querySelector('[data-k="' + k + '"]'); if (el) el.focus(); }
+  function spRepaint(k) { var t = profTrack(), b = document.querySelector('#lyre-sheet .body'); if (!t || !b) return; L.paint(b, splitBody(t)); var f = document.querySelector('#lyre-sheet [data-act="r9spok"]'); if (f) { var n = parts(t).length; f.textContent = 'Make ' + n + (n === 1 ? ' track' : ' tracks'); f.disabled = n < 2; if (n < 2) f.setAttribute('aria-describedby', 'r9-sp-none'); else f.removeAttribute('aria-describedby'); } var el = k && document.querySelector('[data-k="' + k + '"]'); if (el) el.focus(); }
   L.acts.r9split = function (el) {
     var t = profTrack(); if (!t) return;
-    if (el.getAttribute('aria-disabled') === 'true') { L.toast('Add a marker first: each marker starts a new part'); return; }
+    if (el.getAttribute('aria-disabled') === 'true') { L.toast('Add a marker first. Each marker starts a new part.'); return; }
     var p = L.profileOf(t);
     // 0.6.0 review M5 (f-live): two markers at the same time are one split point (no part of no length).
     SP = { cuts: p.markers.filter(function (m) { return m.at > 0 && m.at < t.dur; }).sort(function (a, b) { return a.at - b.at; }).filter(function (m, i, a) { return i === 0 || a[i - 1].at !== m.at; }).map(function (m) { return { at: m.at, label: m.label, on: true }; }), names: {}, tags: true, lists: false };
-    L.sheet({ title: 'Split into parts', wide: true, describe: esc(L.title(t)), body: splitBody(t), footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="r9spok" data-k="r9sp-ok">Make ' + parts(t).length + ' tracks</button>' });
+    L.sheet({ title: 'Split into parts', wide: true, describe: esc(L.title(t)), body: splitBody(t), footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="r9spok" data-k="r9sp-ok">Make ' + parts(t).length + (parts(t).length === 1 ? ' track' : ' tracks') + '</button>' });
   };
   L.inputs.r9spcut = function (el) { SP.cuts[+el.dataset.i].on = el.checked; SP.names = {}; spRepaint(el.dataset.k); };
   L.inputs.r9spname = function (el) { SP.names[+el.dataset.i] = el.value; };

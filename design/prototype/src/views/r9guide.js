@@ -48,8 +48,8 @@
   // Round 10 (look D7, prep D12): one Dock menu with words in place of three unlabelled glyphs.
   L.floatTools = function () {
     return '<span class="r9-fl-tools" role="group" aria-label="Panel position">' +
-      '<button class="btn s" data-act="r10dockmenu" data-k="r10-dock" aria-haspopup="menu" aria-expanded="false" title="Dock it left or right, or let it float. Drag its title bar to move it, or its corner to change its size.">Dock' + L.icon('chevdown', 's') + '</button>' +
-      '<button class="btn s icon r9-fl-move" data-r9-move="1" title="Move it with the arrow keys. Hold Shift and use the arrows to change its size." aria-label="Move or size with the arrow keys">' + L.icon('drag', 's') + '</button></span>';
+      '<button class="btn s" data-act="r10dockmenu" data-k="r10-dock" aria-haspopup="menu" aria-expanded="false" title="Dock this panel left or right, or let it float. Drag its title bar to move it, or its corner to resize it.">Dock' + L.icon('chevdown', 's') + '</button>' +
+      '<button class="btn s icon r9-fl-move" data-r9-move="1" title="Move the panel with the arrow keys. Hold Shift and use the arrows to resize it." aria-label="Move or resize with the arrow keys">' + L.icon('drag', 's') + '</button></span>';
   };
   L.floatPlace = function (p) {
     var g = geo();
@@ -126,7 +126,7 @@
     library: { route: '#/library', name: 'Track library', steps: [
       ['[data-k="lb-add"]', 'Add tracks', 'Add files or a folder. With Watch a folder…, new files in that folder are added by themselves. You can also drop files on the page.'],
       ['[data-k="lb-q"]', 'Search', 'Type any word from a title, file name, artist or tag.'],
-      ['.lb-filters .pane-body', 'Filters', 'Click a filter once to show only those tracks. Click it again to hide them. Use the order button to sort the filters.'],
+      ['.lb-filters .pane-body', 'Filters', 'Click a filter once to show only those tracks. Click it again to hide them. To sort the filters, use Order the filters.'],
       ['[data-k="lb-cols"]', 'Columns', 'Choose which columns the list shows. Click a column’s name to sort by it, and click it again to reverse the order.']] },
     details: { route: '#/library', open: function () { var t = D.tracks.filter(function (x) { return !tagged(x); })[0] || D.tracks[0]; return '#/library/' + t.id; }, name: 'A track’s details', steps: [
       ['#lb-title', 'Your title', 'Type a name you will recognise at the table. The title in the file does not change.'],
@@ -153,7 +153,7 @@
       ['.lv-trk-acts [data-act="lvpv"], [data-act="lvpv"]', 'Preview: only you', 'To hear a track in your headphones only, use the headphones button. Play on air, the last button on a row, is for the players.'],
       ['.lv-cur-pads .lv-pad, .lv-pad', 'Pads and their keys', 'Click a pad or press its key to play it. Press Stop pads, beside them, to stop all pads.'],
       ['.r10-undo-slot', 'Undo', 'Undo shows here for 8 seconds after you change what the players hear. You can also press Ctrl+Z.'],
-      ['[data-k="lv-fade"]', 'Fade all and Stop all', 'Everything fades out with Fade all (Shift+Esc), or stops at once with Stop all, in your headphones too. You can undo both.']] },
+      ['[data-k="lv-fade"]', 'Fade all and Stop all', 'Everything fades out with Fade all (Shift+Esc), or stops at once with Stop all, your preview too. You can undo both.']] },
     look: { route: '#/look', name: 'Look and feel', steps: [['#view h1', 'Look and feel', 'Choose a theme here. You can also change the text size and how much moves on screen. A campaign can have a theme of its own.']] }
   };
   var G = null, guideEl = null;
@@ -201,7 +201,7 @@
   L.helpTopHTML = function () {
     var p = L.setupProgress(), sc = SCREEN[L.current().name], h = '';
     if (sc && TOURS[sc[0]]) h += '<div class="r9-help-screen"><h3 class="help-group">On this screen</h3><div class="r9-help-row"><button class="btn s" data-act="r9showme" data-tour="' + sc[0] + '" data-k="r9-screen-tour">' + L.icon('play', 's') + 'Tour of this screen</button>' +
-      (sc[1] ? '<button class="help-item r9-help-art" data-act="helpopen" data-id="' + sc[1] + '" data-k="help-a-' + sc[1] + '-top">' + esc(TOURS[sc[0]].name) + ': how it works</button>' : '') + '</div></div>';
+      (sc[1] ? '<button class="help-item r9-help-art" data-act="helpopen" data-id="' + sc[1] + '" data-k="help-a-' + sc[1] + '-top">How this screen works</button>' : '') + '</div></div>';
     // Round 10 (table review D-S6): once all nine are done, Set up Lyre is one line until Nik asks to see it.
     var folded = hidden || (p.n === p.of && !shownDone);
     h += '<section class="r9-setup" aria-labelledby="r9-setup-h"><div class="r9-setup-head"><h3 class="help-group" id="r9-setup-h">Set up Lyre</h3><span class="num faint">' + (p.n === p.of ? 'all done' : p.n + ' of ' + p.of) + '</span><span class="grow"></span>' +

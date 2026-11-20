@@ -600,7 +600,7 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
         {playing.paused && <span className="badge">Paused</span>}
         {/* Round 9 (item 47), round 10 (look D6): while a dipping effect sounds, the music says so in words. */}
         {room.dipped?.[isMusic ? "music" : "ambience"] && (
-          <span className="lv-dipped" title="Quieter while an effect plays. It comes back by itself.">
+          <span className="lv-dipped" title={`${isMusic ? "The music" : "The ambience"} is quieter while an effect plays. It comes back by itself.`}>
             Dipped
           </span>
         )}
@@ -906,7 +906,7 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
             className="x lv-upplay"
             data-lv={`upp-${row.at}-${k}`}
             aria-label={`Play now: ${name}`}
-            title="Play it now. Up next goes on from there."
+            title="Play it now. Up next continues from there."
             onClick={() => {
               withRoomsUndo(d, `Playing now: ${name}`, `upp-${row.at}-${k}`, () => d.audio.playUpNext(e.ref, { room: roomId }), { targets: [{ room: roomId }] });
               say(`Playing now: ${name}`);

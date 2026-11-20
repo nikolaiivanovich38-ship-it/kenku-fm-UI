@@ -217,7 +217,7 @@ export function LibraryScreen({ route }: ScreenProps) {
         { content: <Item icon="plus" text="Add to…" />, onSelect: () => setAddingTo(on ? getLibraryState().sel : [t.id]) },
         { content: <Item icon="fade" text="Audio profile" />, onSelect: () => (window.location.hash = hashOf(`profile/${t.id}`)) },
         { separator: true },
-        { content: <Item icon="close" text={`Remove from library${many}`} />, onSelect: () => setRemoval({ how: "remove", ids }) },
+        { content: <Item icon="close" text={`Remove from library…${many}`} />, onSelect: () => setRemoval({ how: "remove", ids }) },
         // Less prominent: last, apart, plain words and a confirmation that names the files.
         { className: "lb-mi-quiet", content: <Item icon="warn" text={`Delete file from disk${many}…`} />, onSelect: () => setRemoval({ how: "delete", ids }) },
       ];
@@ -372,7 +372,7 @@ export function LibraryScreen({ route }: ScreenProps) {
         }),
       ),
       { separator: true },
-      { content: <Item icon="close" text="Remove from library" />, onSelect: () => setRemoval({ how: "remove", ids }) },
+      { content: <Item icon="close" text="Remove from library…" />, onSelect: () => setRemoval({ how: "remove", ids }) },
       { separator: true },
       { className: "lb-mi-quiet", content: <Item icon="warn" text={ids.length === 1 ? "Delete file from disk…" : "Delete files from disk…"} />, onSelect: () => setRemoval({ how: "delete", ids }) },
     ];
@@ -581,7 +581,7 @@ export function LibraryScreen({ route }: ScreenProps) {
           {/* Round 10 fixes (R10-FIX §1): Remove from library for the selection, in words; Delete files… in its ⋯. */}
           <button type="button" className="btn s" onClick={() => setRemoval({ how: "remove", ids: getLibraryState().sel })}>
             <Icon name="close" size="s" />
-            Remove from library
+            Remove from library…
           </button>
           <button type="button" className="btn s ghost" onClick={clearSel}>
             Clear selection

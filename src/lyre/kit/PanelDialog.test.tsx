@@ -134,7 +134,7 @@ describe("PanelDialog: a dialog that does not block the page (R10 rows 12 and 37
     render(<Planner />);
     const user = await openIt();
     await dockTo(user, "Float");
-    const move = within(dialog()).getByRole("button", { name: "Move or size with the arrow keys" });
+    const move = within(dialog()).getByRole("button", { name: "Move or resize with the arrow keys" });
     move.focus();
     const left = parseFloat(dialog().style.left);
     await user.keyboard("{ArrowRight}{ArrowRight}");
@@ -148,7 +148,7 @@ describe("PanelDialog: a dialog that does not block the page (R10 rows 12 and 37
   it("docked, the arrow keys let it float and Shift and the arrows change its width", async () => {
     render(<Planner />);
     const user = await openIt();
-    within(dialog()).getByRole("button", { name: "Move or size with the arrow keys" }).focus();
+    within(dialog()).getByRole("button", { name: "Move or resize with the arrow keys" }).focus();
     await user.keyboard("{Shift>}{ArrowLeft}{/Shift}");
     expect(holder()).toHaveAttribute("data-edge", "right");
     expect(holder()?.getAttribute("style")).toMatch(/--dock-w: \d+px/);

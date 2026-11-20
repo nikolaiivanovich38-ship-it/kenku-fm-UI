@@ -37,7 +37,8 @@ export function QueuePanel({ onClose, room }: { onClose: () => void; room?: stri
   useEffect(() => {
     if (gone) onClose();
   }, [gone, onClose]);
-  const where = room !== undefined ? (now.rooms.length > 1 && onAir ? ` · ${onAir.name}` : "") : " · only you";
+  // 0.6.0 language review C15: a room's queue says it is on air (and in which room, with two or more).
+  const inRoom = now.rooms.length > 1 && onAir ? ` in ${onAir.name}` : "";
 
   return (
     <section
@@ -58,7 +59,7 @@ export function QueuePanel({ onClose, room }: { onClose: () => void; room?: stri
           <h2 id="r9-q-title" ref={head} tabIndex={-1}>
             Queue
           </h2>
-          <span className="faint ellipsis">{room !== undefined ? `${playlist?.name ?? "On air"}${where}` : playlist ? `${playlist.name}${where}` : "Only you"}</span>
+          <span className="faint ellipsis">{room !== undefined ? `${playlist ? `${playlist.name} · on air` : "On air"}${inRoom}` : playlist ? `${playlist.name} · only you` : "Only you"}</span>
         </div>
       </header>
       <div className="r9-tp-body">
@@ -103,8 +104,8 @@ export function QueuePanel({ onClose, room }: { onClose: () => void; room?: stri
                       <button
                         type="button"
                         className="btn s icon"
-                        aria-label={`Play ${t.title} now`}
-                        title="Play it now. The queue continues from there."
+                        aria-label={`Play now: ${t.title}`}
+                        title={room !== undefined ? "Play it now on air. Up next continues from there." : "Play it now. The queue continues from there."}
                         onClick={() => {
                           if (t.play?.()) say(`Playing now: ${t.title}`);
                         }}

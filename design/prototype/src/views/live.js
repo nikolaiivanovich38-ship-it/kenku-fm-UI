@@ -249,7 +249,7 @@
   function undoStrip(where) {
     var u = S.undo2; if (!u || where !== 'strip') return '';
     return '<div class="lv-undo lv-undo2" role="group" aria-label="Undo"><span class="ellipsis grow">' + esc(u.text) + '</span>' +
-      '<button class="btn s" data-act="lvundo2" data-k="lv-undo2" aria-keyshortcuts="Control+Z" title="Undo (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
+      '<button class="btn s" data-act="lvundo2" data-k="lv-undo2" aria-keyshortcuts="Control+Z" title="Undo &quot;' + esc(u.text) + '&quot; (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
       '<span class="lv-undo-bar" aria-hidden="true"><span data-undo2-left style="width:100%"></span></span></div>';
   }
   function undoSlot() {
@@ -443,7 +443,7 @@
       '<div class="lv-lane-l"><span class="lv-lane-n"><span class="lane-dot ' + ln + '"></span>' + word + '</span>' + (c.paused ? '<span class="badge">Paused</span>' : '') +
         // Round 9 (item 47): while a dipping effect sounds, the music says so in words.
         // Round 10 (look D6, table D-S9): a status in words, not a button-looking chip.
-        (L.dippedIn && L.dippedIn(tg, ln) ? '<span class="r9-dipped r10-status" title="Quieter while an effect plays; it comes back by itself">Dipped</span>' : '') + '</div>' +
+        (L.dippedIn && L.dippedIn(tg, ln) ? '<span class="r9-dipped r10-status" title="' + (ln === 'music' ? 'The music' : 'The ambience') + ' is quieter while an effect plays. It comes back by itself.">Dipped</span>' : '') + '</div>' +
       // The scene position and the end rule are hover text (and read out); the track list shows where it is.
       // Round 10 (look M2): the playing title gets up to two lines; it is the most important text on screen.
       '<div class="lv-lane-m"><div class="lv-lane-t r10-clamp2" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
@@ -490,7 +490,7 @@
       return '<li class="lv-up-i' + (added ? ' added' : '') + (u.kind === 'aq' ? ' amb' : '') + '">' + (added ? icon + '<span class="sr-only">' + (u.kind === 'aq' ? 'Ambience next: ' : u.kind.indexOf('pn') === 0 ? 'Play next: ' : 'Added: ') + '</span>' : '') +
         '<span class="ellipsis grow" title="' + esc(label + (more ? ' (' + more + ')' : '')) + '">' + esc(label) + '</span>' + (more ? '<span class="faint num">' + more + '</span>' : '') +
         // Round 9 (item 31): a planned track can be played now from Up next; the list carries on from there.
-        (u.e ? '<button class="x r9-upplay" data-act="lvupplay" data-i="' + i + '"' + tga + ' data-k="lv-upp-' + i + kx + '" title="Play it now" aria-label="Play now: ' + esc(label) + '">' + L.icon('play', 's') + '</button>' : '') +
+        (u.e ? '<button class="x r9-upplay" data-act="lvupplay" data-i="' + i + '"' + tga + ' data-k="lv-upp-' + i + kx + '" title="Play it now. Up next continues from there." aria-label="Play now: ' + esc(label) + '">' + L.icon('play', 's') + '</button>' : '') +
         '<button class="x" data-act="lvupx" data-kind="' + u.kind + '"' + tga + ' data-i="' + (u.i != null ? u.i : '') + '" data-key="' + esc(u.e ? u.e.key : '') + '" data-k="lv-upx-' + i + kx + '" title="Take out of Up next (this evening only)" aria-label="Remove ' + esc(label) + ' from Up next">' + L.icon('close', 's') + '</button>' + (tail || '') + '</li>';
     }
     var all = list.concat(amb.map(function (it, i) { return { kind: 'aq', it: it, i: i }; }));
@@ -628,7 +628,7 @@
   function playBtn(box, data, k, nm, extra) {
     var where = inWhere(box);
     // Round 10 (table review S5): Play on air stands apart, last, after a gap, in the room colour on hover and focus.
-    return '<button class="closer r10-air" data-act="lvplay" data-box="' + box + '" ' + data + ' data-k="' + k + '-p" title="Play on air' + where + (extra || '') + '. Players hear this now" aria-label="Play on air' + where + ': ' + esc(nm) + '">' + L.icon('playair') + '</button>';
+    return '<button class="closer r10-air" data-act="lvplay" data-box="' + box + '" ' + data + ' data-k="' + k + '-p" title="Play on air' + where + (extra || '') + '. The players hear this now." aria-label="Play on air' + where + ': ' + esc(nm) + '">' + L.icon('playair') + '</button>';
   }
   function trackRow(t, src, o) {
     o = o || {};
@@ -656,7 +656,7 @@
       // Round 6 part 3: moods and energy are in the row's details (and Find's results), not on the row on air.
       (open || o.box === 'off' ? '<span class="chips lv-trk-chips">' + moodChips(t, o.prefer) + '</span>' + (isAmb || isFx ? '' : L.energy(t.energy)) : '') +
       // Round 10 (table review S3): a track whose file is missing says so before Nik presses anything.
-      (t.missing ? '<span class="badge warn r10-miss" title="Lyre cannot find this file: Find missing files in the Track library">Missing</span>' : '') +
+      (t.missing ? '<span class="badge warn r10-miss" title="Lyre cannot find this file. To look for it, use Find missing files… in the Track library.">Missing</span>' : '') +
       '<span class="num lv-dur" title="' + (Math.round(len) !== Math.round(t.dur) ? 'Plays ' + L.fmt(len) + ' of the file\'s ' + L.fmt(t.dur) : 'Length ' + L.fmt(t.dur)) + '">' + L.fmt(len) + '</span>' +
       '<span class="lv-trk-acts' + (onAirNow ? ' shown' : '') + '">' +
         '<button class="closer lv-pvb' + (pv || o.noPlay ? '' : ' lv-hov') + '" data-act="lvpv" data-id="' + t.id + '" data-k="' + k + '-v" aria-pressed="' + pv + '" title="' + (pv ? 'Stop the preview' : 'Preview in your headphones (players do not hear it)') + '" aria-label="Preview: ' + esc(nm) + '">' + L.icon('headphones') + '</button>' +
@@ -1060,7 +1060,7 @@
   };
   L.acts.r10lvplrm = function (el) {
     var p = L.playlist(el.dataset.pid), id = el.dataset.tid, i = p ? p.items.indexOf(id) : -1; if (i < 0) return;
-    var was = p.items.slice(), text = 'Removed ' + L.title(L.track(id)) + ' from ' + p.name;
+    var was = p.items.slice(), text = 'Removed "' + L.title(L.track(id)) + '" from the playlist "' + p.name + '"';
     p.items.splice(i, 1);
     softUndo(text, function () { p.items.splice.apply(p.items, [0, p.items.length].concat(was)); }, 'pl:' + p.id, '');
     L.render(); var next = p.items[i] || p.items[i - 1], b = next && document.querySelector('[data-act="r10lvmore"][data-pid="' + p.id + '"][data-tid="' + next + '"]');

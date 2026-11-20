@@ -316,7 +316,7 @@ export function TrackDetails({
         {onRemove && (
           <button type="button" className="btn s" onClick={onRemove}>
             <Icon name="close" size="s" />
-            Remove from library
+            Remove from library…
           </button>
         )}
       </div>

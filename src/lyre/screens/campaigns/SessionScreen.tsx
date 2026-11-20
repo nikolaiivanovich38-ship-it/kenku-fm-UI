@@ -336,7 +336,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
       const at = chosen.indexOf(keys[0]);
       const rest = chosen.filter((key) => !keys.includes(key));
       rest.splice(Math.max(0, Math.min(at, rest.length)), 0, playlistKey(made.value.id));
-      say(`${name} made with ${plural(keys.length, "track")}, and put in the scene`);
+      say(`Made the playlist ${name} with ${plural(keys.length, "track")} and put it in the scene.`);
       return rest;
     },
   };
@@ -345,13 +345,13 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
   const makeBoard: PickerMakeNew = {
     label: "New board…",
     icon: "plus",
-    hint: "An empty pad board, made here and put in this scene; you give it pads on its own page",
+    hint: "Make an empty pad board and put it in this scene. You give it pads on its page.",
     field: "New board",
     suggest: () => freeName("New board", index.boards.map((b) => b.name)),
     make: async (name, chosen) => {
       const made = await write(api.boards.create({ name, cols: 4, rows: 3 }));
       if (!made) return null;
-      say(`${name} made, an empty 4 by 3 board, and put in the scene. Give it pads on its page.`);
+      say(`Made ${name}, an empty 4 by 3 board, and put it in the scene. Give it pads on its page.`);
       return [...chosen, made.value.id];
     },
   };
@@ -998,7 +998,7 @@ function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
       if ((await save()) === undefined) return;
       say(`Removed ${name} from this scene${at === 0 && items.length ? `. ${nameOf(idOf(items[0]))}${lead}` : ""}`);
       // Round 10 (R10-FIX §1, row 36): Undo puts it back in its place; the track, playlist or board itself stays.
-      offerUndo(`Removed ${name} from ${scene.name || "this scene"}.`, () => {
+      offerUndo(`Removed "${name}" from ${scene.name || "this scene"}.`, () => {
         ctx.focusLater(`im-${scene.id}-${list}-${id}`);
         void ctx.saveScene(scene, list === "music" ? { music: before as SoundRef[] } : { boardIds: before as string[] });
       });
@@ -1138,7 +1138,7 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
     if (!(await ctx.saveScene(scene, { ambience: null }))) return;
     say("No ambience in this scene");
     // Round 10 (row 36): Undo puts the ambience back.
-    if (was) offerUndo(`Removed ${info?.name ?? "the ambience"} from ${scene.name || "this scene"}.`, () => void ctx.saveScene(scene, { ambience: was }));
+    if (was) offerUndo(`Removed "${info?.name ?? "the ambience"}" from ${scene.name || "this scene"}.`, () => void ctx.saveScene(scene, { ambience: was }));
   };
   const dropProps = {
     onDragOver: (event: React.DragEvent<HTMLDivElement>) => {

@@ -178,7 +178,7 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession, undo, se
         className="btn s lv-arrange"
         data-lv="arrange"
         aria-pressed={live.state.arranging}
-        title={live.state.arranging ? "Done arranging" : "Move and size the boxes on this screen"}
+        title={live.state.arranging ? "Done arranging" : "Move and resize the boxes on this screen"}
         onClick={() => setArranging(!live.state.arranging)}
       >
         <Icon name="grid" size="s" />

@@ -123,7 +123,7 @@
         return (divs[t.id] ? divs[t.id].map(function (d) { return L.dividerHeading(d); }).join('') : '') + '<li class="xp-row"' + (orderKey ? ' data-ro="' + esc(grp) + '" data-ri="' + i + '"' : '') + '>' + (orderKey ? '<span class="ro-handle" title="Drag to change the order ' + esc(where) + ' (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') +
           // Round 10 (prep review D1): a nested track's title opens the Track panel like every other track title (it is a
           // link to its details; r9nav.js opens the panel), and it can still be dragged to another playlist or scene.
-          '<span class="faint num">' + (i + 1) + '</span><a class="grow ellipsis r9-dragname" href="#/library/' + t.id + '" data-k="xpt-' + esc(did || id) + '-' + t.id + '" draggable="true" data-org="track:' + t.id + '"' + (p.kind === 'manual' ? ' data-org-from="' + p.id + '"' : '') + ' title="' + esc((nm !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + ' · click for its details, or drag to another playlist or scene') + '">' + esc(nm) + '</a>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' +
+          '<span class="faint num">' + (i + 1) + '</span><a class="grow ellipsis r9-dragname" href="#/library/' + t.id + '" data-k="xpt-' + esc(did || id) + '-' + t.id + '" draggable="true" data-org="track:' + t.id + '"' + (p.kind === 'manual' ? ' data-org-from="' + p.id + '"' : '') + ' title="' + esc((nm !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + ' · Click to open its details, or drag it to another playlist or a scene.') + '">' + esc(nm) + '</a>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' +
           // Round 10 (prep review S11, P6): one order on every track row: Preview, Play on air, Audio profile, Repeat one.
           L.previewButton('track', t.id) +
           (orderKey ? L.playOnAirButton('track', t.id, orderKey, id, nm, 'air-' + (did || id) + '-' + t.id) : '') +
@@ -283,7 +283,7 @@
       '<span class="grow"></span><button class="btn" data-act="pkbdcancel" data-k="pk-bdcancel">Back</button><button class="btn primary" data-act="pkbdok" data-k="pk-bdok">Make it and add it</button>';
     return '<span id="pk-count" class="muted grow">' + count() + '</span>' +
       (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in their place.">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
-      (pk.makeBoard ? '<button class="btn" data-act="pkmkbd" data-k="pk-mkbd" title="An empty pad board, made here and put in this scene; you give it pads on its own page">' + L.icon('plus', 's') + 'New board…</button>' : '') +
+      (pk.makeBoard ? '<button class="btn" data-act="pkmkbd" data-k="pk-mkbd" title="Make an empty pad board and put it in this scene. You give it pads on its page.">' + L.icon('plus', 's') + 'New board…</button>' : '') +
       '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="pkdone">' + esc(pk.okLabel) + '</button>';
   }
   function paintFooter(k) { var f = document.querySelector('#lyre-sheet footer'); if (!f) return; f.innerHTML = footer(); var n = k && f.querySelector('[data-k="' + k + '"]'); if (n) { n.focus(); if (n.select) n.select(); } }
@@ -298,7 +298,7 @@
     var f = document.getElementById('pk-plname'), name = (f && f.value.trim()) || pk.naming, ts = tickedTracks(); if (!ts.length) return;
     var p = { id: L.uid('p-'), name: name, kind: 'manual', lane: 'music', items: ts.slice(), notes: '' }; D.playlists.push(p);
     var at = pk.sel.indexOf(ts[0]); pk.sel = pk.sel.filter(function (id) { return ts.indexOf(id) < 0; }); pk.sel.splice(Math.max(0, Math.min(at, pk.sel.length)), 0, p.id);
-    pk.naming = ''; L.acts.pkdone(); L.say(name + ' made with ' + ts.length + (ts.length === 1 ? ' track' : ' tracks') + ', and put in the scene');
+    pk.naming = ''; L.acts.pkdone(); L.say('Made the playlist ' + name + ' with ' + ts.length + (ts.length === 1 ? ' track' : ' tracks') + ' and put it in the scene.');
   };
   L.acts.pkmkbd = function () {
     var n = 1; while (D.boards.some(function (b) { return b.name === 'New board ' + n; })) n++;
@@ -311,7 +311,7 @@
     var slots = []; for (var i = 0; i < 12; i++) slots.push(null);
     D.boards.push({ id: id, name: name, cols: 4, rows: 3, spare: [], slots: slots });
     if (pk.sel.indexOf(id) < 0) pk.sel.push(id);
-    pk.namingBoard = ''; L.acts.pkdone(); L.say(name + ' made, an empty 4 by 3 board, and put in the scene. Give it pads on its page.');
+    pk.namingBoard = ''; L.acts.pkdone(); L.say('Made ' + name + ', an empty 4 by 3 board, and put it in the scene. Give it pads on its page.');
   };
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Enter' || !e.target) return;

@@ -15,7 +15,7 @@ import { HelpText } from "./HelpText";
 import { keepKeysHere } from "./keys";
 import { diagnosticsResultWords, type DiagnosticsBridge, type DiagnosticsResult } from "../../common/lyreDiagnostics";
 import { LYRE_VERSION } from "../version";
-import { SCREEN_HELP, TOURS, type ScreenTourStart, type TourKey, type TourPlaces } from "./tours";
+import { SCREEN_HELP, type ScreenTourStart, type TourKey, type TourPlaces } from "./tours";
 import { useSetupProgress } from "./setup";
 import { useThemeWasChosen } from "../shell/ShellSettings";
 import { routeFromHash } from "../shell/routes";
@@ -249,10 +249,11 @@ function OnThisScreen({ places, onScreenTour, onArticle }: { places: TourPlaces;
         <Button size="s" icon="play" onClick={() => onScreenTour(here.tour, places, { here: true })}>
           Tour of this screen
         </Button>
-        {/* Named for the screen, as in the prototype, so it is not the same button as the article's in its group. */}
+        {/* Named for the screen, so it is not the same button as the article's in its group. 0.6.0 language review A6:
+            the tour's name ("A track's details") is not the article's ("How a track plays"), so it says what it opens. */}
         {article && (
           <button type="button" className="help-item help-screen-art" onClick={() => onArticle(article)}>
-            {TOURS[here.tour].name}: how it works
+            How this screen works
           </button>
         )}
       </div>

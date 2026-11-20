@@ -10,7 +10,7 @@ export const SHARED_FILE = "Its file is shared with its parts or the track it is
 /** Why a split cannot be made, in the game master's words; null when it can. `durationMs`: the whole file's length. */
 export function splitProblem(request: SplitRequest, durationMs: number): string | null {
   const parts = request.parts;
-  if (parts.length < 2) return "Tick at least one marker to split it at.";
+  if (parts.length < 2) return "Tick at least one marker under Split at.";
   let end = 0;
   for (const p of parts) {
     if (!p.name.trim()) return "Each part needs a name.";

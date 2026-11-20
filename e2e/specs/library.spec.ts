@@ -887,7 +887,7 @@ test.describe("round 10: removing tracks from the Track library", () => {
     metByTheAppAlready("0.5.2 built Remove from library in a row's ⋯ with these words (RemoveTracks.tsx)");
     await openRoute(page, "library");
     await row(page, eerie).getByRole("button", { name: `More for ${eerie}` }).click();
-    await page.getByRole("menuitem", { name: "Remove from library", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Remove from library…", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: `Remove “${eerie}” from the library?` });
     await expect(dialog).toContainText("Its file stays on your computer");
     await expect(dialog).toContainText("The abbey ruins");
