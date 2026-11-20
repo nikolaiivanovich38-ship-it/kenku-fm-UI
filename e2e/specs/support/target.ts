@@ -190,7 +190,14 @@ export async function openRoute(page: Page, route: Route, options: { theme?: The
   // No init script, as in openFirstStart: one runs again on every reload, and a write to storage that early in a
   // reloaded page can replace what the page saved before it (reopen found the Library's Columns back at the usual
   // three, about one reopen in four, on GitHub and here). The page's settings are written once, then it reloads.
+  // Already open (a second openRoute in a check): only the address changes, as before, so what the page holds in
+  // memory (a bot joined with joinRoom, a text size) stays.
+  const opened = page.url().startsWith(PROTOTYPE);
   await page.goto(`${PROTOTYPE}#${route.split("/").join("--")}`);
+  if (opened) {
+    await page.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
+    return;
+  }
   await page.evaluate((t) => {
     // "frame: full" and "notes: false" hide the prototype's own presentation strips.
     // "tour: done": the first-run tour was seen (help.spec.ts opens a first start with openFirstStart).
