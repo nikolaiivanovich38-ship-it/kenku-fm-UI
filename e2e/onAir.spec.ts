@@ -130,7 +130,7 @@ test("with no bot in a voice channel, music on air plays nowhere: nobody hears i
   await lyre.getByRole("button", { name: "Play on air: The Company themes" }).first().click();
   const row = onAirBar(lyre).getByRole("group", { name: "On air: no room" });
   await expect(row).toContainText("nobody hears it");
-  await expect(row.locator(".num")).not.toHaveText(/^0:00/, { timeout: 5_000 });
+  await expect(row.locator(".oab-time .num")).not.toHaveText(/^0:00/, { timeout: 5_000 });
   const heard = await heardAtTable(launched.app);
   for (let i = 0; i < 6; i++) {
     expect(await thisComputerPlays(launched.app), "nothing on this computer").toBe(false);
