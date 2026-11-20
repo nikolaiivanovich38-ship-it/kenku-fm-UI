@@ -127,7 +127,7 @@ export function Contents({
     const key = place === undefined ? `pl:${p.id}` : place;
     const where = key ? parseKeyOfPlace(key) : null;
     // ORG-13: in a scene, a session's or a campaign's list the order can be changed for that place only.
-    if (where) return <PlaceTracks name={p.name} playlistId={p.id} lane={p.lane} tracks={tracks} place={where} />;
+    if (where) return <PlaceTracks name={p.name} playlistId={p.id} manual={p.kind === "manual"} lane={p.lane} tracks={tracks} place={where} />;
     return (
       <ol className="list" aria-label={`Tracks in ${p.name}`}>
         {tracks.map((t, i) => {

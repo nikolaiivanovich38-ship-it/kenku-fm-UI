@@ -821,3 +821,82 @@ test.describe("round 10: taking things out of a scene and a session", () => {
     await expect(box.getByRole("listitem")).toHaveCount(n);
   });
 });
+
+/* 0.6.0 finishing work (R60-FINISH.md f-prep 1; R60-GAPS.md row 13, item 32; the prototype's r9lists.js "Drag between
+   lists in the planner"): a track of a playlist unfolded anywhere in the planner can be dragged onto a scene's music or
+   onto a manual playlist's row, or onto the Drop on tray, as from the Library. Dropping copies; with Shift held it
+   moves out of the manual playlist it came from. The keyboard does the same with Add to… in the track's ⋯. */
+test.describe("0.6.0: dragging a track of an unfolded playlist to another list (item 32)", () => {
+  const crypt = (page: Page) => scene(page, "Crypt ambush");
+  const abbessTracks = (page: Page) => abbey(page).getByRole("list", { name: /^Tracks in The Abbess/ });
+
+  async function openBoth(page: Page) {
+    // Wide enough that Drop on, at the window's right, leaves the start of the side column's rows free to drop on.
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await openAbbey(page);
+    await page.getByRole("button", { name: "Scene 4: Crypt ambush" }).click();
+    await musicOf(abbey(page)).getByRole("button", { name: "Show contents of The Abbess" }).click();
+    const first = abbessTracks(page).getByRole("link").first();
+    return { first, title: (await first.innerText()).trim() };
+  }
+
+  // The places to drop show once a drag has started, so the drag is done step by step (as playlists.spec does).
+  async function drag(page: Page, from: Locator, onto: Locator, shift = false) {
+    await from.scrollIntoViewIfNeeded();
+    const a = (await from.boundingBox())!;
+    await page.mouse.move(a.x + 10, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(a.x + 40, a.y + 30, { steps: 5 });
+    if (shift) await page.keyboard.down("Shift");
+    await onto.scrollIntoViewIfNeeded();
+    const b = (await onto.boundingBox())!;
+    await page.mouse.move(b.x + Math.min(30, b.width / 2), b.y + b.height / 2, { steps: 8 });
+    await page.mouse.up();
+    if (shift) await page.keyboard.up("Shift");
+  }
+
+  test("dragging it shows Drop on with where it can go, and Esc puts everything back", async ({ page }) => {
+    const { first } = await openBoth(page);
+    const a = (await first.boundingBox())!;
+    await page.mouse.move(a.x + 10, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(a.x + 40, a.y + 60, { steps: 5 });
+    const tray = page.getByRole("region", { name: "Drop on" });
+    await expect(tray).toBeVisible();
+    await expect(tray.getByRole("button", { name: "The Company themes", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(tray).toHaveCount(0);
+    await page.mouse.up();
+  });
+
+  test("dropped on another scene's music it is added there, and stays in its playlist", async ({ page }) => {
+    const { first, title } = await openBoth(page);
+    await drag(page, first, musicOf(crypt(page)));
+    await expect.poll(() => linkNames(musicOf(crypt(page)))).toContain(title);
+    await expect(abbessTracks(page).getByRole("link", { name: title, exact: true })).toHaveCount(1);
+  });
+
+  test("dropped on a manual playlist's row it is copied there; with Shift held it moves out of the playlist it came from", async ({ page }) => {
+    const { first, title } = await openBoth(page);
+    const company = page
+      .getByRole("region", { name: "Campaign playlists", exact: true })
+      .getByRole("listitem")
+      .filter({ has: page.getByRole("link", { name: "The Company themes", exact: true }) })
+      .first();
+    await drag(page, first, company, true);
+    await expect(page.getByRole("status").filter({ hasText: /Moved to The Company themes/ })).toBeVisible();
+    await expect(abbessTracks(page).getByRole("link", { name: title, exact: true })).toHaveCount(0);
+  });
+
+  test("the keyboard does the same: Add to… in the track's ⋯, and the list says so to a screen reader", async ({ page }) => {
+    appOnly(); // the prototype drags only; the app adds its Add to… (Library, playlist page) here too
+    const { title } = await openBoth(page);
+    await expect(abbessTracks(page)).toHaveAccessibleDescription(/Add to…/);
+    await abbessTracks(page).getByRole("button", { name: `More for ${title}` }).click();
+    await page.getByRole("menuitem", { name: "Add to…" }).click();
+    const sheet = page.getByRole("dialog", { name: `Add ${title} to` });
+    await sheet.getByRole("radio", { name: "Session 14 › Crypt ambush" }).check();
+    await sheet.getByRole("button", { name: "Add", exact: true }).click();
+    await expect.poll(() => linkNames(musicOf(crypt(page)))).toContain(title);
+  });
+});

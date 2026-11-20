@@ -1036,3 +1036,76 @@ test.describe("round 10: nothing drawn on top of anything else (R10-FIX §3)", (
     expect(narrow.x + narrow.width).toBeLessThanOrEqual(box.x + 1);
   });
 });
+
+/* 0.6.0 finishing work (R60-FINISH.md f-prep 2; ROUND10.md K "12 px floor for text"; R60-GAPS.md "text 12 px or
+   more"): no text on any screen, in any of the five themes, is smaller than 12 px. Read from the page as drawn (the
+   computed size of every piece of text shown), so a regression from a token, a screen's own CSS or an inline style is
+   caught alike. Text read out only (the sr-only kind, clipped to 1 px) is not drawn, so it does not count. */
+const FLOOR_PX = 12;
+
+/** Each piece of text shown smaller than 12 px, once per element: where it is, its words and its size. */
+async function textUnderTheFloor(page: Page): Promise<string[]> {
+  return page.evaluate(
+    ({ ignore, floor }) => {
+      const out = new Set<string>();
+      const readOutOnly = (e: Element) => {
+        for (let p: Element | null = e; p; p = p.parentElement) {
+          const b = p.getBoundingClientRect();
+          if (b.width <= 1 && b.height <= 1 && /(hidden|clip)/.test(getComputedStyle(p).overflow)) return true;
+        }
+        return false;
+      };
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const words = (n.textContent ?? "").replace(/\s+/g, " ").trim();
+        const e = n.parentElement;
+        if (!words || !e || e.closest("script, style, noscript, template, [hidden]") || ignore.some((sel) => e.closest(sel))) continue;
+        const cs = getComputedStyle(e);
+        if (cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) continue;
+        const range = document.createRange();
+        range.selectNodeContents(n);
+        const r = range.getBoundingClientRect();
+        if (r.width < 1 || r.height < 1 || readOutOnly(e)) continue;
+        const px = parseFloat(cs.fontSize);
+        if (px < floor - 0.05) {
+          const where = `${e.tagName.toLowerCase()}${e.classList.length ? `.${Array.from(e.classList).join(".")}` : ""}`;
+          out.add(`${where} "${words.slice(0, 30)}" ${Math.round(px * 10) / 10}px`);
+        }
+      }
+      return [...out];
+    },
+    { ignore: notLyre(), floor: FLOOR_PX },
+  );
+}
+
+test.describe("0.6.0: no text under 12 px, on every screen, in all five themes", () => {
+  for (const screen of SCREENS) {
+    test(`${screen.name}: no text is smaller than 12 px, in all five themes`, async ({ page }) => {
+      expectFailureUntilSweptScreenBuilt(screen);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await openRoute(page, screen.route);
+      await screen.prepare?.(page, { playing: false });
+      const found: string[] = [];
+      for (const theme of BASE_THEMES) {
+        await showTheme(page, theme);
+        for (const p of await textUnderTheFloor(page)) found.push(`${theme}: ${p}`);
+      }
+      expect(found).toEqual([]);
+    });
+  }
+  for (const state of OPENED) {
+    test(`${state.name}: no text is smaller than 12 px, in all five themes`, async ({ page }) => {
+      expectFailureUntilScreenBuilt(state.owner);
+      if (!state.met) expectFailureUntilBuilt("r10-prep", ...(state.streams ?? []));
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await openRoute(page, state.route);
+      await state.open(page);
+      const found: string[] = [];
+      for (const theme of BASE_THEMES) {
+        await showTheme(page, theme);
+        for (const p of await textUnderTheFloor(page)) found.push(`${theme}: ${p}`);
+      }
+      expect(found).toEqual([]);
+    });
+  }
+});

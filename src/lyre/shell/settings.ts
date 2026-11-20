@@ -15,6 +15,8 @@ export interface ShellSettings {
   tour?: "done";
   /** Round 10: where each panel that can dock or float was last (Add music: docked left or right, or floating). */
   places?: Record<string, PanelPlace>;
+  /** Round 10: a theme was chosen in Look and feel (Set up Lyre's "Choose a theme"); `theme` is always written. */
+  themeChosen?: true;
 }
 
 /** Round 10 (rows 12 and 37): a panel docked beside the screen (with the width Nik gave it), or floating over it. */
@@ -70,6 +72,7 @@ export function loadShellSettings(): ShellSettings {
     panes,
     ...(stored.tour === "done" ? { tour: "done" as const } : {}),
     ...(Object.keys(places).length ? { places } : {}),
+    ...(stored.themeChosen === true ? { themeChosen: true as const } : {}),
   };
 }
 

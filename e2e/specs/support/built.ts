@@ -58,6 +58,13 @@ export const BUILT_SCREENS: readonly string[] = ["library", "playlists", "audio-
  *                   target.ts), Help (the first start, Set up Lyre, a tour per screen), the session planner and
  *                   campaigns (no Open all, Start with Change…, Make a playlist of these…, New board…, Add music
  *                   docked or floating, Remove with Undo and Delete), and Pad boards
+ *
+ * 0.6.0 finishing work (/root/kenku-wt/R60-FINISH.md): two follow-up jobs.
+ *
+ *   f-live          a pad's While it plays field, dividers in Live's unfolded playlists, Back, Forward and the queue
+ *                   for a room on air, the Audio profile's trail
+ *   f-prep          dragging a track of an unfolded playlist onto another playlist or a scene's music, the 12 px
+ *                   floor, a tour per screen
  */
-export type Stream = "shell" | "live" | "rooms-settings" | "prep" | "retire" | "feat" | "r10-live" | "r10-tracks" | "r10-prep";
-export const BUILT_STREAMS: readonly Stream[] = ["shell", "rooms-settings", "prep", "live", "retire", "feat", "r10-tracks", "r10-live", "r10-prep"];
+export type Stream = "shell" | "live" | "rooms-settings" | "prep" | "retire" | "feat" | "r10-live" | "r10-tracks" | "r10-prep" | "f-live" | "f-prep";
+export const BUILT_STREAMS: readonly Stream[] = ["shell", "rooms-settings", "prep", "live", "retire", "feat", "r10-tracks", "r10-live", "r10-prep", "f-prep"];

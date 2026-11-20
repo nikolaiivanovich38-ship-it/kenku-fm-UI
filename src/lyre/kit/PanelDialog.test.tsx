@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { clampFloat, PanelDialog } from "./PanelDialog";
 import { SidePanelHost, SidePanelProvider } from "./SidePanel";
@@ -169,6 +169,60 @@ describe("PanelDialog: a dialog that does not block the page (R10 rows 12 and 37
     fireEvent.pointerUp(document, { clientX: 130, clientY: 150 });
     expect(parseFloat(dialog().style.left)).toBe(left + 30);
     expect(parseFloat(dialog().style.top)).toBe(top + 50);
+  });
+
+  // Code review of 0.6.0 (R60-CODE-REVIEW.md M7): a drag ends when the pointer is cancelled or the panel closes.
+  it("stops following the pointer once the pointer is cancelled (Alt+Tab, a touch taken over)", async () => {
+    render(<Planner />);
+    const user = await openIt();
+    await dockTo(user, "Float");
+    const head = dialog().querySelector("header")!;
+    fireEvent.pointerDown(head, { clientX: 100, clientY: 100, button: 0 });
+    fireEvent.pointerMove(document, { clientX: 120, clientY: 100 });
+    fireEvent.pointerCancel(document, { clientX: 120, clientY: 100 });
+    const left = parseFloat(dialog().style.left);
+    fireEvent.pointerMove(document, { clientX: 300, clientY: 300 });
+    expect(parseFloat(dialog().style.left)).toBe(left);
+  });
+
+  it("closing it in the middle of a drag leaves nothing listening, and nothing is remembered after", async () => {
+    render(<Planner />);
+    const user = await openIt();
+    await dockTo(user, "Float");
+    const kept = localStorage.getItem("lyre-shell");
+    const head = dialog().querySelector("header")!;
+    const removed = vi.spyOn(document, "removeEventListener");
+    fireEvent.pointerDown(head, { clientX: 100, clientY: 100, button: 0 });
+    fireEvent.keyDown(dialog(), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(removed.mock.calls.map(([type]) => type)).toEqual(expect.arrayContaining(["pointermove", "pointerup", "pointercancel"]));
+    removed.mockRestore();
+    fireEvent.pointerMove(document, { clientX: 300, clientY: 300 });
+    fireEvent.pointerUp(document, { clientX: 300, clientY: 300 });
+    expect(localStorage.getItem("lyre-shell")).toBe(kept);
+  });
+
+  // M8: the window got smaller; the panel's title bar stays in it.
+  it("floating, it moves back inside the window when the window gets smaller", async () => {
+    render(<Planner />);
+    const user = await openIt();
+    await dockTo(user, "Float");
+    const head = dialog().querySelector("header")!;
+    fireEvent.pointerDown(head, { clientX: 100, clientY: 100, button: 0 });
+    fireEvent.pointerMove(document, { clientX: 2000, clientY: 2000 });
+    fireEvent.pointerUp(document, { clientX: 2000, clientY: 2000 });
+    const was = { innerWidth: window.innerWidth, innerHeight: window.innerHeight };
+    try {
+      Object.assign(window, { innerWidth: 700, innerHeight: 500 });
+      act(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+      const panel = dialog();
+      expect(parseFloat(panel.style.left) + parseFloat(panel.style.width)).toBeLessThanOrEqual(692);
+      expect(parseFloat(panel.style.top) + parseFloat(panel.style.height)).toBeLessThanOrEqual(492);
+    } finally {
+      Object.assign(window, was);
+    }
   });
 
   it("remembers where it was the next time it opens", async () => {

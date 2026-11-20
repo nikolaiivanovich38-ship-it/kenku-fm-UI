@@ -40,4 +40,14 @@ describe("remembered shell settings", () => {
     localStorage.setItem(SHELL_SETTINGS_KEY, JSON.stringify({ places: { addMusic: { dock: "up" }, other: { dock: "float", left: "x" } } }));
     expect(loadShellSettings().places).toBeUndefined();
   });
+
+  // Code review of 0.6.0 (R60-CODE-REVIEW.md M12): Set up Lyre's "Choose a theme" reads a flag Look and feel writes.
+  it("round 10: remembers that a theme was chosen in Look and feel, and nothing else counts as choosing one", () => {
+    saveShellSettings({ theme: "candle", rail: "min", panes: { scenes: "c" } });
+    expect(loadShellSettings().themeChosen).toBeUndefined();
+    saveShellSettings({ theme: "candle", rail: "auto", panes: {}, themeChosen: true });
+    expect(loadShellSettings().themeChosen).toBe(true);
+    localStorage.setItem(SHELL_SETTINGS_KEY, JSON.stringify({ theme: "candle", themeChosen: "yes" }));
+    expect(loadShellSettings().themeChosen).toBeUndefined();
+  });
 });

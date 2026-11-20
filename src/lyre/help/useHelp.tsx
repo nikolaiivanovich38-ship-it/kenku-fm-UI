@@ -14,7 +14,7 @@ import { useShellSettings } from "../shell/ShellSettings";
 import type { DiagnosticsBridge } from "../../common/lyreDiagnostics";
 import { HelpPanel } from "./HelpPanel";
 import { TOUR_STEPS, Tour, type TourStep } from "./Tour";
-import { stepsOnScreen, TOURS, type TourKey, type TourPlaces } from "./tours";
+import { stepsOnScreen, tourAddress, TOURS, type ScreenTourStart } from "./tours";
 
 /** How long a screen's tour waits for its screen's controls after going there. */
 const TOUR_WAIT_MS = 1500;
@@ -39,7 +39,7 @@ export interface HelpInShell {
   /** The tour's popover, or null. */
   tour: React.ReactNode;
   /** Round 10: start a screen's tour (Help's Tour of this screen, Set up Lyre's Show me). */
-  startScreenTour: (key: TourKey, places: TourPlaces | "here") => void;
+  startScreenTour: ScreenTourStart;
 }
 
 /** The page's Save diagnostics, when it runs in Lyre (src/lyre/preload.ts). */
@@ -93,13 +93,12 @@ export function useHelp({ firstRunTour = false }: { firstRunTour?: boolean } = {
 
   // Round 10: a screen's tour: its name and the steps whose controls are on screen.
   const [guide, setGuide] = useState<{ name: string; steps: TourStep[]; step: number } | null>(null);
-  const startScreenTour = useCallback((key: TourKey, places: TourPlaces | "here") => {
+  const startScreenTour = useCallback<ScreenTourStart>((key, places, options) => {
     const def = TOURS[key];
     returnTo.current = null;
     setHelpOpen(false);
-    // "here": Tour of this screen stays on the screen Help was opened from.
-    const to = places === "here" ? "" : def.route(places);
-    if (to && window.location.hash !== to) window.location.hash = to;
+    const to = tourAddress(def, places, options?.here === true);
+    if (to) window.location.hash = to;
     // The screen draws its controls once its data has loaded: wait for them, then point at those that are there.
     const started = Date.now();
     const look = () => {

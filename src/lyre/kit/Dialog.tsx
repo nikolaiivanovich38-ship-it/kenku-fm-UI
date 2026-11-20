@@ -1,6 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconButton } from "./Button";
+import { useAnnounce } from "../shell/Announcer";
 
 export interface DialogProps {
   open: boolean;
@@ -36,6 +37,17 @@ export function Dialog({ open, title, onClose, footer, wide, description, enterS
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const { say } = useAnnounce();
+  // Esc, or a click outside: with escapeTwice the first only warns (shown, and read out through the page's live region,
+  // since a live region that appears with its words already in it is often not read); the second closes.
+  const askToClose = () => {
+    if (escapeTwice && !armed) {
+      setArmed(true);
+      say(escapeTwice);
+      return;
+    }
+    onCloseRef.current();
+  };
 
   useEffect(() => {
     if (!open) {
@@ -63,11 +75,7 @@ export function Dialog({ open, title, onClose, footer, wide, description, enterS
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
-      if (escapeTwice && !armed) {
-        setArmed(true);
-        return;
-      }
-      onCloseRef.current();
+      askToClose();
       return;
     }
     if (enterSubmits && event.key === "Enter" && !event.shiftKey && event.target instanceof HTMLInputElement && /^(text|search|)$/.test(event.target.type)) {
@@ -101,7 +109,7 @@ export function Dialog({ open, title, onClose, footer, wide, description, enterS
       className="sheet"
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) {
-          onCloseRef.current();
+          askToClose();
         }
       }}
     >
@@ -128,7 +136,7 @@ export function Dialog({ open, title, onClose, footer, wide, description, enterS
         {footer && (
           <footer>
             {escapeTwice && armed && (
-              <span className="dlg-esc grow" role="status">
+              <span className="dlg-esc grow">
                 {escapeTwice}
               </span>
             )}

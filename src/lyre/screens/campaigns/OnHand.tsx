@@ -168,7 +168,8 @@ function OnHandRow({ info, playlist, board, index, scope, onRemove, removeLabel,
   };
   return (
     <li className="cp-arow-wrap">
-      <div className="cp-arow" onKeyDown={onKeyDown}>
+      {/* 0.6.0 (item 32): a manual playlist's row takes a track dragged from another list (the screen's DropTray). */}
+      <div className="cp-arow" onKeyDown={onKeyDown} data-dropto={playlist?.kind === "manual" ? `pl:${playlist.id}` : undefined}>
         <ExpanderButton label={info.name} expanded={open} onToggle={() => setOpen(!open)} />
         <span className={`lane-dot ${info.lane}`} aria-hidden="true" />
         <a className="ellipsis grow cp-aname" href={info.href} data-k={`open-${scope}${kindKey}${info.id}`} title={`${info.name} · ${info.listSub}${onMove ? " (Alt+Up or Alt+Down moves it)" : ""}`}>

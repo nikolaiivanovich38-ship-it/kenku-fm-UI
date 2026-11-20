@@ -21,6 +21,8 @@ import type { MenuEntry } from "../../kit/Menu";
 import { Column, Pane } from "../../kit/Pane";
 import { useAnnounce } from "../../shell/Announcer";
 import { useUndoNote } from "../../shell/UndoNote";
+import { DropTray } from "../drop/DropTray";
+import { nestedTrackDragged } from "./PlaceTracks";
 import { SceneMarks, SceneStart, StepsDialog } from "../steps/StepsDialog";
 import { RepeatOneButton } from "../../kit/RepeatOneButton";
 import type { ScreenProps } from "..";
@@ -588,6 +590,8 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
       {usingIn && index.track(usingIn) && <TrackUseInDialog track={index.track(usingIn)!} index={index} onClose={() => setUsingIn(null)} />}
       <DeleteSessionDialog session={deletingSession ? s : null} onClose={() => setDeletingSession(false)} onDeleted={() => (window.location.hash = `#/campaign/${c.id}`)} />
       {stepsScene && <StepsDialog owner={{ kind: "scene", campaignId: c.id, sessionId: s.id, scene: stepsScene }} onClose={() => setStepsOf(null)} />}
+      {/* 0.6.0 (item 32): a track of an unfolded playlist dragged to another list shows Drop on, as from the Library. */}
+      <DropTray resolve={nestedTrackDragged} />
       <Dialog
         open={!!deletingScene}
         title="Delete this scene?"
@@ -1021,6 +1025,8 @@ function MusicList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
     <div
       className={`cp-box${over ? " cp-fdrop" : ""}${over && over.index >= rows.length ? " cp-ins-end" : ""}`}
       title="Drop audio files or folders here to add them"
+      // 0.6.0 (item 32): a track dragged from a playlist anywhere in the planner lands here too (the screen's DropTray).
+      data-dropto={dropKeyOfScene(ctx.address(scene))}
       onDragOver={(event) => {
         if (!carriesFiles(event)) return;
         event.preventDefault();
@@ -1201,4 +1207,9 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
 /** A field that takes typing, where Delete deletes text. */
 function isTypingIn(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+}
+
+/** The Drop on key of a scene's music (DropTray's places: "sc:<campaign>:<session>:<scene>"). */
+function dropKeyOfScene(at: SceneAddress): string {
+  return `sc:${at.campaignId}:${at.sessionId}:${at.sceneId}`;
 }
