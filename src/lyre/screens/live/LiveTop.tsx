@@ -30,6 +30,8 @@ export interface TopProps {
   loadSession: (campaignId: string, sessionId: string) => void;
   /** Undo the last change (the Undo place and Ctrl+Z). */
   undo: () => boolean;
+  /** Round 10: Arrange mode on or off. */
+  setArranging: (on: boolean) => void;
 }
 
 /**
@@ -44,7 +46,7 @@ function goNow(hash: string): void {
 
 const STATUS_WORDS = { next: "next", played: "played", draft: "draft" } as const;
 
-export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession, undo }: TopProps) {
+export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession, undo, setArranging }: TopProps) {
   const live = useLive();
   const { campaign, session, campaigns, keys1 } = live;
   const { say } = useAnnounce();
@@ -170,6 +172,18 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession, undo }: 
         </button>
         {keysOpen && <KeysPop setKeysOpen={setKeysOpen} setKeys1={setKeys1} keys1={keys1} />}
       </span>
+      {/* Round 10 (Nik, 18 Nov 03:14, answer 6): move and size the boxes; kept for this window size. */}
+      <button
+        type="button"
+        className="btn s lv-arrange"
+        data-lv="arrange"
+        aria-pressed={live.state.arranging}
+        title={live.state.arranging ? "Done arranging" : "Move and size the boxes on this screen"}
+        onClick={() => setArranging(!live.state.arranging)}
+      >
+        <Icon name="grid" size="s" />
+        <span className="lv-btxt">{live.state.arranging ? "Done" : "Arrange"}</span>
+      </button>
     </div>
   );
 }

@@ -86,6 +86,8 @@ export interface LiveState {
   airNames: Record<string, { trackId: string; place: UsePlace }>;
   /** UX-12: when Next scene was last pressed with its key (the guard ignores a second press within a second). */
   lastNextKey: number | null;
+  /** Round 10: Arrange mode is on (each box gets a grip and Move…; the boxes cannot be used). */
+  arranging: boolean;
 }
 
 const START: LiveState = {
@@ -110,6 +112,7 @@ const START: LiveState = {
   aq: {},
   airNames: {},
   lastNextKey: null,
+  arranging: false,
 };
 
 let state: LiveState = START;

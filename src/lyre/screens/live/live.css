@@ -681,3 +681,31 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 /* A pad with no sound is dashed and says so on its face (table review S3); pressing it shows the warning pop-up. */
 .lv-pad.lv-pad-none { border-style: dashed; background: transparent; color: var(--ink-2); }
 .lv-pad-nosound { flex: none; font-size: var(--fs-xs); font-weight: 700; color: var(--warn); }
+
+/* ---------- Round 10: Arrange (Nik, 18 Nov 03:14, answer 6; r9live.js §5) ----------
+   Each box gets a row above it (grip, name, Move…), never over its title; its bottom edge is dragged for height and the
+   bar between columns for widths. The boxes cannot be used while arranging (inert), and look so. */
+.lv-arrbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 10px; margin: 6px 8px; border: 1px dashed var(--accent); border-radius: var(--r-m);
+  background: var(--accent-soft); font-size: var(--fs-s); flex: none; }
+.lv-arrbar.lv-topover { box-shadow: 0 4px 0 var(--accent); }
+.lv-arrbox { position: relative; border: 1px dashed var(--accent); border-radius: var(--r-l); margin-bottom: 8px; min-width: 0; }
+.lv-arrbox.lv-arrtop { margin: 0 8px 8px; flex: none; }
+.lv-arrbox.lv-before { box-shadow: 0 -4px 0 var(--accent); }
+.lv-arrbox.lv-after { box-shadow: 0 4px 0 var(--accent); }
+.lv-arr { display: flex; align-items: center; gap: 6px; margin: 4px 4px 0; min-width: 0; font-size: var(--fs-s); }
+.lv-arr-grip { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; flex: none; border-radius: var(--r-s);
+  background: var(--accent); color: var(--accent-ink); cursor: grab; }
+.lv-arr-n { flex: 1; min-width: 0; color: var(--ink-2); }
+.lv-arr-move { flex: none; background: var(--surface); border-color: var(--accent); }
+.lv-arrin { opacity: .7; }
+.lv-arrbox .lv-arrin > .lv-dock { max-height: none; padding: 0; }
+.lv-arrin.lv-fixed, .lv-fixed { max-height: var(--lv-h); overflow: auto; }
+.lv-fixed { margin-bottom: 8px; border-radius: var(--r-l); }
+.lv-edge-b { position: absolute; left: 30%; right: 30%; bottom: -5px; height: 10px; border-radius: 5px; background: var(--accent); opacity: .55; cursor: ns-resize; }
+.lv-edge-b:hover, .lv-arrbox.lv-sizing .lv-edge-b { opacity: 1; }
+.lv-split { display: flex; flex-direction: column; align-items: center; padding-top: 36px; position: relative; cursor: col-resize; }
+.lv-split-bar { width: 6px; flex: 1; border-radius: 3px; background: var(--line-strong); }
+.lv-split.on .lv-split-bar, .lv-split:hover .lv-split-bar { background: var(--accent); }
+.lv-cols.lv-arranging > .col:empty { min-height: 120px; outline: 2px dashed var(--line-strong); outline-offset: -2px; border-radius: var(--r-l); }
+/* On air moved into a column: the dock is a box like the others there. */
+.lv-dock.lv-dock-in { max-height: none; padding: 0; margin-bottom: 8px; overflow: visible; }
