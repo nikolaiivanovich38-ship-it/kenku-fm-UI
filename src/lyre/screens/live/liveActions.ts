@@ -67,8 +67,9 @@ function nameOnAir(roomId: string, what: PlayWhat): void {
  * hear, so each has Undo, which brings every room back where it was (`sameTime`: from the point it had reached, for
  * Fade all and Stop all). Nothing playing before: nothing to bring back, so no Undo.
  */
-export function withRoomsUndo(d: LiveData, text: string, focus: string, change: () => void, options: { sameTime?: boolean } = {}): boolean {
-  const before = d.audio.snapshotRooms();
+export function withRoomsUndo(d: LiveData, text: string, focus: string, change: () => void, options: { sameTime?: boolean; targets?: readonly RoomTarget[] } = {}): boolean {
+  // Review I3: Play on air keeps only the rooms it plays in, so Undo leaves the others (which may move on) alone.
+  const before = d.audio.snapshotRooms(options.targets);
   const hadSound = d.audio.snapshotHasSound(before);
   touched();
   change();
@@ -111,7 +112,7 @@ export function playOnAir(d: LiveData, targets: readonly RoomTarget[], what: Pla
     playOnAirNow(d, targets, what);
     return;
   }
-  withRoomsUndo(d, `Playing on air: ${what.name}`, focus, () => playOnAirNow(d, targets, what));
+  withRoomsUndo(d, `Playing on air: ${what.name}`, focus, () => playOnAirNow(d, targets, what), { targets });
 }
 
 function playOnAirNow(d: LiveData, targets: readonly RoomTarget[], what: PlayWhat): void {

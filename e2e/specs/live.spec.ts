@@ -1824,6 +1824,30 @@ test("round 10: a track in a playlist unfolded in Live has a ⋯ with Remove fro
   await expect(tracks.getByRole("listitem")).toHaveCount(n - 1);
 });
 
+/* 0.6.0 finishing (R60-FINISH f-live 2; round 9 §8, item 42: "The dividers in playlists need to appear wherever
+   playlists are visible not just in the setup prep view"): a manual playlist unfolded in Live shows its dividers as
+   headings, each with Play from here (live.js plRow, r9lists.js dividerHeading). Written before the app had them. */
+test("0.6.0 finishing (f-live): a playlist unfolded in Live shows its dividers, and Play from here plays it from the track under one", async ({ page }) => {
+  await openRoute(page, "playlist/p-company");
+  const more = page.getByRole("list", { name: "Tracks in order" }).getByRole("listitem").nth(3).getByRole("button", { name: /^More for / });
+  const title = ((await more.getAttribute("aria-label")) ?? "").replace(/^More for /, "");
+  await more.click();
+  await page.getByRole("menuitem", { name: "Add a divider above" }).click();
+  await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("The voyage home");
+  await page.getByRole("dialog").getByRole("button", { name: "Add divider" }).click();
+  await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: /^Live/ }).click();
+  const box = region(page, "Campaign playlists");
+  await box.getByRole("button", { name: "Campaign Playlists", exact: true }).click();
+  await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
+  const items = box.getByRole("list", { name: "Tracks in The Company themes" }).getByRole("listitem");
+  const heading = items.filter({ hasText: "The voyage home" });
+  await expect(heading).toHaveAccessibleName("Section: The voyage home");
+  const all = await items.allTextContents();
+  expect(all[all.findIndex((t) => t.includes("The voyage home")) + 1]).toContain(title.slice(0, 20));
+  await heading.getByRole("button", { name: "Play from here: The voyage home" }).click();
+  await expect(region(page, "On air")).toContainText(title.slice(0, 20));
+});
+
 /* Round 10 (table review S5; round 9 §6), written by r10-live before the app had them. */
 test.describe("round 10: rows and Up next", () => {
 

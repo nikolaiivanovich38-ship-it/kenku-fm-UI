@@ -380,7 +380,7 @@ export interface LyreAudio {
    * Round 10 (table review M4; Nik, 18 Nov 08:36, answer 6a): what every room plays now, kept by Live before Play on
    * air, Fade all or Stop all, and brought back by their Undo (`sameTime`: from where it was, not where it would be).
    */
-  snapshotRooms(): RoomsSnapshot;
+  snapshotRooms(targets?: readonly RoomTarget[]): RoomsSnapshot;
   restoreRooms(snapshot: RoomsSnapshot, options?: { sameTime?: boolean }): CueOutcome;
   /** True when a room in the snapshot was playing music or ambience. */
   snapshotHasSound(snapshot: RoomsSnapshot): boolean;
@@ -903,8 +903,9 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   }
 
   // --- r10-live ---
-  snapshotRooms(): RoomsSnapshot {
-    return this.director.snapshotRooms();
+  /** Review I3: given targets, only those rooms (Undo of Play on air leaves the other rooms where they are). */
+  snapshotRooms(targets?: readonly RoomTarget[]): RoomsSnapshot {
+    return this.director.snapshotRooms(targets?.map((t) => this.rooms.target(t)));
   }
 
   restoreRooms(snapshot: RoomsSnapshot, options?: { sameTime?: boolean }): CueOutcome {

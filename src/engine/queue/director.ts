@@ -126,8 +126,14 @@ export class Director extends TypedEmitter<DirectorEvents> {
 
   // ---------- round 10: every room's snapshot, for Undo ----------
 
-  snapshotRooms(): RoomsSnapshot {
-    return { rooms: this.rooms.rooms().map((room) => ({ roomId: room.botId, snapshot: this.player(room.botId).snapshot() })) };
+  /**
+   * Every room's snapshot, or (review I3) only the rooms a target names: Undo of Play on air brings back the rooms it
+   * played in, and leaves a room that moved on by itself meanwhile where it is.
+   */
+  snapshotRooms(target?: RoomTarget | readonly RoomTarget[]): RoomsSnapshot {
+    const all = [...this.rooms.rooms()];
+    const wanted = target === undefined ? null : new Set((Array.isArray(target) ? target : [target]).flatMap((t: RoomTarget) => roomsFor(t, all)));
+    return { rooms: all.filter((room) => !wanted || wanted.has(room.botId)).map((room) => ({ roomId: room.botId, snapshot: this.player(room.botId).snapshot() })) };
   }
 
   /** True when a room in the snapshot was playing music or ambience (otherwise there is nothing to bring back). */

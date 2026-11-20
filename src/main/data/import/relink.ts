@@ -54,6 +54,8 @@ export type MissingTrack = {
   /** 0.5.2 item 14: its length, and the loudness Lyre measured from its file while it was there (null: unknown). */
   durationMs: number | null;
   lufs: number | null;
+  /** Review I1: the whole track a part (schema v011) was split from; a part shares its whole's file. Null: a whole track. */
+  partOf: string | null;
 };
 
 export type RelinkConfidence = "sure" | "likely" | "name";
@@ -98,8 +100,8 @@ export type RelinkPlan = {
 export async function findMissingTracks(store: Store, options: { concurrency?: number; probe?: FileProbe } = {}): Promise<MissingTrack[]> {
   const probe = options.probe ?? diskProbe;
   const roots = new Map(listRoots(store).map((root) => [root.id, root.path]));
-  const rows = store.all<{ id: string; title: string; root_id: string | null; path: string; file_name: string; file_size: number | null; checksum: string | null; duration_ms: number | null; lufs: number | null }>(
-    `SELECT id, ${SHOWN_TITLE_SQL} AS title, root_id, path, file_name, file_size, checksum, duration_ms,
+  const rows = store.all<{ id: string; title: string; root_id: string | null; path: string; file_name: string; file_size: number | null; checksum: string | null; duration_ms: number | null; lufs: number | null; part_of: string | null }>(
+    `SELECT id, ${SHOWN_TITLE_SQL} AS title, root_id, path, file_name, file_size, checksum, duration_ms, part_of,
        (SELECT lufs FROM track_loudness WHERE track_id = tracks.id) AS lufs
      FROM tracks WHERE path IS NOT NULL ORDER BY ${SHOWN_TITLE_SQL} COLLATE NOCASE, id`,
   );
@@ -107,7 +109,7 @@ export async function findMissingTracks(store: Store, options: { concurrency?: n
     const full = row.root_id === null ? row.path : joinRoot(roots.get(row.root_id) as string, row.path);
     return (await probe.exists(full))
       ? null
-      : { id: row.id, title: row.title, path: full, fileName: row.file_name, size: row.file_size, checksum: row.checksum, durationMs: row.duration_ms, lufs: row.lufs };
+      : { id: row.id, title: row.title, path: full, fileName: row.file_name, size: row.file_size, checksum: row.checksum, durationMs: row.duration_ms, lufs: row.lufs, partOf: row.part_of };
   });
   return checked.filter((entry): entry is MissingTrack => entry !== null);
 }
@@ -191,7 +193,25 @@ export async function planRelink(
 
   const used = new Set<string>();
   const plan: RelinkPlan = { matches: [], ambiguous: [], notFound: [], summary: "" };
+  // Review I1: a whole track and its parts share one file, so one of them (the whole when it is missing too) is
+  // looked for, and the others of that file get the same answer: the same match, the same choice, or not found.
+  const sharers = new Map<string, MissingTrack[]>();
   for (const track of missing) {
+    const key = fileKey(track.path);
+    const list = sharers.get(key);
+    if (list) list.push(track);
+    else sharers.set(key, [track]);
+  }
+  const leaders: MissingTrack[] = [];
+  const followers = new Map<string, MissingTrack[]>();
+  for (const list of sharers.values()) {
+    const leader = list.find((m) => !m.partOf) ?? list[0];
+    leaders.push(leader);
+    followers.set(leader.id, list.filter((m) => m !== leader));
+  }
+  const alsoFor = (leader: MissingTrack) => followers.get(leader.id) ?? [];
+  for (const track of missing) {
+    if (!leaders.includes(track)) continue;
     const sameName = (byName.get(track.fileName.toLowerCase()) ?? []).filter((file) => !used.has(file));
     let scored = await judgeAll(track, sameName, true);
     // Renamed: the same content, or the same sound, under another name. Each file is read once per folder.
@@ -201,7 +221,7 @@ export async function planRelink(
       scored = [...scored, ...(await judgeAll(track, others, false))];
     }
     if (scored.length === 0) {
-      plan.notFound.push(track.id);
+      plan.notFound.push(track.id, ...alsoFor(track).map((m) => m.id));
       continue;
     }
     // Ranked: how sure, then how many reasons, then how closely its folders match the old path.
@@ -210,20 +230,22 @@ export async function planRelink(
     const top = scored.filter((c) => score(c) === bestScore);
     if (top.length > 1) {
       const sorted = [...top].sort((a, b) => a.file.localeCompare(b.file, undefined, { numeric: true }));
-      plan.ambiguous.push({ trackId: track.id, candidates: sorted.map((c) => c.file), reasons: sorted.map((c) => c.reasons) });
+      for (const one of [track, ...alsoFor(track)]) plan.ambiguous.push({ trackId: one.id, candidates: sorted.map((c) => c.file), reasons: sorted.map((c) => c.reasons) });
       continue;
     }
     const chosen = top[0];
     used.add(chosen.file);
     const found = await factsOf(chosen.file);
-    plan.matches.push({
-      trackId: track.id,
-      from: track.path,
-      to: chosen.file,
-      confidence: chosen.confidence,
-      reasons: chosen.reasons,
-      ...(found ? { size: found.size, mtimeMs: found.mtimeMs, checksum: found.checksum } : {}),
-    });
+    for (const one of [track, ...alsoFor(track)]) {
+      plan.matches.push({
+        trackId: one.id,
+        from: one.path,
+        to: chosen.file,
+        confidence: chosen.confidence,
+        reasons: chosen.reasons,
+        ...(found ? { size: found.size, mtimeMs: found.mtimeMs, checksum: found.checksum } : {}),
+      });
+    }
   }
   const parts = [`Found ${plan.matches.length} of ${plural(missing.length, "missing file")}.`];
   if (plan.notFound.length > 0) parts.push(`${plan.notFound.length} ${plan.notFound.length === 1 ? "was" : "were"} not found in that folder.`);
@@ -243,24 +265,37 @@ export function applyRelink(store: Store, matches: Pick<RelinkMatch, "trackId" |
   if (!Array.isArray(matches)) throw new ValidationError("matches", "matches must be a list.");
   // Each new file is looked up through the unique path indexes (DB review 4), not by reading every track.
   const roots = listRoots(store);
+  // Review I1: a file belongs to a whole track and its parts together. A track's "file group" is its whole's id.
+  const groupOf = (trackId: string): string => store.get<{ part_of: string | null }>("SELECT part_of FROM tracks WHERE id = ?", trackId)?.part_of ?? trackId;
   const taken = new Map<string, string>();
   for (const match of matches) {
     const trackId = v.id("trackId", match.trackId);
     const to = v.requiredName("to", match.to, v.MAX_TEXT_LENGTH);
     const key = fileKey(to);
+    const group = groupOf(trackId);
     const owner = taken.get(key) ?? findTrackByLocation(store, { file: to }, roots) ?? undefined;
-    if (owner !== undefined && owner !== trackId) {
+    if (owner !== undefined && groupOf(owner) !== group) {
       throw new ValidationError("to", `Another track in your library already has ${baseName(match.to)}.`);
     }
-    taken.set(key, trackId);
+    taken.set(key, group);
   }
-  return relocateTracks(
-    store,
-    `Relink ${plural(matches.length, "file")}`,
-    matches.map((match) => ({
-      trackId: match.trackId,
-      file: { path: match.to, size: match.size ?? null, mtimeMs: match.mtimeMs ?? null, checksum: match.checksum ?? null },
-    })),
-  );
+  // The other tracks of a relinked track's old file (a whole and its parts) move with it, unless a match names them.
+  const named = new Set(matches.map((m) => m.trackId));
+  const moves = matches.flatMap((match) => {
+    const file = { path: match.to, size: match.size ?? null, mtimeMs: match.mtimeMs ?? null, checksum: match.checksum ?? null };
+    const group = groupOf(match.trackId);
+    const along = store
+      .all<{ id: string }>(
+        `SELECT t.id FROM tracks t JOIN tracks me ON me.id = ?
+         WHERE t.id <> me.id AND (t.id = ? OR t.part_of = ?) AND t.root_id IS me.root_id AND t.path = me.path COLLATE NOCASE`,
+        match.trackId,
+        group,
+        group,
+      )
+      .filter((row) => !named.has(row.id));
+    along.forEach((row) => named.add(row.id));
+    return [{ trackId: match.trackId, file }, ...along.map((row) => ({ trackId: row.id, file }))];
+  });
+  return relocateTracks(store, `Relink ${plural(matches.length, "file")}`, moves);
 }
 

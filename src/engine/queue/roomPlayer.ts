@@ -186,6 +186,8 @@ const MAX_FAILURES_IN_A_ROW = 3;
 
 /** A press with no fade still fades the old track this much, so it does not click (as the prototype). */
 const MIN_HANDOVER_SECONDS = 0.3;
+/** Review I2: how fast Undo silences a copy that was still fading out (short enough not to be heard twice, no click). */
+const QUICK_STOP_SECONDS = 0.05;
 
 interface LaneVoice {
   voice: Voice;
@@ -216,6 +218,11 @@ export class RoomPlayer {
   private musicVoice: LaneVoice | null = null;
   private ambienceItem: Playing | null = null;
   private ambienceVoice: LaneVoice | null = null;
+  /**
+   * Review I2: music and ambience voices that are fading out (Fade all, Stop, a crossfade), kept so Undo can stop them:
+   * otherwise they play on beside the copy Undo brings back, and the players hear the track twice.
+   */
+  private fadingOut: { lane: "music" | "ambience"; voice: Voice }[] = [];
   private readonly effects: { voice: Voice; trackId: string; padKey: string | null; dips: boolean }[] = [];
   /** PLY-15: what each lane's track gets where it plays from (normalisedGainDb). */
   private gainOf(track: DomainTrack | undefined, playlistId: string | null): number {
@@ -843,13 +850,17 @@ export class RoomPlayer {
   fadeLane(lane: RoomLane, fadeSeconds: number): void {
     if (lane === "music") {
       this.cancelHandOver();
-      if (this.musicVoice) this.rememberWhere(this.musicVoice);
+      if (this.musicVoice) {
+        this.rememberWhere(this.musicVoice);
+        this.keepFading("music", this.musicVoice.voice);
+      }
       void this.musicVoice?.voice.stop(fadeSeconds);
       this.musicVoice = null;
       this.music = { ...this.music, current: null };
       // PLY-17: the room's Repeat ends with its music (Nik, 6 Nov 12:24).
       this.list = musicStopped(this.list);
     } else if (lane === "ambience") {
+      if (this.ambienceVoice) this.keepFading("ambience", this.ambienceVoice.voice);
       void this.ambienceVoice?.voice.stop(fadeSeconds);
       this.ambienceVoice = null;
       this.ambienceItem = null;
@@ -888,21 +899,41 @@ export class RoomPlayer {
   restore(snapshot: RoomSnapshot, fadeSeconds: number, sameTime = false): void {
     this.cancelHandOver();
     const elapsed = sameTime ? 0 : this.deps.engine.currentTime - snapshot.takenAt;
+    // Review I3: a lane that still plays the snapshot's item, on its own voice, was not changed: it plays on untouched.
+    const musicKept = !!snapshot.music.current && this.musicVoice !== null && this.musicVoice.item === snapshot.music.current && !this.musicVoice.voice.isFinal();
+    const ambienceKept = !!snapshot.ambience && this.ambienceVoice !== null && this.ambienceVoice.item === snapshot.ambience && !this.ambienceVoice.voice.isFinal();
+    // Review I2: what is still fading out of a lane that comes back stops now, so the track is not heard twice.
+    this.stopFading((lane) => (lane === "music" ? !musicKept : !ambienceKept));
     this.music = snapshot.music;
     this.plan = snapshot.plan;
-    if (snapshot.music.current) {
+    if (musicKept) {
+      // Nothing to start again.
+    } else if (snapshot.music.current) {
       this.startMusic(snapshot.music.current, fadeSeconds, snapshot.musicAt === null ? undefined : { at: snapshot.musicAt, elapsed });
     } else {
       this.fadeLane("music", fadeSeconds);
       this.music = snapshot.music;
     }
     this.list = snapshot.list;
-    if (snapshot.ambience) {
+    if (ambienceKept) {
+      // Nothing to start again.
+    } else if (snapshot.ambience) {
       this.playAmbience(snapshot.ambience, fadeSeconds, snapshot.ambienceAt === null ? undefined : { at: snapshot.ambienceAt, elapsed });
     } else {
       this.fadeLane("ambience", fadeSeconds);
     }
     this.deps.changed();
+  }
+
+  /** Review I2: note a voice that fades out of a lane (the ones that have ended are forgotten). */
+  private keepFading(lane: "music" | "ambience", voice: Voice): void {
+    this.fadingOut = [...this.fadingOut.filter((f) => !f.voice.isFinal() && f.voice !== voice), { lane, voice }];
+  }
+
+  /** Review I2: stop at once (a short fade, no click) the fading voices of the lanes `which` names. */
+  private stopFading(which: (lane: "music" | "ambience") => boolean): void {
+    for (const f of this.fadingOut) if (which(f.lane) && !f.voice.isFinal()) void f.voice.stop(QUICK_STOP_SECONDS);
+    this.fadingOut = this.fadingOut.filter((f) => !which(f.lane) && !f.voice.isFinal());
   }
 
   // ---------- reporting ----------
@@ -952,6 +983,7 @@ export class RoomPlayer {
     const old = lane === "music" ? this.musicVoice : this.ambienceVoice;
     if (old) {
       this.rememberWhere(old);
+      this.keepFading(lane, old.voice);
       void old.voice.stop(Math.max(fadeSeconds, MIN_HANDOVER_SECONDS));
     }
     const found = this.trackAndMedia(item.trackId);

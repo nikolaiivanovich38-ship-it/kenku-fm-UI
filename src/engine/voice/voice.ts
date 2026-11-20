@@ -157,6 +157,8 @@ export class Voice extends TypedEmitter<VoiceEvents> {
   private transitionTimer: unknown = null;
   private handoverTimer: unknown = null;
   private stopping: Promise<void> | null = null;
+  /** When the fade of a stop ends (context time), so a later, shorter stop can bring it forward (review I2). */
+  private stopEndsAt: number | null = null;
   private resolveStop: (() => void) | null = null;
 
   constructor(
@@ -318,11 +320,19 @@ export class Voice extends TypedEmitter<VoiceEvents> {
       return Promise.resolve();
     }
     if (this.stopping) {
+      // Already fading out: a shorter stop (Undo silencing a copy that was fading, review I2) ends it sooner.
+      const now = this.context.currentTime;
+      if (this.stopEndsAt !== null && now + fadeSeconds < this.stopEndsAt) {
+        rampTo(this.envelope.gain, 0, now, fadeSeconds);
+        this.stopEndsAt = now + fadeSeconds;
+        this.after(fadeSeconds, () => this.finish("stopped"));
+      }
       return this.stopping;
     }
     // Keep a pending End timer (the pass may reach End during the fade); drop any next loop pass.
     this.dropNextPass();
     this.setState("stopping");
+    this.stopEndsAt = this.context.currentTime + fadeSeconds;
     rampTo(this.envelope.gain, 0, this.context.currentTime, fadeSeconds);
     this.stopping = new Promise((resolve) => (this.resolveStop = resolve));
     this.after(fadeSeconds, () => this.finish("stopped"));

@@ -1414,9 +1414,12 @@ describe("round 10: one Undo place, and Undo for Play on air, Fade all and Stop 
     await userEvent.click(field);
     await userEvent.type(field, "abbess");
     const pl = within(region("Find a track or playlist").getByRole("list", { name: "Playlists" })).getAllByRole("listitem")[0];
+    const snapshot = vi.spyOn(sound.audio, "snapshotRooms");
     await userEvent.click(within(pl).getByRole("button", { name: /^Play on air/ }));
     await playOn(sound);
     expect(undoPlace()).toHaveTextContent(/^Playing on air: /);
+    // Review I3: only the rooms it played in are kept for Undo, so a room that moves on meanwhile stays where it is.
+    expect(snapshot).toHaveBeenCalledWith([expect.anything()]);
     await userEvent.click(within(undoPlace()).getByRole("button", { name: "Undo" }));
     await playOn(sound);
     expect(sound.audio.getNowPlaying().rooms[0].music?.trackId).toBe(scenes);

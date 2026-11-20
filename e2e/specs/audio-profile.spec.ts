@@ -506,3 +506,20 @@ test.describe("round 9: Split into parts", () => {
     await expect(page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Choir section/ })).toHaveCount(0);
   });
 });
+
+/* 0.6.0 finishing (R60-FINISH f-live 4; round 9 §1, item 16: "Let's make the navigation from playlists to tracks to
+   scenes easier and more intuitive"): the Audio profile's trail follows the place it was opened from and ends with
+   Track details, which opens that place with the Track panel (r9nav.js prof.crumbs). Written before the app had it. */
+test("0.6.0 finishing (f-live): the Audio profile's trail follows the playlist or scene it was opened from and ends with Track details", async ({ page }) => {
+  const trail = page.getByRole("navigation", { name: "Breadcrumb" });
+  const details = trail.getByRole("link", { name: "Track details", exact: true });
+  await openRoute(page, "profile/t41/pl:p-abbess");
+  await expect(trail).toHaveAttribute("title", /^Playlists › The Abbess › Track details › /);
+  await expect(details).toHaveAttribute("href", "#/playlist/p-abbess/t41");
+  await openRoute(page, "profile/t13/sc:crown:s14:sc3");
+  await expect(trail).toHaveAttribute("title", /^The Sunken Crown › Session 14 › The abbey ruins › Track details › /);
+  await expect(details).toHaveAttribute("href", "#/session/crown/s14/t13");
+  await openRoute(page, "profile/t13");
+  await expect(trail).toHaveAttribute("title", /^Track library › Track details › /);
+  await expect(details).toHaveAttribute("href", "#/library/t13");
+});

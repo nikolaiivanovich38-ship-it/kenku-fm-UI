@@ -78,8 +78,8 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   removeQueued = this.record("removeQueued");
   undoSceneStart = this.record("undoSceneStart");
   // --- r10-live ---
-  snapshotRooms = (): { rooms: never[] } => {
-    this.calls.push(["snapshotRooms"]);
+  snapshotRooms = (...args: unknown[]): { rooms: never[] } => {
+    this.calls.push(["snapshotRooms", ...args]);
     return { rooms: [] };
   };
   restoreRooms = this.record("restoreRooms");

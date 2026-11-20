@@ -908,7 +908,7 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
             aria-label={`Play now: ${name}`}
             title="Play it now. Up next goes on from there."
             onClick={() => {
-              withRoomsUndo(d, `Playing now: ${name}`, `upp-${row.at}-${k}`, () => d.audio.playUpNext(e.ref, { room: roomId }));
+              withRoomsUndo(d, `Playing now: ${name}`, `upp-${row.at}-${k}`, () => d.audio.playUpNext(e.ref, { room: roomId }), { targets: [{ room: roomId }] });
               say(`Playing now: ${name}`);
             }}
           >

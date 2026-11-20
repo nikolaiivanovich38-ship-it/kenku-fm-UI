@@ -402,3 +402,22 @@ test("round 10: Delete on a focused board card on Pad boards asks to delete it, 
   await page.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(page.getByRole("link", { name: "Open Spellwork" })).toHaveCount(1);
 });
+
+/* 0.6.0 finishing (R60-FINISH f-live 1; round 9 §11, item 47; Nik, 18 Nov 03:14, answer 12.2): each pad's While it
+   plays: the usual (a one-shot or Restart on press pad dips the music, a Toggle loop or Hold to play pad does not),
+   Dip the music or Don't dip. Written before the app had the field (r9live.js padDipHTML). */
+test("0.6.0 finishing (f-live): a pad's While it plays is the usual for its play mode, Dip the music or Don't dip", async ({ page }) => {
+  await openRoute(page, "board/weather");
+  const box = page.getByRole("region", { name: "Pad: Thunder crack" });
+  const field = box.getByRole("radiogroup", { name: "While it plays" });
+  await expect(field.getByRole("radio")).toHaveText(["The usual (dip)", "Dip the music", /^Don.t dip$/]);
+  await expect(field.getByRole("radio", { name: "The usual (dip)" })).toHaveAttribute("aria-checked", "true");
+  await field.getByRole("radio", { name: /^Don.t dip$/ }).click();
+  await expect(field.getByRole("radio", { name: /^Don.t dip$/ })).toHaveAttribute("aria-checked", "true");
+  await expect(field.getByRole("radio", { name: "The usual (dip)" })).toHaveAttribute("aria-checked", "false");
+  // The usual follows the play mode: a Toggle loop does not dip.
+  await box.getByRole("group", { name: "Play mode" }).getByRole("button", { name: "Toggle loop" }).click();
+  await expect(field.getByRole("radio").first()).toHaveText(/^The usual \(don.t dip\)$/);
+  await field.getByRole("radio", { name: /^The usual/ }).click();
+  await expect(field.getByRole("radio", { name: /^The usual/ })).toHaveAttribute("aria-checked", "true");
+});

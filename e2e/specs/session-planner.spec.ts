@@ -821,3 +821,14 @@ test.describe("round 10: taking things out of a scene and a session", () => {
     await expect(box.getByRole("listitem")).toHaveCount(n);
   });
 });
+
+/* 0.6.0 finishing (R60-FINISH f-live 5; round 10, prep D10): a scene's tracks are named with the words the Track
+   library's Use it for has now (a sting is a Short cue), not the old role words (campaigns.js info). Written before
+   the app had them. */
+test("0.6.0 finishing (f-live): a scene's short cue is called FX · Short cue, with the Use it for words", async ({ page }) => {
+  await openRoute(page, "session/crown/s14");
+  await page.getByRole("button", { name: "Scene 4: Crypt ambush" }).click();
+  const music = page.getByRole("main").getByRole("link", { name: /\(FX · Short cue\)$/ });
+  await expect(music.first()).toBeVisible();
+  await expect(page.getByRole("main").getByRole("link", { name: /\(FX · Sting\)$/ })).toHaveCount(0);
+});

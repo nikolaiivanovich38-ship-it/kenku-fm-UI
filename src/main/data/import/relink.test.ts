@@ -235,4 +235,33 @@ describe("planRelink and applyRelink (DAT-8)", () => {
     expect(() => applyRelink(t.store, [{ trackId: gone.id, to: path.join(temp.folder, "x.flac") }])).toThrow(/already has/);
     expect(getTrack(t.store, other.id)).not.toBeNull();
   });
+
+  /* Review I1 (R60-CODE-REVIEW): a part (schema v011) shares its whole track's file, so when the file moves the whole
+     and its parts are all missing. Every track of that one file is relinked to the same new place, together. */
+  it("relinks a whole track and its parts to the same moved file, together", async () => {
+    const newHome = path.join(temp.folder, "New");
+    const to = path.join(newHome, "Scores", "Bridge.flac");
+    const whole = await trackMovedTo("Bridge.flac", to, "bridge bytes");
+    for (const [id, title, start, end] of [["part-a", "Bridge, opening", 0, 500], ["part-b", "Bridge, choir", 500, 1000]] as const) {
+      t.store.run(
+        `INSERT INTO tracks (id, title, root_id, path, file_name, file_size, file_mtime_ms, checksum, duration_ms, kind, part_of, part_start_ms, part_end_ms, created_at, updated_at)
+         SELECT ?, ?, root_id, path, file_name, file_size, file_mtime_ms, checksum, duration_ms, kind, id, ?, ?, 1, 1 FROM tracks WHERE id = ?`,
+        id, title, start, end, whole.id,
+      );
+    }
+    const missing = await findMissingTracks(t.store);
+    expect(missing.map((m) => m.id).sort()).toEqual([whole.id, "part-a", "part-b"].sort());
+    const plan = await planRelink(t.store, missing, newHome);
+    expect(plan.notFound).toEqual([]);
+    expect(plan.matches.map((m) => [m.trackId, m.to]).sort()).toEqual([[whole.id, to], ["part-a", to], ["part-b", to]].sort());
+    await applyRelink(t.store, plan.matches);
+    expect(await findMissingTracks(t.store)).toEqual([]);
+    // Relinking only the whole (a choice made for it among several files) takes its parts along.
+    await history.undo();
+    await applyRelink(t.store, [{ trackId: whole.id, to }]);
+    expect(await findMissingTracks(t.store)).toEqual([]);
+    // A part alone may be pointed at its whole's file too: the file is theirs.
+    await history.undo();
+    await expect(applyRelink(t.store, [{ trackId: "part-b", to }])).resolves.toBeUndefined();
+  });
 });
