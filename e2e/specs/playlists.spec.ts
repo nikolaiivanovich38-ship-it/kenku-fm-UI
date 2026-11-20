@@ -4,7 +4,7 @@
  * Music, Ambience and FX; expanders in the list; Preview and Play on air; no Duplicate; drop files in.
  */
 import type { Page } from "@playwright/test";
-import { appOnly, expect, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -507,7 +507,6 @@ test.describe("round 6 cuts on a playlist", () => {
 
 test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   test("item 17: Add tracks has the Library's Shape filter", async ({ page }) => {
-    appOnly();
     await openRoute(page, "playlist/p-abbess");
     const add = page.getByRole("region", { name: "Add tracks", exact: true });
     const adds = add.getByRole("button", { name: /^Add / });

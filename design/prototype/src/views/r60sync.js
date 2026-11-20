@@ -63,4 +63,28 @@
   // The details' How it plays starts with Type (round 9's Use it for follows).
   var useFor0 = L.r9UseFor;
   if (useFor0) L.r9UseFor = function (t) { return L.r60typeRow(t) + useFor0.apply(this, arguments); };
+  /* ---------- what is kept when Lyre opens again ----------
+     The prototype keeps its library in memory only. The app keeps everything; a check that reopens the page needs what
+     it reads to be kept here too (in this browser): Next time, start where it stopped (0.5.1, the Audio profile). */
+  var KEPT = 'lyre-r60-kept', kept = {};
+  try { kept = JSON.parse(localStorage.getItem(KEPT) || '{}') || {}; } catch (e) { kept = {}; }
+  kept.resume = kept.resume || {};
+  Object.keys(kept.resume).forEach(function (id) { var t = L.track(id); if (t) t.resume = !!kept.resume[id]; });
+  L.keepResume = function (t) { kept.resume[t.id] = !!t.resume; try { localStorage.setItem(KEPT, JSON.stringify(kept)); } catch (e) { /* storage unavailable: lasts for this visit */ } };
+  var resume0 = L.inputs.r7resume;
+  if (resume0) L.inputs.r7resume = function (el) { resume0.apply(this, arguments); var c = L.current(), id = c.name === 'library' ? c.p.tid : (L.panelTrack && L.panelTrack()), t = id && L.track(id); if (t) L.keepResume(t); };
+  /* ---------- a room's Shuffle in Live (0.5.1, the app's OnAir ShuffleButton and Director.toggleShuffle) ----------
+     Live's On air sets mix.shuffle (live.js shuffleIn): Next then picks another of the scene's tracks at random. The
+     flag ends when the room's music stops. */
+  var next0 = L.next, stopLane0 = L.stopLane;
+  L.next = function (ln, target) {
+    var m = L.mix(target), c = m && m[ln], s = c && c.seq && L.session(c.seq.cid, c.seq.sid), sc = s && s.scenes[c.seq.scene], q = sc ? L.sceneSequence(sc) : [];
+    if (ln === 'music' && m.shuffle && q.length > 1) {
+      var j; do { j = Math.floor(Math.random() * q.length); } while (j === c.seq.at);
+      L.play(q[j].trackId, { lane: 'music', playlistId: q[j].playlistId, fade: 3, seq: { cid: c.seq.cid, sid: c.seq.sid, scene: c.seq.scene, at: j }, target: target });
+      return;
+    }
+    next0.apply(this, arguments);
+  };
+  L.stopLane = function (ln, fade, target) { var m = L.mix(target); if (ln === 'music' && m) m.shuffle = false; stopLane0.apply(this, arguments); };
 })();

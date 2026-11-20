@@ -1424,7 +1424,7 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("rooms from Live: a bot's menu chooses its channel, adds a room and kicks; Add a room offers Add a bot… (\"I don't want to have to tab to the rooms tab\")", async ({ page }) => {
-    appOnly();
+    appOnly(); // Round 9 item 56 (prototype ahead, R60-PROTO-SYNC.md §3): the prototype's room menu is the new design; g60-room builds it in the app
     await openRoute(page, "live");
     await page.getByRole("button", { name: ROOM_TABLE }).click();
     const menu = page.getByRole("menu", { name: "Room Table" });
@@ -1441,7 +1441,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("On air: Stop beside Pause on the playing track, and Shuffle next to Repeat (\"I need both\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "live");
     await startAbbey(page);
     const table = room(page, "Table");
@@ -1468,7 +1467,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
    rows below moved when the next press took the focus away, and that click landed elsewhere. */
 test.describe("0.5.2: clicks in a scene's list land", () => {
   test("a click on a row's button leaves its name folded, so the rows below stay put and the next click lands; the keyboard unfolds it", async ({ page }) => {
-    appOnly();
     await openRoute(page, "live");
     await startAbbey(page);
     const scene = sceneMusic(page);
@@ -1483,17 +1481,20 @@ test.describe("0.5.2: clicks in a scene's list land", () => {
     expect((await nextRow.boundingBox())!.y).toBe(box.y);
     await page.mouse.up();
     await expect(upNext).toContainText("Added: Abbey: eerie, low energy");
-    const before = (await nextRow.boundingBox())!.y;
-    // Reached from the keyboard, a row shows its whole name (two lines here), and the rows below move down.
+    // Reached from the keyboard, a row shows its whole name: its two-line fold comes off (the rows below move down when
+    // the name is longer than two lines at this width). After the mouse click it was still folded.
+    const eerie = scene.getByRole("button", { name: /^Add to queue: Eerie dread/ });
+    const name = eerie.locator("xpath=ancestor::*[contains(concat(' ', @class, ' '), ' lv-trk-r ')][1]").locator(".lv-trk-t > span");
+    const fold = () => name.evaluate((e) => getComputedStyle(e).webkitLineClamp);
+    expect(await fold()).toBe("2");
     await page.keyboard.press("Shift");
-    await scene.getByRole("button", { name: /^Add to queue: Eerie dread/ }).focus();
-    await expect.poll(async () => (await nextRow.boundingBox())!.y).toBeGreaterThan(before);
+    await eerie.focus();
+    await expect.poll(fold).toBe("none");
   });
 });
 
 test.describe("0.5.2: Live's empty boxes, loop settings and track names", () => {
   test("Session 15 keeps nothing on hand: This session and its boxes are not shown; the campaign's are (item 49)", async ({ page }) => {
-    appOnly();
     await openRoute(page, "live");
     await page.getByRole("button", { name: /The Sunken Crown Session 14/ }).click();
     await page.getByRole("menuitemradio", { name: /Session 15: Black sails/ }).click();
@@ -1506,7 +1507,6 @@ test.describe("0.5.2: Live's empty boxes, loop settings and track names", () => 
   // Round 10 (Nik, 18 Nov 03:14, answer 1a): a track's details from Live open in the Track panel beside Live, which
   // leads on to the Track library; 0.5.2 went to the Library straight away.
   test("the music on air shows its loop setting and leads to its details in the Track panel, then the Track library (items 53, 3 and 11)", async ({ page }) => {
-    appOnly();
     await openRoute(page, "live");
     await startAbbey(page);
     const table = room(page, "Table");

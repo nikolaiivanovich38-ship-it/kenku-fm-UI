@@ -211,8 +211,21 @@
   }, true);
   document.addEventListener('dragend', function () { if (!roDrag) return; roDrag = null; roClear(); document.querySelectorAll('[data-ro][draggable="true"]').forEach(function (n) { n.removeAttribute('draggable'); }); }, true);
 
+  /* 0.5.2 item 17 (the app's kit/ShapeFilter; 0.6.0 sync): the Library's Shape filter for other lists of tracks: Add
+     tracks on a playlist and the scene pickers. Five chips, any number pressed (none: any shape), with Clear while one
+     is. act: the action a chip and Clear call (data-v is the shape, or '' for Clear). */
+  L.shapeFilterHTML = function (shapes, act, cls) {
+    return '<div class="chips shape-filter' + (cls ? ' ' + cls : '') + '" role="group" aria-label="Shape" title="None pressed: any shape"><span class="faint">Shape</span>' + L.SHAPES.map(function (x) {
+      var on = shapes.indexOf(x[0]) > -1;
+      return '<button type="button" class="chip" data-act="' + act + '" data-keep-menu="1" data-v="' + x[0] + '" data-k="' + act + '-' + x[0] + '" aria-pressed="' + on + '">' + (on ? L.icon('check', 's') : L.shapeGlyph(x[0])) + x[1] + '</button>';
+    }).join('') + (shapes.length ? '<button type="button" class="btn s ghost" data-act="' + act + '" data-keep-menu="1" data-v="" data-k="' + act + '-clear" aria-label="Clear Shape" title="Clear Shape">Clear</button>' : '') + '</div>';
+  };
+  L.toggleShape = function (shapes, v) { if (!v) return []; var i = shapes.indexOf(v); return i > -1 ? shapes.slice(0, i).concat(shapes.slice(i + 1)) : shapes.concat([v]); };
+
   /* ---------- picker sheet ---------- */
   function visible(it) {
+    // 0.5.2 item 17: with a shape pressed, only tracks of those shapes (as the app's picker; playlists go too).
+    if (pk.shapes && pk.shapes.length && !(it.track && pk.shapes.indexOf(L.shapeOf(it.track)) > -1)) return false;
     var q = (pk.q || '').toLowerCase();
     if (q && (it.label + ' ' + (it.sub || '') + ' ' + (it.search || '')).toLowerCase().indexOf(q) < 0) return false;
     var f = pk.filters && pk.filters.filter(function (x) { return x.id === pk.filter; })[0];
@@ -260,7 +273,7 @@
   L.pickerSheet = function (o) {
     pk = { items: o.items, sel: (o.selected || []).slice(), multi: !!o.multi, inside: !!o.inside, onDone: o.onDone, q: '', fold: !!o.fold, open: {}, filters: o.filters || null, filter: o.filters ? o.filters[0].id : '',
       // Round 6, part 5: what Done saves, for the Saved pop-up (shown only when the ticks changed).
-      saved: o.saved || '', was: (o.selected || []).join('|'), makePl: !!o.makePlaylist, makeBoard: !!o.makeBoard };
+      saved: o.saved || '', was: (o.selected || []).join('|'), makePl: !!o.makePlaylist, makeBoard: !!o.makeBoard, shapes: o.shapes ? [] : null };
     if (pk.fold) { (o.openGroups || []).forEach(function (g) { pk.open[g] = true; }); o.items.forEach(function (it) { if (pk.sel.indexOf(it.id) > -1) pk.open[it.group] = true; }); }
     L.sheet({ title: o.title, wide: !!o.wide, float: !!o.float,
       // Round 6: the intro is read out with the dialog (its description) and is the list's hover text; on screen the
@@ -268,7 +281,8 @@
       describe: o.intro || '',
       body: '' +
         '<div class="row-flex" style="margin-bottom:8px;flex-wrap:wrap"><div class="search grow" style="min-width:180px">' + L.icon('search') + '<input class="input" type="search" placeholder="Search" aria-label="Search the list" data-input="pkq"></div>' +
-        (pk.filters ? '<div class="seg" role="group" aria-label="Show">' + pk.filters.map(function (f) { return '<button type="button" data-act="pkfilter" data-keep-menu="1" data-f="' + f.id + '" aria-pressed="' + (pk.filter === f.id) + '">' + esc(f.label) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
+        (pk.filters ? '<div class="seg" role="group" aria-label="Show">' + pk.filters.map(function (f) { return '<button type="button" data-act="pkfilter" data-keep-menu="1" data-f="' + f.id + '" aria-pressed="' + (pk.filter === f.id) + '">' + esc(f.label) + '</button>'; }).join('') + '</div>' : '') +
+        (pk.shapes ? '</div><div id="pk-shapes">' + L.shapeFilterHTML(pk.shapes, 'pkshape', 'pk-shapes') : '') + '</div>' +
         '<div id="pk-list" class="pk-list" role="group" aria-label="' + esc(o.title) + '"' + (o.intro ? ' title="' + esc(o.intro) + '"' : '') + '>' + list() + '</div>',
       footer: footer(o.okLabel) });
   };
@@ -322,6 +336,11 @@
     else if (e.target.id === 'pk-bdname') { e.preventDefault(); L.acts.pkbdok(); }
   });
   L.inputs.pkq = function (el) { pk.q = el.value; paintList(); };
+  L.acts.pkshape = function (el) {
+    pk.shapes = L.toggleShape(pk.shapes, el.dataset.v); var box = document.getElementById('pk-shapes');
+    if (box) box.innerHTML = L.shapeFilterHTML(pk.shapes, 'pkshape', 'pk-shapes'); paintList();
+    var f = document.querySelector('[data-k="pkshape-' + (el.dataset.v || L.SHAPES[0][0]) + '"]'); if (f) f.focus();
+  };
   L.acts.pkfilter = function (el) { pk.filter = el.dataset.f; document.querySelectorAll('[data-act="pkfilter"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); paintList(); };
   L.acts.pkgroup = function (el) { var g = el.dataset.g; pk.open[g] = !pk.open[g]; paintList(); var b = document.querySelector('.pk-groupbtn[data-g="' + g.replace(/"/g, '\\"') + '"]'); if (b) b.focus(); };
   L.inputs.pkpick = function (el) {
@@ -377,7 +396,7 @@
     var items = D.playlists.filter(function (p) { return p.lane !== 'amb'; }).map(function (p) { return playlistItem(p, 'Playlists'); })
       .concat(D.tracks.filter(function (t) { return t.kind !== 'amb'; }).map(function (t) { return trackItem(t, 'Tracks'); }));
     // Round 9 (item 33): a floating panel beside the scene, moved and sized by Nik (r9guide.js).
-    L.pickerSheet({ title: o.title || 'Add music to the scene', items: items, selected: o.selected, multi: true, inside: true, onDone: o.onDone, wide: true, float: true, saved: o.saved, makePlaylist: true,
+    L.pickerSheet({ title: o.title || 'Add music to the scene', items: items, selected: o.selected, multi: true, inside: true, shapes: true, onDone: o.onDone, wide: true, float: true, saved: o.saved, makePlaylist: true,
       intro: o.intro || 'Tick playlists, single tracks or both; open a playlist to tick only some of its tracks. They play in the scene in the order you tick them; you can reorder them afterwards.',
       filters: [{ id: 'all', label: 'All', test: function () { return true; } }, { id: 'pl', label: 'Playlists', test: function (it) { return it.isPlaylist; } },
         { id: 'music', label: 'Tracks', test: function (it) { return !it.isPlaylist && it.kind === 'music' && !L.isFx(it.track); } }, { id: 'fx', label: 'FX', test: function (it) { return it.isPlaylist ? it.lane === 'fx' : L.isFx(it.track); } }] });
@@ -385,7 +404,7 @@
   L.pickAmbience = function (o) {
     var items = D.playlists.filter(function (p) { return p.lane === 'amb'; }).map(function (p) { return playlistItem(p, 'Ambience playlists'); })
       .concat(D.tracks.filter(function (t) { return t.kind === 'amb'; }).map(function (t) { return trackItem(t, 'Ambience tracks'); }));
-    L.pickerSheet({ title: o.title || 'Choose the ambience', items: items, selected: o.selected, multi: false, onDone: o.onDone, saved: o.saved, intro: o.intro || 'One ambience track, or an ambience playlist that moves from bed to bed.' });
+    L.pickerSheet({ title: o.title || 'Choose the ambience', items: items, selected: o.selected, multi: false, shapes: true, onDone: o.onDone, saved: o.saved, intro: o.intro || 'One ambience track, or an ambience playlist that moves from bed to bed.' });
   };
 
   /* ---------- Use in… ---------- */
