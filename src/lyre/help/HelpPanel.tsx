@@ -15,7 +15,7 @@ import { HelpText } from "./HelpText";
 import { keepKeysHere } from "./keys";
 import { diagnosticsResultWords, type DiagnosticsBridge, type DiagnosticsResult } from "../../common/lyreDiagnostics";
 import { LYRE_VERSION } from "../version";
-import { SCREEN_HELP, type TourKey, type TourPlaces } from "./tours";
+import { SCREEN_HELP, TOURS, type TourKey, type TourPlaces } from "./tours";
 import { useSetupProgress } from "./setup";
 import { routeFromHash } from "../shell/routes";
 import { useHasLyreApi, useBoards, useCampaigns, useTracks } from "../api";
@@ -110,7 +110,7 @@ export function HelpPanel({ onClose, onTour, onScreenTour, diagnostics }: HelpPa
   } else {
     body = (
       <>
-        {onScreenTour && <HelpTop onScreenTour={onScreenTour} item={item} />}
+        {onScreenTour && <HelpTop onScreenTour={onScreenTour} onArticle={show} />}
         {HELP_GROUPS.map((group, i) => (
       <React.Fragment key={group}>
         <h3 className="help-group" id={`help-group-${i}`}>
@@ -219,7 +219,7 @@ function HelpFoot({ onTour, diagnostics }: Pick<HelpPanelProps, "onTour" | "diag
  * Round 9 §4 and round 10 (ROUND10.md "Help"): Help starts with On this screen (Tour of this screen and the screen's
  * article), then Set up Lyre (with a library to read).
  */
-function HelpTop({ onScreenTour, item }: { onScreenTour: (key: TourKey, places: TourPlaces | "here") => void; item: (article: HelpArticle) => React.ReactNode }) {
+function HelpTop({ onScreenTour, onArticle }: { onScreenTour: (key: TourKey, places: TourPlaces | "here") => void; onArticle: (article: HelpArticle) => void }) {
   const route = routeFromHash(window.location.hash);
   const here = SCREEN_HELP[route.name];
   const article = here?.article ? ARTICLES.find((a) => a.id === here.article) : undefined;
@@ -232,12 +232,13 @@ function HelpTop({ onScreenTour, item }: { onScreenTour: (key: TourKey, places: 
             <Button size="s" icon="play" onClick={() => onScreenTour(here.tour, "here")}>
               Tour of this screen
             </Button>
+            {/* Named for the screen, as in the prototype, so it is not the same button as the article's in its group. */}
+            {article && (
+              <button type="button" className="help-item help-screen-art" onClick={() => onArticle(article)}>
+                {TOURS[here.tour].name}: how it works
+              </button>
+            )}
           </div>
-          {article && (
-            <ul className="help-list" aria-label="On this screen">
-              {item(article)}
-            </ul>
-          )}
         </div>
       )}
       {useHasLyreApi() && <SetUpLyre onShowMe={(key, places) => onScreenTour(key, places)} />}
