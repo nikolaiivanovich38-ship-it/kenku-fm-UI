@@ -1079,13 +1079,8 @@ async function textUnderTheFloor(page: Page): Promise<string[]> {
 }
 
 test.describe("0.6.0: no text under 12 px, on every screen, in all five themes", () => {
-  // The prototype does not meet its own decision: ROUND10.md K says "12 px floor for text: Keep, built", but its
-  // tokens keep --fs-xs at 11 px (dates, counts, labels, tag chips) and the Library's badges are 10 px (this check, run
-  // on it, 20 Nov). The app is checked; the prototype is left as it is and the lead is told (R60-f-prep-PROGRESS.md).
-  const skipInThePrototype = () => test.skip(test.info().project.name === "prototype", "The prototype keeps 11 px text (ROUND10.md K is not built there)");
   for (const screen of SCREENS) {
     test(`${screen.name}: no text is smaller than 12 px, in all five themes`, async ({ page }) => {
-      skipInThePrototype();
       expectFailureUntilSweptScreenBuilt(screen);
       await page.setViewportSize({ width: 1280, height: 800 });
       await openRoute(page, screen.route);
@@ -1100,7 +1095,6 @@ test.describe("0.6.0: no text under 12 px, on every screen, in all five themes",
   }
   for (const state of OPENED) {
     test(`${state.name}: no text is smaller than 12 px, in all five themes`, async ({ page }) => {
-      skipInThePrototype();
       expectFailureUntilScreenBuilt(state.owner);
       if (!state.met) expectFailureUntilBuilt("r10-prep", ...(state.streams ?? []));
       await page.setViewportSize({ width: 1280, height: 800 });

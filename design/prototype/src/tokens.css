@@ -18,7 +18,8 @@
   --r-l: 10px;
   --fs: 13.5px;
   --fs-s: 12px;
-  --fs-xs: 11px;
+  /* Round 10 (ROUND10.md K): no text under 12 px; the smallest size is the same as --fs-s. */
+  --fs-xs: 12px;
   --fs-l: 15px;
   --fs-h: 18px;
   --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
