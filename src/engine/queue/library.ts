@@ -46,6 +46,13 @@ export interface PadSound {
   volume: number;
   /** PLY-8: what a press does (src/common/domain CueStep); null or missing: it plays its sound. */
   steps?: CueStep[] | null;
+  // --- r10-live ---
+  /**
+   * Round 10 (item 47): While it plays: true dips the music, false never does; null or missing is the usual (a one-shot
+   * or Restart on press pad dips, a Toggle loop or Hold to play pad does not; Nik, 18 Nov 03:14, answer 12.2).
+   */
+  dip?: boolean | null;
+  // --- end r10-live ---
 }
 
 export interface ShowLibrary extends DomainLookup {

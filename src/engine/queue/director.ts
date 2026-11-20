@@ -22,7 +22,7 @@ import { CueAction, CueOutcome, DEFAULT_FADES, TrackFrom } from "./actions";
 import type { SceneRef, ShowLibrary } from "./library";
 import { Playing, playlistItem, sceneItem, sequenceOf, single } from "./nowPlaying";
 import type { Random } from "./queue";
-import { RoomPlayer, RoomReport, RoomSnapshot, type ListEntry } from "./roomPlayer";
+import { RoomPlayer, RoomReport, RoomSnapshot, type DipSettings, type ListEntry } from "./roomPlayer";
 
 /** PLY-16: what Play next and Add to queue take: a track (from where it was picked) or a whole playlist. */
 export type ListWhat =
@@ -83,6 +83,16 @@ export class Director extends TypedEmitter<DirectorEvents> {
    */
   private readonly resumeAt: Map<string, number>;
   private readonly unsubscribe: () => void;
+
+  // --- r10-live ---
+  /** Round 10: how far the music dips under effects (Settings › Sound to Discord); A little and Gently until told. */
+  private dip: DipSettings = { db: 6, backSeconds: 1.5, ambience: false };
+  setDip(dip: DipSettings): void {
+    this.dip = dip;
+    for (const player of this.players.values()) player.updateDip();
+    this.emit("change");
+  }
+  // --- end r10-live ---
 
   constructor(options: { engine: PlaybackEngine; rooms: RoomsAudio; library: ShowLibrary; random?: Random; resumeAt?: Map<string, number> }) {
     super();
@@ -579,6 +589,7 @@ export class Director extends TypedEmitter<DirectorEvents> {
         newSeed: () => this.newSeed(),
         timers: this.engine.scheduler,
         resumeAt: this.resumeAt,
+        dip: () => this.dip,
         playsOnce: (scene) => this.library.scene(scene)?.movesOn?.when === "musicEnds",
         planEnded: (scene) => {
           // Only the scene that started last moves on (an older scene's list ending is not a cue).

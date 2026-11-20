@@ -102,7 +102,31 @@ export interface RoomPlayerDeps {
   playsOnce?: (scene: SceneRef) => boolean;
   /** PLY-8: the room's scene played its music to the end with nothing waiting (a scene that moves on). */
   planEnded?: (scene: SceneRef) => void;
+  // --- r10-live ---
+  /** Round 10: how far the music dips under effects and how it comes back (Settings › Sound to Discord). */
+  dip?: () => DipSettings;
+  // --- end r10-live ---
 }
+
+// --- r10-live ---
+/**
+ * Round 9 §11, built in round 10 (item 47; Nik, 18 Nov 03:14, answer 12): the music gets quieter while an effect that
+ * dips plays. `db` 0 is Off (A little 6, A lot 12); it goes down in 0.1 s and comes back over `backSeconds` (Quickly
+ * 0.5, Gently 1.5, Slowly 3) once the last dipping effect ends, never stacking.
+ */
+export interface DipSettings {
+  db: number;
+  backSeconds: number;
+  /** Ambience dips too. */
+  ambience: boolean;
+}
+const DIP_DOWN_SECONDS = 0.1;
+
+/** Whether a pad dips the music: its own choice, else the usual for its play mode. */
+export function padDips(pad: Pick<PadSound, "mode" | "dip">): boolean {
+  return pad.dip ?? (pad.mode === "oneshot" || pad.mode === "retrigger");
+}
+// --- end r10-live ---
 
 export interface PlayingReport {
   trackId: string;
@@ -137,6 +161,10 @@ export interface RoomReport {
   ambience: PlayingReport | null;
   /** Effects and pads sounding (not fading out). */
   effects: { trackId: string; padKey: string | null }[];
+  // --- r10-live ---
+  /** Round 10: the music (and the ambience, when it dips too) is dipped under an effect now. */
+  dipped: { music: boolean; ambience: boolean };
+  // --- end r10-live ---
   /** PLY-1: the music that played in this room this evening, newest first. */
   played: PlayedEntry[];
 }
@@ -188,7 +216,7 @@ export class RoomPlayer {
   private musicVoice: LaneVoice | null = null;
   private ambienceItem: Playing | null = null;
   private ambienceVoice: LaneVoice | null = null;
-  private readonly effects: { voice: Voice; trackId: string; padKey: string | null }[] = [];
+  private readonly effects: { voice: Voice; trackId: string; padKey: string | null; dips: boolean }[] = [];
   /** PLY-15: what each lane's track gets where it plays from (normalisedGainDb). */
   private gainOf(track: DomainTrack | undefined, playlistId: string | null): number {
     const lib = this.deps.library;
@@ -200,6 +228,8 @@ export class RoomPlayer {
   private played: PlayedEntry[] = [];
   /** PLY-8: the music's level after a Fade step (a new track starts at full level). */
   private musicLevel = 1;
+  /** Round 10: the music is dipped under an effect now. */
+  private dipping = false;
   /** PLY-8: a play step waiting for the current track to end, its mix-out marker or the end of its loop. */
   private handOver: { start: () => void; cancel: () => void } | null = null;
   /** DAT-3: where an added item's first track starts (Play next or Add to queue from a marker), in seconds. */
@@ -460,7 +490,7 @@ export class RoomPlayer {
   /** PLY-8 Fade step: the music to `level` (0 to 1) over `seconds`; the next track starts at full level. */
   fadeMusicTo(level: number, seconds: number): void {
     this.musicLevel = Math.max(0, Math.min(1, level));
-    this.musicVoice?.voice.setVolume(this.musicLevel, seconds);
+    this.musicVoice?.voice.setVolume(this.musicLevel * this.dipFactor("music"), seconds);
     this.deps.changed();
   }
 
@@ -727,7 +757,7 @@ export class RoomPlayer {
 
   // ---------- effects and pads ----------
 
-  playEffect(trackId: string, { padKey = null, loop = false, volume = 1 }: { padKey?: string | null; loop?: boolean; volume?: number } = {}): boolean {
+  playEffect(trackId: string, { padKey = null, loop = false, volume = 1, dips }: { padKey?: string | null; loop?: boolean; volume?: number; dips?: boolean } = {}): boolean {
     const found = this.trackAndMedia(trackId);
     if (!found) {
       this.deps.error(`Unable to play sound: ${this.titleOf(trackId)}`);
@@ -736,14 +766,17 @@ export class RoomPlayer {
     const profile = laneProfile(found.track, "effects", [], this.deps.library.profileOverrides());
     // A pad's sound or an effect plays on its own: the track's choice, then the library's (no playlist).
     const voice = this.play("effects", found, loop ? { ...profile, after: "loop" } : profile, { volume, gainDb: this.gainOf(found.track, null) });
-    const entry = { voice, trackId, padKey };
+    // Round 10: a pad dips as its While it plays says; an effect played on its own dips when it is a Short cue.
+    const entry = { voice, trackId, padKey, dips: dips ?? found.track.role === "sting" };
     this.effects.push(entry);
     voice.on("state", () => {
       if (voice.isFinal()) {
         this.effects.splice(this.effects.indexOf(entry), 1);
         this.deps.changed();
       }
+      this.updateDip();
     });
+    this.updateDip();
     voice.on("error", () => this.deps.error(`Unable to play sound: ${this.titleOf(trackId)}`));
     this.deps.changed();
     return true;
@@ -772,8 +805,32 @@ export class RoomPlayer {
       this.deps.changed();
       return;
     }
-    this.playEffect(trackId, { padKey, loop: pad.mode === "toggle" || pad.mode === "hold", volume: pad.volume });
+    this.playEffect(trackId, { padKey, loop: pad.mode === "toggle" || pad.mode === "hold", volume: pad.volume, dips: padDips(pad) });
   }
+
+  // --- r10-live ---
+  /** Round 10: the dip follows the effects that dip: on while one sounds (not fading out), off when the last ends. */
+  updateDip(): void {
+    const settings = this.deps.dip?.();
+    const want = !!settings && settings.db > 0 && this.effects.some((e) => e.dips && e.voice.state !== "stopping" && !e.voice.isFinal());
+    if (want === this.dipping) return;
+    this.dipping = want;
+    this.applyDip(want ? DIP_DOWN_SECONDS : (settings?.backSeconds ?? 1.5));
+    this.deps.changed();
+  }
+
+  /** What a lane's level is multiplied by while dipped (1 when not dipped, or for an ambience that keeps its level). */
+  private dipFactor(lane: "music" | "ambience"): number {
+    const settings = this.deps.dip?.();
+    if (!this.dipping || !settings || (lane === "ambience" && !settings.ambience)) return 1;
+    return 10 ** (-settings.db / 20);
+  }
+
+  private applyDip(seconds: number): void {
+    this.musicVoice?.voice.setVolume(this.musicLevel * this.dipFactor("music"), seconds);
+    this.ambienceVoice?.voice.setVolume(this.dipFactor("ambience"), seconds);
+  }
+  // --- end r10-live ---
 
   /** BUG-20: Stop pads: every pad sound here fades out; effects played on their own go on. */
   stopPads(fadeSeconds: number): void {
@@ -865,6 +922,7 @@ export class RoomPlayer {
       canUndoList: this.list.undo !== null,
       ambience: this.ambienceItem ? this.playingReport(this.ambienceItem, this.ambienceVoice) : null,
       effects: this.effects.filter((e) => e.voice.state !== "stopping").map(({ trackId, padKey }) => ({ trackId, padKey })),
+      dipped: { music: this.dipping && !!this.musicVoice, ambience: this.dipping && !!this.ambienceVoice && !!this.deps.dip?.().ambience },
       played: this.played.map((p) => ({ ...p })),
     };
   }
@@ -917,6 +975,8 @@ export class RoomPlayer {
       gainDb: this.gainOf(found.track, item.playlistId),
       crossfadeInSeconds: fadeSeconds,
       startAt,
+      // Round 10: a track that starts while the music is dipped starts dipped.
+      ...(this.dipping ? { volume: this.dipFactor(lane) } : {}),
     });
     return { voice, item, after: heard.after, profile: heard, base: profile, repeating: !!looped };
   }
