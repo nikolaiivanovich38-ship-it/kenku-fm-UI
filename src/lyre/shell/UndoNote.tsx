@@ -8,11 +8,10 @@
  * has its own). The library's history comes from ShellData.history (AppProviders); without it nothing is offered.
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 
 import { isRefused } from "../../common/lyre/api";
 import { Icon } from "../kit/Icon";
-import { UNDO_SLOT_ID, useAnnounce } from "./Announcer";
+import { useAnnounce } from "./Announcer";
 import { useShellData } from "./ShellData";
 import { focusSoon } from "../kit/focusSoon";
 
@@ -128,14 +127,13 @@ export function UndoNoteProvider({ live, children }: { live: boolean; children: 
 }
 
 /**
- * The message itself, in the Saved pop-up's corner, lowest there (UX-19, round 6 part 6), or where it is put when
- * the page has no corner (a component test).
+ * The message itself. Round 10 (R10-FIX §3): at the bottom of the Prep screen, in the flow, above the Now playing bar,
+ * so the list above it ends before it and nothing is under it (it was in the Saved pop-up's corner, over the list).
  */
 export function UndoNoteBar() {
   const { note, undo, close } = useContext(UndoNoteContext);
   if (!note) return null;
-  const slot = document.getElementById(UNDO_SLOT_ID);
-  const bar = (
+  return (
     <div className="undo-note" role="group" aria-label="Undo">
       <Icon name="check" size="s" />
       <span className="grow">{note.text}</span>
@@ -147,5 +145,4 @@ export function UndoNoteBar() {
       </button>
     </div>
   );
-  return slot ? createPortal(bar, slot) : bar;
 }

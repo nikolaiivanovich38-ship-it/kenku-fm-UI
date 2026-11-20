@@ -1,0 +1,28 @@
+/* Round 10 (design/prototype/ROUND10.md, "Every screen" and Look K2 to K6; the prototype's r10.css): the look of
+   0.6.0, loaded after the shared styles. Rules a screen's own CSS would win start with "body". Each screen's own
+   round 10 rules stay with its screen. */
+
+/* One header grammar in sentence case: box and panel titles in the body face; the display face is kept for the
+   screen's h1 and campaign names (look K3, K4). */
+.pane-title, .sheet > .panel > header h2, .help-head h2, .pb-card-name {
+  font-family: var(--body); font-weight: 700; text-transform: none; letter-spacing: 0; font-size: 15px; }
+/* No ALL CAPS group labels: plain small headings (look K3). */
+body :is(.tray-h, .view .lb-h, .view .pl-lv, .lv-grp-h, .lv-found-h) { text-transform: none; letter-spacing: 0; font-size: 12px; }
+/* The trays are plain group headings: no outline that means nothing (look S2). */
+body :is(.tray, .lv-grp) { border: 0; background: none; }
+
+/* Text 12 px or more (look S4). */
+.badge, .chip, .pane-status { font-size: 12px; }
+
+/* Status colours mean status; the accent is for the one primary action and the selection (look K2). */
+.pane-status.s-on { border-color: var(--ok); }
+.pane-status.s-on::before { background: var(--ok); }
+
+/* Row buttons greyed at rest on every list, full on hover, focus and the selected row (look K6; Nik's Live rule of
+   6 Nov). */
+.pl-row .btn.icon:not(:hover):not(:focus-visible):not([aria-pressed="true"]),
+.lb-row .btn.icon:not(:hover):not(:focus-visible):not([aria-pressed="true"]),
+.cp-row .btn.icon:not(:hover):not(:focus-visible):not([aria-pressed="true"]) { opacity: .62; }
+.pl-row:hover .btn.icon, .pl-row:focus-within .btn.icon, .pl-row[aria-selected="true"] .btn.icon,
+.lb-row:hover .btn.icon, .lb-row:focus-within .btn.icon, .lb-row[aria-selected="true"] .btn.icon,
+.cp-row:hover .btn.icon, .cp-row:focus-within .btn.icon { opacity: 1; }
