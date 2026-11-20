@@ -10,7 +10,7 @@ import type { LibraryTrack, PlaylistInfo } from "../../../common/lyre/api";
 import { shownTitle } from "../../../common/lyre/text";
 import { useTagGroups } from "../../api";
 import { useLyreAudio } from "../../audio/LyreAudioProvider";
-import { PickerDialog, type PickerFilter, type PickerItem, type PickerTicks } from "../../kit/Picker";
+import { PickerDialog, type PickerFilter, type PickerItem, type PickerMakeNew, type PickerTicks } from "../../kit/Picker";
 import { TagStrip } from "../../kit/TagStrip";
 import { boardPads, formatLength, laneWord, roleWord, type LibraryIndex } from "./model";
 import { PreviewButton } from "../../kit/SoundButtons";
@@ -44,10 +44,13 @@ export interface LibraryPickerProps {
   selected: readonly string[];
   onDone: (ids: string[]) => void;
   onClose: () => void;
+  /** Round 10: Add music is a panel that does not block the page, its place remembered under this id. */
+  panelPlace?: string;
+  /** Round 10: Make a playlist of these… / New board… in the foot. */
+  makeNew?: PickerMakeNew;
 }
 
-
-export function LibraryPicker({ open, kind, index, title, intro, selected, onDone, onClose }: LibraryPickerProps) {
+export function LibraryPicker({ open, kind, index, title, intro, selected, onDone, onClose, panelPlace, makeNew }: LibraryPickerProps) {
   const audio = useLyreAudio();
   // Leaving a picker stops a preview started in it, so nothing it began keeps playing in the headphones afterwards.
   // A preview that was already playing when the picker opened is the game master's own: preparing never stops it
@@ -139,6 +142,8 @@ export function LibraryPicker({ open, kind, index, title, intro, selected, onDon
   return (
     <PickerDialog
       open={open}
+      panelPlace={panelPlace}
+      makeNew={makeNew}
       title={title}
       intro={intro}
       items={entries.map((e) => e.item)}

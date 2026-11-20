@@ -229,6 +229,55 @@ describe("a scene's music", () => {
     ]);
   });
 
+  it("round 10: Add music docks beside the page, which stays usable, and is not modal", async () => {
+    await openAbbey();
+    await userEvent.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
+    const sheet = screen.getByRole("dialog", { name: 'Music for "The abbey ruins"' });
+    expect(sheet).not.toHaveAttribute("aria-modal");
+    expect(sheet.closest("[data-panel]")).toHaveAttribute("data-panel", "addMusic");
+    expect(within(sheet).getByRole("button", { name: /^Dock/ })).toBeInTheDocument();
+  });
+
+  it("round 10: Make a playlist of these… makes a playlist of the ticked tracks and puts it in the scene in their place", async () => {
+    const { api } = await openAbbey();
+    await userEvent.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
+    const sheet = within(screen.getByRole("dialog", { name: 'Music for "The abbey ruins"' }));
+    await userEvent.click(sheet.getByRole("checkbox", { name: /^Quiet grief, solo voice/ }));
+    await userEvent.click(sheet.getByRole("button", { name: "Make a playlist of these…" }));
+    const name = sheet.getByRole("textbox", { name: "New playlist" });
+    expect(name).toHaveFocus();
+    await userEvent.clear(name);
+    await userEvent.type(name, "Abbey grief");
+    await userEvent.click(sheet.getByRole("button", { name: "Make it and add it" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(musicNames()).toContain("Abbey grief"));
+    const made = (await api.playlists.list()).find((p) => p.name === "Abbey grief");
+    expect(made?.kind).toBe("manual");
+    // Every ticked track goes into it (the scene's own tracks are ticked too), in the place of the first one.
+    const music = (await s14(api)).scenes[2].music;
+    expect(music).toContainEqual({ kind: "playlist", id: made?.id });
+    expect(music.filter((m) => m.kind === "track")).toEqual([]);
+  });
+
+  it("round 10: New board… with Back keeps the ticks; Make it and add it puts an empty 4 × 3 board at the end", async () => {
+    const { api } = await openAbbey();
+    const before = (await s14(api)).scenes[2].boardIds;
+    await userEvent.click(abbey().getByRole("button", { name: /^Add pad boards… to / }));
+    const sheet = within(screen.getByRole("dialog"));
+    const ticked = sheet.getAllByRole("checkbox", { checked: true }).length;
+    await userEvent.click(sheet.getByRole("button", { name: "New board…" }));
+    expect(sheet.getByRole("textbox", { name: "New board" })).toHaveFocus();
+    await userEvent.click(sheet.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(sheet.getByRole("button", { name: "New board…" })).toHaveFocus());
+    expect(sheet.getAllByRole("checkbox", { checked: true })).toHaveLength(ticked);
+    await userEvent.click(sheet.getByRole("button", { name: "New board…" }));
+    await userEvent.click(sheet.getByRole("button", { name: "Make it and add it" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    const board = (await api.boards.list()).find((b) => b.name === "New board 1");
+    expect(board && [board.cols, board.rows]).toEqual([4, 3]);
+    await waitFor(async () => expect((await s14(api)).scenes[2].boardIds).toEqual([...before, board?.id]));
+  });
+
   it("Cancel in the picker changes nothing", async () => {
     await openAbbey();
     await userEvent.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));

@@ -26,3 +26,7 @@ body :is(.tray, .lv-grp) { border: 0; background: none; }
 .pl-row:hover .btn.icon, .pl-row:focus-within .btn.icon, .pl-row[aria-selected="true"] .btn.icon,
 .lb-row:hover .btn.icon, .lb-row:focus-within .btn.icon, .lb-row[aria-selected="true"] .btn.icon,
 .cp-row:hover .btn.icon, .cp-row:focus-within .btn.icon { opacity: 1; }
+
+/* A picker's foot while it asks the name of a new playlist or board (kit/Picker.tsx, PickerMakeNew). */
+.pk-mk { display: flex; align-items: center; gap: 8px; flex: 1 1 260px; min-width: 0; font-size: var(--fs-s); font-weight: 700; }
+.pk-mk .input { flex: 1; min-width: 0; }

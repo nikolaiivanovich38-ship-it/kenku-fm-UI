@@ -50,6 +50,7 @@ import { trackNameAt, useTrackNames } from "../../kit/trackName";
 import type { TagGroup } from "../../../common/lyre/api";
 import { NameInSceneDialog, TrackUseInDialog } from "./trackDialogs";
 import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
+import type { PickerMakeNew } from "../../kit/Picker";
 import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { DeleteSessionDialog } from "./deleting";
 import { useDragReorder, type DragReorder } from "../../kit/reorder";
@@ -310,6 +311,49 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
     }
   };
 
+  /* Round 10 (Nik, 18 Nov 08:36, answer 1a): Make a playlist of these… in Add music makes a manual playlist of the
+     ticked tracks, in the order ticked, and the scene gets it in their place. */
+  const freeName = (base: string, taken: readonly string[]) => {
+    let n = 1;
+    while (taken.includes(`${base} ${n}`)) n++;
+    return `${base} ${n}`;
+  };
+  const tickedTracks = (chosen: readonly string[]) => chosen.filter((key) => refOfKey(key).kind === "track");
+  const makePlaylist: PickerMakeNew = {
+    label: "Make a playlist of these…",
+    icon: "playlist",
+    hint: "Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in their place.",
+    field: "New playlist",
+    suggest: () => freeName("New playlist", index.playlists.map((p) => p.name)),
+    refuse: (chosen) => (tickedTracks(chosen).length ? null : "Tick the tracks first. They go into the new playlist."),
+    onRefuse: (why) => toast(why),
+    make: async (name, chosen) => {
+      const keys = tickedTracks(chosen);
+      const made = await write(api.playlists.create({ name, lane: "music", kind: "manual", trackIds: keys.map((key) => refOfKey(key).id) }));
+      if (!made) return null;
+      const at = chosen.indexOf(keys[0]);
+      const rest = chosen.filter((key) => !keys.includes(key));
+      rest.splice(Math.max(0, Math.min(at, rest.length)), 0, playlistKey(made.value.id));
+      say(`${name} made with ${plural(keys.length, "track")}, and put in the scene`);
+      return rest;
+    },
+  };
+  /* Round 10 (Nik, 18 Nov, round 10 answer 4): New board… in Add pad boards makes an empty 4 × 3 board at the end of
+     the scene's boards; its pads are added on its own page. */
+  const makeBoard: PickerMakeNew = {
+    label: "New board…",
+    icon: "plus",
+    hint: "An empty pad board, made here and put in this scene; you give it pads on its own page",
+    field: "New board",
+    suggest: () => freeName("New board", index.boards.map((b) => b.name)),
+    make: async (name, chosen) => {
+      const made = await write(api.boards.create({ name, cols: 4, rows: 3 }));
+      if (!made) return null;
+      say(`${name} made, an empty 4 by 3 board, and put in the scene. Give it pads on its page.`);
+      return [...chosen, made.value.id];
+    },
+  };
+
   const drag = useDragReorder("scenes", (from, to) => void moveScene(from, to));
   const deletingScene = sceneAt(deleting);
   const stepsScene = sceneAt(stepsOf);
@@ -501,6 +545,9 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
         <LibraryPicker
           open
           kind={picking.kind === "boards" ? "boards" : picking.kind}
+          // Round 10 (rows 12 and 37): Add music lets the page be seen and used: docked beside it, or floating.
+          panelPlace={picking.kind === "music" ? "addMusic" : undefined}
+          makeNew={picking.kind === "music" ? makePlaylist : picking.kind === "boards" ? makeBoard : undefined}
           index={index}
           title={`${picking.kind === "music" ? "Music" : picking.kind === "ambience" ? "Ambience" : "Pad boards"} for "${pickedScene.name || "this scene"}"`}
           intro={
