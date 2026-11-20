@@ -33,7 +33,7 @@ import {
   type CueStep,
   type ProfilePlace,
 } from "../domain";
-import { isRefused, LYRE_API_METHODS, REFUSAL_CODES, type Done, type LyreApi, type LyreArea, type LyreEvent, type RefusalCode, type SceneAddress, type WriteResult } from "./api";
+import { isRefused, LYRE_API_METHODS, REFUSAL_CODES, type Done, type LibraryTrack, type LyreApi, type LyreArea, type LyreEvent, type PlaylistInfo, type RefusalCode, type SceneAddress, type WriteResult } from "./api";
 import { lookupFrom, repeatOnesOf, tagTreeOf, trackNamesOf, withDividers } from "./lookup";
 import { fileAddress } from "./media";
 
@@ -390,6 +390,59 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         const ids = (await api.playlists.list()).map((p) => p.id);
         expect(ids.indexOf(copy.id)).toBe(ids.indexOf("p-abbey-eerie") + 1);
         expectRefused(await api.playlists.copyAsManual("nope"), "not-found");
+      });
+
+      it("round 9: splits a track into parts that play their part of the same file, beside it in its manual playlists; Undo takes them out", async () => {
+        const whole = (await api.library.listTracks()).find((t) => t.id === "t41") as LibraryTrack;
+        const d = whole.durationMs;
+        const cut = Math.round(d / 2);
+        const request = {
+          parts: [
+            { name: "First half", startMs: 0, endMs: cut },
+            { name: "Second half", startMs: cut, endMs: d },
+          ],
+          copyTags: true,
+          addToPlaylists: true,
+        };
+        const result = await api.library.splitIntoParts("t41", request);
+        const { trackIds } = valueOf(result);
+        // The Undo note undoes this step by its label: it must be the library's last step.
+        expect((await api.history.state()).undoLabel).toBe((result as { undoLabel: string | null }).undoLabel);
+        expect((result as { undoLabel: string | null }).undoLabel).toMatch(/^Split .* into 2 parts$/);
+        expect(trackIds).toHaveLength(2);
+        const tracks = await api.library.listTracks();
+        const [a, b] = trackIds.map((id) => tracks.find((t) => t.id === id) as LibraryTrack);
+        expect([a.title, a.partOf, a.isNew, a.durationMs, a.kind, a.role, a.tags]).toEqual(["First half", { trackId: "t41", startMs: 0, endMs: cut }, false, d, whole.kind, whole.role, whole.tags]);
+        expect([b.profile?.startMs, b.profile?.endMs, b.profile?.loopStartMs]).toEqual([cut, d, cut]);
+        expect(a.url).toBe(whole.url);
+        expect(tracks.find((t) => t.id === "t41")?.partOf ?? null).toBeNull();
+        const abbess = (await api.playlists.list()).find((p) => p.id === "p-abbess") as PlaylistInfo & { trackIds: string[] };
+        expect(abbess.trackIds.slice(0, 3)).toEqual(["t41", ...trackIds]);
+        // A part's file is its whole track's: Delete file from disk… keeps both.
+        const kept = valueOf(await api.library.deleteFiles([trackIds[0], "t41"]));
+        expect(kept.removed).toEqual([]);
+        expect(kept.problems.map((p) => p.trackId)).toEqual([trackIds[0], "t41"]);
+        valueOf(await api.history.undo());
+        expect((await api.library.listTracks()).some((t) => trackIds.includes(t.id))).toBe(false);
+        expectRefused(await api.library.splitIntoParts("t41", { ...request, parts: request.parts.slice(0, 1) }), "invalid");
+        expectRefused(await api.library.splitIntoParts("t41", { ...request, parts: [{ name: "x", startMs: 0, endMs: d + 1000 }, { name: "y", startMs: 0, endMs: 10 }] }), "invalid");
+        expectRefused(await api.library.splitIntoParts("nope", request), "not-found");
+        const untagged = valueOf(await api.library.splitIntoParts("t41", { ...request, copyTags: false, addToPlaylists: false }));
+        const plain = (await api.library.listTracks()).find((t) => t.id === untagged.trackIds[0]) as LibraryTrack;
+        expect([plain.role, Object.values(plain.tags).flat()]).toEqual([null, []]);
+        expectRefused(await api.library.splitIntoParts(untagged.trackIds[0], request), "invalid");
+      });
+
+      it("round 9: moves a playlist in Your order among the playlists of its folder, kept", async () => {
+        const before = (await api.playlists.list()).filter((p) => p.folderId === null).map((p) => p.id);
+        const last = before[before.length - 1];
+        valueOf(await api.playlists.move(last, 0));
+        expect((await api.playlists.list()).filter((p) => p.folderId === null).map((p) => p.id)).toEqual([last, ...before.slice(0, -1)]);
+        valueOf(await api.playlists.move(last, before.length - 1));
+        expect((await api.playlists.list()).filter((p) => p.folderId === null).map((p) => p.id)).toEqual(before);
+        valueOf(await api.playlists.move(before[0], 1));
+        expect((await api.playlists.list()).filter((p) => p.folderId === null).map((p) => p.id).slice(0, 2)).toEqual([before[1], before[0]]);
+        expectRefused(await api.playlists.move("nope", 0), "not-found");
       });
 
       it("deletes a playlist and takes it out of every campaign, session, scene and place's own settings", async () => {

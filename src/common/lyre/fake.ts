@@ -90,6 +90,7 @@ import { prototypeLevels } from "./prototypeLevels";
 import { fileAddress } from "./media";
 import { plural, quoted, shownTitle, tagValue, trimmed } from "./text";
 import { defaultRound7State, dropReferences, fakeRound7, itemsOf, setItems, type Round7State } from "./fakeRound7";
+import { partProfile, splitProblem, SHARED_FILE } from "./trackParts";
 import { prototypeSeed, type SeedData } from "./seed";
 import { estimateTransfer, transferContents, type TransferContents } from "./transfer";
 
@@ -796,6 +797,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           }
           name = shownTitle(t);
           for (const key of ["title", "notes", "energy", "role", "loop", "kind", "fadesOut", "resume", "follow"] as const) if (patch[key] !== undefined) (t as unknown as Record<string, unknown>)[key] = copy(patch[key]);
+          // --- r10-tracks --- Round 9 (At its end): the track's own profile, in the same write.
+          if (patch.profile !== undefined) t.profile = copy(patch.profile);
           settle(t);
           return asListed(t);
         });
@@ -858,6 +861,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           const problems: { trackId: string; reason: string }[] = [];
           for (const t of tracks) {
             if (state.missing.includes(t.id)) problems.push({ trackId: t.id, reason: "Its file is not where your library expects it." });
+            // Round 9: a part shares its whole track's file.
+            else if (t.partOf || state.tracks.some((x) => x.partOf?.trackId === t.id)) problems.push({ trackId: t.id, reason: SHARED_FILE });
             else if (!t.url?.startsWith("file:")) problems.push({ trackId: t.id, reason: "It plays from a web address, not a file on this computer." });
             else {
               try {
@@ -872,6 +877,41 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           n = removed.length;
           dropTracks(removed);
           return { removed, problems };
+        });
+      },
+      // --- r10-tracks --- Round 9 (Split into parts): tracks that play their part of the same file.
+      async splitIntoParts(trackId, request) {
+        let label = "";
+        return write(() => label, ["tracks", "playlists", "profiles"], () => {
+          const whole = track(trackId);
+          if (whole.partOf) refuse("invalid", "This track is a part already: split the whole track instead.");
+          const problem = splitProblem(request, whole.durationMs);
+          if (problem) refuse("invalid", problem);
+          const made: LibraryTrack[] = request.parts.map((p) => ({
+            ...copy(whole),
+            id: newId("track"),
+            title: p.name.trim(),
+            isNew: false,
+            addedAt: Date.now(),
+            profile: partProfile(p, whole.profile?.markers ?? []),
+            partOf: { trackId: whole.id, startMs: p.startMs, endMs: p.endMs },
+            fadesOut: false,
+            resume: false,
+            follow: null as SoundRef | null,
+            ...(request.copyTags ? {} : { tags: Object.fromEntries(Object.keys(whole.tags).map((g): [string, string[]] => [g, []])), role: null, energy: null, shape: null, loop: null }),
+          }));
+          state.tracks.push(...made);
+          if (request.addToPlaylists) {
+            for (const pl of state.playlists) {
+              if (pl.kind !== "manual" || !pl.trackIds.includes(whole.id)) continue;
+              const items = itemsOf(pl);
+              const at = items.findIndex((x) => "trackId" in x && x.trackId === whole.id);
+              items.splice(at + 1, 0, ...made.map((t) => ({ trackId: t.id })));
+              setItems(pl, items);
+            }
+          }
+          label = `Split ${quoted(shownTitle(whole))} into ${made.length} parts`;
+          return { trackIds: made.map((t) => t.id) };
         });
       },
       async setKind(trackIds, kind) {
@@ -964,11 +1004,11 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           if (input.kind === "manual") {
             const ids = [...new Set(input.trackIds ?? [])];
             ids.forEach(track);
-            pl = { id: newId("playlist"), name, lane: input.lane, order: null, normalise: null, kind: "manual", trackIds: ids, notes: input.notes ?? "", folderId: null, dividers: [] };
+            pl = { id: newId("playlist"), name, lane: input.lane, order: null, normalise: null, kind: "manual", trackIds: ids, notes: input.notes ?? "", folderId: null, dividers: [], createdAt: Date.now() };
           } else if (input.kind === "dynamic") {
             const rule = copy(input.rule ?? { conds: [] });
             checkRule(rule);
-            pl = { id: newId("playlist"), name, lane: input.lane, order: null, normalise: null, kind: "dynamic", rule, notes: input.notes ?? "", folderId: null, dividers: [] };
+            pl = { id: newId("playlist"), name, lane: input.lane, order: null, normalise: null, kind: "dynamic", rule, notes: input.notes ?? "", folderId: null, dividers: [], createdAt: Date.now() };
           } else refuse("invalid", "A playlist is manual or dynamic.", "kind");
           state.playlists.unshift(pl);
           return pl;
@@ -994,6 +1034,21 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           const made: PlaylistInfo = { id: newId("playlist"), name: `${pl.name} (manual)`, lane: pl.lane, order: null, normalise: pl.normalise, kind: "manual", trackIds: playlistTracks(pl, lookup()).map((t) => t.id), notes: pl.notes, folderId: pl.folderId, dividers: [] };
           state.playlists.splice(state.playlists.indexOf(pl) + 1, 0, made);
           return made;
+        });
+      },
+      // --- r10-tracks --- Round 9 (item 38): Your order, among the playlists in the same folder.
+      async move(id, toIndex) {
+        let label = "";
+        return write(() => label, ["playlists"], () => {
+          const pl = playlist(id);
+          const siblings = state.playlists.filter((p) => p.folderId === pl.folderId);
+          const rest = siblings.filter((p) => p !== pl);
+          const target = rest[clampIndex(toIndex, rest.length)];
+          state.playlists.splice(state.playlists.indexOf(pl), 1);
+          // Before the sibling now at that index, or after the last one.
+          const at = target ? state.playlists.indexOf(target) : state.playlists.indexOf(rest[rest.length - 1]) + 1;
+          state.playlists.splice(at, 0, pl);
+          label = `Move the playlist ${quoted(pl.name)}`;
         });
       },
       async delete(id) {

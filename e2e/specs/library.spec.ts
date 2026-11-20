@@ -4,7 +4,7 @@
  */
 import type { Locator, Page } from "@playwright/test";
 import { appOnly, expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
-import { openRoute } from "./support/target";
+import { openRoute, reopen } from "./support/target";
 import { dropFiles } from "./support/drop";
 
 const grid = (page: Page) => page.getByRole("grid", { name: "Tracks" });
@@ -229,7 +229,6 @@ test.describe("a track's details", () => {
     await d.getByRole("group", { name: "Energy, 1 calm to 5 intense" }).getByRole("button", { name: "4" }).click();
     await expect(d.getByRole("group", { name: "Energy, 1 calm to 5 intense" }).getByRole("button", { name: "4" })).toHaveAttribute("aria-pressed", "true");
     // Round 9 (item 18): Role and Loop advice became Use it for and At its end; choosing a use picks its usual end.
-    expectFailureUntilBuilt("r10-tracks");
     await d.getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Background/ }).click();
     await expect(d.getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Background/ })).toHaveAttribute("aria-pressed", "true");
     await expect(d.getByRole("group", { name: "At its end" }).getByRole("button", { name: "Loop with a crossfade" })).toHaveAttribute("aria-pressed", "true");
@@ -488,7 +487,6 @@ test.describe("round 7: how a track behaves", () => {
 
   test("a sting never loops: its loop choices are off, and say why", async ({ page }) => {
     // Round 9 (item 18): a sting is a Short cue; At its end offers no loop for it.
-    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await openTrack(page, "Dread rising, choir stabs");
     await expect(details(page).getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Short cue/ })).toHaveAttribute("aria-pressed", "true");
@@ -499,7 +497,6 @@ test.describe("round 7: how a track behaves", () => {
     await openRoute(page, "library");
     await openTrack(page, "Dread rising, choir stabs");
     // Round 9 (item 5): At its end › Play… opens a picker with search and Playlists, Music, Ambience and FX.
-    expectFailureUntilBuilt("r10-tracks");
     await details(page).getByRole("group", { name: "At its end" }).getByRole("button", { name: "Play…" }).click();
     await page.getByRole("dialog").getByRole("radio", { name: /^Crypt ambush/ }).check();
     await page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
@@ -512,7 +509,6 @@ test.describe("round 7: how a track behaves", () => {
     // An underscore: it can fade out at its end, and pick up where it stopped.
     await openTrack(page, "Storm and dark romance");
     // Round 9 (item 18): Ending is one of At its end's choices; Pick up is "Next time, start where it stopped".
-    expectFailureUntilBuilt("r10-tracks");
     await details(page).getByRole("group", { name: "At its end" }).getByRole("button", { name: "Fade out" }).click();
     await expect(page.getByRole("status").filter({ hasText: /at its end: fades out$/ })).toBeVisible();
     await details(page).getByLabel("Next time, start where it stopped").check();
@@ -604,7 +600,8 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await openRoute(page, "library");
     await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("gridcell").nth(1).click();
     const details = page.getByRole("region", { name: "Details", exact: true });
-    const resume = details.getByRole("switch", { name: "Pick up where it stopped" });
+    // Round 9's words since 0.6.0: "Next time, start where it stopped".
+    const resume = details.getByRole("switch", { name: /^(Pick up where it stopped|Next time, start where it stopped)$/ });
     await resume.check();
     await expect(resume).toBeChecked();
   });
@@ -693,7 +690,7 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await expect(f.getByRole("group", { name: "Shape" }).getByRole("button", { name: /^Builds/ })).toHaveAttribute("aria-pressed", "true");
     await f.getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ }).click();
     await f.getByRole("button", { name: "Clear all filters" }).click();
-    await expect(f).not.toContainText("filter on");
+    await expect(f).not.toContainText(/\d filters? on/);
   });
 
   test("item 25: a click on a column header sorts by it, ascending then descending, and says so with aria-sort", async ({ page }) => {
@@ -787,7 +784,8 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await filters(page).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ }).click();
     const shown = (await shownTitles(page)).length;
     await page.getByRole("button", { name: "More for the library" }).click();
-    await page.getByRole("menuitem", { name: `Remove all shown (${shown})…` }).click();
+    // Round 10 fixes (R10-FIX §1): the prototype's words since 0.6.0.
+    await page.getByRole("menuitem", { name: `Remove the ${shown} tracks shown from the library…` }).click();
     const dialog = page.getByRole("dialog", { name: `Remove all ${shown} shown tracks from the library?` });
     await dialog.getByRole("button", { name: `Remove ${shown} tracks` }).click();
     await expect.poll(async () => (await shownTitles(page)).length).toBe(0);
@@ -819,30 +817,26 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await expect(row(page, /^Select Eerie dread/).getByText("Amb", { exact: true })).toBeVisible();
   });
 
-  test("round 8 #2 and #4: Pick up where it stopped fits on one line; Follow with's line is clear of the list's focus ring", async ({ page }) => {
+  test("round 8 #2: Pick up where it stopped fits on one line", async ({ page }) => {
     appOnly();
     await openRoute(page, "library");
-    // An Underscore track: it has Pick up where it stopped and Follow with… (Ashes, with no role, has no Follow with…).
+    // An Underscore track: it has Pick up where it stopped (round 9: Next time, start where it stopped). Round 8 #4 (the
+    // Follow with list's line) went with that list: At its end › Play… is a picker (round 9 block).
     await openTrack(page, "Melancholy tense - melancholy heroism - fade");
     const pickUp = details(page).locator("label.lb-resume");
     await expect(pickUp).toBeVisible();
     expect((await pickUp.boundingBox())!.height).toBeLessThan(30);
-    await details(page).getByRole("button", { name: "Follow with…" }).click();
-    const select = page.getByRole("dialog").getByRole("combobox", { name: "When it ends, play" });
-    await select.focus();
-    const s = (await select.boundingBox())!;
-    const hint = (await page.getByRole("dialog").getByText("Unless something is waiting in Play next.").boundingBox())!;
-    // The focus ring is drawn up to 4 px outside the list.
-    expect(hint.y).toBeGreaterThanOrEqual(s.y + s.height + 4);
   });
 
-  test("round 8 #5: a track title on a playlist page opens the Track library with that row in view", async ({ page }) => {
+  test("round 8 #5: a track title on a playlist page opens its details, and Open in Track library shows that row in view", async ({ page }) => {
     appOnly();
     await openRoute(page, "playlist/p-abbess");
-    const links = page.locator('a[href^="#/library/"]');
+    const links = page.getByRole("main").locator('a[href^="#/library/"]');
     await expect(links.first()).toBeVisible();
     const href = (await links.last().getAttribute("href"))!;
     await links.last().click();
+    // Round 10: the title opens the Track panel beside the page; from there, the Track library.
+    await page.getByRole("complementary").getByRole("link", { name: "Open in Track library" }).click();
     const open = grid(page).locator(`tr[data-tid="${href.split("/").pop()}"]`);
     await expect(open).toHaveAttribute("aria-current", "true");
     await expect(open).toBeInViewport();
@@ -887,7 +881,6 @@ test.describe("0.5.2: Nik's play test", () => {
    the files stay. Delete file from disk… only in a row's ⋯, with a confirmation that names the files and the Recycle
    Bin. Not built in this branch's app yet. */
 test.describe("round 10: removing tracks from the Track library", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-tracks"));
   const eerie = "Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)";
 
   test("a row's ⋯ has Remove from library: it asks first, names the scene that uses it, and Undo brings it back", async ({ page }) => {
@@ -913,6 +906,9 @@ test.describe("round 10: removing tracks from the Track library", () => {
     const dialog = page.getByRole("dialog", { name: "Delete its file from disk?" });
     await expect(dialog).toContainText("abbess_scream.wav");
     await expect(dialog).toContainText("Recycle Bin");
+    // The app project's test build keeps the sample library's Windows paths, which no Linux Recycle Bin takes: it stops at
+    // the question there (the deletion itself is a manual check on Windows; libraryApi.test.ts covers the library side).
+    if (test.info().project.name === "app") return;
     await dialog.getByRole("button", { name: "Delete file", exact: true }).click();
     await expect(row(page, "Abbess screams")).toHaveCount(0);
     // Undo brings the track back; its file stays in the Recycle Bin, so it is missing until restored.
@@ -943,9 +939,10 @@ test.describe("round 10: removing tracks from the Track library", () => {
     await page.getByRole("menuitem", { name: `Remove the ${n} tracks shown from the library…` }).click();
     const dialog = page.getByRole("dialog", { name: `Remove all ${n} shown tracks from the library?` });
     await dialog.getByRole("button", { name: `Remove ${n} tracks` }).click();
-    expect(await shownTitles(page)).toEqual([]);
+    // The app removes them in the library first, then draws the list: the checks wait for it.
+    await expect.poll(() => shownTitles(page)).toEqual([]);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect(await shownTitles(page)).toHaveLength(n);
+    await expect.poll(async () => (await shownTitles(page)).length).toBe(n);
   });
 
   test("a track's details have Remove from library, and Delete on a focused row asks the same", async ({ page }) => {
@@ -957,5 +954,129 @@ test.describe("round 10: removing tracks from the Track library", () => {
     await row(page, eerie).focus();
     await page.keyboard.press("Delete");
     await expect(page.getByRole("dialog", { name: `Remove “${eerie}” from the library?` })).toBeVisible();
+  });
+});
+
+/* Round 9 (ROUND9.md §7, §9; R60-GAPS.md "Track library"): Columns beside Sort, filters that show or hide, the order of
+   the filters, and At its end's Play… picker. Round 9 left these checks to the build stream: written by r10-tracks
+   against the prototype first. */
+test.describe("round 9: Columns, filters that show or hide, and the Play… picker", () => {
+  const header = (page: Page, name: string) => grid(page).getByRole("columnheader", { name: new RegExp(`^${name}`) });
+
+  test("Columns beside Sort: Title always, the usual three ticked, more added, kept, and Put back the usual columns", async ({ page }) => {
+    await openRoute(page, "library");
+    await page.getByRole("button", { name: "Columns", exact: true }).click();
+    const menu = page.getByRole("menu", { name: "Columns" });
+    const items = menu.getByRole("menuitemcheckbox");
+    await expect(items).toHaveText([/^Title \(always\)/, "Artist", "Album", "Type", "Use it for", "Tags", "Shape", "Energy", "Length", /^Plays for/, "Added", "Folder"]);
+    for (const on of ["Tags", "Energy", "Length"]) await expect(menu.getByRole("menuitemcheckbox", { name: on, exact: true })).toHaveAttribute("aria-checked", "true");
+    await expect(menu.getByRole("menuitemcheckbox", { name: "Artist", exact: true })).toHaveAttribute("aria-checked", "false");
+    // The menu stays open while columns are ticked, so several change at once.
+    await menu.getByRole("menuitemcheckbox", { name: "Artist", exact: true }).click();
+    await menu.getByRole("menuitemcheckbox", { name: "Energy", exact: true }).click();
+    await expect(menu.getByRole("menuitemcheckbox", { name: "Artist", exact: true })).toHaveAttribute("aria-checked", "true");
+    await page.keyboard.press("Escape");
+    await expect(header(page, "Artist")).toBeVisible();
+    await expect(header(page, "Energy")).toHaveCount(0);
+    // Kept on this computer.
+    await reopen(page);
+    await expect(header(page, "Artist")).toBeVisible();
+    await expect(header(page, "Energy")).toHaveCount(0);
+    await page.getByRole("button", { name: "Columns", exact: true }).click();
+    await page.getByRole("menu", { name: "Columns" }).getByRole("menuitem", { name: "Put back the usual columns" }).click();
+    await expect(header(page, "Artist")).toHaveCount(0);
+    await expect(header(page, "Energy")).toBeVisible();
+  });
+
+  test("a chosen column's header sorts by it, A to Z first and then Z to A", async ({ page }) => {
+    await openRoute(page, "library");
+    await page.getByRole("button", { name: "Columns", exact: true }).click();
+    await page.getByRole("menu", { name: "Columns" }).getByRole("menuitemcheckbox", { name: "Artist", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await header(page, "Artist").getByRole("button").click();
+    await expect(header(page, "Artist")).toHaveAttribute("aria-sort", "ascending");
+    const firstUp = (await shownTitles(page))[0];
+    await header(page, "Artist").getByRole("button").click();
+    await expect(header(page, "Artist")).toHaveAttribute("aria-sort", "descending");
+    expect((await shownTitles(page))[0]).not.toBe(firstUp);
+  });
+
+  test("a filter chip: once shows only those tracks, again hides them (read out as hidden), again clears", async ({ page }) => {
+    await openRoute(page, "library");
+    await openFilters(page);
+    const grief = () => filters(page).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ });
+    await expect(filters(page)).toContainText("Click a filter once to show only those tracks, and again to hide them.");
+    await grief().click();
+    await expect(grief()).toHaveAttribute("aria-pressed", "true");
+    expect(await shownTitles(page)).toHaveLength(5);
+    await grief().click();
+    await expect(grief()).toHaveAttribute("aria-pressed", "false");
+    await expect(grief()).toHaveAccessibleName(/hidden/);
+    expect(await shownTitles(page)).toHaveLength(64);
+    await expect(page.getByRole("region", { name: "Filters", exact: true })).toContainText("not Grief");
+    await grief().click();
+    await expect(grief()).not.toHaveAccessibleName(/hidden/);
+    expect(await shownTitles(page)).toHaveLength(69);
+  });
+
+  test("a folder works like a chip: once shows only it, again hides its tracks, again shows them", async ({ page }) => {
+    await openRoute(page, "library");
+    await openFilters(page);
+    const effects = () => filters(page).getByRole("button", { name: /^H:\\Audio\\Effects/ });
+    await effects().click();
+    await expect(effects()).toHaveAttribute("aria-pressed", "true");
+    const only = (await shownTitles(page)).length;
+    expect(only).toBeLessThan(69);
+    await effects().click();
+    await expect(effects()).toHaveAccessibleName(/hidden/);
+    expect(await shownTitles(page)).toHaveLength(69 - only);
+    await effects().click();
+    await expect(effects()).not.toHaveAccessibleName(/hidden/);
+    expect(await shownTitles(page)).toHaveLength(69);
+  });
+
+  test("the order button sorts the filter chips, and Clear all filters clears shown and hidden ones", async ({ page }) => {
+    await openRoute(page, "library");
+    await openFilters(page);
+    const mood = filters(page).getByRole("group", { name: "Mood" });
+    const words = async () => (await mood.getByRole("button").allTextContents()).map((w) => w.replace(/\d+$/, "").trim()).filter((w) => w && w !== "Clear");
+    await page.getByRole("button", { name: "Order the filters" }).click();
+    const menu = page.getByRole("menu", { name: "Order the filters" });
+    await expect(menu.getByRole("menuitemradio")).toHaveText(["Tag list order", "A to Z", "Z to A", "Most tracks first"]);
+    await expect(menu.getByRole("menuitemradio", { name: "Tag list order" })).toHaveAttribute("aria-checked", "true");
+    await menu.getByRole("menuitemradio", { name: "A to Z" }).click();
+    const az = await words();
+    expect(az).toEqual([...az].sort((a, b) => a.localeCompare(b)));
+    await page.getByRole("button", { name: "Order the filters" }).click();
+    await page.getByRole("menu", { name: "Order the filters" }).getByRole("menuitemradio", { name: "Z to A" }).click();
+    expect(await words()).toEqual([...az].reverse());
+    await mood.getByRole("button", { name: /^Tense/ }).click();
+    await filters(page).getByRole("group", { name: "Scene" }).getByRole("button", { name: /^Combat/ }).click();
+    await filters(page).getByRole("group", { name: "Scene" }).getByRole("button", { name: /^Combat/ }).click();
+    await expect(page.getByRole("region", { name: "Filters", exact: true })).toContainText("Tense · not Combat");
+    // The app's words since 0.5.2 (item 21) are Clear all filters; the prototype's are Clear all.
+    await page.getByRole("button", { name: /^Clear all( filters)?$/ }).click();
+    await expect(mood.getByRole("button", { name: /^Tense/ })).toHaveAttribute("aria-pressed", "false");
+    await expect(filters(page).getByRole("group", { name: "Scene" }).getByRole("button", { name: /^Combat/ })).not.toHaveAccessibleName(/hidden/);
+    expect(await shownTitles(page)).toHaveLength(69);
+  });
+
+  test("At its end › Play…: a picker with search, All · Playlists · Music · Ambience · FX with counts, Nothing at the top; a double-click chooses", async ({ page }) => {
+    await openRoute(page, "library");
+    await openTrack(page, "Dread rising, choir stabs");
+    await details(page).getByRole("group", { name: "At its end" }).getByRole("button", { name: "Play…" }).click();
+    const dialog = page.getByRole("dialog", { name: "When it ends, play" });
+    const tabs = dialog.getByRole("group", { name: "Show" });
+    await expect(tabs.getByRole("button")).toHaveText([/^All \d+$/, /^Playlists \d+$/, /^Music \d+$/, /^Ambience \d+$/, /^FX \d+$/]);
+    const list = dialog.getByRole("list", { name: "When it ends, play" });
+    await expect(list.getByRole("radio").first()).toHaveAccessibleName(/^Nothing/);
+    await tabs.getByRole("button", { name: /^Playlists/ }).click();
+    await expect(tabs.getByRole("button", { name: /^Playlists/ })).toHaveAttribute("aria-pressed", "true");
+    await expect(list.getByRole("radio", { name: /^Ashes/ })).toHaveCount(0);
+    await dialog.getByRole("searchbox", { name: "Search playlists and tracks" }).fill("crypt");
+    await expect(list.getByRole("radio", { name: /^Crypt ambush/ })).toBeVisible();
+    await list.getByRole("radio", { name: /^Crypt ambush/ }).dblclick();
+    await expect(dialog).toHaveCount(0);
+    await expect(details(page).getByRole("group", { name: "At its end" })).toContainText("Play: Crypt ambush");
   });
 });

@@ -45,10 +45,11 @@ export const DEFAULT_ROUTE = "campaigns";
 const ROUTES: [RegExp, RouteName, string[]][] = [
   [/^campaigns$/, "campaigns", []],
   [/^campaign\/([\w-]+)$/, "campaign", ["cid"]],
-  [/^session\/([\w-]+)\/([\w-]+)$/, "session", ["cid", "sid"]],
+  // --- r10-tracks --- Round 9 (r9nav.js): a track after the session or playlist opens the Track panel on it.
+  [/^session\/([\w-]+)\/([\w-]+)(?:\/([\w-]+))?$/, "session", ["cid", "sid", "tid"]],
   [/^library(?:\/([\w-]+))?$/, "library", ["tid"]],
   [/^playlists$/, "playlists", []],
-  [/^playlist\/([\w-]+)$/, "playlist", ["pid"]],
+  [/^playlist\/([\w-]+)(?:\/([\w-]+))?$/, "playlist", ["pid", "tid"]],
   // A place is "pl:<playlist>" or "sc:<campaign>:<session>:<scene>".
   [/^profile\/([\w-]+)(?:\/([\w:-]+))?$/, "profile", ["tid", "ctx"]],
   [/^boards$/, "boards", []],

@@ -172,7 +172,7 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     search: read(object({ text: text(1_000), "lane?": text(MAX_ID), "limit?": whole, "shapes?": list(text(MAX_ID), 20) })),
     updateTrack: write(
       id,
-      object({ "title?": text(), "notes?": text(), "energy?": nullable(number), "role?": nullable(text(MAX_ID)), "loop?": nullable(text(MAX_ID)), "kind?": text(MAX_ID), "fadesOut?": bool, "resume?": bool, "follow?": nullable(soundRef) }),
+      object({ "title?": text(), "notes?": text(), "energy?": nullable(number), "role?": nullable(text(MAX_ID)), "loop?": nullable(text(MAX_ID)), "kind?": text(MAX_ID), "fadesOut?": bool, "resume?": bool, "follow?": nullable(soundRef), "profile?": object() }),
     ),
     listFolders: read(),
     showInFolder: write(id),
@@ -189,6 +189,8 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     removeTracks: write(list(id)),
     deleteFiles: write(list(id, 10_000)),
     setKind: write(list(id), literal("music", "amb", "fx")),
+    // --- r10-tracks --- Round 9: Split into parts… (at most 100 parts, each a name and a range in whole ms).
+    splitIntoParts: write(id, object({ parts: list(object({ name: text(500), startMs: whole, endMs: whole }), 100), copyTags: bool, addToPlaylists: bool })),
   },
   tags: {
     listGroups: read(),
@@ -224,6 +226,8 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     ),
     update: write(id, object({ "name?": text(500), "notes?": text(), "rule?": rule })),
     copyAsManual: write(id),
+    // --- r10-tracks --- Round 9: a playlist's place in Your order.
+    move: write(id, whole),
     delete: write(id),
     addTracks: withOptional(write(id, list(id), whole), 2),
     removeTrack: write(id, id),

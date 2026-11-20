@@ -166,6 +166,28 @@ export interface LibraryTrack extends DomainTrack {
   resume: boolean;
   /** SHW-3: Then › Follow with: plays when it ends unless something is already waiting; null: nothing. */
   follow: SoundRef | null;
+  // --- r10-tracks ---
+  /**
+   * Round 9 (Split into parts, schema version 11): the whole track this one was split from and where in the file it
+   * was cut; it plays that part of the same file. Null or missing: a whole track.
+   */
+  partOf?: TrackPart | null;
+}
+
+/** Round 9: where a part was cut from its whole track (ms in the file). */
+export interface TrackPart {
+  trackId: string;
+  startMs: number;
+  endMs: number;
+}
+
+/** Round 9: Split into parts… (the Audio profile's Markers): the parts to make and the two choices. */
+export interface SplitRequest {
+  parts: { name: string; startMs: number; endMs: number }[];
+  /** Copy its tags, Type and Use it for to each part (energy, shape and loop advice come too). */
+  copyTags: boolean;
+  /** Add the parts beside it in its manual playlists. */
+  addToPlaylists: boolean;
 }
 
 /** The fields a screen can change on a track (Details pane, and a dropped file's kind in the session planner). */
@@ -180,6 +202,12 @@ export type TrackPatch = Partial<{
   fadesOut: boolean;
   resume: boolean;
   follow: SoundRef | null;
+  // --- r10-tracks ---
+  /**
+   * Round 9 (At its end): the track's own audio profile, whole, written in the same undo step as the loop advice,
+   * Fades out and Follow with an end choice changes (trackEnd.ts endWrite). profiles.set writes it alone.
+   */
+  profile: AudioProfileInput;
 }>;
 
 /** A folder the Library lists under Folders: a library folder, or one Lyre watches for new files. */
@@ -346,6 +374,9 @@ export type PlaylistInfo = DomainPlaylist & {
   order: PlayOrder | null;
   /** PLY-15: its normalising choice for its tracks when they play from it; null follows the library. */
   normalise: NormaliseChoice | null;
+  // --- r10-tracks ---
+  /** Round 9 (Sort › Newest): when it was made (ms since 1970); missing where nothing recorded it (the sample data). */
+  createdAt?: number;
 };
 
 /**
@@ -826,6 +857,12 @@ export interface LyreApi {
     deleteFiles(trackIds: string[]): Promise<WriteResult<{ removed: string[]; problems: { trackId: string; reason: string }[] }>>;
     /** 0.5.2 items 4, 12 and 39: Type (Music, Ambience, FX) for one or many tracks, in one undo step. */
     setKind(trackIds: string[], kind: TrackKind): Promise<WriteResult<LibraryTrack[]>>;
+    // --- r10-tracks ---
+    /**
+     * Round 9 (ROUND9.md §10): a track for each part, playing its part of the same file (the file is not changed), in
+     * one undo step. Answers the new tracks' ids in order. r9track.js r9spok.
+     */
+    splitIntoParts(trackId: string, request: SplitRequest): Promise<WriteResult<{ trackIds: string[] }>>;
   };
   tags: {
     /** Tag groups and their values. library.js filters, tag combobox and Tag… sheet; playlists.js rule builder (plvaladd). */
@@ -879,6 +916,12 @@ export interface LyreApi {
     update(id: string, patch: PlaylistPatch): Promise<WriteResult<PlaylistInfo>>;
     /** A manual copy of the tracks it has now, placed after it. playlists.js L.acts.plcopyhand. */
     copyAsManual(id: string): Promise<WriteResult<PlaylistInfo>>;
+    // --- r10-tracks ---
+    /**
+     * Round 9 (item 38: "reorder playlists in the playlist list"): the playlist's place in Your order, as an index
+     * among the playlists in the same folder (folders keep their own order). r9lists.js moveTo.
+     */
+    move(id: string, toIndex: number): Promise<WriteResult>;
     /** Deletes it and takes it out of every campaign, session and scene; tracks stay. playlists.js L.acts.pldeldo. */
     delete(id: string): Promise<WriteResult>;
     /** Adds tracks to a manual playlist at a place (default the end). playlists.js pladd, drops; library.js lbpladd, lbbpl, lbrmpl. */
@@ -1102,10 +1145,10 @@ export interface LyreApi {
 
 /** Method names by area, for the contract tests' "every method is covered" guard and for IPC channel lists. */
 export const LYRE_API_METHODS = {
-  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise", "find", "put", "removeTracks", "deleteFiles", "setKind"],
+  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise", "find", "put", "removeTracks", "deleteFiles", "setKind", "splitIntoParts"],
   tags: ["listGroups", "tagTracks", "createGroup", "updateGroup", "moveGroup", "deleteGroup", "createTag", "renameTag", "mergeTag", "deleteTag", "updateTag", "moveTag"],
   folders: ["list", "create", "update", "delete", "moveInto"],
-  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise", "trackOrders", "setTrackOrder", "clearTrackOrder", "addDivider", "renameDivider", "removeDivider", "moveItem"],
+  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "move", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise", "trackOrders", "setTrackOrder", "clearTrackOrder", "addDivider", "renameDivider", "removeDivider", "moveItem"],
   boards: ["list", "create", "rename", "resize", "duplicate", "delete", "addPad", "updatePad", "duplicatePad", "movePad", "putAllBack", "deletePad", "setDivider", "setPadSteps"],
   campaigns: ["list", "get", "create", "update", "move", "delete", "setOnHand", "usesOf", "setUses"],
   sessions: ["create", "update", "move", "delete", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName", "setRepeatOne", "setSceneSteps"],

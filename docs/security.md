@@ -1285,3 +1285,20 @@ file access.
   volume it had.
 - Tests: `src/main/broadcast/botTokenStore.test.ts` and `OutputManager.test.ts` ("round 10"); the argument checks are
   the table's (`argsMatch(isBotId, isUnitInterval)`, the same as `LYRE_OUTPUT_SET_VOLUME`).
+
+## r10-tracks
+
+0.6.0's Track library, Playlists, Audio profile, Track panel and queue add no IPC channel. Three library calls are new
+or take more, all through `LYRE_API_CALL` (the guard checks their names against `LYRE_API_METHODS` and the call's
+size) with their arguments checked in the library before it acts (`argChecks.ts`):
+
+- `playlists.move(id, toIndex)`: an id and a whole number (Your order on the Playlists page).
+- `library.splitIntoParts(trackId, { parts, copyTags, addToPlaylists })`: an id; at most 100 parts, each a name (text,
+  500 characters at most) and a start and end in whole milliseconds; two true/false choices. The library checks the
+  parts follow one another inside the track (`splitProblem`). A part takes its whole track's file from the library's
+  own record of that track, never a path from the page.
+- `library.updateTrack(id, patch)`: the patch may also hold `profile` (an object, the track's own audio profile, as
+  `profiles.set` already takes it), so an end choice is one undo step.
+
+Delete file from disk… keeps a part, and a track that has parts, with a reason: their file is shared, and sending it to
+the Recycle Bin would take the sound from the others.

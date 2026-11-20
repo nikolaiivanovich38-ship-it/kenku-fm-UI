@@ -35,10 +35,12 @@ import { TYPES, useTypeChange } from "./TypeChange";
 import { TrackDetails } from "./TrackDetails";
 import { TracksTable } from "./TracksTable";
 import { useTrackList } from "./trackStore";
-import { SORTS, type SortKey } from "./model";
+import { COLUMNS, SORTS, USUAL_COLUMNS, type SortKey } from "./model";
+import { FILTER_ORDERS, setColumns, setFilterOrder, useColumns, useFilterOrder } from "./listPrefs";
 import { SearchField } from "../../kit/Fields";
 import { LibraryMoreMenu } from "../transfer/LibraryMoreMenu";
 import "./library.css";
+import "./round9.css";
 import { TopLead } from "../../shell/TopBar";
 import { PrepOrLive } from "../campaigns/parts";
 import { tagTreeOf } from "../../../common/lyre/lookup";
@@ -390,6 +392,64 @@ export function LibraryScreen({ route }: ScreenProps) {
     say(`Added ${plural(ids.length, "track")} to ${plural(done.length, "playlist")}`);
   };
 
+  /* ----- Round 9 (item 26): the columns shown, kept on this computer ----- */
+  const columns = useColumns();
+  const columnsMenu = (): PopMenuEntry[] => [
+    { group: "Columns" },
+    { content: "Title (always)", onSelect: () => undefined, role: "menuitemcheckbox", checked: true, disabled: true },
+    ...COLUMNS.map(
+      ([key, label]): PopMenuEntry => ({
+        content:
+          key === "plays" ? (
+            <>
+              {label}
+              <span className="hint">&nbsp;after the Audio profile</span>
+            </>
+          ) : (
+            label
+          ),
+        role: "menuitemcheckbox",
+        checked: columns.includes(key),
+        // The menu stays open, so several columns can be changed at once.
+        keepOpen: true,
+        onSelect: () => {
+          const on = !columns.includes(key);
+          setColumns(on ? [...columns, key] : columns.filter((c) => c !== key));
+          say(`${label} ${on ? "shown" : "hidden"}`);
+        },
+      }),
+    ),
+    { separator: true },
+    {
+      content: (
+        <>
+          <Icon name="restart" size="s" />
+          Put back the usual columns
+        </>
+      ),
+      onSelect: () => {
+        setColumns(USUAL_COLUMNS);
+        say("The usual columns are back");
+      },
+    },
+  ];
+  /* ----- Round 9 (item 27): the order of the filter chips, kept on this computer ----- */
+  const filterOrder = useFilterOrder();
+  const orderMenu = (): PopMenuEntry[] => [
+    { group: "Order the filters" },
+    ...FILTER_ORDERS.map(
+      ([key, label]): PopMenuEntry => ({
+        content: label,
+        role: "menuitemradio",
+        checked: filterOrder === key,
+        onSelect: () => {
+          setFilterOrder(key);
+          say(`Filters ordered ${label}`);
+        },
+      }),
+    ),
+  ];
+
   /* ----- the boxes ----- */
   const nAll = all.length;
   const nShown = list.length;
@@ -416,19 +476,30 @@ export function LibraryScreen({ route }: ScreenProps) {
       summary={filterSummary(st.filter, groups)}
       status={nFilters ? { text: `${nFilters} filter${nFilters > 1 ? "s" : ""} on`, tone: "on" } : undefined}
       actions={
-        filtersOn(st.filter) ? (
-          <button
-            type="button"
-            className="btn s ghost"
-            onClick={() => {
-              // Item 21: every filter, not the search.
-              setLibraryState({ filter: DEFAULT_FILTER });
-              say("Filters cleared");
-            }}
+        <>
+          <PopMenuButton
+            label="Order the filters"
+            ariaLabel="Order the filters"
+            title={`Order the filters (now ${FILTER_ORDERS.find(([k]) => k === filterOrder)?.[1]})`}
+            className="btn s icon ghost"
+            items={orderMenu}
           >
-            Clear all filters
-          </button>
-        ) : undefined
+            <Icon name="inorder" size="s" />
+          </PopMenuButton>
+          {filtersOn(st.filter) && (
+            <button
+              type="button"
+              className="btn s ghost"
+              onClick={() => {
+                // Item 21: every filter, shown or hidden, not the search.
+                setLibraryState({ filter: DEFAULT_FILTER });
+                say("Filters cleared");
+              }}
+            >
+              Clear all filters
+            </button>
+          )}
+        </>
       }
     >
       <FiltersBody tracks={all} groups={groups} folders={folders} filter={st.filter} missing={missing} />
@@ -476,6 +547,8 @@ export function LibraryScreen({ route }: ScreenProps) {
         <label className="lb-sortl">
           <span className="sr-only">Sort</span>
           <select className="input lb-sel" aria-label="Sort tracks" value={st.sort} onChange={(e) => setLibraryState({ sort: e.target.value as SortKey })}>
+            {/* Round 9 (item 25): a header's sort that the box does not list (Album, Use it for…). */}
+            {!SORTS.some(([k]) => k === st.sort) && <option value={st.sort}>By a column</option>}
             {SORTS.map(([k, label]) => (
               <option key={k} value={k}>
                 {label}
@@ -483,6 +556,10 @@ export function LibraryScreen({ route }: ScreenProps) {
             ))}
           </select>
         </label>
+        <PopMenuButton label="Columns" title="Choose the columns" className="btn s" items={columnsMenu}>
+          <Icon name="list" size="s" />
+          Columns
+        </PopMenuButton>
       </div>
       {st.guide && <GuideLine guide={st.guide} onShowNew={showNew} />}
       {st.sel.length > 0 && (
@@ -500,6 +577,11 @@ export function LibraryScreen({ route }: ScreenProps) {
           <button type="button" className="btn s" onClick={() => void newPlaylist(getLibraryState().sel)}>
             <Icon name="plus" size="s" />
             New playlist from these
+          </button>
+          {/* Round 10 fixes (R10-FIX §1): Remove from library for the selection, in words; Delete files… in its ⋯. */}
+          <button type="button" className="btn s" onClick={() => setRemoval({ how: "remove", ids: getLibraryState().sel })}>
+            <Icon name="close" size="s" />
+            Remove from library
           </button>
           <button type="button" className="btn s ghost" onClick={clearSel}>
             Clear selection
@@ -523,7 +605,7 @@ export function LibraryScreen({ route }: ScreenProps) {
         sort={st.sort}
         onSort={(sort) => {
           setLibraryState({ sort });
-          say(`Sorted: ${SORTS.find(([k]) => k === sort)?.[1] ?? ""}`);
+          say(`Sorted: ${SORTS.find(([k]) => k === sort)?.[1] ?? "by a column"}`);
         }}
         onOpen={openTrack}
         onToggle={toggleSel}
@@ -537,6 +619,8 @@ export function LibraryScreen({ route }: ScreenProps) {
         initialScroll={getListScroll()}
         onScrolled={setListScroll}
         describedBy="lb-keys"
+        columns={columns}
+        onDelete={(id) => setRemoval({ how: "remove", ids: [id] })}
       />
       {/* Round 6: the keys show only while the keyboard is in the list, and are read out with it. */}
       <div className="lb-foot hint keys-on-focus" id="lb-keys">
@@ -582,6 +666,7 @@ export function LibraryScreen({ route }: ScreenProps) {
           normalise={normalise}
           onNewPlaylist={(ids) => void newPlaylist(ids)}
           onUseIn={() => setUseIn(open.id)}
+          onRemove={() => setRemoval({ how: "remove", ids: [open.id] })}
         />
       ) : (
         <div className="lb-d lb-dempty">

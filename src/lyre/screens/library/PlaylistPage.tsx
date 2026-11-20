@@ -20,7 +20,7 @@ import { hashOf } from "../../shell/routes";
 import { useRememberedOpen } from "../../shell/ShellSettings";
 import type { ScreenProps } from "../index";
 import { fmt, fmtLong, KIND_NAMES, plural, ruleWords, SHAPES, shownTitle, tagsOf } from "./model";
-import { nameUses, usePlaylistData, usedText, type PlaylistData } from "./playlistData";
+import { nameUses, usePlaylistData, type PlaylistData } from "./playlistData";
 import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropTarget } from "./playlistDrops";
 import { KindLane, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
 import { focusSoon, onAirPlaylistIds, onAirTrackIds, useWriteOk, useWriteResult } from "./shared";
@@ -36,7 +36,11 @@ import { PlayOrderButton } from "../../kit/PlayOrderButton";
 import { ShapeGlyph } from "../../kit/ShapeGlyph";
 import { matchesShapes, ShapeFilter } from "../../kit/ShapeFilter";
 import { TagStrip } from "../../kit/TagStrip";
+import { DeletePlaylistDialog } from "./DeletePlaylistDialog";
+import { TrackNameLink } from "../../kit/trackName";
+import { deleteKeyOnRow, useRemoveFromPlaylist } from "./PlaylistTrackList";
 import "./library.css";
+import "./round9.css";
 import "./playlists.css";
 import { TopLead } from "../../shell/TopBar";
 import { layoutOf, withDividers } from "../../../common/lyre/lookup";
@@ -112,7 +116,6 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
   const { say, toast } = useAnnounce();
   const accept = useWriteResult();
   const save = useSave();
-  const ok = useWriteOk();
   const actions = useDropActions(data);
   const drops = useDropState();
   const tracks = pl === saved ? data.tracksOf(pl) : data.tracksNow(pl);
@@ -320,44 +323,8 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
       <DropZone />
       {useIn && <UseInDialog playlist={pl} campaigns={data.campaigns} nameOf={soundName(data)} onClose={() => setUseIn(false)} />}
       {useInTrack && <UseInDialog track={useInTrack} campaigns={data.campaigns} nameOf={soundName(data)} onClose={() => setUseInTrack(null)} />}
-      <Dialog
-        open={deleting}
-        title={`Delete "${pl.name || "Untitled playlist"}"?`}
-        onClose={() => setDeleting(false)}
-        footer={
-          <>
-            <Button onClick={() => setDeleting(false)}>Keep it</Button>
-            <Button
-              variant="danger"
-              icon="trash"
-              onClick={async () => {
-                setDeleting(false);
-                if (!ok(await api.playlists.delete(pl.id))) return;
-                window.location.hash = hashOf("playlists");
-                toast(`Deleted "${pl.name}"`);
-              }}
-            >
-              Delete playlist
-            </Button>
-          </>
-        }
-      >
-        {uses.length ? (
-          <>
-            <p>It is used in {usedText(uses)}. Deleting it takes it out of these:</p>
-            <ul className="pl-dellist">
-              {nameUses(uses, data.campaigns).map((u) => (
-                <li key={u.label}>{u.label}</li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <p>It is not used in any campaign, session or scene.</p>
-        )}
-        <p className="muted" style={{ marginTop: 8 }}>
-          The tracks stay in your library.
-        </p>
-      </Dialog>
+      {/* Round 10 fixes (R10-FIX §2): the same question as a row's Delete playlist… on the Playlists page, then Undo. */}
+      {deleting && <DeletePlaylistDialog pl={pl} data={data} onClose={() => setDeleting(false)} onDeleted={() => (window.location.hash = hashOf("playlists"))} />}
     </>
   );
 }
@@ -511,9 +478,10 @@ function TrackRow({
         </>
       )}
       <div className="pl-tline">
-        <a className="pl-tname" href={hashOf(`library/${t.id}`)} title={trackTip(t)}>
+        {/* Round 9 and 10 (row 13; item 22): the title opens the Track panel beside the playlist. */}
+        <TrackNameLink trackId={t.id} className="pl-tname" title={trackTip(t)}>
           {title}
-        </a>
+        </TrackNameLink>
         {own && (
           <span className="pl-own" title="Has its own audio profile in this playlist">
             <span className="pl-own-dot" aria-hidden="true" />
@@ -526,7 +494,7 @@ function TrackRow({
         {isFx(t) && (
           <span className="chip">
             <span className="lane-dot fx" />
-            {t.kind === "fx" ? "FX" : "FX · Sting"}
+            {t.kind === "fx" ? "FX" : "FX · Short cue"}
           </span>
         )}
       </div>
@@ -599,17 +567,17 @@ function TracksPane({
   const api = useLyreApi();
   const { say } = useAnnounce();
   const ok = useWriteOk();
+  const removeFromPlaylist = useRemoveFromPlaylist();
+  /** Round 10 fixes (R10-FIX §1): Remove from this playlist, with Undo at the bottom of the screen. */
   const remove = async (tid: string) => {
     const i = pl.trackIds.indexOf(tid);
     const rest = pl.trackIds.filter((x) => x !== tid);
     edit({ ...pl, trackIds: rest });
-    if (!ok(await api.playlists.removeTrack(pl.id, tid))) {
+    if (!(await removeFromPlaylist(pl, tid))) {
       edit(null);
       return;
     }
     const next = rest[i] ?? rest[i - 1];
-    const t = data.byId.get(tid);
-    say(`Removed ${t ? shownTitle(t) : "the track"}. ${plural(rest.length, "track")} left.`);
     focusSoon(next ? `m-more-${next}` : "pladdopen");
   };
   const total = tracks.reduce((s, t) => s + t.durationMs, 0);
@@ -649,6 +617,14 @@ function TracksPane({
   const drag = useDragReorder(`pl-${pl.id}`, (from, to) => void moveEntry(from, to), { rowsDraggable: true });
   // Alt+Up or Alt+Down on a row (a track or a divider) moves it a row at a time.
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // Round 10 fixes (R10-FIX §1): Delete on a focused track row takes the track out, as its ⋯'s Remove does.
+    if (deleteKeyOnRow(e)) {
+      const track = (e.target as HTMLElement).closest<HTMLElement>(".pl-tr[data-tid]");
+      if (!track?.dataset.tid) return;
+      e.preventDefault();
+      void remove(track.dataset.tid);
+      return;
+    }
     if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
     const row = (e.target as HTMLElement).closest<HTMLElement>(".pl-tr[data-idx]");
     if (!row) return;
@@ -1063,9 +1039,9 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
           <input
             type="checkbox"
             checked={!!rule.leaveOutStings}
-            onChange={(e) => void change({ ...rule, leaveOutStings: e.target.checked }, e.target.checked ? "Stings left out" : "Stings included")}
+            onChange={(e) => void change({ ...rule, leaveOutStings: e.target.checked }, e.target.checked ? "Short cues left out" : "Short cues included")}
           />
-          Leave out stings
+          Leave out short cues
         </label>
       </div>
       {/* DAT-13: only tracks of these shapes (the game master's choice, else Lyre's suggestion). None pressed: any. */}

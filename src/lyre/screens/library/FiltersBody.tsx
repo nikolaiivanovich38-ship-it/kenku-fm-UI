@@ -10,8 +10,35 @@ import { shapeOf } from "../../../common/domain";
 import { ShapeGlyph } from "../../kit/ShapeGlyph";
 import { tagTreeOf } from "../../../common/lyre/lookup";
 import { trackHasTag } from "../../../common/domain/round7";
-import { folderRows, isNewish, KIND_NAMES, kindOk, SHAPES, visibleTracks, type KindFilter, type LibraryFilter } from "./model";
+import { chipState, cycleChip, cycleFolder, folderRows, isNewish, KIND_NAMES, kindOk, shortPath, SHAPES, visibleTracks, type ChipState, type KindFilter, type LibraryFilter } from "./model";
 import { FolderActions } from "./FolderActions";
+import { inFilterOrder, useFilterOrder } from "./listPrefs";
+import { SHAPE_WORDS, type TrackShape } from "../../../common/domain";
+
+/** Round 9 (item 34): the one line that says how the chips work; each chip is described by it. */
+const HINT_ID = "lb-fhint";
+const SAID: Record<ChipState, string> = { off: "", show: ", shown", hide: ", hidden" };
+const NEXT_TIP: Record<ChipState, string> = { off: "click to show only these", show: "click to hide these instead", hide: "click to clear" };
+const SAY_NOW: Record<ChipState, string> = { off: "cleared", show: "shown", hide: "hidden" };
+
+/** A filter chip with three states, in words for screen readers as well as the look (library.js chip3). */
+function Chip3({ state, words, count, glyph, onClick }: { state: ChipState; words: string; count: number; glyph?: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className={cx("chip lb-fchip r9-c3", state === "hide" && "is-hide")}
+      aria-pressed={state === "show"}
+      aria-describedby={HINT_ID}
+      title={`${words}: ${NEXT_TIP[state]}`}
+      onClick={onClick}
+    >
+      {state === "show" ? <Icon name="check" size="s" /> : state === "hide" ? <Icon name="close" size="s" /> : glyph}
+      <span className="r9-c3-w">{words}</span>
+      <span className="sr-only">{SAID[state]}</span>
+      <span className="lb-n num">{count}</span>
+    </button>
+  );
+}
 
 const KINDS: [KindFilter, string][] = [
   ["all", "All"],
@@ -35,6 +62,7 @@ export function FiltersBody({
   missing: ReadonlySet<string>;
 }) {
   const { say } = useAnnounce();
+  const order = useFilterOrder();
   const base = useMemo(() => tracks.filter((t) => kindOk(t, filter.kind)), [tracks, filter.kind]);
   const nNew = useMemo(() => base.filter(isNewish).length, [base]);
   const nMissing = useMemo(() => tracks.filter((t) => missing.has(t.id)).length, [tracks, missing]);
@@ -106,69 +134,71 @@ export function FiltersBody({
           </button>
         )}
       </div>
+      {/* Round 9 (items 27, 34): one line says how the chips work; each chip is off, Show (✓) or Hide (struck out). */}
+      <p className="hint r9-fhint" id={HINT_ID}>
+        Click a filter once to show only those tracks, and again to hide them.
+      </p>
       <div className="lb-fg" role="group" aria-labelledby="lb-fh-shape">
-        <FilterHeading id="lb-fh-shape" name="Shape" onClear={filter.shapes.length ? () => clear({ shapes: [] }, "Shape") : undefined} />
+        <FilterHeading id="lb-fh-shape" name="Shape" onClear={filter.shapes.length || filter.hideShapes.length ? () => clear({ shapes: [], hideShapes: [] }, "Shape") : undefined} />
         <div className="chips">
-          {SHAPES.map(([shape, word]) => {
-            const on = filter.shapes.includes(shape);
-            return (
-              <button
-                key={shape}
-                type="button"
-                className="chip lb-fchip"
-                aria-pressed={on}
-                onClick={() => {
-                  setFilter({ shapes: on ? filter.shapes.filter((x) => x !== shape) : [...filter.shapes, shape] });
-                  say(`${shownCount()} tracks shown`);
-                }}
-              >
-                {on ? <Icon name="check" size="s" /> : <ShapeGlyph shape={shape} />}
-                {word}
-                <span className="lb-n num">{shapeCounts.get(shape) ?? 0}</span>
-              </button>
-            );
-          })}
+          {inFilterOrder(
+            SHAPES.map(([shape, word]) => [word, shapeCounts.get(shape) ?? 0, shape] as const),
+            order,
+          ).map(([word, n, shape]) => (
+            <Chip3
+              key={shape}
+              state={chipState(filter.shapes, filter.hideShapes, shape)}
+              words={word}
+              count={n}
+              glyph={<ShapeGlyph shape={shape} />}
+              onClick={() => {
+                const next = cycleChip<TrackShape>(filter.shapes, filter.hideShapes, shape);
+                setFilter({ shapes: next.shown, hideShapes: next.hidden });
+                say(`${SHAPE_WORDS[shape]} ${SAY_NOW[next.now]}. ${shownCount()} tracks shown`);
+              }}
+            />
+          ))}
         </div>
       </div>
       {groups.map((g) => {
         const ticked = filter.tags[g.id] ?? [];
-        const values = g.values.map((v) => [v, counts.get(`${g.id}\u0000${v}`) ?? 0] as const).filter(([v, n]) => n > 0 || ticked.includes(v));
+        const hidden = filter.hide[g.id] ?? [];
+        const values = inFilterOrder(
+          g.values.map((v) => [v, counts.get(`${g.id}\u0000${v}`) ?? 0] as const).filter(([v, n]) => n > 0 || ticked.includes(v) || hidden.includes(v)),
+          order,
+        );
         return (
           <div key={g.id} className="lb-fg" role="group" aria-labelledby={`lb-fh-${g.id}`}>
             <FilterHeading
               id={`lb-fh-${g.id}`}
               name={g.name}
               onClear={
-                ticked.length
+                ticked.length || hidden.length
                   ? () => {
                       const tags = { ...filter.tags };
+                      const hide = { ...filter.hide };
                       delete tags[g.id];
-                      clear({ tags }, g.name);
+                      delete hide[g.id];
+                      clear({ tags, hide }, g.name);
                     }
                   : undefined
               }
             />
             <div className="chips">
               {values.length ? (
-                values.map(([v, n]) => {
-                  const on = ticked.includes(v);
-                  return (
-                    <button
-                      key={v}
-                      type="button"
-                      className="chip lb-fchip"
-                      aria-pressed={on}
-                      onClick={() => {
-                        setFilter({ tags: { ...filter.tags, [g.id]: on ? ticked.filter((x) => x !== v) : [...ticked, v] } });
-                        say(`${shownCount()} tracks shown`);
-                      }}
-                    >
-                      {on && <Icon name="check" size="s" />}
-                      {v}
-                      <span className="lb-n num">{n}</span>
-                    </button>
-                  );
-                })
+                values.map(([v, n]) => (
+                  <Chip3
+                    key={v}
+                    state={chipState(ticked, hidden, v)}
+                    words={v}
+                    count={n}
+                    onClick={() => {
+                      const next = cycleChip(ticked, hidden, v);
+                      setFilter({ tags: { ...filter.tags, [g.id]: next.shown }, hide: { ...filter.hide, [g.id]: next.hidden } });
+                      say(`${v} ${SAY_NOW[next.now]}. ${shownCount()} tracks shown`);
+                    }}
+                  />
+                ))
               ) : (
                 <span className="hint">No values used yet</span>
               )}
@@ -214,20 +244,38 @@ export function FiltersBody({
         </div>
       </div>
       <div className="lb-fg">
-        <FilterHeading name="Folders" onClear={filter.folder ? () => clear({ folder: "" }, "folder") : undefined} clearLabel="Clear folder" focusTo=".lb-folders button" />
+        <FilterHeading name="Folders" onClear={filter.folder || filter.hideFolders.length ? () => clear({ folder: "", hideFolders: [] }, "folder") : undefined} clearLabel="Clear folder" focusTo=".lb-folders button" />
         <ul className="lb-folders">
-          {folderList.map((f) => (
-            <li key={`${f.sub ? "s" : "r"}:${f.path}`} className={f.sub ? "sub" : undefined}>
-              <button type="button" aria-pressed={filter.folder === f.path} title={f.path || "Every folder"} onClick={() => setFilter({ folder: f.path })}>
-                <Icon name={f.watched ? "eye" : "folder"} size="s" />
-                <span className="ellipsis grow">{f.label}</span>
-                {f.watched && <span className="hint">watched</span>}
-                {f.root?.newKind && <span className="hint">{KIND_NAMES[f.root.newKind]}</span>}
-                <span className="num lb-n">{f.count}</span>
-              </button>
-              {f.root && <FolderActions root={f.root} tracks={tracks} />}
-            </li>
-          ))}
+          {folderList.map((f) => {
+            // Round 9 (item 34): a folder works like a chip: once shows only it, again hides its tracks, again clears.
+            const hidden = filter.hideFolders.includes(f.path);
+            const chosen = filter.folder === f.path;
+            const tip = f.path ? `${f.path}${chosen ? ": click again to hide its tracks" : hidden ? ": hidden; click to show it again" : ""}` : "Every folder";
+            return (
+              <li key={`${f.sub ? "s" : "r"}:${f.path}`} className={cx(f.sub && "sub", "r9-fo", hidden && "is-hide")}>
+                <button
+                  type="button"
+                  aria-pressed={chosen}
+                  title={tip}
+                  onClick={() => {
+                    const next = cycleFolder(filter, f.path);
+                    setFilter({ folder: next.folder, hideFolders: next.hideFolders });
+                    if (f.path) say(`${shortPath(f.path)} ${next.now === "hide" ? "hidden" : next.now === "off" ? "shown again" : "shown"}. ${shownCount()} tracks shown`);
+                  }}
+                >
+                  <Icon name={hidden ? "close" : f.watched ? "eye" : "folder"} size="s" />
+                  <span className="ellipsis grow">
+                    {f.label}
+                    {hidden && <span className="sr-only">, hidden</span>}
+                  </span>
+                  {f.watched && <span className="hint">watched</span>}
+                  {f.root?.newKind && <span className="hint">{KIND_NAMES[f.root.newKind]}</span>}
+                  <span className="num lb-n">{f.count}</span>
+                </button>
+                {f.root && <FolderActions root={f.root} tracks={tracks} />}
+              </li>
+            );
+          })}
         </ul>
       </div>
     </div>

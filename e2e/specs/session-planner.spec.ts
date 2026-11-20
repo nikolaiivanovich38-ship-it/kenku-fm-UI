@@ -729,7 +729,6 @@ test.describe("round 10: the planner", () => {
   });
 
   test("a track inside an open playlist opens the Track panel from its title (prep review D1)", async ({ page }) => {
-    expectFailureUntilBuilt("r10-tracks"); // the Track panel itself
     await openAbbey(page);
     await musicOf(abbey(page)).getByRole("button", { name: "Show contents of Abbey: eerie, low energy" }).click();
     const nested = abbey(page).getByRole("list", { name: /^Tracks in Abbey: eerie, low energy/ }).getByRole("link").first();

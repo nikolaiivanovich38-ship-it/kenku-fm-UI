@@ -26,6 +26,11 @@ import upNext from "./articles/15-up-next.md?raw";
 import roomsAndBots from "./articles/16-rooms-and-bots.md?raw";
 import dipMusic from "./articles/20-dip-music.md?raw";
 // --- end r10-live ---
+// --- r10-tracks ---
+import trackPanel from "./articles/17-track-panel.md?raw";
+import filtersAndColumns from "./articles/18-filters-and-columns.md?raw";
+import splitParts from "./articles/19-split-parts.md?raw";
+import queue from "./articles/21-queue.md?raw";
 
 /** The task groups, in the order the panel lists them. */
 export const HELP_GROUPS = ["Get started", "Prepare", "Run a session", "Your library"] as const;
@@ -123,6 +128,11 @@ const FILES: Record<string, string> = {
   "16-rooms-and-bots.md": roomsAndBots,
   "20-dip-music.md": dipMusic,
   // --- end r10-live ---
+  // --- r10-tracks ---
+  "17-track-panel.md": trackPanel,
+  "18-filters-and-columns.md": filtersAndColumns,
+  "19-split-parts.md": splitParts,
+  "21-queue.md": queue,
 };
 
 export const ARTICLES: readonly HelpArticle[] = Object.keys(FILES)

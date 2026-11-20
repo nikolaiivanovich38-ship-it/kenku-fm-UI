@@ -544,16 +544,17 @@ test.describe("0.5.2: one length for a track", () => {
    in line"). A track comes out of a playlist from its row's ⋯ or with Delete on its row, on the playlist's page and
    wherever its tracks are shown unfolded, with Undo; a playlist is deleted from its row on the Playlists page. */
 test.describe("round 10: taking tracks out and deleting playlists in line", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-tracks"));
 
   test("Delete on a focused track row takes it out of the playlist; Undo puts it back where it was", async ({ page }) => {
     await openRoute(page, "playlist/p-abbess");
+    await expect(page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Alien, unknowable/ })).toBeVisible();
     const before = await trackNames(page);
     await page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Alien, unknowable/ }).focus();
     await page.keyboard.press("Delete");
-    expect(await trackNames(page)).toHaveLength(before.length - 1);
+    // The app saves, then draws: the checks wait for it.
+    await expect.poll(async () => (await trackNames(page)).length).toBe(before.length - 1);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
-    expect(await trackNames(page)).toEqual(before);
+    await expect.poll(async () => trackNames(page)).toEqual(before);
   });
 
   test("a row on the Playlists page has Delete playlist… in its ⋯: it names the scenes that use it, then Undo", async ({ page }) => {
@@ -586,5 +587,92 @@ test.describe("round 10: taking tracks out and deleting playlists in line", () =
     await expect(tracks.getByRole("listitem")).toHaveCount(n - 1);
     await page.getByRole("button", { name: "Undo", exact: true }).click();
     await expect(tracks.getByRole("listitem")).toHaveCount(n);
+  });
+});
+
+/* Round 9 (ROUND9.md §8, items 38 and 42) and round 10 (P14): Sort and Your order on the Playlists list, a grip and
+   Move up / Move down / Move to the top in Your order, → Open on every row, and a manual playlist's dividers wherever its
+   tracks are listed. Round 9 left these checks to the build stream: written by r10-tracks against the prototype first. */
+test.describe("round 9: the Playlists list's order, → Open and dividers", () => {
+  const names = async (page: Page) =>
+    (await list(page).getByRole("button", { name: /^(Show|Hide) contents of / }).evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label") ?? ""))).map((n) => n.replace(/^(Show|Hide) contents of /, ""));
+  const sortButton = (page: Page) => page.getByRole("button", { name: /^(Your order|Name A to Z|Name Z to A|Most tracks|Longest|Most used|Newest)$/ });
+
+  test("Sort: Your order, Name A to Z, Z to A, Most tracks, Longest, Most used, Newest", async ({ page }) => {
+    await openRoute(page, "playlists");
+    await expect(sortButton(page)).toHaveText(/Your order/);
+    await sortButton(page).click();
+    const menu = page.getByRole("menu", { name: "Sort the playlists" });
+    await expect(menu.getByRole("menuitemradio")).toHaveText(["Your order", "Name A to Z", "Name Z to A", "Most tracks", "Longest", "Most used", "Newest"]);
+    await menu.getByRole("menuitemradio", { name: "Name Z to A" }).click();
+    const za = await names(page);
+    expect(za).toEqual([...za].sort((a, b) => b.localeCompare(a)));
+    await expect(sortButton(page)).toHaveText(/Name Z to A/);
+  });
+
+  test("in Your order a row's ⋯ moves it up, down and to the top; Alt+Down moves the row with the keyboard", async ({ page }) => {
+    await openRoute(page, "playlists");
+    const before = await names(page);
+    expect(before[0]).toBe("The Company themes");
+    await page.getByRole("button", { name: "More for The Company themes", exact: true }).click();
+    const menu = page.getByRole("menu", { name: "More for The Company themes" });
+    await expect(menu.getByRole("menuitem", { name: /^Move up/ })).toBeDisabled();
+    await menu.getByRole("menuitem", { name: /^Move down/ }).click();
+    // The app saves the order first, then draws it: each check waits for it.
+    await expect.poll(async () => (await names(page)).slice(0, 2)).toEqual([before[1], before[0]]);
+    await page.getByRole("button", { name: "More for The Abbess", exact: true }).click();
+    await page.getByRole("menu", { name: "More for The Abbess" }).getByRole("menuitem", { name: "Move to the top" }).click();
+    await expect.poll(async () => (await names(page))[0]).toBe("The Abbess");
+    await page.getByRole("button", { name: "More for The Abbess", exact: true }).focus();
+    await page.keyboard.press("Alt+ArrowDown");
+    await expect.poll(async () => (await names(page)).indexOf("The Abbess")).toBe(1);
+    await expect(page.getByRole("button", { name: "More for The Abbess", exact: true })).toBeFocused();
+  });
+
+  test("moving a playlist while another sort is on goes back to Your order and says so", async ({ page }) => {
+    await openRoute(page, "playlists");
+    await sortButton(page).click();
+    await page.getByRole("menu", { name: "Sort the playlists" }).getByRole("menuitemradio", { name: "Name A to Z" }).click();
+    await page.getByRole("button", { name: "More for The Abbess", exact: true }).click();
+    await page.getByRole("menu", { name: "More for The Abbess" }).getByRole("menuitem", { name: "Move to the top" }).click();
+    // The prototype says "Now in your order", then its Saved pop-up names the new order in the same place.
+    await expect(page.getByRole("status").filter({ hasText: /order of the playlists/ })).toBeVisible();
+    await expect(sortButton(page)).toHaveText(/Your order/);
+    await expect.poll(async () => (await names(page))[0]).toBe("The Abbess");
+  });
+
+  test("in Your order each row has a grip: dragging it puts the playlist exactly where the line shows", async ({ page }) => {
+    await openRoute(page, "playlists");
+    const grips = list(page).getByTitle(/^Drag to change the order/);
+    await expect(grips.first()).toBeVisible();
+    await rowOf(page, "Aftermath").getByTitle(/^Drag to change the order/).dragTo(rowOf(page, "Coast road travel"), { targetPosition: { x: 200, y: 4 } });
+    await expect.poll(async () => {
+      const after = await names(page);
+      return after.indexOf("Aftermath") - after.indexOf("Coast road travel");
+    }).toBe(-1);
+  });
+
+  test("every row has → Open, which goes to the playlist's page in one click", async ({ page }) => {
+    await openRoute(page, "playlists");
+    await rowOf(page, "The Abbess").getByRole("link", { name: "Open The Abbess", exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("The Abbess");
+  });
+
+  test("a manual playlist's dividers show where its tracks are listed unfolded on the Playlists page", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    await page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Lullaby, sad/ }).click();
+    await page.getByRole("menuitem", { name: "Add a divider above" }).click();
+    await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("After the font");
+    await page.getByRole("dialog").getByRole("button", { name: "Add divider" }).click();
+    await page.getByRole("link", { name: "Playlists" }).first().click();
+    await page.getByRole("button", { name: "Show contents of The Abbess" }).click();
+    const items = page.getByRole("list", { name: /^Tracks in The Abbess/ }).getByRole("listitem");
+    const divider = items.filter({ hasText: "After the font" });
+    await expect(divider).toHaveAccessibleName("Section: After the font");
+    const all = await items.allTextContents();
+    const at = all.findIndex((t) => t.includes("After the font"));
+    expect(all[at + 1]).toContain("Lullaby, sad");
+    // A divider is not a track: the tracks stay numbered 1 to 5.
+    await expect(items.filter({ hasNotText: "After the font" })).toHaveCount(5);
   });
 });
