@@ -923,15 +923,16 @@ const OPENED: Opened[] = [
   { name: "Track library with Help", route: "library", owner: "help", met: HELP_ON_THE_HOST, open: async (page) => { await page.keyboard.press("F1"); } },
   { name: "Session planner with Help", route: "session/crown/s14", owner: "help", met: HELP_ON_THE_HOST, open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); await page.keyboard.press("F1"); } },
   { name: "Live with Help", route: "live", owner: "help", met: HELP_ON_THE_HOST, open: async (page) => { await page.keyboard.press("F1"); } },
-  { name: "Live with Find's results", route: "live", owner: "live", streams: ["r10-live"], open: async (page) => { await page.getByRole("searchbox", { name: /^Find a track/ }).fill("battle"); } },
-  { name: "Live while arranging", route: "live", owner: "live", streams: ["r10-live"], open: async (page) => { await page.getByRole("button", { name: /^(Arrange|Move and size the boxes)/ }).click(); } },
-  { name: "Live with a scene playing", route: "live", owner: "live", streams: ["r10-live"], open: async (page) => { await page.getByRole("button", { name: /^Start: / }).first().click(); } },
+  { name: "Live with Find's results", route: "live", owner: "live", streams: ["r10-live"], met: "r10-live built it on the side-panel host: an app run passed it at the three sizes in the five themes (20 Nov)", open: async (page) => { await page.getByRole("searchbox", { name: /^Find a track/ }).fill("battle"); } },
+  { name: "Live while arranging", route: "live", owner: "live", streams: ["r10-live"], met: "r10-live built it on the side-panel host: an app run passed it at the three sizes in the five themes (20 Nov)", open: async (page) => { await page.getByRole("button", { name: /^(Arrange|Move and size the boxes)/ }).click(); } },
+  { name: "Live with a scene playing", route: "live", owner: "live", streams: ["r10-live"], met: "r10-live built it on the side-panel host: an app run passed it at the three sizes in the five themes (20 Nov)", open: async (page) => { await page.getByRole("button", { name: /^Start: / }).first().click(); } },
   {
     // Nik, 18 Nov (open question 1): a manual playlist unfolded in Live, its tracks with four buttons and a ⋯.
     name: "Live with a manual playlist unfolded",
     route: "live",
     owner: "live",
     streams: ["r10-live"],
+    met: "r10-live built it on the side-panel host: an app run passed it at the three sizes in the five themes (20 Nov)",
     open: async (page) => {
       const box = page.getByRole("region", { name: "Campaign playlists", exact: true });
       await box.getByRole("button", { name: "Campaign Playlists", exact: true }).click();
