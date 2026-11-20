@@ -229,7 +229,6 @@ test.describe("a track's details", () => {
     await d.getByRole("group", { name: "Energy, 1 calm to 5 intense" }).getByRole("button", { name: "4" }).click();
     await expect(d.getByRole("group", { name: "Energy, 1 calm to 5 intense" }).getByRole("button", { name: "4" })).toHaveAttribute("aria-pressed", "true");
     // Round 9 (item 18): Role and Loop advice became Use it for and At its end; choosing a use picks its usual end.
-    expectFailureUntilBuilt("r10-tracks");
     await d.getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Background/ }).click();
     await expect(d.getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Background/ })).toHaveAttribute("aria-pressed", "true");
     await expect(d.getByRole("group", { name: "At its end" }).getByRole("button", { name: "Loop with a crossfade" })).toHaveAttribute("aria-pressed", "true");
@@ -488,7 +487,6 @@ test.describe("round 7: how a track behaves", () => {
 
   test("a sting never loops: its loop choices are off, and say why", async ({ page }) => {
     // Round 9 (item 18): a sting is a Short cue; At its end offers no loop for it.
-    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await openTrack(page, "Dread rising, choir stabs");
     await expect(details(page).getByRole("group", { name: "Use it for" }).getByRole("button", { name: /^Short cue/ })).toHaveAttribute("aria-pressed", "true");
@@ -499,7 +497,6 @@ test.describe("round 7: how a track behaves", () => {
     await openRoute(page, "library");
     await openTrack(page, "Dread rising, choir stabs");
     // Round 9 (item 5): At its end › Play… opens a picker with search and Playlists, Music, Ambience and FX.
-    expectFailureUntilBuilt("r10-tracks");
     await details(page).getByRole("group", { name: "At its end" }).getByRole("button", { name: "Play…" }).click();
     await page.getByRole("dialog").getByRole("radio", { name: /^Crypt ambush/ }).check();
     await page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
@@ -512,7 +509,6 @@ test.describe("round 7: how a track behaves", () => {
     // An underscore: it can fade out at its end, and pick up where it stopped.
     await openTrack(page, "Storm and dark romance");
     // Round 9 (item 18): Ending is one of At its end's choices; Pick up is "Next time, start where it stopped".
-    expectFailureUntilBuilt("r10-tracks");
     await details(page).getByRole("group", { name: "At its end" }).getByRole("button", { name: "Fade out" }).click();
     await expect(page.getByRole("status").filter({ hasText: /at its end: fades out$/ })).toBeVisible();
     await details(page).getByLabel("Next time, start where it stopped").check();
@@ -959,10 +955,10 @@ test.describe("round 10: removing tracks from the Track library", () => {
    the filters, and At its end's Play… picker. Round 9 left these checks to the build stream: written by r10-tracks
    against the prototype first. */
 test.describe("round 9: Columns, filters that show or hide, and the Play… picker", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-tracks"));
   const header = (page: Page, name: string) => grid(page).getByRole("columnheader", { name: new RegExp(`^${name}`) });
 
   test("Columns beside Sort: Title always, the usual three ticked, more added, kept, and Put back the usual columns", async ({ page }) => {
+    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await page.getByRole("button", { name: "Columns", exact: true }).click();
     const menu = page.getByRole("menu", { name: "Columns" });
@@ -988,6 +984,7 @@ test.describe("round 9: Columns, filters that show or hide, and the Play… pick
   });
 
   test("a chosen column's header sorts by it, A to Z first and then Z to A", async ({ page }) => {
+    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await page.getByRole("button", { name: "Columns", exact: true }).click();
     await page.getByRole("menu", { name: "Columns" }).getByRole("menuitemcheckbox", { name: "Artist", exact: true }).click();
@@ -1001,6 +998,7 @@ test.describe("round 9: Columns, filters that show or hide, and the Play… pick
   });
 
   test("a filter chip: once shows only those tracks, again hides them (read out as hidden), again clears", async ({ page }) => {
+    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await openFilters(page);
     const grief = () => filters(page).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ });
@@ -1019,6 +1017,7 @@ test.describe("round 9: Columns, filters that show or hide, and the Play… pick
   });
 
   test("a folder works like a chip: once shows only it, again hides its tracks, again shows them", async ({ page }) => {
+    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await openFilters(page);
     const effects = () => filters(page).getByRole("button", { name: /^H:\\Audio\\Effects/ });
@@ -1035,6 +1034,7 @@ test.describe("round 9: Columns, filters that show or hide, and the Play… pick
   });
 
   test("the order button sorts the filter chips, and Clear all filters clears shown and hidden ones", async ({ page }) => {
+    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await openFilters(page);
     const mood = filters(page).getByRole("group", { name: "Mood" });

@@ -21,7 +21,8 @@ import { ShapeTag } from "../../kit/ShapeGlyph";
 import { EnergyMeter } from "../../kit/Pills";
 import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
-import { columnSort, fmt, kindMark, playedMs, shownTitle, type SortColumn, type SortKey } from "./model";
+import { addedText, columnSort, COLUMNS, fmt, KIND_NAMES, kindMark, playedMs, shortPath, shownTitle, USUAL_COLUMNS, type ColumnKey, type SortColumn, type SortKey } from "./model";
+import { USE_WORDS } from "./trackEnd";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 
@@ -65,10 +66,15 @@ export interface TracksTableProps {
   onSort?: (sort: SortKey) => void;
   /** Round 6: the id of the key legend under the list, read out with it. */
   describedBy?: string;
+  /** Round 9 (item 26): the columns shown beside Title, in the list's order (Columns beside Sort). */
+  columns?: readonly ColumnKey[];
 }
 
 export function TracksTable(props: TracksTableProps) {
   const { list, sel, cursor, sort, describedBy } = props;
+  const columns = props.columns ?? USUAL_COLUMNS;
+  /** The selection box, Title, the chosen columns and the buttons. */
+  const span = columns.length + 3;
   const boxRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(props.initialScroll ?? 0);
   const [viewHeight, setViewHeight] = useState(UNMEASURED_HEIGHT);
@@ -212,6 +218,7 @@ export function TracksTable(props: TracksTableProps) {
         onAir={props.onAir.has(t.id) ? (props.airPaused.has(t.id) ? "paused" : "playing") : null}
         previewing={props.preview?.key === t.id ? (props.preview.paused ? "paused" : "playing") : null}
         missing={props.missing.has(t.id)}
+        columns={columns}
         onOpen={props.onOpen}
         onToggle={props.onToggle}
         onPlayed={props.onPlayed}
@@ -238,9 +245,9 @@ export function TracksTable(props: TracksTableProps) {
               </label>
             </th>
             <SortHeader column="title" className="lb-c-title" label="Title" sort={sort} onSort={props.onSort} />
-            <SortHeader column="tags" className="lb-c-tags" label="Tag" sort={sort} onSort={props.onSort} />
-            <SortHeader column="energy" className="lb-c-en" label="Energy" sort={sort} onSort={props.onSort} />
-            <SortHeader column="length" className="lb-c-dur" label="Length" sort={sort} onSort={props.onSort} />
+            {columns.map((c) => (
+              <SortHeader key={c} column={c} className={COLUMN_CLASS[c]} label={COLUMN_LABEL[c]} sort={sort} onSort={props.onSort} />
+            ))}
             <th className="lb-c-pv">
               <span className="sr-only">Preview, play on air, more</span>
             </th>
@@ -249,14 +256,14 @@ export function TracksTable(props: TracksTableProps) {
         <tbody onKeyDown={onKeyDown}>
           {n === 0 && (
             <tr className="lb-emptyrow">
-              <td colSpan={6}>
+              <td colSpan={span}>
                 <div className="empty">{props.emptyText}</div>
               </td>
             </tr>
           )}
-          {first > 0 && <Spacer height={first * rowHeight} />}
+          {first > 0 && <Spacer height={first * rowHeight} span={span} />}
           {rows}
-          {last < n - 1 && <Spacer height={(n - 1 - last) * rowHeight} />}
+          {last < n - 1 && <Spacer height={(n - 1 - last) * rowHeight} span={span} />}
         </tbody>
       </table>
     </div>
@@ -264,10 +271,10 @@ export function TracksTable(props: TracksTableProps) {
 }
 
 /** Stands for rows not drawn; hidden from screen readers (the rows' aria-rowindex says where each drawn row is). */
-function Spacer({ height }: { height: number }) {
+function Spacer({ height, span }: { height: number; span: number }) {
   return (
     <tr className="lb-spacer" aria-hidden="true">
-      <td colSpan={6} style={{ height, padding: 0, border: 0 }} />
+      <td colSpan={span} style={{ height, padding: 0, border: 0 }} />
     </tr>
   );
 }
@@ -282,6 +289,7 @@ interface TrackRowProps {
   onAir: "playing" | "paused" | null;
   previewing: "playing" | "paused" | null;
   missing: boolean;
+  columns: readonly ColumnKey[];
   onOpen: (id: string) => void;
   onToggle: (id: string, range: boolean) => void;
   onPlayed?: (id: string) => void;
@@ -289,13 +297,12 @@ interface TrackRowProps {
 }
 
 /** One track's line: drawn again only when that track, its selection or its state changes. */
-const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, tabbable, onAir, previewing, missing, onOpen, onToggle, onPlayed, rowMenu }: TrackRowProps) {
+const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, tabbable, onAir, previewing, missing, columns, onOpen, onToggle, onPlayed, rowMenu }: TrackRowProps) {
   const own = t.title;
   const meta = t.metaTitle;
   const shown = shownTitle(t);
   const tip = `${own ? "" : "No title of your own yet. "}${meta && meta !== own ? `In the file: ${meta}. ` : ""}${t.artist}${t.album ? `, ${t.album}` : ""}`;
   const mark = kindMark(t);
-  const chips = Object.entries(t.tags).flatMap(([g, values]) => values.map((v) => [g, v] as const));
   return (
     <tr
       data-tid={t.id}
@@ -359,37 +366,9 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
           )}
         </div>
       </td>
-      <td className="lb-c-tags">
-        <span className="lb-tagcell">
-          <ShapeTag track={t} iconOnly />
-          {chips.length ? (
-            <>
-              <span className="chip lb-chip" title={groupNames[chips[0][0]] ?? chips[0][0]}>
-                <span className="ellipsis">{chips[0][1]}</span>
-              </span>
-              {chips.length > 1 && (
-                <span className="lb-more" title={chips.slice(1).map((c) => c[1]).join(", ")}>
-                  +{chips.length - 1}
-                </span>
-              )}
-            </>
-          ) : (
-            <span className="lb-none">No tags yet</span>
-          )}
-        </span>
-      </td>
-      <td className="lb-c-en">
-        {t.energy ? (
-          <EnergyMeter value={t.energy} />
-        ) : (
-          <span className="lb-none" role="img" aria-label="No energy yet">
-            –
-          </span>
-        )}
-      </td>
-      <td className="lb-c-dur num">
-        <LengthCell t={t} />
-      </td>
+      {columns.map((c) => (
+        <ColumnCell key={c} column={c} t={t} groupNames={groupNames} columns={columns} />
+      ))}
       <td className="lb-c-pv">
         <div className="lb-rowbtns">
           {/* Item 6: a click on either play button also opens the track (before the button plays it). */}
@@ -405,6 +384,111 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
     </tr>
   );
 });
+
+const COLUMN_LABEL = Object.fromEntries(COLUMNS) as Record<ColumnKey, string>;
+/** The usual three keep their 0.5.2 classes (widths and narrow-pane rules in library.css). */
+const COLUMN_CLASS: Record<ColumnKey, string> = {
+  artist: "lb-c-artist",
+  album: "lb-c-album",
+  type: "lb-c-type",
+  use: "lb-c-use",
+  tags: "lb-c-tags",
+  shape: "lb-c-shape",
+  energy: "lb-c-en",
+  length: "lb-c-dur",
+  plays: "lb-c-plays",
+  added: "lb-c-added",
+  folder: "lb-c-folder",
+};
+
+/** Round 9 (item 26): one cell of a chosen column (library.js cellOf). */
+function ColumnCell({ column, t, groupNames, columns }: { column: ColumnKey; t: LibraryTrack; groupNames: Record<string, string>; columns: readonly ColumnKey[] }) {
+  const cls = COLUMN_CLASS[column];
+  switch (column) {
+    case "tags": {
+      const chips = Object.entries(t.tags).flatMap(([g, values]) => values.map((v) => [g, v] as const));
+      return (
+        <td className={cls}>
+          <span className="lb-tagcell">
+            {/* With the Shape column shown, the shape is not repeated here. */}
+            {!columns.includes("shape") && <ShapeTag track={t} iconOnly />}
+            {chips.length ? (
+              <>
+                <span className="chip lb-chip" title={groupNames[chips[0][0]] ?? chips[0][0]}>
+                  <span className="ellipsis">{chips[0][1]}</span>
+                </span>
+                {chips.length > 1 && (
+                  <span className="lb-more" title={chips.slice(1).map((c) => c[1]).join(", ")}>
+                    +{chips.length - 1}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="lb-none">No tags yet</span>
+            )}
+          </span>
+        </td>
+      );
+    }
+    case "energy":
+      return (
+        <td className={cls}>
+          {t.energy ? (
+            <EnergyMeter value={t.energy} />
+          ) : (
+            <span className="lb-none" role="img" aria-label="No energy yet">
+              –
+            </span>
+          )}
+        </td>
+      );
+    case "length":
+      return (
+        <td className={`${cls} num`}>
+          {/* Item 7's second line says what the Plays for column says, so it goes while that column shows. */}
+          {columns.includes("plays") ? fmt(t.durationMs) : <LengthCell t={t} />}
+        </td>
+      );
+    case "plays": {
+      const played = fmt(playedMs(t));
+      const file = fmt(t.durationMs);
+      return (
+        <td className={`${cls} num`} title={played !== file ? `Plays ${played} of the file's ${file} (its Audio profile)` : undefined}>
+          {played !== file ? <b>{played}</b> : played}
+        </td>
+      );
+    }
+    case "artist":
+    case "album":
+      return (
+        <td className={cls}>
+          <span className="ellipsis">{t[column]}</span>
+        </td>
+      );
+    case "type":
+      return <td className={cls}>{KIND_NAMES[t.kind]}</td>;
+    case "use":
+      return <td className={cls}>{t.role ? USE_WORDS[t.role] : ""}</td>;
+    case "shape":
+      return (
+        <td className={cls}>
+          <span className="lb-tagcell">
+            <ShapeTag track={t} />
+          </span>
+        </td>
+      );
+    case "added":
+      return <td className={cls}>{addedText(t.addedAt)}</td>;
+    case "folder":
+      return (
+        <td className={cls}>
+          <span className="ellipsis" title={t.folder}>
+            {shortPath(t.folder)}
+          </span>
+        </td>
+      );
+  }
+}
 
 /**
  * Item 7: the file's length, and under it the length its own Audio profile plays (Start to End) when the two differ

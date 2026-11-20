@@ -107,6 +107,7 @@ describe("Library: finding tracks", () => {
     const user = userEvent.setup();
     screen.getByRole("searchbox", { name: "Search tracks" }).focus();
     await user.tab(); // sort
+    await user.tab(); // Columns (round 9)
     await user.tab(); // select all
     await user.tab(); // first row
     const first = document.activeElement as HTMLElement;

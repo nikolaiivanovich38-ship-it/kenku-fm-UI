@@ -1,0 +1,63 @@
+/* Round 9 and round 10 (design/prototype/src/views/r9.css, r10.css): Use it for and At its end, the Play… picker,
+   Split into parts, the Track library's columns and three-state filters, dividers wherever a playlist's tracks are
+   listed, and the Playlists list's order (r10-tracks). */
+
+/* §3 Use it for, At its end */
+.r9-use .chip, .r9-end .chip { min-height: 28px; }
+.r9-follow-on { gap: 4px; background: var(--accent-soft); border-color: var(--accent); }
+.r9-sum { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: var(--fs-s); color: var(--ink-2); }
+.r9-sum svg.i { flex: none; color: var(--ink-3); }
+
+/* §9 the Play… picker */
+.r9-fp-for { margin: 0 0 8px; }
+.r9-fp-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.r9-fp-tools .search { min-width: 220px; }
+.r9-fp-list { list-style: none; margin: 0; padding: 0; max-height: min(52vh, 460px); overflow: auto; border: 1px solid var(--line); border-radius: var(--r-m); }
+.r9-fp-list > li { display: flex; align-items: center; gap: 4px; padding-right: 6px; border-bottom: 1px solid var(--line); }
+.r9-fp-h { padding: 6px 10px 4px !important; font-weight: 700; font-size: var(--fs-s); background: var(--surface-2); position: sticky; top: 0; z-index: 1; }
+.r9-fp-row { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: pointer; min-height: 36px; }
+.r9-fp-row.on { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.r9-fp-t { display: flex; flex-direction: column; min-width: 0; }
+
+/* §10 Split into parts */
+.r9-sp-cuts { display: flex; flex-wrap: wrap; gap: 6px 16px; border: 1px solid var(--line); border-radius: var(--r-m); padding: 6px 10px 10px; margin: 8px 0; }
+.r9-sp-cut { display: flex; align-items: center; gap: 6px; }
+.r9-sp-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+.r9-sp-table th { text-align: left; font-size: var(--fs-s); color: var(--ink-2); padding: 4px 6px; }
+.r9-sp-table td { padding: 4px 6px; border-top: 1px solid var(--line); }
+.r9-sp-table td:first-child { width: 60%; }
+.r9-sp-opt { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+
+/* §7 the Track library's columns (Tags, Energy and Length keep their 0.5.2 widths in library.css) */
+.view .lb-table th.lb-c-plays { width: 76px; }
+.view .lb-table th.lb-c-artist, .view .lb-table th.lb-c-album, .view .lb-table th.lb-c-folder { width: 15%; }
+.view .lb-table th.lb-c-type { width: 84px; }
+.view .lb-table th.lb-c-use { width: 104px; }
+.view .lb-table th.lb-c-shape { width: 136px; }
+.view .lb-table th.lb-c-added { width: 84px; }
+.view .lb-table td.lb-c-plays, .view .lb-table td.lb-c-added, .view .lb-table td.lb-c-type, .view .lb-table td.lb-c-use { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.view .lb-table td.lb-c-plays b { color: var(--ink); }
+.view .lb-table td.lb-c-artist .ellipsis, .view .lb-table td.lb-c-album .ellipsis, .view .lb-table td.lb-c-folder .ellipsis { display: block; color: var(--ink-2); }
+.view .lb-table td.lb-c-shape { overflow: hidden; }
+/* A narrow list folds the extra columns away first (their words are in the row's hover text and the details). */
+@container lbt (max-width: 760px) { .view .lb-c-album, .view .lb-c-folder, .view .lb-c-added { display: none; } }
+@container lbt (max-width: 560px) { .view .lb-c-artist, .view .lb-c-use, .view .lb-c-type, .view .lb-c-shape, .view .lb-c-plays { display: none; } }
+
+/* §7 filters that show or hide */
+.r9-fhint { margin: 0 0 6px; font-size: var(--fs-xs); }
+.r9-c3.is-hide { border-style: dashed; border-color: var(--warn); color: var(--ink-2); }
+.r9-c3.is-hide .r9-c3-w { text-decoration: line-through; text-decoration-thickness: 1.5px; }
+.r9-fo.is-hide > button { color: var(--ink-2); }
+.r9-fo.is-hide > button .ellipsis { text-decoration: line-through; }
+
+/* §8 dividers wherever a playlist's tracks are listed; the Playlists list's order */
+.r9-divh { display: flex; align-items: center; gap: 8px; padding: 6px 8px 2px; list-style: none; color: var(--ink-2); font-size: var(--fs-s); }
+.r9-divh b { color: var(--ink); flex: none; max-width: 60%; }
+.r9-divh-line { flex: 1; height: 1px; background: var(--line-strong); min-width: 12px; }
+.r9-divplay { flex: none; }
+.r9-plgrip { display: inline-flex; align-items: center; justify-content: center; width: 24px; min-height: 24px; color: var(--ink-3); cursor: grab; flex: none; }
+.r9-plgrip:hover { color: var(--ink); }
+li.pl-item.r9-pl-before { box-shadow: inset 0 3px 0 var(--accent); }
+li.pl-item.r9-pl-after { box-shadow: inset 0 -3px 0 var(--accent); }
+li.pl-item.r9-pl-dragging { opacity: .5; }
+.pl-tools .r9-sortw { max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

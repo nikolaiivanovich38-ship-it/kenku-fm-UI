@@ -109,7 +109,7 @@ describe("item 21: Clear in one filter control clears only that control; Clear a
     await user.click(f.getByRole("button", { name: "Clear energy" }));
     expect(filters()).toHaveTextContent("1 filter on");
     await user.click(f.getByRole("button", { name: "Clear Shape" }));
-    expect(filters()).not.toHaveTextContent("filter on");
+    expect(filters()).not.toHaveTextContent(/\d filters? on/);
   });
 
   it("Clear all filters clears every control and leaves the search as it is", async () => {
@@ -121,7 +121,7 @@ describe("item 21: Clear in one filter control clears only that control; Clear a
     await user.click(within(f.getByRole("group", { name: "Kind of track" })).getByRole("button", { name: "Music" }));
     await user.click(within(f.getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
     await user.click(f.getByRole("button", { name: "Clear all filters" }));
-    expect(filters()).not.toHaveTextContent("filter on");
+    expect(filters()).not.toHaveTextContent(/\d filters? on/);
     expect(screen.getByRole("searchbox", { name: "Search tracks" })).toHaveValue("the");
   });
 });

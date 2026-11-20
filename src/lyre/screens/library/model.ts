@@ -11,11 +11,37 @@ import type { FolderRoot, LibraryTrack, TagGroup } from "../../../common/lyre/ap
 import { lengthText, plural, shownTitle } from "../../../common/lyre/text";
 import { trackHasTag, type TagTree } from "../../../common/domain/round7";
 import { inVocabularyOrder } from "../../../common/lyre/lookup";
+import { USE_WORDS } from "./trackEnd";
 
 export { inVocabularyOrder, plural, shownTitle };
 
 export type KindFilter = "all" | "music" | "amb" | "fx";
-export type SortKey = "title" | "title-za" | "tag" | "tag-za" | "energy" | "energy-desc" | "artist" | "short" | "long" | "new" | "old";
+export type SortKey =
+  | "title"
+  | "title-za"
+  | "tag"
+  | "tag-za"
+  | "energy"
+  | "energy-desc"
+  | "artist"
+  | "short"
+  | "long"
+  | "new"
+  | "old"
+  // --- r10-tracks --- Round 9 (item 26): a sort for each column a header can sort by.
+  | "artist-za"
+  | "album"
+  | "album-za"
+  | "type"
+  | "type-za"
+  | "use"
+  | "use-za"
+  | "shape"
+  | "shape-za"
+  | "plays"
+  | "plays-desc"
+  | "folder"
+  | "folder-za";
 
 export const SORTS: readonly [SortKey, string][] = [
   ["title", "Title A to Z"],
@@ -32,6 +58,31 @@ export const SORTS: readonly [SortKey, string][] = [
 ];
 
 export const KIND_NAMES: Record<"music" | "amb" | "fx", string> = { music: "Music", amb: "Ambience", fx: "FX" };
+
+/**
+ * Round 9 (ROUND9.md §7, item 26: "I need a way to configure the columns visible in the library tracks pane"): the
+ * columns the track list can show beside Title, which is always there, in the prototype's order and words; the usual
+ * three are Tags, Energy and Length.
+ */
+export type ColumnKey = "artist" | "album" | "type" | "use" | "tags" | "shape" | "energy" | "length" | "plays" | "added" | "folder";
+export const COLUMNS: readonly (readonly [ColumnKey, string])[] = [
+  ["artist", "Artist"],
+  ["album", "Album"],
+  ["type", "Type"],
+  ["use", "Use it for"],
+  ["tags", "Tags"],
+  ["shape", "Shape"],
+  ["energy", "Energy"],
+  ["length", "Length"],
+  ["plays", "Plays for"],
+  ["added", "Added"],
+  ["folder", "Folder"],
+];
+export const USUAL_COLUMNS: readonly ColumnKey[] = ["tags", "energy", "length"];
+/** The chosen columns in the list's order, whatever order they were ticked in; unknown names are dropped. */
+export function inColumnOrder(keys: readonly string[]): ColumnKey[] {
+  return COLUMNS.map(([k]) => k).filter((k) => keys.includes(k));
+}
 
 /** The roles a track can have, in the prototype's order and words ("Effect" is offered for sound effects only). */
 export const ROLES: readonly [NonNullable<DomainTrack["role"]>, string][] = [
@@ -61,9 +112,36 @@ export interface LibraryFilter {
   shapes: TrackShape[];
   /** DAT-8: only tracks whose files Lyre cannot find. */
   missing: boolean;
+  // --- r10-tracks --- Round 9 (item 34: "choose filters /not/ to show"): what a second click hides. Hide wins over show.
+  /** Hidden values by tag group id: a track with any of them is left out. */
+  hide: Record<string, string[]>;
+  hideShapes: TrackShape[];
+  /** Folder paths whose tracks (and their subfolders') are left out. */
+  hideFolders: string[];
 }
 
-export const DEFAULT_FILTER: LibraryFilter = { kind: "all", newOnly: false, tags: {}, emin: 1, emax: 5, folder: "", shapes: [], missing: false };
+export const DEFAULT_FILTER: LibraryFilter = { kind: "all", newOnly: false, tags: {}, emin: 1, emax: 5, folder: "", shapes: [], missing: false, hide: {}, hideShapes: [], hideFolders: [] };
+
+/** The three states of a filter chip (or folder): off, Show (only these), Hide (leave these out). */
+export type ChipState = "off" | "show" | "hide";
+/** Round 9 (item 34): one click moves a chip on: off → Show → Hide → off. */
+export function nextChipState(state: ChipState): ChipState {
+  return state === "off" ? "show" : state === "show" ? "hide" : "off";
+}
+/** A value's state, from the lists of shown and hidden values. */
+export const chipState = (shown: readonly string[], hidden: readonly string[], value: string): ChipState => (hidden.includes(value) ? "hide" : shown.includes(value) ? "show" : "off");
+/** The two lists after one click on a value. */
+export function cycleChip<T extends string>(shown: readonly T[], hidden: readonly T[], value: T): { shown: T[]; hidden: T[]; now: ChipState } {
+  const now = nextChipState(chipState(shown, hidden, value));
+  return { shown: now === "show" ? [...shown, value] : shown.filter((x) => x !== value), hidden: now === "hide" ? [...hidden, value] : hidden.filter((x) => x !== value), now };
+}
+/** A folder: once shows only it, again hides it (and shows every folder), again shows it with the rest. */
+export function cycleFolder(f: LibraryFilter, path: string): Pick<LibraryFilter, "folder" | "hideFolders"> & { now: ChipState } {
+  if (!path) return { folder: "", hideFolders: [], now: "off" };
+  if (f.folder === path) return { folder: "", hideFolders: [...f.hideFolders, path], now: "hide" };
+  if (f.hideFolders.includes(path)) return { folder: f.folder, hideFolders: f.hideFolders.filter((x) => x !== path), now: "off" };
+  return { folder: path, hideFolders: f.hideFolders, now: "show" };
+}
 
 /** The shapes in the prototype's order, with their words (Filters › Shape, a track's details, Rules › Shape). */
 export const SHAPES = (Object.keys(SHAPE_WORDS) as TrackShape[]).map((s) => [s, SHAPE_WORDS[s]] as const);
@@ -144,6 +222,15 @@ export function matches(t: LibraryTrack, f: LibraryFilter, words: string[], skip
   for (const [group, want] of Object.entries(f.tags)) {
     if (want.length && !want.some((v) => trackHasTag(t, group, v, tree))) return false;
   }
+  // Round 9 (item 34): hidden values, shapes and folders leave their tracks out.
+  for (const [group, hidden] of Object.entries(f.hide ?? {})) {
+    if (hidden.some((v) => trackHasTag(t, group, v, tree))) return false;
+  }
+  if (f.hideShapes?.length) {
+    const { shape } = shapeOf(t);
+    if (shape && f.hideShapes.includes(shape)) return false;
+  }
+  if (f.hideFolders?.some((h) => inFolder(t, h))) return false;
   if (words.length) {
     const h = haystack(t);
     if (!words.every((w) => h.includes(w))) return false;
@@ -156,6 +243,15 @@ const byTitle = (a: LibraryTrack, b: LibraryTrack) => collator.compare(shownTitl
 /** A track's first tag as its row shows it; "" when it has none (sorted last, whichever way). */
 const firstTag = (t: LibraryTrack) => tagsOf(t)[0] ?? "";
 const blanksLast = (a: string | number | null, b: string | number | null) => Number(a === "" || a === null) - Number(b === "" || b === null);
+/** Sorts by words a column shows, A to Z or Z to A, with blank cells last either way, then by title. */
+const byWords = (of: (t: LibraryTrack) => string, down = false) => (a: LibraryTrack, b: LibraryTrack) =>
+  blanksLast(of(a), of(b)) || (down ? collator.compare(of(b), of(a)) : collator.compare(of(a), of(b))) || byTitle(a, b);
+const typeWord = (t: LibraryTrack) => KIND_NAMES[t.kind];
+const useWord = (t: LibraryTrack) => (t.role ? USE_WORDS[t.role] : "");
+const shapeWord = (t: LibraryTrack) => {
+  const { shape } = shapeOf(t);
+  return shape ? SHAPE_WORDS[shape] : "";
+};
 const SORTERS: Record<SortKey, (a: LibraryTrack, b: LibraryTrack) => number> = {
   title: byTitle,
   "title-za": (a, b) => byTitle(b, a),
@@ -168,6 +264,19 @@ const SORTERS: Record<SortKey, (a: LibraryTrack, b: LibraryTrack) => number> = {
   long: (a, b) => b.durationMs - a.durationMs,
   new: (a, b) => b.addedAt - a.addedAt || byTitle(a, b),
   old: (a, b) => a.addedAt - b.addedAt || byTitle(a, b),
+  "artist-za": byWords((t) => t.artist, true),
+  album: byWords((t) => t.album),
+  "album-za": byWords((t) => t.album, true),
+  type: byWords(typeWord),
+  "type-za": byWords(typeWord, true),
+  use: byWords(useWord),
+  "use-za": byWords(useWord, true),
+  shape: byWords(shapeWord),
+  "shape-za": byWords(shapeWord, true),
+  plays: (a, b) => playedMs(a) - playedMs(b) || byTitle(a, b),
+  "plays-desc": (a, b) => playedMs(b) - playedMs(a) || byTitle(a, b),
+  folder: byWords((t) => t.folder),
+  "folder-za": byWords((t) => t.folder, true),
 };
 
 /**
@@ -179,7 +288,16 @@ export const COLUMN_SORTS = {
   tags: ["tag", "tag-za"],
   energy: ["energy", "energy-desc"],
   length: ["short", "long"],
-} as const satisfies Record<string, readonly [SortKey, SortKey]>;
+  // --- r10-tracks --- Round 9 (item 26): every column sorts.
+  artist: ["artist", "artist-za"],
+  album: ["album", "album-za"],
+  type: ["type", "type-za"],
+  use: ["use", "use-za"],
+  shape: ["shape", "shape-za"],
+  plays: ["plays", "plays-desc"],
+  added: ["old", "new"],
+  folder: ["folder", "folder-za"],
+} as const satisfies Record<"title" | ColumnKey, readonly [SortKey, SortKey]>;
 export type SortColumn = keyof typeof COLUMN_SORTS;
 export function columnSort(column: SortColumn, now: SortKey): { aria: "ascending" | "descending" | undefined; next: SortKey } {
   const [up, down] = COLUMN_SORTS[column];
@@ -202,7 +320,10 @@ export function filterCount(f: LibraryFilter): number {
     f.shapes.length +
     Number(!!f.folder) +
     Number(!energyOff(f)) +
-    Object.values(f.tags).reduce((n, v) => n + v.length, 0)
+    Object.values(f.tags).reduce((n, v) => n + v.length, 0) +
+    Object.values(f.hide ?? {}).reduce((n, v) => n + v.length, 0) +
+    (f.hideShapes?.length ?? 0) +
+    (f.hideFolders?.length ?? 0)
   );
 }
 export const filtersOn = (f: LibraryFilter): boolean => filterCount(f) > 0;
@@ -213,7 +334,14 @@ export function filterSummary(f: LibraryFilter, groups: readonly TagGroup[]): st
   if (f.newOnly) parts.push("New, not tagged yet");
   if (f.missing) parts.push("Missing files");
   if (f.shapes.length) parts.push(f.shapes.map((x) => SHAPE_WORDS[x]).join(", "));
-  for (const g of groups) if (f.tags[g.id]?.length) parts.push(f.tags[g.id].join(", "));
+  // Round 9 (item 34): what is hidden reads "not …": "Tense · not Combat".
+  const not = (words: readonly string[]) => `not ${words.join(", not ")}`;
+  if (f.hideShapes?.length) parts.push(not(f.hideShapes.map((x) => SHAPE_WORDS[x])));
+  for (const g of groups) {
+    if (f.tags[g.id]?.length) parts.push(f.tags[g.id].join(", "));
+    if (f.hide?.[g.id]?.length) parts.push(not(f.hide[g.id]));
+  }
+  if (f.hideFolders?.length) parts.push(not(f.hideFolders.map(shortPath)));
   if (!energyOff(f)) parts.push(`energy ${f.emin} to ${f.emax}`);
   if (f.folder) parts.push(shortPath(f.folder));
   // Round 6 (UX-R3): no filter is the usual case, so nothing is said.

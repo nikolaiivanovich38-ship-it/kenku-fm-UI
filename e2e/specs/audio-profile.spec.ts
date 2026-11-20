@@ -67,7 +67,6 @@ test.describe("what happens at the end", () => {
   // Round 6 (design/prototype/ROUND6.md): Stop no longer says "Then silence"; the check takes either name.
   test("offers Loop back, Move to the next track and Stop, with a plain explanation where one is needed", async ({ page }) => {
     // Round 10 (prep review D5, look D8): the same six ends, in the same words, as At its end in the track's details.
-    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "profile/t13");
     const choice = atEnd(page).getByRole("group", { name: "At its end" });
     await expect(choice.getByRole("radio")).toHaveCount(6);

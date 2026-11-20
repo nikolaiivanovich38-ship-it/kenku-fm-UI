@@ -27,6 +27,7 @@ import { useProfileController } from "./useProfileController";
 import { forgetUndoUnless, useProfileEditor, type ProfileEditor } from "./useProfileEditor";
 
 import "./profile.css";
+import "../library/round9.css";
 
 export function ProfileScreen({ route }: ScreenProps) {
   const trackId = route.params.tid ?? "";
