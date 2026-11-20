@@ -709,3 +709,7 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-cols.lv-arranging > .col:empty { min-height: 120px; outline: 2px dashed var(--line-strong); outline-offset: -2px; border-radius: var(--r-l); }
 /* On air moved into a column: the dock is a box like the others there. */
 .lv-dock.lv-dock-in { max-height: none; padding: 0; margin-bottom: 8px; overflow: visible; }
+
+/* Round 9 (item 47), round 10 (look D6): Dipped is a status in words, not a button-looking chip. */
+.lv-dipped { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); font-weight: 700; color: var(--warn); }
+.lv-dipped::before { content: ""; width: 9px; height: 6px; border-left: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: skewX(-25deg); }

@@ -67,7 +67,7 @@ import { Director, padWithoutSound, type ListWhat, type RoomsSnapshot } from "..
 import type { PadSound, SceneRef, ShowLibrary } from "../../engine/queue/library";
 import { itemAt, locate, playlistItem, playOrderOf, sequenceOf, single, type Origin, type Playing } from "../../engine/queue/nowPlaying";
 import type { Random } from "../../engine/queue/queue";
-import type { PlayingReport, RoomReport } from "../../engine/queue/roomPlayer";
+import type { DipSettings, PlayingReport, RoomReport } from "../../engine/queue/roomPlayer";
 import type { RoomLane } from "../../engine/rooms.contract";
 import { TABLE_ROOM, type RoomMixer } from "../../engine/rooms";
 import { endsAtFileEnd, laneProfile, profileInputFor, repeatProfile } from "../../engine/profile/trackProfile";
@@ -78,7 +78,7 @@ import { StableRooms } from "./stableRooms";
 
 export type { CueAction, CueOutcome, TrackFrom, SceneRef, Origin, RoomLane, OutputDeviceInfo, DeviceStatus, PreviewKind, ListWhat, UpNextRef };
 // --- r10-live ---
-export type { RoomsSnapshot };
+export type { RoomsSnapshot, DipSettings };
 // --- end r10-live ---
 
 // ---------- what the screens give LyreAudio ----------
@@ -194,6 +194,10 @@ export interface RoomNowPlaying {
    * playTrack(trackId, { from }); Play next is playNext({ kind: "track", trackId, from }).
    */
   played: { trackId: string; title: string; at: number; from: PlayedFrom | null }[];
+  // --- r10-live ---
+  /** Round 10 (item 47): the music (and the ambience, when it dips too) is dipped under an effect now. */
+  dipped?: { music: boolean; ambience: boolean };
+  // --- end r10-live ---
 }
 
 /** One entry of a room's Up next (RoomNowPlaying.upNextList). */
@@ -382,6 +386,8 @@ export interface LyreAudio {
   snapshotHasSound(snapshot: RoomsSnapshot): boolean;
   /** Play now on a planned track in a room's Up next: that step plays now and the plan goes on from there. */
   playUpNext(ref: UpNextRef, target?: RoomTarget): CueOutcome;
+  /** Settings › Sound to Discord › Dip the music under effects (db 0: off). */
+  setDip(dip: DipSettings): void;
   // --- end r10-live ---
 
   // ----- preview: the game master's headphones only, never on air -----
@@ -880,6 +886,10 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   snapshotHasSound(snapshot: RoomsSnapshot): boolean {
     return this.director.snapshotHasSound(snapshot);
+  }
+
+  setDip(dip: DipSettings): void {
+    this.director.setDip(dip);
   }
 
   playUpNext(ref: UpNextRef, target: RoomTarget = FIRST_ROOM): CueOutcome {
@@ -1525,6 +1535,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       canUndoUpNext: room.canUndoList,
       effects: room.effects.map((effect) => ({ ...effect, title: title(effect.trackId) })),
       played: room.played.map((p) => ({ ...p, title: title(p.trackId) })),
+      dipped: room.dipped,
     };
   }
 

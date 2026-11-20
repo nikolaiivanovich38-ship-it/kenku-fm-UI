@@ -1507,3 +1507,17 @@ describe("round 10: Arrange (Nik, 18 Nov 03:14, answer 6)", () => {
     expect(screen.getByRole("region", { name: "On air" }).closest("[inert]")).toBeNull();
   });
 });
+
+describe("round 10: the music dips under a pad (item 47)", () => {
+  it("while a one-shot pad sounds, the room's music line says Dipped; then it goes", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound, 4);
+    const pad = current().getAllByRole("button").find((b) => b.classList.contains("lv-pad") && !b.classList.contains("lv-pad-none") && /one-shot|Play once/i.test(b.title))!;
+    await userEvent.click(pad);
+    await playOn(sound, 0.3);
+    expect(room("Table").getByText("Dipped")).toBeInTheDocument();
+    await playOn(sound, 30);
+    expect(room("Table").queryByText("Dipped")).toBeNull();
+  });
+});

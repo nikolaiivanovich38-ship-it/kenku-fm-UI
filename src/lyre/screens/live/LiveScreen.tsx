@@ -43,6 +43,7 @@ import { fadeAllWithUndo } from "./liveActions";
 import { ScenesPane } from "./Scenes";
 import { PadsBox, PlaylistsBox } from "./Trays";
 import { ArrangeBar, ArrangeBox, ColumnSplit, columnDrop, focusMove, useTopDrop } from "./Arrange";
+import { dipSettingsOf, useDip } from "../settings/dipSettings";
 import { arrange, layoutFor, loadLayouts, movedWords, readingOrder, saveLayouts, SIZE_NAMES, whereIs, widthsOf, withLayout, type ArrangeAction, type ArrangeId, type BoxId } from "./liveLayout";
 import "./live.css";
 
@@ -326,6 +327,9 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     [say, announceSaved],
   );
   const dropTop = useTopDrop(changeLayout);
+  // Round 10 (item 47): the audio host dips the music as Settings › Sound to Discord says.
+  const dip = useDip();
+  useEffect(() => audio.setDip(dipSettingsOf(dip)), [audio, dip]);
   // Leaving Live ends Arrange mode, so the boxes can be used when you come back.
   useEffect(() => () => updateLive({ arranging: false }), []);
 

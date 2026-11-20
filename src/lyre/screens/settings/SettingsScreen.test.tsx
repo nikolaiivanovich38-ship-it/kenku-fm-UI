@@ -22,6 +22,7 @@ import { expectNoAxeViolations } from "../../test/axe";
 import { SettingsBridgesProvider } from "./common";
 import { SettingsScreen } from "./SettingsScreen";
 import { RemotePane } from "./OtherPanes";
+import { reloadDip } from "./dipSettings";
 
 // UX-R16: the version webpack builds in (none in tests unless given).
 vi.mock("../../version", () => ({ LYRE_VERSION: "0.5.0" }));
@@ -427,5 +428,20 @@ describe("round 10: Settings › Discord bots (Nik, 18 Nov 03:14, answers 2 and 
     open();
     const box = await unfold("Keyboard shortcuts");
     expect(box.getByText("Each pad board has its own pad keys.")).toBeInTheDocument();
+  });
+});
+
+describe("round 10: Dip the music under effects (item 47; Nik, 18 Nov 03:14, answer 12.1)", () => {
+  it("How far is A little at first; A lot, Slowly and Ambience dips too go to the audio host and are kept", async () => {
+    const { audio } = open();
+    reloadDip();
+    const box = await unfold("Sound to Discord");
+    const group = within(box.getByRole("group", { name: "Dip the music under effects" }));
+    expect(group.getByRole("combobox", { name: "How far" })).toHaveValue("little");
+    await userEvent.selectOptions(group.getByRole("combobox", { name: "How far" }), "A lot");
+    await userEvent.selectOptions(group.getByRole("combobox", { name: "Comes back" }), "Slowly");
+    await userEvent.click(group.getByRole("checkbox", { name: "Ambience dips too" }));
+    expect(audio.calls.filter((c) => c[0] === "setDip").pop()).toEqual(["setDip", { db: 12, backSeconds: 3, ambience: true }]);
+    expect(JSON.parse(localStorage.getItem("lyre-dip") ?? "{}")).toEqual({ amount: "lot", back: "slow", ambience: true });
   });
 });

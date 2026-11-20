@@ -87,6 +87,7 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   roomsHadSound = true;
   snapshotHasSound = (): boolean => this.roomsHadSound;
   playUpNext = this.record("playUpNext");
+  setDip = this.record("setDip");
   // --- end r10-live ---
   playNext = this.record("playNext");
   addToQueue = this.record("addToQueue");

@@ -26,6 +26,7 @@ import { useAnnounce } from "../../shell/Announcer";
 import { useSave } from "../../shell/useSave";
 import { Radio, RadioButtons, Switch, useSaved, useSettingsBridges, useShownAtOnce } from "./common";
 import { CROSSFADE_CHOICES, STREAMING_MODES, crossfadeSaved, keyPressed, remoteListen, shortcutRows } from "./settingsModel";
+import { DIP_AMOUNTS, DIP_BACKS, setDip, useDip, type DipAmount, type DipBack } from "./dipSettings";
 
 /** A LyreApi settings write through the shell's useSave: Saved, the failure card with Try again, or the refusal. */
 function useSettingsWrite() {
@@ -96,8 +97,77 @@ export function SoundPane() {
           </select>
         </div>
       </div>
+      <DipFields />
       <EmptyAudioCache />
     </Pane>
+  );
+}
+
+/**
+ * Round 9 §11, built in round 10 (item 47; Nik, 18 Nov 03:14, answer 12.1): Dip the music under effects. How far (A
+ * little by default), Comes back and Ambience dips too; each pad's While it plays chooses whether it dips.
+ */
+function DipFields() {
+  const dip = useDip();
+  const audio = useLyreAudio();
+  const { saved } = useAnnounce();
+  const ids = useId();
+  return (
+    <fieldset className="st-dip">
+      <legend>Dip the music under effects</legend>
+      <div className="st-xf">
+        <div className="field">
+          <label htmlFor={`${ids}-dipamt`}>How far</label>
+          <select
+            className="input"
+            id={`${ids}-dipamt`}
+            value={dip.amount}
+            onChange={(event) => {
+              const amount = event.target.value as DipAmount;
+              setDip({ amount }, audio);
+              saved(`dip the music: ${DIP_AMOUNTS.find(([v]) => v === amount)![1].toLowerCase()}`, { key: "dip" });
+            }}
+          >
+            {DIP_AMOUNTS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor={`${ids}-dipback`}>Comes back</label>
+          <select
+            className="input"
+            id={`${ids}-dipback`}
+            value={dip.back}
+            onChange={(event) => {
+              const back = event.target.value as DipBack;
+              setDip({ back }, audio);
+              saved(`the music comes back ${DIP_BACKS.find(([v]) => v === back)![1].toLowerCase()}`, { key: "dipback" });
+            }}
+          >
+            {DIP_BACKS.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <label className="st-dip-row">
+        <input
+          type="checkbox"
+          checked={dip.ambience}
+          onChange={(event) => {
+            setDip({ ambience: event.target.checked }, audio);
+            saved(event.target.checked ? "ambience dips too" : "ambience keeps its level", { key: "dipamb" });
+          }}
+        />
+        Ambience dips too
+      </label>
+      <p className="hint">The music gets quieter while an effect with Dip the music on is playing.</p>
+    </fieldset>
   );
 }
 
