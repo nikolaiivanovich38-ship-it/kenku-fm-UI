@@ -162,11 +162,18 @@ test("kicking the only bot keeps On air's music; adding the bot back by hand pla
   const onAir = lyre.getByRole("region", { name: "On air" });
   await expect(onAir.getByRole("group", { name: "Table" }).getByText("Playing")).toBeVisible();
   await lyre.getByRole("button", { name: "Make Lyre Table leave Table" }).click();
-  // Undo is offered (Nik saw none), and No room still shows what plays.
-  await expect(onAir.getByRole("group", { name: "Undo" }).filter({ hasText: "Lyre Table left Table" })).toBeVisible();
+  // Undo is offered (Nik saw none), in Live's one Undo place in the top bar since round 10, and No room still shows
+  // what plays.
+  const undo = lyre.getByRole("group", { name: "Undo" }).filter({ hasText: "Lyre Table left Table" });
+  await expect(undo).toBeVisible();
   const noRoom = onAir.getByRole("group", { name: "No room" });
   await expect(noRoom.getByText(/Eerie dread/).first()).toBeVisible();
   await noRoom.getByRole("button", { name: "Join Table" }).click();
+  await expect(onAir.getByRole("group", { name: "Table" }).getByText("Playing")).toBeVisible({ timeout: 15_000 });
+  await expect(onAir.getByRole("group", { name: "Table" }).getByText(/Eerie dread/).first()).toBeVisible();
+  // Leave once more, then Undo: the bot goes back to Table and the music plays on there.
+  await lyre.getByRole("button", { name: "Make Lyre Table leave Table" }).click();
+  await undo.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(onAir.getByRole("group", { name: "Table" }).getByText("Playing")).toBeVisible({ timeout: 15_000 });
   await expect(onAir.getByRole("group", { name: "Table" }).getByText(/Eerie dread/).first()).toBeVisible();
 });

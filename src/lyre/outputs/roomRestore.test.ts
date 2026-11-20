@@ -55,4 +55,14 @@ describe("Undo of a Kick (OUT-7): the bot goes back to its channel, then its roo
     expect(await restoreRoom(KICKED, { client: new FakeOutputs(), audio, waitMs: 1000 })).toBe(true);
     expect(audio.calls.filter(([m]) => m === "playTrack")).toEqual([["playTrack", "a-rain", { target: { room: TABLE_BOT }, fromMs: 3000, fadeMs: 1000 }]]);
   });
+
+  /* Review M2 (R60-CODE-REVIEW): the main process keeps a bot's volume for 15 s after Leave; Undo pressed later (its
+     countdown is held while it has focus) must still bring the bot back at the volume it had, not its starting one. */
+  it("puts the bot back at the volume it had when it left", async () => {
+    const outputs = new FakeOutputs();
+    const audio = new FakeLyreAudio();
+    audio.setNowPlaying({ rooms: [roomOf(TABLE_BOT)] });
+    expect(await restoreRoom({ ...KICKED, volume: 0.3 }, { client: outputs, audio, waitMs: 1000 })).toBe(true);
+    expect(outputs.calls).toContainEqual(["setVolume", TABLE_BOT, 0.3]);
+  });
 });

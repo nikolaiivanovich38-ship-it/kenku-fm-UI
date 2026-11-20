@@ -105,10 +105,10 @@ export function useRemoveFromPlaylist() {
   const { offer } = useUndoNote();
   const tracks = useTracks().data;
   return useCallback(
-    async (pl: Pick<PlaylistInfo, "id" | "name">, trackId: string): Promise<boolean> => {
+    async (pl: Pick<PlaylistInfo, "id" | "name">, trackId: string, at?: number): Promise<boolean> => {
       const t = tracks?.find((x) => x.id === trackId);
       const title = t ? shownTitle(t) : "the track";
-      const done = await save(pl.name, () => api.playlists.removeTrack(pl.id, trackId), { detail: `removed ${title}`, key: `pl-${pl.id}` });
+      const done = await save(pl.name, () => api.playlists.removeTrack(pl.id, trackId, at), { detail: `removed ${title}`, key: `pl-${pl.id}` });
       if (!done) return false;
       const text = `Removed “${title}” from the playlist "${pl.name}". It is still in the Track library.`;
       say(`${text} To undo this, press Undo, at the bottom of the screen, or Ctrl+Z.`);

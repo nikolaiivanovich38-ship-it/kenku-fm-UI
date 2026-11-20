@@ -926,8 +926,11 @@ export interface LyreApi {
     delete(id: string): Promise<WriteResult>;
     /** Adds tracks to a manual playlist at a place (default the end). playlists.js pladd, drops; library.js lbpladd, lbbpl, lbrmpl. */
     addTracks(id: string, trackIds: string[], at?: number): Promise<WriteResult<AddedTracks>>;
-    /** playlists.js L.acts.plrm; library.js L.acts.lbplrm. */
-    removeTrack(id: string, trackId: string): Promise<WriteResult>;
+    /**
+     * playlists.js L.acts.plrm; library.js L.acts.lbplrm. Review M6: `at` is the row (its place among the playlist's
+     * tracks) of the copy to take out, for a track listed twice; without it, its first copy.
+     */
+    removeTrack(id: string, trackId: string, at?: number): Promise<WriteResult>;
     /** playlists.js L.acts.plmove, Alt+Up/Down, row drag. */
     moveTrack(id: string, trackId: string, toIndex: number): Promise<WriteResult>;
     /** PLY-13: every place's own play order, by place key then playlist id (resolvePlayOrder). core.js L.orderOf. */

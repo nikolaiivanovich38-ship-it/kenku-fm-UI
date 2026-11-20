@@ -11,11 +11,13 @@ import type { OutputsClient } from "./OutputsProvider";
 /** The quick fade back in. */
 const FADE_IN_MS = 1000;
 
-export async function restoreRoom(what: RoomToRestore, deps: { client: Pick<OutputsClient, "move">; audio: LyreAudio; waitMs?: number }): Promise<boolean> {
+export async function restoreRoom(what: RoomToRestore, deps: { client: Pick<OutputsClient, "move" | "setVolume">; audio: LyreAudio; waitMs?: number }): Promise<boolean> {
   const { client, audio } = deps;
   client.move(what.botId, what.channelId);
   const there = await roomAppears(audio, what.botId, deps.waitMs ?? 10_000);
   if (!there) return false;
+  // Review M2: the main process remembers the old volume for 15 s only; an Undo held longer still brings it back.
+  if (what.volume !== undefined) client.setVolume(what.botId, what.volume);
   // w51-fix2: when the last bot left, its music went on at the table and came back with it: leave such a lane alone.
   const back = audio.getNowPlaying().rooms.find((room) => room.roomId === what.botId);
   const playing = new Set([back?.music, back?.ambience].filter((lane) => lane && !lane.paused).map((lane) => lane!.trackId));

@@ -59,7 +59,8 @@ export function SplitPartsDialog({ track, markers, onClose }: { track: LibraryTr
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button variant="primary" onClick={() => void make()}>
+          {/* Review M5: one part is the whole track again, so there is nothing to make. */}
+          <Button variant="primary" disabled={parts.length < 2} aria-describedby={parts.length < 2 ? "r9-sp-none" : undefined} onClick={() => void make()}>
             Make {parts.length} tracks
           </Button>
         </>
@@ -69,7 +70,7 @@ export function SplitPartsDialog({ track, markers, onClose }: { track: LibraryTr
       <fieldset className="r9-sp-cuts">
         <legend>Split at</legend>
         {points.map((p, i) => (
-          <label key={p.atMs} className="r9-sp-cut">
+          <label key={i} className="r9-sp-cut">
             <input
               type="checkbox"
               checked={p.on}
@@ -83,6 +84,11 @@ export function SplitPartsDialog({ track, markers, onClose }: { track: LibraryTr
           </label>
         ))}
       </fieldset>
+      {parts.length < 2 && (
+        <p className="hint" id="r9-sp-none">
+          Tick at least one place to split at.
+        </p>
+      )}
       <table className="r9-sp-table">
         <caption className="sr-only">The parts</caption>
         <thead>
@@ -97,7 +103,7 @@ export function SplitPartsDialog({ track, markers, onClose }: { track: LibraryTr
         </thead>
         <tbody>
           {parts.map((x, i) => (
-            <tr key={`${x.startMs}-${x.endMs}`}>
+            <tr key={i}>
               <td>
                 <input className="input" aria-label={`Name of part ${i + 1}`} value={x.name} onChange={(e) => setNames({ ...names, [i]: e.target.value })} />
               </td>

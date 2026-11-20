@@ -15,12 +15,13 @@ export interface PartPlan {
   endMs: number;
 }
 
-/** The markers strictly inside the track, in time order, each ticked. */
+/** The markers strictly inside the track, in time order, each ticked; markers at the same time are one point (review M5). */
 export function splitPoints(markers: readonly { atMs: number; label: string }[], durationMs: number): SplitPoint[] {
   return markers
     .filter((m) => m.atMs > 0 && m.atMs < durationMs)
     .slice()
     .sort((a, b) => a.atMs - b.atMs)
+    .filter((m, i, list) => i === 0 || list[i - 1].atMs !== m.atMs)
     .map((m) => ({ atMs: m.atMs, label: m.label, on: true }));
 }
 

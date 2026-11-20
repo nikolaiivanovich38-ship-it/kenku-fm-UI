@@ -1162,6 +1162,20 @@ describe("round 10: dipping the music under effects", () => {
     expect(dipped()).toEqual({ music: true, ambience: true });
   });
 
+  /* Review M1: a change in Settings while an effect dips the music applies at once, and On air says what is applied. */
+  it("a change of the dip while it is under way applies at once: A lot goes deeper, Ambience dips too dips it now", async () => {
+    await run({ type: "startScene", scene: S1 });
+    await context.advance(4.5);
+    const before = rooms.hear("table", "music");
+    await run({ type: "firePad", boardId: "b", padId: "door", target: table });
+    await context.advance(0.2);
+    director.setDip({ ...dip, db: 12, ambience: true });
+    await context.advance(0.2);
+    expect(rooms.hear("table", "music")).toBeCloseTo(before * 10 ** (-12 / 20), 1);
+    expect(rooms.hear("table", "ambience")).toBeCloseTo(10 ** (-12 / 20), 1);
+    expect(dipped()).toEqual({ music: true, ambience: true });
+  });
+
   it("a Short cue played over the music dips it the same way", async () => {
     await run({ type: "playTrack", trackId: "m1", target: table });
     data.tracks.push(track("cue", 3, { kind: "fx", role: "sting" }));

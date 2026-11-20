@@ -10,6 +10,7 @@ import { LyreAudioProvider } from "../audio/LyreAudioProvider";
 import { FakeLyreAudio } from "../audio/testing/fakeLyreAudio";
 import type { LyreKeysBridge } from "../keys/preloadKeys";
 import { SettingsAppliers, useGlobalKeyRefusals } from "./SettingsAppliers";
+import { reloadDip } from "../screens/settings/dipSettings";
 
 function fakeKeys(refused: { action: GlobalKeyAction; key: string; message: string }[] = []) {
   let press: ((action: GlobalKeyAction) => void) | null = null;
@@ -50,6 +51,20 @@ function setup(keys: LyreKeysBridge | null) {
 }
 
 describe("SettingsAppliers", () => {
+  /* Review I4 (R60-CODE-REVIEW): the dip chosen in Settings › Sound to Discord reaches the audio host from the start,
+     wherever pads are fired (Pad boards too), not only once Live has been opened. */
+  it("gives the audio host the dip kept on this computer from the start (Off: no dip)", async () => {
+    localStorage.setItem("lyre-dip", JSON.stringify({ amount: "off", back: "slow", ambience: true }));
+    reloadDip();
+    try {
+      const { audio } = setup(null);
+      await waitFor(() => expect(audio.calls).toContainEqual(["setDip", { db: 0, backSeconds: 3, ambience: true }]));
+    } finally {
+      localStorage.removeItem("lyre-dip");
+      reloadDip();
+    }
+  });
+
   it("gives the audio host this computer's devices after each change, and nothing while they are the defaults (PRV-2)", async () => {
     const { api, audio } = setup(null);
     // Left as they are, the preview already plays on the default device in both ears: asking again would only make

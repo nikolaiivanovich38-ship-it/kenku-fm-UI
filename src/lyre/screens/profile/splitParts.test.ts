@@ -33,4 +33,11 @@ describe("Split into parts", () => {
       { name: "Bridge – loop back", startMs: 318_000, endMs: 441_000 },
     ]);
   });
+
+  /* Review M5: two markers at the same time make one split point (no part of no length, no two rows with one key). */
+  it("takes two markers at the same time as one split point", () => {
+    const points = splitPoints([...markers, { atMs: 64_000, label: "Bells" }], 441_000);
+    expect(points.map((p) => p.atMs)).toEqual([64_000, 190_000, 318_000]);
+    expect(partsOf(points, 441_000, "Bridge").every((p) => p.endMs > p.startMs)).toBe(true);
+  });
 });

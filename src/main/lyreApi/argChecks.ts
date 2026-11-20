@@ -230,7 +230,8 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     move: write(id, whole),
     delete: write(id),
     addTracks: withOptional(write(id, list(id), whole), 2),
-    removeTrack: write(id, id),
+    // Review M6 (f-live): which copy of a track listed twice (its row among the playlist's tracks).
+    removeTrack: withOptional(write(id, id, whole), 2),
     moveTrack: write(id, id, whole),
     setNormalise: write(id, nullable(text(MAX_ID))),
     playOrders: read(),

@@ -817,10 +817,17 @@ export class RoomPlayer {
 
   // --- r10-live ---
   /** Round 10: the dip follows the effects that dip: on while one sounds (not fading out), off when the last ends. */
-  updateDip(): void {
+  updateDip(settingsChanged = false): void {
     const settings = this.deps.dip?.();
     const want = !!settings && settings.db > 0 && this.effects.some((e) => e.dips && e.voice.state !== "stopping" && !e.voice.isFinal());
-    if (want === this.dipping) return;
+    if (want === this.dipping) {
+      // Review M1: Settings changed how far it dips, or whether the ambience dips, while a dip is under way.
+      if (want && settingsChanged) {
+        this.applyDip(DIP_DOWN_SECONDS);
+        this.deps.changed();
+      }
+      return;
+    }
     this.dipping = want;
     this.applyDip(want ? DIP_DOWN_SECONDS : (settings?.backSeconds ?? 1.5));
     this.deps.changed();

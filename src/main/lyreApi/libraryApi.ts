@@ -1127,10 +1127,12 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           return { added, alreadyIn };
         });
       },
-      async removeTrack(id, trackId) {
+      async removeTrack(id, trackId, at) {
         return write(["playlists"], () => {
           const pl = requireManual(id);
-          const item = listPlaylistItems(store, id).find((i) => i.kind === "track" && i.trackId === trackId) ?? refuse("not-found", "That track is not in this playlist.");
+          const tracks = listPlaylistItems(store, id).filter((i) => i.kind === "track");
+          // Review M6: the copy on the row given, for a track listed twice; else its first.
+          const item = (at === undefined ? tracks.find((i) => i.trackId === trackId) : tracks[at]?.trackId === trackId ? tracks[at] : undefined) ?? refuse("not-found", "That track is not in this playlist.");
           store.change(`Remove ${quoted(shownTitle(requireTrack(trackId)))} from ${quoted(pl.name)}`, () => removePlaylistItems(store, [item.id]));
         });
       },

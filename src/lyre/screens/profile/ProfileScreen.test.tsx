@@ -840,6 +840,16 @@ describe("round 9: Split into parts", () => {
     await waitFor(async () => expect((await api.library.listTracks()).some((t) => t.title === "Choir section")).toBe(false));
   });
 
+  /* Review M5: with every point unticked there is one part, so there is nothing to split: Make is not offered. */
+  it("with every split point unticked, Make is greyed and says why", async () => {
+    const { user } = await open();
+    await user.click(within(screen.getByRole("region", { name: "Markers" })).getByRole("button", { name: "Split into parts…" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Split into parts" }));
+    for (const point of within(dialog.getByRole("group", { name: "Split at" })).getAllByRole("checkbox")) await user.click(point);
+    expect(dialog.getByRole("button", { name: "Make 1 tracks" })).toBeDisabled();
+    expect(dialog.getByText("Tick at least one place to split at.")).toBeInTheDocument();
+  });
+
   it("with no marker inside the track, Split into parts… says to add one first", async () => {
     const { user } = await open("profile/t44");
     await user.click(within(screen.getByRole("region", { name: "Markers" })).getByRole("button", { name: "Split into parts…" }));

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { arrange, layoutFor, movedWords, readingOrder, USUAL_LAYOUT, whereIs, widthsOf, withLayout, type LiveLayout } from "./liveLayout";
+import { arrange, arrangedKeyOrder, layoutFor, movedWords, readingOrder, USUAL_LAYOUT, whereIs, widthsOf, withLayout, type LiveLayout } from "./liveLayout";
 
 const wide = (): LiveLayout => layoutFor(3, {});
 
@@ -69,5 +69,26 @@ describe("Arrange: the layouts of Live (round 10)", () => {
   it("says what moved", () => {
     expect(movedWords("onair", { into: 1 }, wide())).toBe("On air moved into column 2");
     expect(movedWords("scenes", "taller", arrange(wide(), 3, "scenes", "taller", 300))).toBe("Scenes 360 pixels high");
+  });
+});
+
+/* Review M3 (R60-CODE-REVIEW): Alt+1 to 7 and F6 follow the arranged order only when a box has moved; making a box
+   taller or a column wider keeps the usual order (On air, Scenes, Current scene, …). */
+describe("the order of Alt+1 to 7 and F6 after Arrange", () => {
+  it("is the usual order while no box has moved, and the reading order once one has", () => {
+    expect(arrangedKeyOrder(2, {})).toBeNull();
+    const taller = { half: { cols: USUAL_LAYOUT[2].map((c) => [...c]), widths: [30, 70], heights: { scenes: 400 } } };
+    expect(arrangedKeyOrder(2, taller)).toBeNull();
+    const moved = { half: { cols: [["current"], ["scenes", "ssp", "ssd", "cpp", "cpd"]] as LiveLayout["cols"], widths: null as number[] | null, heights: {} } };
+    expect(arrangedKeyOrder(2, moved)).toEqual(["onair", "current", "scenes", "ssp", "ssd", "cpp", "cpd"]);
+  });
+});
+
+/* Review M4: while arranging with fewer columns than the window has room for, an empty column is drawn to drop into,
+   and the column bars hand over a width for it too; the real columns still take their new widths. */
+describe("dragging a column bar while the empty column shows", () => {
+  it("keeps the real columns' widths and leaves out the empty column's", () => {
+    const two: LiveLayout = { cols: [["scenes", "ssp", "ssd", "cpp", "cpd"], ["current"]], widths: null, heights: {} };
+    expect(arrange(two, 3, "scenes", { widths: [25, 45, 18] }).widths).toEqual([25, 45]);
   });
 });

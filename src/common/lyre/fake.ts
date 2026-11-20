@@ -1079,12 +1079,15 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           return { added, alreadyIn };
         });
       },
-      async removeTrack(id, trackId) {
+      async removeTrack(id, trackId, at) {
         let label = "";
         return write(() => label, ["playlists"], () => {
           const pl = manual(id);
-          if (!pl.trackIds.includes(trackId)) refuse("not-found", "That track is not in this playlist.");
-          setItems(pl, itemsOf(pl).filter((x) => !("trackId" in x && x.trackId === trackId)));
+          // Review M6: one copy only: the one on the row given (a track listed twice), else its first.
+          const row = at === undefined ? pl.trackIds.indexOf(trackId) : pl.trackIds[at] === trackId ? at : -1;
+          if (row < 0) refuse("not-found", "That track is not in this playlist.");
+          let seen = -1;
+          setItems(pl, itemsOf(pl).filter((x) => !("trackId" in x) || ++seen !== row));
           label = `Remove ${quoted(shownTitle(track(trackId)))} from ${quoted(pl.name)}`;
         });
       },

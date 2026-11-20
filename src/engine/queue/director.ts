@@ -89,7 +89,7 @@ export class Director extends TypedEmitter<DirectorEvents> {
   private dip: DipSettings = { db: 6, backSeconds: 1.5, ambience: false };
   setDip(dip: DipSettings): void {
     this.dip = dip;
-    for (const player of this.players.values()) player.updateDip();
+    for (const player of this.players.values()) player.updateDip(true);
     this.emit("change");
   }
   // --- end r10-live ---
