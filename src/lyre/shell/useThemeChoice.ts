@@ -7,5 +7,5 @@ import type { ThemeChoice } from "./themes";
  */
 export function useThemeChoice(): [ThemeChoice, (choice: ThemeChoice) => void] {
   const { settings, update } = useShellSettings();
-  return [settings.theme, (theme) => update({ theme })];
+  return [settings.theme, (theme) => update({ theme, themeChosen: true })];
 }

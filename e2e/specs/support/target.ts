@@ -187,16 +187,23 @@ export async function openRoute(page: Page, route: Route, options: { theme?: The
     return;
   }
   const theme = options.theme === "parchment" ? "parchment" : "campaign";
-  await page.addInitScript((t) => {
-    try {
-      // "frame: full" and "notes: false" hide the prototype's own presentation strips.
-      // "tour: done": the first-run tour was seen (help.spec.ts opens a first start with openFirstStart).
-      localStorage.setItem("lyre-r2", JSON.stringify({ theme: t, frame: "full", notes: false, tour: "done" }));
-    } catch {
-      /* storage unavailable: the prototype opens in its default theme */
-    }
-  }, theme);
+  // No init script, as in openFirstStart: one runs again on every reload, and a write to storage that early in a
+  // reloaded page can replace what the page saved before it (reopen found the Library's Columns back at the usual
+  // three, about one reopen in four, on GitHub and here). The page's settings are written once, then it reloads.
+  // Already open (a second openRoute in a check): only the address changes, as before, so what the page holds in
+  // memory (a bot joined with joinRoom, a text size) stays.
+  const opened = page.url().startsWith(PROTOTYPE);
   await page.goto(`${PROTOTYPE}#${route.split("/").join("--")}`);
+  if (opened) {
+    await page.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
+    return;
+  }
+  await page.evaluate((t) => {
+    // "frame: full" and "notes: false" hide the prototype's own presentation strips.
+    // "tour: done": the first-run tour was seen (help.spec.ts opens a first start with openFirstStart).
+    localStorage.setItem("lyre-r2", JSON.stringify({ theme: t, frame: "full", notes: false, tour: "done" }));
+  }, theme);
+  await Promise.all([page.waitForEvent("load"), page.evaluate(() => window.location.reload())]);
   await page.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
 }
 

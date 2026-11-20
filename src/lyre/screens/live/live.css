@@ -477,9 +477,9 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
    and its play mode (or On) in the bottom-right, so the name has the width. */
 .lv-pad { position: relative; height: auto; min-height: 40px; padding: 3px 24px 3px 10px; }
 .lv-pad .lv-pad-l.ellipsis { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 15px; overflow-wrap: anywhere; text-overflow: clip; }
-.lv-pad .kbd { position: absolute; top: 3px; right: 3px; padding: 0 3px; font-size: 11px; line-height: 14px; }
+.lv-pad .kbd { position: absolute; top: 3px; right: 3px; padding: 0 3px; font-size: 12px; line-height: 14px; }
 .lv-pad .lv-pad-mode, .lv-pad .lv-pad-on { position: absolute; bottom: 3px; right: 4px; }
-.lv-pad .lv-pad-on { font-size: 10px; line-height: 13px; }
+.lv-pad .lv-pad-on { font-size: 12px; line-height: 14px; }
 .lv-pad-empty { height: auto; min-height: 40px; }
 @container lvgrid (max-width: 400px) { .lv-pad { padding-right: 20px; } .lv-pad .lv-pad-l.ellipsis { font-size: var(--fs-xs); line-height: 13px; } }
 /* … and a playlist's name too (it was cut at 1280 and 960), up to two lines. */

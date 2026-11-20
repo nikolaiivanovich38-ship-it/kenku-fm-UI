@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { AnnouncerProvider } from "../shell/Announcer";
 import userEvent from "@testing-library/user-event";
 import { Dialog } from "./Dialog";
 import { PickerDialog, type PickerItem } from "./Picker";
@@ -121,6 +122,45 @@ describe("Dialog: a modal sheet for prep screens", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(opener).toHaveFocus();
+  });
+
+  // Code review of 0.6.0 (R60-CODE-REVIEW.md M11): the "Press Esc again" warning is read out through the page's live
+  // region (a live region that appears with its words in it is often not read), and a click outside asks the same.
+  describe("with something typed (escapeTwice)", () => {
+    const said = () => document.getElementById("lyre-live")?.textContent ?? "";
+    function Typed({ onClose }: { onClose: () => void }) {
+      return (
+        <AnnouncerProvider>
+          <Dialog open title="New campaign" onClose={onClose} escapeTwice="Press Esc again to throw away the new campaign" footer={<Button>Cancel</Button>}>
+            <label>
+              Name <input defaultValue="The Iron Road" />
+            </label>
+          </Dialog>
+        </AnnouncerProvider>
+      );
+    }
+
+    it("the first Esc reads the warning out, and the second closes", async () => {
+      const onClose = vi.fn();
+      render(<Typed onClose={onClose} />);
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() => expect(said()).toBe("Press Esc again to throw away the new campaign"));
+      expect(onClose).not.toHaveBeenCalled();
+      await userEvent.keyboard("{Escape}");
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("a click outside asks first too, instead of throwing the typing away", async () => {
+      const onClose = vi.fn();
+      render(<Typed onClose={onClose} />);
+      const sheet = screen.getByRole("dialog", { name: "New campaign" }).parentElement!;
+      fireEvent.pointerDown(sheet);
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByText("Press Esc again to throw away the new campaign")).toBeInTheDocument();
+      await waitFor(() => expect(said()).toBe("Press Esc again to throw away the new campaign"));
+      fireEvent.pointerDown(sheet);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

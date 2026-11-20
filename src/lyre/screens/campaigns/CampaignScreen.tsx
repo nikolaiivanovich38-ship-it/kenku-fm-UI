@@ -18,6 +18,8 @@ import { SystemList } from "./CampaignsScreen";
 import { CAMPAIGN_THEME_IDS, formatDate, nextSession, plural, sessionLabel, themeName } from "./model";
 import { OnHandPane } from "./OnHand";
 import { DraftField, ModeSwitch, NotFound, Opening, useHeadingFocusWhenReady, ObsidianFields, RowMenu, StatusBadge, useFocusLater, useLibraryIndex, useWrite } from "./parts";
+import { DropTray } from "../drop/DropTray";
+import { nestedTrackDragged } from "./PlaceTracks";
 import { DeleteCampaignDialog, DeleteSessionDialog } from "./deleting";
 import { useDragReorder } from "../../kit/reorder";
 
@@ -184,6 +186,8 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
         </div>
       </div>
       <DeleteCampaignDialog campaign={deleting ? c : null} onClose={() => setDeleting(false)} onDeleted={() => (window.location.hash = "#/campaigns")} />
+      {/* 0.6.0 (item 32): a track of an unfolded playlist can be dragged onto another list (Drop on). */}
+      <DropTray resolve={nestedTrackDragged} />
     </>
   );
 }

@@ -132,6 +132,18 @@ function OpenPanelDialog({ title, onClose, placeId, kind = "addMusic", footer, d
     [box, opener],
   );
 
+  // A drag still going on when the panel closes ends without remembering anything.
+  const endDrag = useRef<((keep: boolean) => void) | null>(null);
+  useEffect(() => () => endDrag.current?.(false), []);
+
+  // Floating, it stays inside the window when the window gets smaller (its remembered place is left as Nik put it).
+  useEffect(() => {
+    if (place.dock !== "float") return;
+    const onResize = () => setPlace((now) => (now.dock === "float" ? clampFloat(now, windowSize()) : now));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [place.dock]);
+
   // Floating, the box lies in the page itself.
   useLayoutEffect(() => {
     if (place.dock === "float") placeBox(document.body);
@@ -171,6 +183,7 @@ function OpenPanelDialog({ title, onClose, placeId, kind = "addMusic", footer, d
     const x0 = event.clientX;
     const y0 = event.clientY;
     let last: PanelPlace = place;
+    endDrag.current?.(false);
     const onMove = (e: PointerEvent) => {
       const dx = e.clientX - x0;
       const dy = e.clientY - y0;
@@ -178,13 +191,20 @@ function OpenPanelDialog({ title, onClose, placeId, kind = "addMusic", footer, d
       else if (what === "move") last = show({ ...start, left: start.left + dx, top: start.top + dy }, false);
       else last = show({ ...start, width: start.width + dx, height: start.height + dy }, false);
     };
-    const onUp = () => {
+    // Ends on the button's release, on a cancelled pointer (Alt+Tab, a touch the system takes over) and when the panel
+    // closes mid-drag (Esc), so the panel never follows a pointer with no button held.
+    const end = (keep: boolean) => {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
-      remember(last);
+      document.removeEventListener("pointercancel", onUp);
+      endDrag.current = null;
+      if (keep) remember(last);
     };
+    const onUp = () => end(true);
+    endDrag.current = end;
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
   };
 
   // The move button: arrows move it, Shift and the arrows size it, Home docks it at the right.

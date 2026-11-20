@@ -33,7 +33,8 @@
   --r-l: 10px;
   --fs: 13.5px;
   --fs-s: 12px;
-  --fs-xs: 11px;
+  /* Round 10 (ROUND10.md K): no text under 12 px; the smallest size is the same as --fs-s. */
+  --fs-xs: 12px;
   --fs-l: 15px;
   --fs-h: 18px;
   --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
@@ -1474,7 +1475,7 @@ button.chip[aria-pressed="true"] .lb-n { color: var(--ink-2); }
 .lb-bn { font-size: var(--fs-s); margin-right: 4px; }
 .lb-scroll { flex: 1; min-height: 0; overflow: auto; }
 .lb-foot { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 8px; border-top: 1px solid var(--line); flex: none; }
-.lb-foot .kbd { font-size: 10px; padding: 1px 4px; }
+.lb-foot .kbd { font-size: 12px; padding: 1px 4px; }
 
 .lb-table { table-layout: fixed; }
 .lb-table th { padding: 4px 6px; }
@@ -1502,8 +1503,8 @@ button.chip[aria-pressed="true"] .lb-n { color: var(--ink-2); }
 .lb-t1.untitled { font-weight: 400; font-style: italic; color: var(--ink-2); }
 .lb-t2 { font-size: var(--fs-xs); color: var(--ink-2); line-height: 1.25; }
 .lb-src { color: var(--ink-3); }
-.lb-notitle { font-size: 10.5px; line-height: 14px; padding: 0 5px; border: 1px dashed var(--line-strong); border-radius: 3px; color: var(--ink-2); white-space: nowrap; }
-.lb-newb { flex: none; height: 16px; font-size: 10px; background: var(--accent-soft); color: var(--ink); border: 1px solid var(--accent); }
+.lb-notitle { font-size: 12px; line-height: 14px; padding: 0 5px; border: 1px dashed var(--line-strong); border-radius: 3px; color: var(--ink-2); white-space: nowrap; }
+.lb-newb { flex: none; height: 16px; font-size: 12px; background: var(--accent-soft); color: var(--ink); border: 1px solid var(--accent); }
 .lb-chips { display: flex; gap: 3px; min-width: 0; overflow: hidden; }
 .lb-chip { min-width: 44px; flex: 0 1 auto; }
 .lb-more { flex: none; }
@@ -1566,7 +1567,7 @@ button.chip[aria-pressed="true"] .lb-n { color: var(--ink-2); }
 .lb-tsg { border: 0; padding: 0; margin: 12px 0 0; min-width: 0; }
 .lb-tsg legend { padding: 0; margin-bottom: 5px; font: 700 var(--fs-xs)/1.2 var(--body); color: var(--ink-2); letter-spacing: .03em; }
 .lb-tsc:disabled { opacity: .45; cursor: not-allowed; }
-.lb-cov { font-size: 10px; color: var(--ink-3); padding-left: 3px; border-left: 1px solid var(--line); margin-left: 2px; }
+.lb-cov { font-size: 12px; color: var(--ink-3); padding-left: 3px; border-left: 1px solid var(--line); margin-left: 2px; }
 .lb-tsc[aria-pressed="true"] .lb-cov { color: var(--ink-2); }
 .lb-tsnew { display: flex; gap: 4px; margin-top: 6px; max-width: 300px; }
 .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
@@ -1590,7 +1591,7 @@ button.chip[aria-pressed="true"] .lb-n { color: var(--ink-2); }
 
 /* Round 3: row buttons, kind markers, how a scene uses the track. */
 .lb-rowbtns { display: flex; gap: 2px; justify-content: flex-end; }
-.lb-km { display: inline-flex; align-items: center; gap: 3px; flex: none; height: 16px; padding: 0 4px; margin-top: 1px; border: 1px solid var(--line-strong); border-radius: 3px; font-size: 10px; font-weight: 700; color: var(--ink-2); }
+.lb-km { display: inline-flex; align-items: center; gap: 3px; flex: none; height: 16px; padding: 0 4px; margin-top: 1px; border: 1px solid var(--line-strong); border-radius: 3px; font-size: 12px; font-weight: 700; color: var(--ink-2); }
 .lb-km .lane-dot { width: 6px; height: 6px; }
 .lb-used li { column-gap: 6px; }
 .lb-how { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--ink-2); }
@@ -1604,7 +1605,7 @@ button.chip[aria-pressed="true"] .lb-n { color: var(--ink-2); }
 /* Sticky header covers the rows scrolling under it (collapsed borders do not stick, so the table uses separate ones). */
 .lb-table { border-collapse: separate; border-spacing: 0; }
 .lb-table thead th { z-index: 3; background: var(--surface); box-shadow: 0 1px 0 var(--line-strong); }
-.lb-air { flex: none; height: 16px; font-size: 10px; }
+.lb-air { flex: none; height: 16px; font-size: 12px; }
 .lb-km { white-space: nowrap; }
 .lb-airline { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 1px; }
 .lb-airline > .lb-t2 { min-width: 0; flex: 1; }
@@ -2295,9 +2296,9 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
    and its play mode (or On) in the bottom-right, so the name has the width. */
 .lv-pad { position: relative; height: auto; min-height: 40px; padding: 3px 24px 3px 10px; }
 .lv-pad .lv-pad-l.ellipsis { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 15px; overflow-wrap: anywhere; text-overflow: clip; }
-.lv-pad .kbd { position: absolute; top: 3px; right: 3px; padding: 0 3px; font-size: 11px; line-height: 14px; }
+.lv-pad .kbd { position: absolute; top: 3px; right: 3px; padding: 0 3px; font-size: 12px; line-height: 14px; }
 .lv-pad .lv-pad-mode, .lv-pad .lv-pad-on { position: absolute; bottom: 3px; right: 4px; }
-.lv-pad .lv-pad-on { font-size: 10px; line-height: 13px; }
+.lv-pad .lv-pad-on { font-size: 12px; line-height: 14px; }
 .lv-pad-empty { height: auto; min-height: 40px; }
 @container lvgrid (max-width: 400px) { .lv-pad { padding-right: 20px; } .lv-pad .lv-pad-l.ellipsis { font-size: var(--fs-xs); line-height: 13px; } }
 /* … and a playlist's name too (it was cut at 1280 and 960), up to two lines. */

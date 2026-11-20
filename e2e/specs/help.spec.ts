@@ -427,3 +427,73 @@ test.describe("round 10: Help beside the screen, not over it", () => {
     await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toBeVisible();
   });
 });
+
+/* 0.6.0 finishing work (R60-FINISH.md, f-prep 3): Help's Tour of this screen, on every screen that has one, goes
+   through that screen's whole tour, every step pointing at its control. A step whose control is not found is left out
+   of the tour, so its count would come up short; the language review found the "Move a room" step left out so. The
+   rooms and a track's details have no screen of their own in Help: Set up Lyre's Show me starts them. Live's tour has
+   its own check above (it needs a scene running). */
+test.describe("0.6.0: a tour per screen, every step finding its control", () => {
+  const SETTINGS = ["Add a bot", "Your bot", "Starting volume", "Rooms"];
+  const LIBRARY = ["Add tracks", "Search", "Filters", "Columns"];
+  const PLAYLISTS = ["New playlist", "Sort", "Your order"];
+  const SESSION = ["Add a scene", "Open a scene", "This session’s playlists"];
+  const BOARD = ["Pads", "Play mode", "While it plays"];
+  const DETAILS = ["Your title", "Tags", "Use it for", "At its end"];
+  const ROOMS = ["Add a room", "Move a room", "Mute and volume"];
+
+  /** Goes through the tour that is showing with Next, up to Done, and gives each step's title. */
+  async function walkTour(page: Page, name: string, length: number): Promise<string[]> {
+    const step = (n: number) => page.getByRole("dialog", { name: new RegExp(`${name} · ${n} of \\d+$`) });
+    await expect(step(1), `${name}: the tour starts`).toBeVisible();
+    await expect(step(1), `${name}: every step found its control`).toHaveAccessibleName(new RegExp(`${name} · 1 of ${length}$`));
+    const titles: string[] = [];
+    for (let n = 1; n <= length; n++) {
+      await expect(step(n)).toBeVisible();
+      titles.push((await step(n).getByRole("heading").innerText()).trim());
+      await step(n).getByRole("button", { name: n === length ? "Done" : "Next", exact: true }).click();
+    }
+    await expect(page.getByRole("dialog", { name: /· \d+ of \d+$/ })).toHaveCount(0);
+    return titles;
+  }
+
+  const SCREENS: { route: string; name: string; steps: string[]; also?: "f-live" }[] = [
+    { route: "settings", name: "Settings › Discord bots", steps: SETTINGS },
+    { route: "library", name: "Track library", steps: LIBRARY },
+    { route: "library/t13", name: "Track library", steps: LIBRARY },
+    { route: "playlists", name: "Playlists", steps: PLAYLISTS },
+    { route: "playlist/p-abbess", name: "Playlists", steps: PLAYLISTS },
+    { route: "campaigns", name: "Planning a session", steps: SESSION },
+    { route: "campaign/crown", name: "Planning a session", steps: SESSION },
+    { route: "session/crown/s14", name: "Planning a session", steps: SESSION },
+    // The pad's While it plays field comes with f-live (R60-FINISH.md, f-live 1).
+    { route: "boards", name: "A pad board", steps: BOARD, also: "f-live" },
+    { route: "board/weather", name: "A pad board", steps: BOARD, also: "f-live" },
+    { route: "profile/t13", name: "A track’s details", steps: DETAILS },
+    { route: "look", name: "Look and feel", steps: ["Look and feel"] },
+  ];
+  for (const s of SCREENS) {
+    test(`#/${s.route}: Tour of this screen goes through "${s.name}", every step on its control`, async ({ page }) => {
+      if (s.also) expectFailureUntilBuilt(s.also);
+      // Wide enough for the Track library's Filters to be open (folded below 1200 px of screen, as designed).
+      await page.setViewportSize({ width: 1600, height: 1000 });
+      await openRoute(page, s.route);
+      await helpButton(page).click();
+      await helpPanel(page).getByRole("button", { name: "Tour of this screen" }).click();
+      expect(await walkTour(page, s.name, s.steps.length)).toEqual(s.steps);
+    });
+  }
+
+  for (const [task, name, steps] of [
+    ["Put the bot in a room", "Rooms in Live", ROOMS],
+    ["Tag a few tracks", "A track’s details", DETAILS],
+  ] as const) {
+    test(`Set up Lyre's Show me for "${task}" goes through "${name}", every step on its control`, async ({ page }) => {
+      await page.setViewportSize({ width: 1600, height: 1000 });
+      await openRoute(page, "campaigns");
+      await helpButton(page).click();
+      await helpPanel(page).getByRole("button", { name: new RegExp(`^Show me( again)?: ${task}$`) }).click();
+      expect(await walkTour(page, name, steps.length)).toEqual([...steps]);
+    });
+  }
+});
