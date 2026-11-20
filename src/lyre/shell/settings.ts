@@ -13,6 +13,24 @@ export interface ShellSettings {
   panes: Record<string, "o" | "c">;
   /** FND-8: "done" once the first-run tour was finished or skipped. */
   tour?: "done";
+  /** Round 10: where each panel that can dock or float was last (Add music: docked left or right, or floating). */
+  places?: Record<string, PanelPlace>;
+}
+
+/** Round 10 (rows 12 and 37): a panel docked beside the screen (with the width Nik gave it), or floating over it. */
+export type PanelPlace = { dock: "left" | "right"; width?: number } | { dock: "float"; left: number; top: number; width: number; height: number };
+
+const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+/** A remembered place as it was stored, or null when it is damaged. */
+export function panelPlaceOf(value: unknown): PanelPlace | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  if (v.dock === "left" || v.dock === "right") return isNumber(v.width) ? { dock: v.dock, width: v.width } : { dock: v.dock };
+  if (v.dock === "float" && isNumber(v.left) && isNumber(v.top) && isNumber(v.width) && isNumber(v.height)) {
+    return { dock: "float", left: v.left, top: v.top, width: v.width, height: v.height };
+  }
+  return null;
 }
 
 export const SHELL_SETTINGS_KEY = "lyre-shell";
@@ -38,12 +56,20 @@ export function loadShellSettings(): ShellSettings {
       }
     }
   }
+  const places: Record<string, PanelPlace> = {};
+  if (stored.places && typeof stored.places === "object") {
+    for (const [id, value] of Object.entries(stored.places as Record<string, unknown>)) {
+      const place = panelPlaceOf(value);
+      if (place) places[id] = place;
+    }
+  }
   return {
     // 0.5.1: the old "campaign" choice (each campaign's own) is not a theme, so it becomes the default base theme.
     theme: isThemeChoice(stored.theme) ? stored.theme : DEFAULTS.theme,
     rail: stored.rail === "full" || stored.rail === "min" ? stored.rail : DEFAULTS.rail,
     panes,
     ...(stored.tour === "done" ? { tour: "done" as const } : {}),
+    ...(Object.keys(places).length ? { places } : {}),
   };
 }
 

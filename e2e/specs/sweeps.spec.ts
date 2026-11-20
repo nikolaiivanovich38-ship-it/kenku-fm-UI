@@ -889,7 +889,12 @@ type Opened = {
   open: (page: Page) => Promise<void>;
   /** CSS of what may lie over the screen in this state (only a floating panel). */
   mayCover?: string[];
+  /** Why the app meets it already, so it is required there (not marked r10-prep). */
+  met?: string;
 };
+
+/** r10-prep step 0 (20 Nov): Help on the side-panel host, beside the screen; every size and theme passes in the app. */
+const HELP_ON_THE_HOST = "Help is a side panel beside the screen since r10-prep step 0";
 
 const addMusic = async (page: Page) => {
   await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
@@ -915,9 +920,9 @@ const OPENED: Opened[] = [
   { name: "Session planner with the Track panel", route: "session/crown/s14/t41", owner: "session-planner", streams: ["r10-tracks"], open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); } },
   { name: "A playlist with the Track panel", route: "playlist/p-abbess/t41", owner: "playlists", streams: ["r10-tracks"], open: async () => {} },
   { name: "A playlist with the Track panel and Help", route: "playlist/p-abbess/t41", owner: "playlists", streams: ["r10-tracks"], open: async (page) => { await page.keyboard.press("F1"); } },
-  { name: "Track library with Help", route: "library", owner: "help", open: async (page) => { await page.keyboard.press("F1"); } },
-  { name: "Session planner with Help", route: "session/crown/s14", owner: "help", open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); await page.keyboard.press("F1"); } },
-  { name: "Live with Help", route: "live", owner: "help", streams: ["r10-live"], open: async (page) => { await page.keyboard.press("F1"); } },
+  { name: "Track library with Help", route: "library", owner: "help", met: HELP_ON_THE_HOST, open: async (page) => { await page.keyboard.press("F1"); } },
+  { name: "Session planner with Help", route: "session/crown/s14", owner: "help", met: HELP_ON_THE_HOST, open: async (page) => { await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click(); await page.keyboard.press("F1"); } },
+  { name: "Live with Help", route: "live", owner: "help", met: HELP_ON_THE_HOST, open: async (page) => { await page.keyboard.press("F1"); } },
   { name: "Live with Find's results", route: "live", owner: "live", streams: ["r10-live"], open: async (page) => { await page.getByRole("searchbox", { name: /^Find a track/ }).fill("battle"); } },
   { name: "Live while arranging", route: "live", owner: "live", streams: ["r10-live"], open: async (page) => { await page.getByRole("button", { name: /^(Arrange|Move and size the boxes)/ }).click(); } },
   { name: "Live with a scene playing", route: "live", owner: "live", streams: ["r10-live"], open: async (page) => { await page.getByRole("button", { name: /^Start: / }).first().click(); } },
@@ -946,24 +951,20 @@ const OPENED: Opened[] = [
   },
 ];
 
-/** 0.6.0: the round 10 stream that owns a screen (R60-GAPS.md), with r10-prep, which builds showTheme for the app. */
-function r10StreamsOf(owner: string): [Stream, ...Stream[]] {
-  if (["live", "outputs", "settings"].includes(owner)) return ["r10-prep", "r10-live"];
-  if (["library", "playlists", "audio-profile", "library-files", "tags"].includes(owner)) return ["r10-prep", "r10-tracks"];
-  return ["r10-prep"];
-}
-
 /** The screens with lists that the Now playing bar must not hide the end of (the menu's name for each). */
 const WITH_THE_BAR = ["Track library", "Playlists", "Pad boards", "Campaigns", "Settings"];
 
+/* Marks: r10-prep step 0 (20 Nov) built showTheme for the app and Help on the side-panel host. A full run of the
+   app project then passed every menu sweep and every Now playing bar sweep, at the three sizes and in the five
+   themes, and the three states with Help, so those are required in the app (no stream named). The other states
+   open what a stream still builds (Add music docked or floating, the Track panel, Find's results, the queue, Arrange)
+   and name it. */
 test.describe("round 10: nothing drawn on top of anything else (R10-FIX §3)", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-prep"));
-
   for (const size of R10_SIZES) {
     for (const state of OPENED) {
       test(`${state.name}, ${size.label}, in all five themes: nothing is under anything else and no control is cut off`, async ({ page }) => {
         expectFailureUntilScreenBuilt(state.owner);
-        if (state.streams) expectFailureUntilBuilt(...state.streams);
+        if (!state.met) expectFailureUntilBuilt("r10-prep", ...(state.streams ?? []));
         await page.setViewportSize(size);
         await openRoute(page, state.route);
         await state.open(page);
@@ -983,7 +984,6 @@ test.describe("round 10: nothing drawn on top of anything else (R10-FIX §3)", (
     for (const screen of SCREENS) {
       test(`${screen.name}, ${size.label}, in all five themes: every menu opens inside the window, whole`, async ({ page }) => {
         expectFailureUntilSweptScreenBuilt(screen);
-        expectFailureUntilBuilt(...r10StreamsOf(screen.owner));
         await page.setViewportSize(size);
         await openRoute(page, screen.route);
         await screen.prepare?.(page, { playing: false });
@@ -1017,6 +1017,7 @@ test.describe("round 10: nothing drawn on top of anything else (R10-FIX §3)", (
 
   test("a floating Add music panel can be moved with the keyboard, and docking it again gives the screen its width back", async ({ page }) => {
     expectFailureUntilScreenBuilt("session-planner");
+    expectFailureUntilBuilt("r10-prep"); // Add music on the kit's PanelDialog
     await page.setViewportSize({ width: 1280, height: 800 });
     await openRoute(page, "session/crown/s14");
     await dock("Float")(page);

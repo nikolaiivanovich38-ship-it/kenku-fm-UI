@@ -33,4 +33,11 @@ describe("remembered shell settings", () => {
     localStorage.setItem(SHELL_SETTINGS_KEY, JSON.stringify({ tour: "yes" }));
     expect(loadShellSettings().tour).toBeUndefined();
   });
+
+  it("round 10: remembers where a panel was, docked or floating, and drops a damaged place", () => {
+    saveShellSettings({ theme: "candle", rail: "auto", panes: {}, places: { addMusic: { dock: "left", width: 420 }, other: { dock: "float", left: 10, top: 20, width: 400, height: 300 } } });
+    expect(loadShellSettings().places).toEqual({ addMusic: { dock: "left", width: 420 }, other: { dock: "float", left: 10, top: 20, width: 400, height: 300 } });
+    localStorage.setItem(SHELL_SETTINGS_KEY, JSON.stringify({ places: { addMusic: { dock: "up" }, other: { dock: "float", left: "x" } } }));
+    expect(loadShellSettings().places).toBeUndefined();
+  });
 });

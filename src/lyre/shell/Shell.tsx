@@ -11,6 +11,9 @@ import { SoundMessages } from "./SoundMessages";
 import { UndoNoteBar, UndoNoteProvider } from "./UndoNote";
 import { ShellSettingsProvider, useShellSettings } from "./ShellSettings";
 import { themeFor } from "./themes";
+import { useThemeShownByTests } from "./themeForTests";
+import { SidePanel, SidePanelHost, SidePanelProvider, useSidePanelOpen } from "../kit/SidePanel";
+import { openTrackPanel } from "../screens/trackPanel/openTrackPanel";
 import { OpenHelpContext, useHelp } from "../help/useHelp";
 import { fallbackNow, NavigationProvider, useBackKeys, useNavigationState } from "./TopBar";
 import { keepTitles, showFullTextOnFocus } from "../kit/noHiddenText";
@@ -34,6 +37,10 @@ export interface ShellProps {
 /**
  * The new interface's frame (UX-3, UX-9): the rail, the screen for the page address, the theme, and the keyboard
  * and announcement rules every screen shares. Data and audio come from providers around it (AppProviders.tsx).
+ *
+ * Round 10 (R10-FIX §3): #work is the window; it holds #app (the rail and the screen) with the side panels beside it
+ * (kit/SidePanel.tsx): Add music docked left before it; Find's results, the queue, the Track panel, Add music docked
+ * right and Help after it. The screen narrows when a panel opens and keeps 600 px.
  */
 export function Shell({ screens = SCREENS, firstRunTour = false }: ShellProps) {
   return (
@@ -42,7 +49,9 @@ export function Shell({ screens = SCREENS, firstRunTour = false }: ShellProps) {
         <SoundMessages />
         {/* w51-fix2: a fault in the frame itself (the rail, Help, Find and play) shows a message, not a blank page. */}
         <ErrorBoundary where="this window">
-          <ShellFrame screens={screens} firstRunTour={firstRunTour} />
+          <SidePanelProvider openTrackPanel={openTrackPanel}>
+            <ShellFrame screens={screens} firstRunTour={firstRunTour} />
+          </SidePanelProvider>
         </ErrorBoundary>
       </AnnouncerProvider>
     </ShellSettingsProvider>
@@ -72,13 +81,18 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
   if (route.params.cid) {
     campaignInHand.current = route.params.cid;
   }
-  const theme = themeFor({
-    choice: settings.theme,
-    route,
-    campaignInHand: campaignInHand.current,
-    liveCampaign: data.liveCampaign,
-    campaignTheme: data.campaignTheme ?? (() => undefined),
-  });
+  // The sweeps show a screen in each theme without opening it again (test builds only: themeForTests.ts).
+  const shownByTests = useThemeShownByTests();
+  const theme =
+    shownByTests ??
+    themeFor({
+      choice: settings.theme,
+      route,
+      campaignInHand: campaignInHand.current,
+      liveCampaign: data.liveCampaign,
+      campaignTheme: data.campaignTheme ?? (() => undefined),
+    });
+  const panelAtRight = [useSidePanelOpen("find"), useSidePanelOpen("queue"), useSidePanelOpen("trackPanel"), useSidePanelOpen("addMusic"), help.helpOpen].map(Number).join("");
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
@@ -158,43 +172,51 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
 
   const Screen = screens[route.name];
   return (
-    <div id="app" ref={appRef}>
-      <Rail
-        section={sectionOf(route)}
-        min={railMin}
-        onToggleMin={() => update({ rail: railMin ? "full" : "min" })}
-        helpOpen={help.helpOpen}
-        onHelp={help.toggleHelp}
-      />
-      <main id="view" className="view" data-view={route.name}>
-        <OpenHelpContext.Provider value={help.openHelp}>
-        <NavigationProvider value={navigation}>
-          <UndoNoteProvider live={route.name === "live"}>
-            {/* w51-fix2: the boundary stays while screens change (the screen is keyed inside it), so a screen that
-                fails as it is left is caught here instead of blanking the page; a new address clears its message. */}
-            <ErrorBoundary where="this screen" resetKey={route.path} onBack={goBackFromFault}>
-              <CampaignInHandContext.Provider key={route.path} value={campaignInHand.current}>
-                <ScreenSound route={route.name}>
-                  <Screen route={route} />
-                </ScreenSound>
-              </CampaignInHandContext.Provider>
+    <div id="work">
+      <SidePanelHost edge="left" />
+      <div id="app" ref={appRef}>
+        <Rail
+          section={sectionOf(route)}
+          min={railMin}
+          onToggleMin={() => update({ rail: railMin ? "full" : "min" })}
+          helpOpen={help.helpOpen}
+          onHelp={help.toggleHelp}
+        />
+        <main id="view" className="view" data-view={route.name}>
+          <OpenHelpContext.Provider value={help.openHelp}>
+          <NavigationProvider value={navigation}>
+            <UndoNoteProvider live={route.name === "live"}>
+              {/* w51-fix2: the boundary stays while screens change (the screen is keyed inside it), so a screen that
+                  fails as it is left is caught here instead of blanking the page; a new address clears its message. */}
+              <ErrorBoundary where="this screen" resetKey={route.path} onBack={goBackFromFault}>
+                <CampaignInHandContext.Provider key={route.path} value={campaignInHand.current}>
+                  <ScreenSound route={route.name}>
+                    <Screen route={route} />
+                  </ScreenSound>
+                </CampaignInHandContext.Provider>
+              </ErrorBoundary>
+              {route.name !== "live" && <UndoNoteBar />}
+            </UndoNoteProvider>
+          </NavigationProvider>
+          </OpenHelpContext.Provider>
+          {data.NowPlayingBar && (
+            // w51-fix2: outside the screen's own, so a fault in the bar must not take the whole page with it.
+            <ErrorBoundary where="the Now playing bar">
+              <data.NowPlayingBar previewOnly={!!Screen.showsOnAir} />
             </ErrorBoundary>
-            {route.name !== "live" && <UndoNoteBar />}
-          </UndoNoteProvider>
-        </NavigationProvider>
-        </OpenHelpContext.Provider>
-        {data.NowPlayingBar && (
-          // w51-fix2: outside the screen's own, so a fault in the bar must not take the whole page with it.
-          <ErrorBoundary where="the Now playing bar">
-            <data.NowPlayingBar previewOnly={!!Screen.showsOnAir} />
-          </ErrorBoundary>
-        )}
-      </main>
-      {help.panel}
+          )}
+        </main>
+      </div>
+      <SidePanelHost edge="right" />
+      {help.panel && (
+        <SidePanel kind="help" onClosedByHost={help.closedByHost}>
+          {help.panel}
+        </SidePanel>
+      )}
       {help.tour}
       {data.FindAndPlay && <data.FindAndPlay />}
       {/* FND-16 (0.5.1): Lyre is the whole window: the window's own buttons, and update news in the pop-up's corner. */}
-      <WindowFrame paintKey={`${theme} ${route.path} ${help.helpOpen ? "help" : ""}`} />
+      <WindowFrame paintKey={`${theme} ${route.path} ${panelAtRight}`} />
       <UpdateNews />
     </div>
   );

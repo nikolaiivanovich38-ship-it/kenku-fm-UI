@@ -394,3 +394,38 @@ test.describe("round 10: the first start, and the Live tour", () => {
     expect(titles).toEqual(["Next scene", "On air: what the players hear", "Preview: only you", "Pads and their keys", "Undo", "Fade all and Stop all"]);
   });
 });
+
+/* Round 10 (design/prototype/ROUND10.md, "Nothing drawn on top of anything else"; R60-GAPS.md step 0): side panels
+   sit beside the screen, which gets narrower; below 760 px of window a panel takes the whole window until it is
+   closed. Help is the first panel on the app's side-panel host. */
+test.describe("round 10: Help beside the screen, not over it", () => {
+  test("Help opens beside the screen: the screen gets narrower, nothing of it is under Help, and closing Help gives the width back", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "library");
+    const main = page.getByRole("main");
+    const before = (await main.boundingBox())!;
+    await page.keyboard.press("F1");
+    await expect(helpPanel(page)).toBeVisible();
+    // Narrower by Help's width, less what the menu gives back when it folds to icons below 1100 px.
+    await expect.poll(async () => (await main.boundingBox())!.width, { message: "the screen's width with Help open" }).toBeLessThan(before.width - 200);
+    const screenBox = (await main.boundingBox())!;
+    const help = (await helpPanel(page).boundingBox())!;
+    expect(screenBox.x + screenBox.width, "the screen ends where Help starts").toBeLessThanOrEqual(help.x + 1);
+    expect(help.x + help.width, "Help reaches the window's right edge").toBeGreaterThanOrEqual(1279);
+    await helpPanel(page).getByRole("button", { name: "Close help" }).click();
+    await expect.poll(async () => Math.round((await main.boundingBox())!.width)).toBe(Math.round(before.width));
+  });
+
+  test("below 760 px of window Help takes the whole window until it is closed", async ({ page }) => {
+    await page.setViewportSize({ width: 700, height: 800 });
+    await openRoute(page, "library");
+    await page.keyboard.press("F1");
+    await expect(helpPanel(page)).toBeVisible();
+    const help = (await helpPanel(page).boundingBox())!;
+    expect(Math.round(help.x)).toBeLessThanOrEqual(1);
+    expect(Math.round(help.width)).toBeGreaterThanOrEqual(699);
+    await page.keyboard.press("Escape");
+    await expect(helpPanel(page)).toHaveCount(0);
+    await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toBeVisible();
+  });
+});

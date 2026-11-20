@@ -1,7 +1,8 @@
 /**
  * FND-8: Help's side panel (design/prototype/HELP.md, views/help.js): a search box, the articles grouped by task,
- * an article with Back, and at its foot Take the tour and Save diagnostics… (FND-9). It sits beside the screen in
- * the shell's #app (over the screen below 900 px, help.css), so an article's steps can be followed while it is open.
+ * an article with Back, and at its foot Take the tour and Save diagnostics… (FND-9). It sits beside the screen on the
+ * side-panel host (round 10; below 760 px of window it takes the whole window), so an article's steps can be followed
+ * while it is open.
  * It is a landmark, not a modal dialog: the screen beside it keeps working.
  */
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
