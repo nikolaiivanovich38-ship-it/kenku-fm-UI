@@ -39,3 +39,6 @@ body :is(.tray, .lv-grp) { border: 0; background: none; }
 .rail.min .nav { position: relative; }
 .rail.min .help-ring { position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; padding: 0; margin: 0; border: 2px solid var(--accent); background: var(--surface); }
 .rail.min .help-ring::after { content: none; }
+
+/* A dialog's note after the first Esc with something typed (kit/Dialog.tsx escapeTwice). */
+.dlg-esc { font-size: var(--fs-s); color: var(--warn); font-weight: 700; }

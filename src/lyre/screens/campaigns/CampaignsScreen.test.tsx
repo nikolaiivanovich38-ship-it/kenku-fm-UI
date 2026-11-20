@@ -39,6 +39,24 @@ describe("all campaigns", () => {
     expect(window.location.hash).toBe("#/live");
   });
 
+  it("round 10: with a name typed, the first Esc in New campaign says a second one throws it away", async () => {
+    openAt("campaigns");
+    await userEvent.click(await screen.findByRole("button", { name: "New campaign" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "Name" }), "The Iron Road");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByRole("dialog", { name: "New campaign" })).toBeInTheDocument();
+    expect(screen.getByText("Press Esc again to throw away the new campaign")).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "New campaign" })).toBeNull();
+  });
+
+  it("round 10: an untouched New campaign closes on the first Esc", async () => {
+    openAt("campaigns");
+    await userEvent.click(await screen.findByRole("button", { name: "New campaign" }));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "New campaign" })).toBeNull();
+  });
+
   it("New campaign asks for a name, game system, description and theme (Candlelit Library first), and opens the new campaign", async () => {
     const { api } = openAt("campaigns");
     await userEvent.click(await screen.findByRole("button", { name: "New campaign" }));

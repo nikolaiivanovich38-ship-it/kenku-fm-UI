@@ -290,6 +290,8 @@ function NewCampaignSheet({ onClose }: { onClose: () => void }) {
       open
       title="New campaign"
       onClose={onClose}
+      // Round 10 (prep review S9): Esc lost a typed name; with something typed, a second Esc throws it away.
+      escapeTwice={name.trim() || system.trim() || description.trim() ? "Press Esc again to throw away the new campaign" : null}
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>

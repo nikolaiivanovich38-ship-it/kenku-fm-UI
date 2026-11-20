@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconButton } from "./Button";
 
@@ -14,6 +14,11 @@ export interface DialogProps {
   description?: React.ReactNode;
   /** UX-R20: Enter in a one-line text field presses the footer's main button (Rename, Add tag…). */
   enterSubmits?: boolean;
+  /**
+   * Round 10 (prep review S9): with something typed, the first Esc says this ("Press Esc again to throw away the new
+   * campaign") and only a second Esc closes. Null or absent: Esc closes at once.
+   */
+  escapeTwice?: string | null;
   children: React.ReactNode;
 }
 
@@ -24,7 +29,8 @@ const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([di
  * A modal sheet (ui.css .sheet) for prep screens only: the live view never covers its controls. Focus goes to its
  * first field (or first button), Tab stays inside, and focus returns to what opened it when it closes.
  */
-export function Dialog({ open, title, onClose, footer, wide, description, enterSubmits, children }: DialogProps) {
+export function Dialog({ open, title, onClose, footer, wide, description, enterSubmits, escapeTwice, children }: DialogProps) {
+  const [armed, setArmed] = useState(false);
   const titleId = useId();
   const descId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -57,6 +63,10 @@ export function Dialog({ open, title, onClose, footer, wide, description, enterS
     if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
+      if (escapeTwice && !armed) {
+        setArmed(true);
+        return;
+      }
       onCloseRef.current();
       return;
     }
@@ -115,7 +125,16 @@ export function Dialog({ open, title, onClose, footer, wide, description, enterS
           </p>
         )}
         <div className="body">{children}</div>
-        {footer && <footer>{footer}</footer>}
+        {footer && (
+          <footer>
+            {escapeTwice && armed && (
+              <span className="dlg-esc grow" role="status">
+                {escapeTwice}
+              </span>
+            )}
+            {footer}
+          </footer>
+        )}
       </div>
     </div>,
     document.body,
