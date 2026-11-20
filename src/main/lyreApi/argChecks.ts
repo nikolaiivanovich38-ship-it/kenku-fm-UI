@@ -138,6 +138,8 @@ const padPatch = object({
   "mode?": text(MAX_ID),
   "volume?": number,
   "fadeOutMs?": number,
+  // f-live: While it plays (null: the usual for its play mode).
+  "dip?": nullable(bool),
   "sound?": object({ "kind?": text(MAX_ID), "trackIds?": list(id, 10_000), "order?": text(MAX_ID), "tag?": nullable(tagRef) }),
 });
 

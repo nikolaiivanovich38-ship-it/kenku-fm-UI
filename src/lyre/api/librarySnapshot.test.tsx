@@ -24,7 +24,8 @@ describe("LibrarySnapshot", () => {
     expect(library.profileOverrides()["sc:crown:s14:sc3"].t13.endMs).toBe(190_000);
     expect(library.media(library.track("t01"))).toEqual({ url: "file:///H:/Audio/Scores/Basil%20Poledouris/Conan%20the%20Barbarian/1-11%20Riders%20of%20Doom.flac", trackId: "t01" });
     expect(library.media({ ...library.track("t01"), id: "gone" })).toBeNull();
-    expect(library.pad("combat", "fireball")).toEqual({ label: "Fireball", trackIds: ["f03"], order: "roundrobin", mode: "oneshot", fadeMs: 1500, volume: 0.8 });
+    // f-live: While it plays goes to the engine (null: the usual for its play mode).
+    expect(library.pad("combat", "fireball")).toEqual({ label: "Fireball", trackIds: ["f03"], order: "roundrobin", mode: "oneshot", fadeMs: 1500, volume: 0.8, dip: null });
     expect(library.pad("weather", "mugs")).toMatchObject({ label: "Mugs clink" });
     expect(library.pad("combat", "nope")).toBeUndefined();
   });

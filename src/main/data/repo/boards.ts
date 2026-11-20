@@ -103,6 +103,8 @@ type PadRow = {
   fade_in_ms: number;
   fade_ms: number;
   put_aside: number;
+  /** Schema v12 (f-live): While it plays: 1 dip, 0 don't, null the usual for its play mode. */
+  dip: number | null;
 };
 
 function toPad(row: PadRow, trackIds: string[]): Pad {
@@ -120,6 +122,7 @@ function toPad(row: PadRow, trackIds: string[]): Pad {
     fadeMs: row.fade_ms,
     fadeInMs: row.fade_in_ms,
     putAside: row.put_aside === 1,
+    dip: row.dip === null || row.dip === undefined ? null : row.dip === 1,
   };
 }
 
@@ -189,6 +192,10 @@ function padColumns(store: Store, input: Record<string, unknown>): { columns: Re
   if (input.volume !== undefined) columns.volume = v.numberInRange("volume", input.volume, 0, 1);
   if (input.fadeMs !== undefined) columns.fade_ms = v.milliseconds("fadeMs", input.fadeMs);
   if (input.fadeInMs !== undefined) columns.fade_in_ms = v.milliseconds("fadeInMs", input.fadeInMs);
+  if (input.dip !== undefined) {
+    if (input.dip !== null && typeof input.dip !== "boolean") throw new ValidationError("dip", "dip must be true, false or null (the usual).");
+    columns.dip = input.dip === null ? null : input.dip ? 1 : 0;
+  }
   let trackIds: string[] | undefined;
   if (input.sound !== undefined) {
     const sound = patchOf(input.sound, ["kind", "trackIds", "order", "tagId"]);
@@ -290,7 +297,7 @@ export function addPad(store: Store, boardId: string, input: PadInput & { at?: P
 
 /** Changes a pad's settings; only the fields given (sound fields too) change. */
 export function updatePad(store: Store, padId: string, changes: PadInput): Pad {
-  const patch = patchOf(changes, ["label", "icon", "color", "hotkey", "mode", "sound", "volume", "fadeMs", "fadeInMs"]);
+  const patch = patchOf(changes, ["label", "icon", "color", "hotkey", "mode", "sound", "volume", "fadeMs", "fadeInMs", "dip"]);
   const pad = requirePad(store, padId);
   const { columns, trackIds } = padColumns(store, patch);
   const names = Object.keys(columns);
@@ -384,6 +391,7 @@ export function duplicatePad(store: Store, padId: string): Pad {
         volume: pad.volume,
         fade_ms: pad.fadeMs,
         fade_in_ms: pad.fadeInMs,
+        dip: pad.dip === null ? null : pad.dip ? 1 : 0,
       },
       pad.sound.trackIds,
     ),

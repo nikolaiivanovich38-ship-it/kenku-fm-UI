@@ -7,6 +7,7 @@ import type { CampaignInfo, LibraryTrack, PadBoard, Pad, PlaylistInfo, SessionIn
 import { lookupFrom } from "../../../common/lyre/lookup";
 import { lengthText, plural, shownTitle } from "../../../common/lyre/text";
 import { DEFAULT_THEME, THEME_CHOICES, THEMES, type ThemeChoice, type ThemeId } from "../../shell/themes";
+import { USE_WORDS } from "../library/trackEnd";
 
 export { plural };
 
@@ -74,13 +75,8 @@ export function shownTheme(base: ThemeChoice, own: string | undefined): ThemeId 
   return (CAMPAIGN_THEME_IDS as readonly string[]).includes(own ?? "") ? (own as ThemeId) : base;
 }
 
-const ROLE_WORDS: Record<TrackRole, string> = {
-  loop_bed: "Loop bed",
-  underscore: "Underscore",
-  sting: "Sting",
-  transition: "Transition",
-  effect: "Effect",
-};
+/** 0.6.0 (round 10, prep D10): the Track library's Use it for words (Background, Scene music, Short cue, …). */
+const ROLE_WORDS: Record<TrackRole, string> = USE_WORDS;
 const LANE_WORDS = { music: "Music", amb: "Ambience", fx: "FX" } as const;
 
 /** m:ss */
@@ -132,7 +128,7 @@ export interface ItemInfo {
   href: string;
   /** The lane colour of its dot. */
   lane: "music" | "amb" | "fx";
-  /** What it is: "Track", "Playlist · Dynamic", "Ambience track", "FX · Sting", "Pad board". */
+  /** What it is: "Track", "Playlist · Dynamic", "Ambience track", "FX · Short cue", "Pad board". */
   label: string;
   /** More about it: "Music · 6 tracks", "3:10", "4 × 3 grid · 12 pads". */
   sub: string;
@@ -142,7 +138,7 @@ export interface ItemInfo {
 
 export function trackInfo(t: LibraryTrack): ItemInfo {
   const fx = isFx(t);
-  const label = fx ? (t.role === "sting" ? "FX · Sting" : "FX") : t.kind === "amb" ? "Ambience track" : "Track";
+  const label = fx ? (t.role === "sting" ? `FX · ${ROLE_WORDS.sting}` : "FX") : t.kind === "amb" ? "Ambience track" : "Track";
   const sub = `${t.role && t.kind === "music" && !fx ? `${ROLE_WORDS[t.role]} · ` : ""}${formatLength(t.durationMs)}`;
   return { kind: "track", id: t.id, name: shownTitle(t), href: `#/library/${t.id}`, lane: fx ? "fx" : t.kind === "amb" ? "amb" : "music", label, sub, listSub: sub };
 }

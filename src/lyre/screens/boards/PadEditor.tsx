@@ -1,6 +1,7 @@
 /**
  * The selected pad's own box (boards.js editorPane): Preview and Play on air, Label, Sound (one file, several
- * variants, or any effect with a tag), Play mode, Hotkey, Colour, Icon, Volume and Fade out. Every change is saved
+ * variants, or any effect with a tag), Play mode, While it plays (0.6.0, r9live.js padDipHTML), Hotkey, Colour, Icon,
+ * Volume and Fade out. Every change is saved
  * at once through LyreApi; text is saved as you type.
  */
 import { lengthText } from "../../../common/lyre/text";
@@ -17,6 +18,7 @@ import { useAnnounce } from "../../shell/Announcer";
 import { MODES, MODE_HELP, MODE_ICON, MODE_NAME, PAD_COLOUR, PAD_ICONS, iconName, keyLabel, keyOwner, padKeyFrom, plural, type PadAt } from "./boardModel";
 import { useSavedText, useWrite, type BoardSound } from "./hooks";
 import { PreviewButton } from "../../kit/SoundButtons";
+import { useDip } from "../settings/dipSettings";
 
 export interface PadEditorProps {
   board: PadBoard;
@@ -129,6 +131,7 @@ export function PadEditor(props: PadEditorProps) {
             {MODE_HELP[pad.mode]}
           </p>
         </fieldset>
+        <WhileItPlays {...props} />
         <Hotkey {...props} />
         <fieldset className="pb-fs">
           <legend>
@@ -402,6 +405,57 @@ function TagSound({ at, tracks, tagGroups, update }: Pick<PadEditorProps, "board
         <p className="pb-none">No effects have this tag yet.</p>
       )}
     </>
+  );
+}
+
+/* ---------- While it plays ---------- */
+
+type DipChoice = "usual" | "dip" | "no";
+
+/**
+ * 0.6.0 (f-live 1; round 9 §11, item 47; Nik, 18 Nov 03:14, answer 12.2): whether the music dips while this pad plays.
+ * The usual follows the play mode (a one-shot or Restart on press pad dips, a Toggle loop or Hold to play pad does not;
+ * the engine's padDips). A group of radio buttons: Tab reaches the chosen one, the arrow keys choose another.
+ */
+function WhileItPlays({ at, update }: PadEditorProps) {
+  const pad = at.pad;
+  const { say } = useAnnounce();
+  const off = useDip().amount === "off";
+  const usualDips = pad.mode === "oneshot" || pad.mode === "retrigger";
+  const current: DipChoice = pad.dip === null || pad.dip === undefined ? "usual" : pad.dip ? "dip" : "no";
+  const options: [DipChoice, string][] = [
+    ["usual", `The usual (${usualDips ? "dip" : "don't dip"})`],
+    ["dip", "Dip the music"],
+    ["no", "Don't dip"],
+  ];
+  const choose = (choice: DipChoice) => {
+    if (choice === current) return;
+    const dip = choice === "usual" ? null : choice === "dip";
+    void update({ dip }, pad.id).then((done) => {
+      if (done) say(`${pad.label} ${(dip ?? usualDips) ? "dips the music" : "leaves the music as it is"} while it plays`);
+    });
+  };
+  const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, i: number) => {
+    const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = (i + step + options.length) % options.length;
+    const buttons = e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("button");
+    buttons?.[next]?.focus();
+    choose(options[next][0]);
+  };
+  return (
+    <fieldset className="pb-fs r9-paddip">
+      <legend>While it plays</legend>
+      <div className="seg s" role="radiogroup" aria-label="While it plays">
+        {options.map(([value, words], i) => (
+          <button key={value} type="button" role="radio" aria-checked={current === value} tabIndex={current === value ? 0 : -1} onClick={() => choose(value)} onKeyDown={(e) => onKeyDown(e, i)}>
+            {words}
+          </button>
+        ))}
+      </div>
+      {off && <p className="hint">Dipping is off in Settings › Sound to Discord.</p>}
+    </fieldset>
   );
 }
 

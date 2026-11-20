@@ -282,7 +282,8 @@ describe("keyboard focus", () => {
     within(bar()).getByRole("button", { name: "Stop the preview" }).focus();
     await userEvent.keyboard("{Enter}");
     act(() => audio.setNowPlaying({ preview: null }));
-    expect(within(bar()).getByRole("button", { name: "Pause" })).toHaveFocus();
+    // 0.6.0 (f-live): Back is the room row's first control.
+    expect(within(bar()).getByRole("button", { name: "Back" })).toHaveFocus();
   });
 
   it("is left alone when it was somewhere else", () => {
@@ -383,3 +384,24 @@ describe("0.5.1: the time line is a seek bar (Nik, 11 Nov)", () => {
     expect(audio.calls.filter(([m]) => m === "seekPreview")).toEqual([["seekPreview", 0]]);
   });
 });
+
+/* 0.6.0 (f-live 3; R60-GAPS row 20): a room's row has Back and Queue n, as the preview's row; Queue opens the room's
+   queue beside the screen, with Play now on each planned track. */
+describe("f-live: Back and the queue for a room on air", () => {
+  it("has Back, Pause, Stop, Next and Queue n, in that order; Back asks the audio host for the room's Back", async () => {
+    const planned = { ref: { kind: "plan" as const, key: "p:1" }, kind: "planned" as const, trackIds: ["t08"], title: "Sea shanty", playlistId: "p-company", rest: false };
+    const audio = show({ rooms: [room("table", "Table", lane(), { upNextList: [planned] })] });
+    audio.roomQueueNow = { playlistId: "p-company", played: [], now: { trackId: "t24", title: "Epic choir hero anthem" } };
+    const controls = within(within(bar()).getByRole("group", { name: /^Control what the players hear/ }));
+    const names = controls.getAllByRole("button").map((b) => b.getAttribute("aria-label") ?? b.textContent?.trim());
+    expect(names.slice(0, 5)).toEqual(["Back", "Pause", "Stop", "Next", "Queue 1"]);
+    await userEvent.click(controls.getByRole("button", { name: "Back" }));
+    expect(audio.calls).toContainEqual(["roomBack", "music", { room: "table" }]);
+    await userEvent.click(controls.getByRole("button", { name: /^Queue/ }));
+    const queue = within(await screen.findByRole("region", { name: "Queue" }));
+    expect(queue.getByText("Epic choir hero anthem")).toBeInTheDocument();
+    await userEvent.click(queue.getByRole("button", { name: "Play Sea shanty now" }));
+    expect(audio.calls).toContainEqual(["playUpNext", planned.ref, { room: "table" }]);
+  });
+});
+

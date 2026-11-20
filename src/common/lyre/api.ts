@@ -432,6 +432,11 @@ export interface Pad {
   aside: boolean;
   /** PLY-8: what it does when pressed (null: the usual, playing its sound). boards.setPadSteps. */
   steps: CueStep[] | null;
+  /**
+   * 0.6.0 (f-live; round 9 §11, item 47): While it plays: true Dip the music, false Don't dip, null the usual for its
+   * play mode (a one-shot or Restart on press pad dips the music; a Toggle loop or Hold to play pad does not).
+   */
+  dip: boolean | null;
 }
 
 export type PadPatch = Partial<Omit<Pad, "id" | "sound" | "aside" | "steps">> & { sound?: Partial<PadSound> };

@@ -200,6 +200,11 @@ export class Voice extends TypedEmitter<VoiceEvents> {
     );
   }
 
+  /** f-live: where its audio profile starts it, in seconds (Back on the Now playing bar goes there). */
+  get profileStartSeconds(): number {
+    return this.profile ? this.profile.startMs / 1000 : 0;
+  }
+
   isFinal(): boolean {
     return FINAL_STATES.includes(this.state);
   }

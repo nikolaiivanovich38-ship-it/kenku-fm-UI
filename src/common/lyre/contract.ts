@@ -539,6 +539,19 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.boards.delete("combat"), "not-found");
       });
 
+      /* f-live (round 9 §11, item 47): a pad's While it plays: the usual (null), Dip the music (true), Don't dip (false). */
+      it("keeps a pad's While it plays: the usual at first, Dip the music or Don't dip, copied with the pad and the board", async () => {
+        expect((await board("combat")).slots.find((p) => p?.id === "shield")?.dip).toBeNull();
+        expect(valueOf(await api.boards.updatePad("combat", "shield", { dip: false })).dip).toBe(false);
+        expect(valueOf(await api.boards.updatePad("combat", "shield", { label: "Shield bash" })).dip).toBe(false);
+        expect(valueOf(await api.boards.duplicatePad("combat", "shield")).pad.dip).toBe(false);
+        const copyOfBoard = valueOf(await api.boards.duplicate("combat"));
+        expect([...copyOfBoard.slots, ...copyOfBoard.spare].find((p) => p?.label === "Shield bash")?.dip).toBe(false);
+        expect(valueOf(await api.boards.updatePad("combat", "shield", { dip: true })).dip).toBe(true);
+        expect(valueOf(await api.boards.updatePad("combat", "shield", { dip: null })).dip).toBeNull();
+        expectRefused(await api.boards.updatePad("combat", "shield", { dip: "yes" as never }), "invalid");
+      });
+
       it("adds a pad in an empty place only", async () => {
         const pad = valueOf(await api.boards.addPad("combat", 11));
         expect(pad).toMatchObject({ label: "New pad", key: "", mode: "oneshot", sound: { kind: "single", trackIds: [] } });

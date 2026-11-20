@@ -580,7 +580,7 @@ export function fakeRound7(
           placeName = b.name;
           const added: string[] = [];
           for (const t of tracks) {
-            const pad: Pad = { id: cx.newId("pad"), label: shownTitle(t).split(/[,(-]/)[0].trim().slice(0, 24) || "New pad", icon: "note", color: "bone", key: "", mode: "oneshot", sound: { kind: "single", trackIds: [t.id], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500, aside: false, steps: null };
+            const pad: Pad = { id: cx.newId("pad"), label: shownTitle(t).split(/[,(-]/)[0].trim().slice(0, 24) || "New pad", icon: "note", color: "bone", key: "", mode: "oneshot", sound: { kind: "single", trackIds: [t.id], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500, aside: false, steps: null, dip: null };
             const empty = b.slots.indexOf(null);
             if (empty > -1) b.slots[empty] = pad;
             else b.spare.push(pad);

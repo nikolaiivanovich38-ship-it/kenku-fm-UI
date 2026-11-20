@@ -424,6 +424,12 @@ export interface LyreAudio {
   previewForward(): CueOutcome;
   /** Play from the queue: the step `index` of the playlist's round (PreviewQueue.upNext[].index). */
   previewPlayAt(index: number): CueOutcome;
+  // --- f-live --- 0.6.0 (R60-GAPS row 20): a room on air has Back and its queue on the Now playing bar, as the preview.
+  /** What the room's music played of its plan (a playlist's or a scene's order) and plays now; null with no music. */
+  roomQueue(target?: RoomTarget): RoomQueue | null;
+  /** Back: the start of this track, or within its first 3 s the track before it (a single track: its start). */
+  roomBack(lane: MusicOrAmbience, target?: RoomTarget): CueOutcome;
+  // --- end f-live ---
   /** UX-16: pause the preview, or carry on if it is paused. */
   togglePreviewPause(): CueOutcome;
   /** UX-16: the headphone volume, 0 to 1, kept for the next preview too. */
@@ -539,6 +545,12 @@ export interface PreviewQueue {
   played: PreviewQueueTrack[];
   now: PreviewQueueTrack;
   upNext: (PreviewQueueTrack & { index: number })[];
+}
+/** f-live: a room's queue on the Now playing bar: Played (oldest first) and Now playing; Up next is the room's upNextList. */
+export interface RoomQueue {
+  playlistId: string | null;
+  played: PreviewQueueTrack[];
+  now: PreviewQueueTrack;
 }
 /** Back within this many seconds of a track's start goes to the track before it (Nik, 18 Nov, Q7 a). */
 export const BACK_TO_PREVIOUS_S = 3;
@@ -1098,6 +1110,40 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if (at.seconds - start > BACK_TO_PREVIOUS_S || before.length === 0) return this.seekPreview(start);
     return this.previewStep({ ...run, item: before[before.length - 1], played: before.slice(0, -1) });
   }
+
+  // --- f-live --- a room's queue and Back.
+  roomQueue(target: RoomTarget = FIRST_ROOM): RoomQueue | null {
+    const roomId = this.targetRooms(target)[0];
+    const music = this.director.report().find((room) => room.roomId === roomId)?.music;
+    if (!music) return null;
+    const named = (trackId: string): PreviewQueueTrack => ({ trackId, title: trackTitle(this.library.track(trackId)) });
+    let played: PreviewQueueTrack[] = [];
+    if (music.origin.kind !== "single") {
+      const seq = sequenceOf(music.origin, this.show);
+      played = seq.slice(0, locate(seq, music).index).map((step) => named(step.trackId));
+    }
+    return { playlistId: music.playlistId, played, now: named(music.trackId) };
+  }
+
+  roomBack(lane: MusicOrAmbience, target: RoomTarget = FIRST_ROOM): CueOutcome {
+    const roomId = this.targetRooms(target)[0];
+    const voice = roomId ? this.laneVoice(roomId, lane) : undefined;
+    if (!voice) return this.fail(lane === "music" ? "No music is playing." : "No ambience is playing.");
+    const report = this.director.report().find((room) => room.roomId === roomId);
+    const playing = lane === "music" ? report?.music : report?.ambience;
+    const start = voice.profileStartSeconds;
+    if (voice.position() - start <= BACK_TO_PREVIOUS_S && playing && playing.origin.kind !== "single") {
+      // The track before it; a first track has none, so it goes back to its own start.
+      if (this.director.run(this.inEngineIds({ type: "previous", lane, target })).ok) {
+        const now = this.director.report().find((room) => room.roomId === roomId);
+        const lanePlaying = lane === "music" ? now?.music : now?.ambience;
+        if (lanePlaying) this.emit("announce", `${LANE_LABEL[lane]}${this.inRoom(target)}: ${lanePlaying.title}`);
+        return OK;
+      }
+    }
+    return this.seek(lane, start, target);
+  }
+  // --- end f-live ---
 
   previewForward(): CueOutcome {
     const run = this.previewRun;

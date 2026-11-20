@@ -622,6 +622,26 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     expect(rig.audio.previewQueue()).toBeNull();
   });
 
+  /* 0.6.0 (f-live 3; R60-GAPS row 20): a room on air has the same Back and queue as the preview. */
+  it("f-live: a room's queue (Played, Now playing) and Back: within 3 s the track before, later the start of this one", async () => {
+    rig.audio.playPlaylist("P", { fadeMs: 0 });
+    await rig.advance(0.5);
+    expect(rig.audio.roomQueue()).toMatchObject({ playlistId: "P", played: [], now: { trackId: "m2" } });
+    rig.audio.next("music");
+    await rig.advance(0.5);
+    expect(rig.audio.roomQueue()).toMatchObject({ played: [{ trackId: "m2" }], now: { trackId: "m3" } });
+    expect(rig.audio.roomBack("music")).toEqual({ ok: true });
+    await rig.advance(0.2);
+    expect(state().rooms[0].music?.trackId).toBe("m2");
+    await rig.advance(4);
+    expect(rig.audio.roomBack("music")).toEqual({ ok: true });
+    await rig.advance(0.2);
+    expect(state().rooms[0].music?.trackId).toBe("m2");
+    expect(state().rooms[0].music!.position!).toBeLessThan(1);
+    rig.audio.stopAll();
+    expect(rig.audio.roomQueue()).toBeNull();
+  });
+
   it("previews a playlist's first track and a pad's sound, and says when a playlist is empty", async () => {
     rig.audio.previewPlaylist("P");
     expect(state().preview).toMatchObject({ key: "pl:P", label: "Battle: M2" });

@@ -391,6 +391,26 @@ describe("the selected pad's own box", () => {
     expect((await api.boards.list()).find((b) => b.id === "weather")!.slots[0]!.mode).toBe("toggle");
   });
 
+  /* 0.6.0 (f-live 1; round 9 §11, item 47): While it plays: the usual for its play mode, Dip the music or Don't dip. */
+  it("While it plays is kept with the pad, and the usual follows its play mode", async () => {
+    const user = userEvent.setup();
+    const { api } = await open("board/weather");
+    const box = screen.getByRole("region", { name: "Pad: Thunder crack" });
+    const field = within(within(box).getByRole("radiogroup", { name: "While it plays" }));
+    expect(field.getAllByRole("radio").map((b) => b.textContent)).toEqual(["The usual (dip)", "Dip the music", "Don't dip"]);
+    expect(field.getByRole("radio", { name: "The usual (dip)" })).toHaveAttribute("aria-checked", "true");
+    await user.click(field.getByRole("radio", { name: "Don't dip" }));
+    await waitFor(async () => expect((await api.boards.list()).find((b) => b.id === "weather")!.slots[0]!.dip).toBe(false));
+    expect(field.getByRole("radio", { name: "Don't dip" })).toHaveAttribute("aria-checked", "true");
+    // Arrow keys move the choice, as in any group of radio buttons.
+    field.getByRole("radio", { name: "Don't dip" }).focus();
+    await user.keyboard("{ArrowLeft}");
+    await waitFor(async () => expect((await api.boards.list()).find((b) => b.id === "weather")!.slots[0]!.dip).toBe(true));
+    expect(field.getByRole("radio", { name: "Dip the music" })).toHaveFocus();
+    await user.click(within(within(box).getAllByRole("group", { name: "Play mode" })[1]).getByRole("button", { name: "Toggle loop" }));
+    await waitFor(() => expect(field.getAllByRole("radio")[0]).toHaveTextContent("The usual (don't dip)"));
+  });
+
   it("a key another pad has warns, and Remove it from that pad clears the other pad's key", async () => {
     const user = userEvent.setup();
     const { api } = await open("board/combat");

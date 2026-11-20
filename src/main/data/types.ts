@@ -255,6 +255,11 @@ export type Pad = {
    * grows; pads a resize moved come back. Always false on the grid.
    */
   putAside: boolean;
+  /**
+   * Schema v12 (0.6.0, f-live; round 9 §11): While it plays: true dips the music, false never does, null the usual for
+   * its play mode (a one-shot or Restart on press pad dips; a Toggle loop or Hold to play pad does not).
+   */
+  dip: boolean | null;
 };
 
 /** What a pad can be given; missing fields take the prototype's defaults (New pad, star, gold, one-shot, 80%, 1.5 s). */

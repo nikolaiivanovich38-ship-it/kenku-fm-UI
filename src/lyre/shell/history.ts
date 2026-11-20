@@ -101,6 +101,8 @@ export interface PlaceNames {
   playlist(id: string): string | null;
   board(id: string): string | null;
   track(id: string): string | null;
+  /** f-live: a scene's name, for the Audio profile's trail from a scene; null when it is not known. */
+  scene?(campaignId: string, sessionId: string, sceneId: string): string | null;
 }
 
 /** The parts of a path: "session/crown/s14" → ["session", "crown", "s14"]. */
@@ -148,6 +150,39 @@ export interface Crumb {
 }
 
 /**
+ * The Audio profile's trail (0.6.0, f-live; round 9 §1, r9nav.js prof.crumbs): it follows the place it shows and ends
+ * with Track details there, which opens that place with the Track panel on the track. From a playlist: Playlists ›
+ * the playlist › Track details. From a scene or a session's list: the campaign › Session n › (the scene ›) Track
+ * details. Else, or when that place is gone: Track library › Track details (0.5.2, Nik's item 3: "breadcrumb nav in
+ * track audio profile up to track details").
+ */
+function profileTrail(trackId: string, place: string, names?: PlaceNames): Crumb[] {
+  const [kind, x, y, z] = place.split(":");
+  if (kind === "pl" && x) {
+    const name = names?.playlist(x);
+    if (name != null) return [{ href: "#/playlists", label: "Playlists" }, { href: `#/playlist/${x}`, label: name }, { href: `#/playlist/${x}/${trackId}`, label: "Track details" }];
+  }
+  if ((kind === "sc" || kind === "ss") && x && y) {
+    const campaign = names?.campaign(x);
+    const n = names?.session(x, y);
+    if (campaign != null && n != null) {
+      const session = `#/session/${x}/${y}`;
+      const scene = kind === "sc" && z ? names?.scene?.(x, y, z) : null;
+      return [
+        { href: `#/campaign/${x}`, label: campaign },
+        { href: session, label: `Session ${n}` },
+        ...(scene ? [{ href: session, label: scene }] : []),
+        { href: `${session}/${trackId}`, label: "Track details" },
+      ];
+    }
+  }
+  return [
+    { href: "#/library", label: "Track library" },
+    { href: `#/library/${trackId}`, label: "Track details" },
+  ];
+}
+
+/**
  * The trail (round 6 part 6): a screen's parents, each a link. The screen's own title (its h1) follows as the last
  * part. Screens at the top of the menu (Campaigns, Library, Playlists, Pad boards, Rooms, Settings, Look and feel,
  * Live) have none.
@@ -167,12 +202,7 @@ export function trailOf(path: string, names?: PlaceNames): Crumb[] {
     case "board":
       return [{ href: "#/boards", label: "Pad boards" }];
     case "profile":
-      // The Track library, then the track's details there (0.5.2, Nik's item 3: "breadcrumb nav in track audio profile up
-      // to track details").
-      return [
-        { href: "#/library", label: "Track library" },
-        { href: `#/library/${a}`, label: "Track details" },
-      ];
+      return profileTrail(a, partsOf(path)[2] ?? "", names);
     case "backup":
     case "moved":
     case "relink":

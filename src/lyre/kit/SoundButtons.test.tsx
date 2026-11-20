@@ -11,7 +11,7 @@ import { AnnouncerProvider } from "../shell/Announcer";
 import { expectNoAxeViolations } from "../test/axe";
 import { PlayOnAirButton, PreviewButton, previewKeyOf, type SoundTarget } from "./SoundButtons";
 
-const pad = (id: string, label: string) => ({ id, label, sound: { kind: "none" } as never, mode: "oneshot" as const, key: "", color: "steel" as const, icon: "star", volume: 1, fadeOutMs: 0, aside: false, steps: null as null });
+const pad = (id: string, label: string) => ({ id, label, sound: { kind: "none" } as never, mode: "oneshot" as const, key: "", color: "steel" as const, icon: "star", volume: 1, fadeOutMs: 0, aside: false, steps: null as null, dip: null as boolean | null });
 const SCENE = { kind: "scene" as const, campaignId: "crown", sessionId: "s14", sceneId: "sc3" };
 const board: PadBoard = { id: "combat", name: "Combat", cols: 2, rows: 1, slots: [null, pad("sword", "Sword")], spare: [], dividers: [], folderId: null };
 

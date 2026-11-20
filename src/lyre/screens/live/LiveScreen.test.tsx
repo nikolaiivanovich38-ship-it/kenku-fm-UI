@@ -1480,6 +1480,22 @@ describe("round 10 fixes (Nik, 18 Nov, answer 1): a track of a manual playlist u
     await waitFor(() => expect(tracks().getAllByRole("listitem")).toHaveLength(n - 1));
   });
 
+  /* 0.6.0 (f-live 2; round 9 §8, item 42): its dividers are headings here too, each with Play from here. */
+  it("shows the playlist's dividers as headings; Play from here plays the playlist on air from the track under one", async () => {
+    const { api, sound } = await openLive();
+    const third = (await api.playlists.tracks("p-company"))[2];
+    await act(async () => void (await api.playlists.addDivider("p-company", "The voyage home", 2)));
+    await userEvent.click(region("Campaign playlists").getByRole("button", { name: "Campaign Playlists" }));
+    await userEvent.click(region("Campaign playlists").getByRole("button", { name: "Show contents of The Company themes" }));
+    const list = within(region("Campaign playlists").getByRole("list", { name: "Tracks in The Company themes" }));
+    const heading = await list.findByRole("listitem", { name: "Section: The voyage home" });
+    await userEvent.click(within(heading).getByRole("button", { name: "Play from here: The voyage home" }));
+    await playOn(sound);
+    const music = sound.audio.getNowPlaying().rooms[0].music;
+    expect(music?.trackId).toBe(third);
+    expect(music?.playlistId).toBe("p-company");
+  });
+
   it("Play on air stands last on a row, with the words Players hear this now", async () => {
     await openLive();
     await userEvent.click(region("Campaign playlists").getByRole("button", { name: "Campaign Playlists" }));

@@ -44,3 +44,10 @@ body :is(.tray, .lv-grp) { border: 0; background: none; }
 .dlg-esc { font-size: var(--fs-s); color: var(--warn); font-weight: 700; }
 /* The foot's count keeps room for its words, so a narrow panel's buttons wrap below it instead of over it. */
 .pk-count { min-width: 6em; overflow-wrap: anywhere; }
+
+/* --- f-live --- 0.6.0 (R60-GAPS row 20, prototype r10.css): the Now playing bar's rows have a wider edge, on-air rows in
+   the on-air colour and the preview's in the preview colour with a tint; a room's queue panel has the on-air edge. */
+.oab-row:not(.you) { box-shadow: inset 5px 0 0 var(--onair); }
+.oab-row.you { box-shadow: inset 5px 0 0 var(--preview); background: color-mix(in srgb, var(--preview) 7%, transparent); }
+.r9-queue.air { box-shadow: inset 4px 0 0 var(--onair); }
+/* --- end f-live --- */

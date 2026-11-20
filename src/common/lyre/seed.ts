@@ -376,6 +376,7 @@ function boards(): PadBoard[] {
     fadeOutMs: 1500,
     aside: ASIDE.has(p.id),
     steps: null as Pad["steps"],
+    dip: null,
   });
   return BOARDS.map((b) => ({ id: b.id, name: b.name, cols: b.cols, rows: b.rows, slots: b.slots.map((p) => (p ? pad(p) : null)), spare: b.spare.map(pad), dividers: [] as PadBoard["dividers"], folderId: null as string | null }));
 }

@@ -89,6 +89,14 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   playUpNext = this.record("playUpNext");
   setDip = this.record("setDip");
   // --- end r10-live ---
+  // --- f-live ---
+  roomQueueNow: import("../lyreAudio").RoomQueue | null = null;
+  roomQueue = (...args: unknown[]) => {
+    this.calls.push(["roomQueue", ...args]);
+    return this.roomQueueNow;
+  };
+  roomBack = this.record("roomBack");
+  // --- end f-live ---
   playNext = this.record("playNext");
   addToQueue = this.record("addToQueue");
   removeFromUpNext = this.record("removeFromUpNext");

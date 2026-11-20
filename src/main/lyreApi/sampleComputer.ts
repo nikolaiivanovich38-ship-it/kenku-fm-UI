@@ -110,7 +110,7 @@ function samTracks(seed: SeedData): FileTrack[] {
 
 const pad = (n: number, trackId: string, label: string): Pad => ({
   id: `sam-pad-${n}`, label, icon: "bolt", color: "plum", key: String(n), mode: "oneshot",
-  sound: { kind: "single", trackIds: [trackId], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500, aside: false, steps: null,
+  sound: { kind: "single", trackIds: [trackId], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500, aside: false, steps: null, dip: null,
 });
 
 const scene = (id: string, name: string, music: SceneInfo["music"], boardIds: string[] = []): SceneInfo => ({ id, name, music, ambience: null, boardIds, startsWhen: "", notes: "", noteLink: "", trackNames: {}, repeatOnes: [], steps: null, movesOn: { when: "stay" } });
