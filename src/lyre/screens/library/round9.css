@@ -61,3 +61,8 @@ li.pl-item.r9-pl-before { box-shadow: inset 0 3px 0 var(--accent); }
 li.pl-item.r9-pl-after { box-shadow: inset 0 -3px 0 var(--accent); }
 li.pl-item.r9-pl-dragging { opacity: .5; }
 .pl-tools .r9-sortw { max-width: 12ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Round 10 (P14, R10-FIX §3 item 10): the rows' button column holds Preview, Play on air, the play order, ⋯ and → Open. */
+.view .pl-grid.pl-row, .view .pl-grid.pl-colhead { grid-template-columns: minmax(0, 1fr) 48px 56px 152px; }
+.view .r10-open { flex: none; }
+/* A manual playlist's track shown unfolded: its ⋯ after Preview. */
+.view .xp-row .r10-xpmore { flex: none; }

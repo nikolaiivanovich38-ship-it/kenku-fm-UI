@@ -224,6 +224,8 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     ),
     update: write(id, object({ "name?": text(500), "notes?": text(), "rule?": rule })),
     copyAsManual: write(id),
+    // --- r10-tracks --- Round 9: a playlist's place in Your order.
+    move: write(id, whole),
     delete: write(id),
     addTracks: withOptional(write(id, list(id), whole), 2),
     removeTrack: write(id, id),

@@ -966,11 +966,11 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           if (input.kind === "manual") {
             const ids = [...new Set(input.trackIds ?? [])];
             ids.forEach(track);
-            pl = { id: newId("playlist"), name, lane: input.lane, order: null, normalise: null, kind: "manual", trackIds: ids, notes: input.notes ?? "", folderId: null, dividers: [] };
+            pl = { id: newId("playlist"), name, lane: input.lane, order: null, normalise: null, kind: "manual", trackIds: ids, notes: input.notes ?? "", folderId: null, dividers: [], createdAt: Date.now() };
           } else if (input.kind === "dynamic") {
             const rule = copy(input.rule ?? { conds: [] });
             checkRule(rule);
-            pl = { id: newId("playlist"), name, lane: input.lane, order: null, normalise: null, kind: "dynamic", rule, notes: input.notes ?? "", folderId: null, dividers: [] };
+            pl = { id: newId("playlist"), name, lane: input.lane, order: null, normalise: null, kind: "dynamic", rule, notes: input.notes ?? "", folderId: null, dividers: [], createdAt: Date.now() };
           } else refuse("invalid", "A playlist is manual or dynamic.", "kind");
           state.playlists.unshift(pl);
           return pl;
@@ -996,6 +996,21 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           const made: PlaylistInfo = { id: newId("playlist"), name: `${pl.name} (manual)`, lane: pl.lane, order: null, normalise: pl.normalise, kind: "manual", trackIds: playlistTracks(pl, lookup()).map((t) => t.id), notes: pl.notes, folderId: pl.folderId, dividers: [] };
           state.playlists.splice(state.playlists.indexOf(pl) + 1, 0, made);
           return made;
+        });
+      },
+      // --- r10-tracks --- Round 9 (item 38): Your order, among the playlists in the same folder.
+      async move(id, toIndex) {
+        let label = "";
+        return write(() => label, ["playlists"], () => {
+          const pl = playlist(id);
+          const siblings = state.playlists.filter((p) => p.folderId === pl.folderId);
+          const rest = siblings.filter((p) => p !== pl);
+          const target = rest[clampIndex(toIndex, rest.length)];
+          state.playlists.splice(state.playlists.indexOf(pl), 1);
+          // Before the sibling now at that index, or after the last one.
+          const at = target ? state.playlists.indexOf(target) : state.playlists.indexOf(rest[rest.length - 1]) + 1;
+          state.playlists.splice(at, 0, pl);
+          label = `Move the playlist ${quoted(pl.name)}`;
         });
       },
       async delete(id) {

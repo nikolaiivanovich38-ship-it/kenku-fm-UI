@@ -392,6 +392,18 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.playlists.copyAsManual("nope"), "not-found");
       });
 
+      it("round 9: moves a playlist in Your order among the playlists of its folder, kept", async () => {
+        const before = (await api.playlists.list()).filter((p) => p.folderId === null).map((p) => p.id);
+        const last = before[before.length - 1];
+        valueOf(await api.playlists.move(last, 0));
+        expect((await api.playlists.list()).filter((p) => p.folderId === null).map((p) => p.id)).toEqual([last, ...before.slice(0, -1)]);
+        valueOf(await api.playlists.move(last, before.length - 1));
+        expect((await api.playlists.list()).filter((p) => p.folderId === null).map((p) => p.id)).toEqual(before);
+        valueOf(await api.playlists.move(before[0], 1));
+        expect((await api.playlists.list()).filter((p) => p.folderId === null).map((p) => p.id).slice(0, 2)).toEqual([before[1], before[0]]);
+        expectRefused(await api.playlists.move("nope", 0), "not-found");
+      });
+
       it("deletes a playlist and takes it out of every campaign, session, scene and place's own settings", async () => {
         valueOf(await api.profiles.set("t41", { kind: "playlist", playlistId: "p-abbess" }, { endMs: 100_000 }));
         expect((await api.campaigns.usesOf({ kind: "playlist", id: "p-abbess" })).length).toBeGreaterThan(0);

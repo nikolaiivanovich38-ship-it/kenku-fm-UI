@@ -77,6 +77,7 @@ import {
   clearPlayOrder,
   clearProfileOverride,
   copyPlaylist,
+  movePlaylist,
   createBoard,
   createCampaign,
   createPlaylist,
@@ -570,8 +571,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       const order = orders.get(p.id) ?? null;
       const normalise = choices.get(p.id) ?? null;
       return p.kind === "dynamic"
-        ? { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes, folderId: p.folderId, dividers: [] }
-        : { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes, folderId: p.folderId, dividers: dividers.get(p.id) ?? [] };
+        ? { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes, folderId: p.folderId, dividers: [], createdAt: p.createdAt }
+        : { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes, folderId: p.folderId, dividers: dividers.get(p.id) ?? [], createdAt: p.createdAt };
     });
   }
   const requirePlaylist = (id: string) => playlistInfos().find((p) => p.id === id) ?? refuse("not-found", ENTITY_WORDS.playlist);
@@ -1048,6 +1049,14 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           let made = "";
           store.change(`Make ${quoted(name)}`, () => (made = copyPlaylist(store, id, { title: name, kind: "manual" }).id));
           return requirePlaylist(made);
+        });
+      },
+      async move(id, toIndex) {
+        // Round 9 (item 38): Your order, among the playlists in the same folder.
+        return write(["playlists"], () => {
+          const pl = requirePlaylist(id);
+          const siblings = playlistInfos().filter((p) => p.folderId === pl.folderId).map((p) => p.id);
+          store.change(`Move the playlist ${quoted(pl.name)}`, () => movePlaylist(store, id, { placement: placementAt(siblings, id, toIndex) }));
         });
       },
       async delete(id) {

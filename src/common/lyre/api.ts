@@ -352,6 +352,9 @@ export type PlaylistInfo = DomainPlaylist & {
   order: PlayOrder | null;
   /** PLY-15: its normalising choice for its tracks when they play from it; null follows the library. */
   normalise: NormaliseChoice | null;
+  // --- r10-tracks ---
+  /** Round 9 (Sort › Newest): when it was made (ms since 1970); missing where nothing recorded it (the sample data). */
+  createdAt?: number;
 };
 
 /**
@@ -885,6 +888,12 @@ export interface LyreApi {
     update(id: string, patch: PlaylistPatch): Promise<WriteResult<PlaylistInfo>>;
     /** A manual copy of the tracks it has now, placed after it. playlists.js L.acts.plcopyhand. */
     copyAsManual(id: string): Promise<WriteResult<PlaylistInfo>>;
+    // --- r10-tracks ---
+    /**
+     * Round 9 (item 38: "reorder playlists in the playlist list"): the playlist's place in Your order, as an index
+     * among the playlists in the same folder (folders keep their own order). r9lists.js moveTo.
+     */
+    move(id: string, toIndex: number): Promise<WriteResult>;
     /** Deletes it and takes it out of every campaign, session and scene; tracks stay. playlists.js L.acts.pldeldo. */
     delete(id: string): Promise<WriteResult>;
     /** Adds tracks to a manual playlist at a place (default the end). playlists.js pladd, drops; library.js lbpladd, lbbpl, lbrmpl. */
@@ -1111,7 +1120,7 @@ export const LYRE_API_METHODS = {
   library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise", "find", "put", "removeTracks", "deleteFiles", "setKind"],
   tags: ["listGroups", "tagTracks", "createGroup", "updateGroup", "moveGroup", "deleteGroup", "createTag", "renameTag", "mergeTag", "deleteTag", "updateTag", "moveTag"],
   folders: ["list", "create", "update", "delete", "moveInto"],
-  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise", "trackOrders", "setTrackOrder", "clearTrackOrder", "addDivider", "renameDivider", "removeDivider", "moveItem"],
+  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "move", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise", "trackOrders", "setTrackOrder", "clearTrackOrder", "addDivider", "renameDivider", "removeDivider", "moveItem"],
   boards: ["list", "create", "rename", "resize", "duplicate", "delete", "addPad", "updatePad", "duplicatePad", "movePad", "putAllBack", "deletePad", "setDivider", "setPadSteps"],
   campaigns: ["list", "get", "create", "update", "move", "delete", "setOnHand", "usesOf", "setUses"],
   sessions: ["create", "update", "move", "delete", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName", "setRepeatOne", "setSceneSteps"],

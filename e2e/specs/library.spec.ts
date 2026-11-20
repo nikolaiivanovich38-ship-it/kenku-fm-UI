@@ -958,7 +958,6 @@ test.describe("round 9: Columns, filters that show or hide, and the Play… pick
   const header = (page: Page, name: string) => grid(page).getByRole("columnheader", { name: new RegExp(`^${name}`) });
 
   test("Columns beside Sort: Title always, the usual three ticked, more added, kept, and Put back the usual columns", async ({ page }) => {
-    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await page.getByRole("button", { name: "Columns", exact: true }).click();
     const menu = page.getByRole("menu", { name: "Columns" });
@@ -984,7 +983,6 @@ test.describe("round 9: Columns, filters that show or hide, and the Play… pick
   });
 
   test("a chosen column's header sorts by it, A to Z first and then Z to A", async ({ page }) => {
-    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await page.getByRole("button", { name: "Columns", exact: true }).click();
     await page.getByRole("menu", { name: "Columns" }).getByRole("menuitemcheckbox", { name: "Artist", exact: true }).click();
@@ -998,7 +996,6 @@ test.describe("round 9: Columns, filters that show or hide, and the Play… pick
   });
 
   test("a filter chip: once shows only those tracks, again hides them (read out as hidden), again clears", async ({ page }) => {
-    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await openFilters(page);
     const grief = () => filters(page).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ });
@@ -1017,7 +1014,6 @@ test.describe("round 9: Columns, filters that show or hide, and the Play… pick
   });
 
   test("a folder works like a chip: once shows only it, again hides its tracks, again shows them", async ({ page }) => {
-    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await openFilters(page);
     const effects = () => filters(page).getByRole("button", { name: /^H:\\Audio\\Effects/ });
@@ -1034,7 +1030,6 @@ test.describe("round 9: Columns, filters that show or hide, and the Play… pick
   });
 
   test("the order button sorts the filter chips, and Clear all filters clears shown and hidden ones", async ({ page }) => {
-    expectFailureUntilBuilt("r10-tracks");
     await openRoute(page, "library");
     await openFilters(page);
     const mood = filters(page).getByRole("group", { name: "Mood" });

@@ -544,7 +544,6 @@ test.describe("0.5.2: one length for a track", () => {
    in line"). A track comes out of a playlist from its row's ⋯ or with Delete on its row, on the playlist's page and
    wherever its tracks are shown unfolded, with Undo; a playlist is deleted from its row on the Playlists page. */
 test.describe("round 10: taking tracks out and deleting playlists in line", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-tracks"));
 
   test("Delete on a focused track row takes it out of the playlist; Undo puts it back where it was", async ({ page }) => {
     await openRoute(page, "playlist/p-abbess");
@@ -593,7 +592,6 @@ test.describe("round 10: taking tracks out and deleting playlists in line", () =
    Move up / Move down / Move to the top in Your order, → Open on every row, and a manual playlist's dividers wherever its
    tracks are listed. Round 9 left these checks to the build stream: written by r10-tracks against the prototype first. */
 test.describe("round 9: the Playlists list's order, → Open and dividers", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-tracks"));
   const names = async (page: Page) =>
     (await list(page).getByRole("button", { name: /^(Show|Hide) contents of / }).evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label") ?? ""))).map((n) => n.replace(/^(Show|Hide) contents of /, ""));
   const sortButton = (page: Page) => page.getByRole("button", { name: /^(Your order|Name A to Z|Name Z to A|Most tracks|Longest|Most used|Newest)$/ });

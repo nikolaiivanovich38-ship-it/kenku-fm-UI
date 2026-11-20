@@ -77,7 +77,9 @@ describe("Playlists: every playlist", () => {
     expect(audio.calls.some(([m, id]) => m === "playPlaylist" && id === "p-company")).toBe(true);
     await user.click(row.getByRole("button", { name: "More for The Company themes" }));
     const menu = screen.getByRole("menu", { name: "More for The Company themes" });
-    expect(within(menu).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Open", "Use in…", "Move to folder…"]);
+    // Round 9 (item 38): Move up, Move down, Move to the top first; round 10 fixes: Delete playlist… last.
+    expect(within(menu).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Move upAlt+↑", "Move downAlt+↓", "Move to the top", "Open", "Use in…", "Move to folder…", "Delete playlist…"]);
+    expect(within(menu).getByRole("menuitem", { name: /^Move up/ })).toBeDisabled();
   });
 
   it("shows what plays on air in a bar at the foot of the screen", async () => {
