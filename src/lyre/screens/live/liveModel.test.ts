@@ -26,6 +26,7 @@ import {
   liveKey,
   liveRooms,
   loopSettingAt,
+  newRoomChoices,
   moodsByUse,
   offScriptSearch,
   padForKey,
@@ -132,6 +133,20 @@ describe("rooms: one On air box per bot in a voice channel", () => {
     const own = channelChoices(PROTOTYPE_OUTPUTS, PROTOTYPE_OUTPUTS.bots[0])[0].items;
     expect(own.filter((i) => i.sub.endsWith(" · players")).map((i) => `${i.name} ${i.sub}`)).toEqual(["Table 5 people · players"]);
     expect(addRoomChoices(withSide("connected"))).toEqual([]);
+  });
+
+  it("round 9 (item 56): + Room lists the voice channels and picks the bot itself: the first bot in no room that can join each server", () => {
+    const servers = newRoomChoices(PROTOTYPE_OUTPUTS);
+    expect(servers.map((s) => s.server)).toEqual(PROTOTYPE_OUTPUTS.servers.filter((s) => PROTOTYPE_OUTPUTS.bots[1].serverIds.includes(s.id)).map((s) => s.name));
+    const gull = servers[0];
+    expect(gull.items.every((i) => i.botId === SIDE_BOT)).toBe(true);
+    expect(gull.items.find((i) => i.name === "Table")).toMatchObject({ taken: true });
+    expect(gull.items.find((i) => i.name === "Side room")).toMatchObject({ taken: false, here: false, sub: "empty" });
+    // A server only a busy bot can join is left out; with every bot in a room there is nothing to offer.
+    const onlyTable: LyreOutputs = { ...PROTOTYPE_OUTPUTS, bots: PROTOTYPE_OUTPUTS.bots.map((b) => (b.id === SIDE_BOT ? { ...b, serverIds: [PROTOTYPE_OUTPUTS.servers[0].id] } : b)) };
+    expect(newRoomChoices(onlyTable).map((s) => s.server)).toEqual([PROTOTYPE_OUTPUTS.servers[0].name]);
+    expect(newRoomChoices(withSide("connected"))).toEqual([]);
+    expect(newRoomChoices(null)).toEqual([]);
   });
 
   it("the one-click fix when nobody hears anything joins the channel most people are in", () => {
