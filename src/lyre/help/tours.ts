@@ -8,6 +8,7 @@
  */
 import type { RouteName } from "../shell/routes";
 import type { TourStep } from "./Tour";
+import { LIVE_TOUR } from "../screens/live/liveTour";
 
 export type TourKey = "settings" | "rooms" | "library" | "details" | "playlists" | "session" | "board" | "live" | "look";
 
@@ -47,6 +48,17 @@ function control(name: RegExp, within = "#view"): () => Element | null {
 /** The first shown element matching a CSS selector. */
 function first(selector: string): () => Element | null {
   return () => Array.from(document.querySelectorAll(selector)).find(shown) ?? null;
+}
+
+/** The first of a CSS selector list's parts that is drawn, tried in order (Live's tour gives its targets so). */
+function firstOf(selectors: string): () => Element | null {
+  return () => {
+    for (const part of selectors.split(",")) {
+      const found = first(part.trim())();
+      if (found) return found;
+    }
+    return null;
+  };
 }
 
 /** A box (region) by its name. */
@@ -121,18 +133,11 @@ export const TOURS: Record<TourKey, TourDef> = {
       { title: "While it plays", text: "Choose whether the music gets quieter while this pad plays.", target: control(/^While it plays/) },
     ],
   },
-  // Round 10 (table review D-S7): what matters at the table. Arrange and Keys are in the article.
+  // Round 10 (table review D-S7): what matters at the table; r10-live writes the steps (screens/live/liveTour.ts).
   live: {
     name: "Live",
     route: () => "#/live",
-    steps: [
-      { title: "Next scene", text: "Press Space to start the next scene. If you press it twice within a second, the second press is ignored.", target: control(/^(Next scene|Start)/) },
-      { title: "On air: what the players hear", text: "This box shows each room, what it plays now and what comes next. The red light is on while the players hear something.", target: region("On air") },
-      { title: "Preview: only you", text: "To hear a track in your headphones only, use the headphones button. Play on air, the last button on a row, is for the players.", target: control(/^Preview /) },
-      { title: "Pads and their keys", text: "Click a pad or press its key to play it. Press Stop pads, beside them, to stop all pads.", target: first("#view .lv-pad") },
-      { title: "Undo", text: "Undo shows here for 8 seconds after you change what the players hear. You can also press Ctrl+Z.", target: control(/^Undo/) },
-      { title: "Fade all and Stop all", text: "Everything fades out with Fade all (Shift+Esc), or stops at once with Stop all, in your headphones too. You can undo both.", target: control(/^Fade all/) },
-    ],
+    steps: LIVE_TOUR.map((step) => ({ title: step.title, text: step.text, target: firstOf(step.target) })),
   },
   look: {
     name: "Look and feel",
