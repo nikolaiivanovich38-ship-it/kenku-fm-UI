@@ -974,3 +974,19 @@ From the round 10 prototype (design/prototype/ROUND9.md §3, §7–§10, ROUND10
   `#/session/<cid>/<sid>/<tid>` open it on arrival.
 - **The queue** (`trackPanel/QueuePanel.tsx`, `NowPlayingBar.tsx`, `lyreAudio.ts` `previewQueue`, `previewBack`,
   `previewForward`, `previewPlayAt`): a previewed playlist's queue in the side panel `queue`.
+
+## 0.6.0: f-live (finishing work and review fixes)
+
+- A pad's While it plays: `Pad.dip` (schema version 12, `docs/data-model.md`), the field in `screens/boards/PadEditor.tsx`,
+  and `LibrarySnapshot.pad` hands it to the engine (`PadSound.dip`, `padDips`). The dip chosen in Settings › Sound to
+  Discord reaches the audio host from `settings/SettingsAppliers.tsx` at start-up and after each change (review I4), and
+  a change applies to a dip already under way (`RoomPlayer.updateDip(true)`, M1).
+- Live's unfolded playlists list their tracks with `DividedTrackList` (dividers as headings, Play from here).
+- A room's row on the Now playing bar has Back (`LyreAudio.roomBack`) and Queue n; `QueuePanel` takes `room` and shows
+  `LyreAudio.roomQueue` (Played, Now playing) with the room's `upNextList` (Play now on planned tracks).
+- The Audio profile's trail follows the place in its route (`history.ts profileTrail`; `PlaceNames.scene`).
+- Undo (review I2, I3): a room keeps the voices fading out of its lanes and Undo stops them (`Voice.stop` with a shorter
+  fade brings a stop forward); Play on air's Undo keeps only the rooms it played in (`snapshotRooms(targets)`), and
+  `restore` leaves a lane alone that still plays the snapshot's item on its own voice.
+- Find missing files (review I1) treats a whole track and its parts as one file: one is looked for, the others get the
+  same answer, and `applyRelink` moves the other tracks of a relinked track's old file along with it.
