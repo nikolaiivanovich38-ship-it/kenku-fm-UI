@@ -74,7 +74,7 @@
   L.acts.r9paddip = function (el) {
     var p = null; D.boards.forEach(function (b) { b.slots.concat(b.spare).forEach(function (x) { if (x && x.id === el.dataset.pid) p = x; }); }); if (!p) return;
     if (el.dataset.v === 'usual') delete p.dip; else p.dip = el.dataset.v === 'dip';
-    L.render(); L.saved(p.label + (L.padDips(p) ? ' dips the music' : ' leaves the music as it is')); var b = document.querySelector('[data-k="r9pd-' + el.dataset.v + '"]'); if (b) b.focus();
+    L.render(); L.saved(p.label + (L.padDips(p) ? ' dips the music' : ' leaves the music as it is') + ' while it plays'); var b = document.querySelector('[data-k="r9pd-' + el.dataset.v + '"]'); if (b) b.focus();
   };
 
   // 0.6.0 (f-live, as the app): a group of radio buttons: Tab reaches the chosen one, the arrow keys choose another.

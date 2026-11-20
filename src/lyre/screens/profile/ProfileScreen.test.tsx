@@ -846,8 +846,8 @@ describe("round 9: Split into parts", () => {
     await user.click(within(screen.getByRole("region", { name: "Markers" })).getByRole("button", { name: "Split into parts…" }));
     const dialog = within(screen.getByRole("dialog", { name: "Split into parts" }));
     for (const point of within(dialog.getByRole("group", { name: "Split at" })).getAllByRole("checkbox")) await user.click(point);
-    expect(dialog.getByRole("button", { name: "Make 1 tracks" })).toBeDisabled();
-    expect(dialog.getByText("Tick at least one place to split at.")).toBeInTheDocument();
+    expect(dialog.getByRole("button", { name: "Make 1 track" })).toBeDisabled();
+    expect(dialog.getByText("Tick at least one marker under Split at.")).toBeInTheDocument();
   });
 
   it("with no marker inside the track, Split into parts… says to add one first", async () => {

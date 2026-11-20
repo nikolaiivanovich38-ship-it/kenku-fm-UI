@@ -501,8 +501,8 @@ test.describe("round 9: Split into parts", () => {
     const dialog = page.getByRole("dialog", { name: "Split into parts" });
     const cuts = dialog.getByRole("group", { name: "Split at" }).getByRole("checkbox");
     for (let i = 0; i < 3; i++) await cuts.nth(i).uncheck();
-    await expect(dialog.getByRole("button", { name: "Make 1 tracks" })).toBeDisabled();
-    await expect(dialog.getByRole("button", { name: "Make 1 tracks" })).toHaveAccessibleDescription("Tick at least one place to split at.");
+    await expect(dialog.getByRole("button", { name: "Make 1 track" })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "Make 1 track" })).toHaveAccessibleDescription("Tick at least one marker under Split at.");
     await cuts.nth(0).check();
     await expect(dialog.getByRole("button", { name: "Make 2 tracks" })).toBeEnabled();
   });

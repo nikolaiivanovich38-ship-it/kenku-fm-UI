@@ -94,7 +94,7 @@ export function TrackNameLink({
       className={className ? `track-link ${className}` : "track-link"}
       href={trackDetailsHref(trackId)}
       // The prototype's words (_shared.js contentsHTML): the hover says the name can be dragged.
-      title={dragFrom === undefined ? (title ?? "Open its details") : `${title ? `${title} · ` : ""}click for its details, or drag to another playlist or scene`}
+      title={dragFrom === undefined ? (title ?? "Open its details") : `${title ? `${title} · ` : ""}Click to open its details, or drag it to another playlist or a scene.`}
       {...(dragFrom === undefined ? {} : { draggable: true, [DRAG_TRACK_ATTR]: trackId, "data-drag-from": dragFrom ?? "" })}
       onClick={(event) => {
         if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;

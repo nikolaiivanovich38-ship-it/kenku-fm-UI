@@ -917,8 +917,8 @@ describe("a track of an unfolded playlist, to another list", () => {
     const link = tracks.getAllByRole("link")[0];
     expect(link).toHaveAttribute("draggable", "true");
     expect(link).toHaveAttribute("data-drag-from", "p-abbess");
-    expect(link.getAttribute("title")).toMatch(/drag to another playlist or scene$/);
-    expect(abbey().getByRole("list", { name: /^Tracks in The Abbess/ })).toHaveAccessibleDescription(/drag its name there, or use Add to… in its ⋯ menu/);
+    expect(link.getAttribute("title")).toMatch(/drag it to another playlist or a scene\.$/);
+    expect(abbey().getByRole("list", { name: /^Tracks in The Abbess/ })).toHaveAccessibleDescription(/drag its name there, or use Add to… in its More menu/);
   });
 
   it("a scene's music and a manual playlist's row take the drop", async () => {

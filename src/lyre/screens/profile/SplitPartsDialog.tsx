@@ -8,7 +8,7 @@
 import React, { useState } from "react";
 import { resolveProfile } from "../../../common/domain";
 import type { LibraryTrack } from "../../../common/lyre/api";
-import { lengthText, shownTitle } from "../../../common/lyre/text";
+import { lengthText, plural, shownTitle } from "../../../common/lyre/text";
 import { useLyreApi } from "../../api";
 import { useLyreAudio } from "../../audio";
 import { Button } from "../../kit/Button";
@@ -61,7 +61,7 @@ export function SplitPartsDialog({ track, markers, onClose }: { track: LibraryTr
           <Button onClick={onClose}>Cancel</Button>
           {/* Review M5: one part is the whole track again, so there is nothing to make. */}
           <Button variant="primary" disabled={parts.length < 2} aria-describedby={parts.length < 2 ? "r9-sp-none" : undefined} onClick={() => void make()}>
-            Make {parts.length} tracks
+            Make {plural(parts.length, "track")}
           </Button>
         </>
       }
@@ -86,7 +86,7 @@ export function SplitPartsDialog({ track, markers, onClose }: { track: LibraryTr
       </fieldset>
       {parts.length < 2 && (
         <p className="hint" id="r9-sp-none">
-          Tick at least one place to split at.
+          Tick at least one marker under Split at.
         </p>
       )}
       <table className="r9-sp-table">

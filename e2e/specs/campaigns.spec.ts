@@ -896,7 +896,7 @@ test("round 10: New campaign with something typed: the first Esc says a second o
   await sheet.getByRole("textbox", { name: "Name" }).fill("The Iron Road");
   await page.keyboard.press("Escape");
   await expect(sheet).toBeVisible();
-  await expect(sheet.getByText("Press Esc again to throw away the new campaign")).toBeVisible();
+  await expect(sheet.getByText("Press Esc or click outside once more to throw away the new campaign.")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
 });
