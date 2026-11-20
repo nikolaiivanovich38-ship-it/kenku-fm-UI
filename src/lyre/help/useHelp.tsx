@@ -1,6 +1,6 @@
 /**
  * FND-8: Help and the tour in the shell. The shell calls `useHelp` once and places what it gives: the Help button's
- * state for the rail, the panel inside #app (beside the screen) and the tour over the page.
+ * state for the rail, the panel on the side-panel host (beside the screen, round 10) and the tour over the page.
  *
  * - F1 opens Help from any screen. It is listened for on the window, so it runs after every screen's own key
  *   handlers (on the document): a Live pad on F1 takes the key and plays instead.
@@ -28,8 +28,10 @@ export interface HelpInShell {
   helpOpen: boolean;
   toggleHelp: () => void;
   openHelp: () => void;
-  /** The side panel, or null while Help is closed. */
+  /** The side panel's content, or null while Help is closed. The shell shows it on the side-panel host. */
   panel: React.ReactNode;
+  /** Round 10: the host closed Help to keep the screen's room (another panel opened): focus stays where it is. */
+  closedByHost: () => void;
   /** The tour's popover, or null. */
   tour: React.ReactNode;
 }
@@ -110,6 +112,10 @@ export function useHelp({ firstRunTour = false }: { firstRunTour?: boolean } = {
     helpOpen,
     toggleHelp: () => (helpOpen ? closeHelp() : openHelp()),
     openHelp,
+    closedByHost: () => {
+      returnTo.current = null;
+      setHelpOpen(false);
+    },
     panel: helpOpen ? <HelpPanel onClose={closeHelp} onTour={startTour} diagnostics={pageDiagnostics()} /> : null,
     tour:
       step < 0 ? null : (
