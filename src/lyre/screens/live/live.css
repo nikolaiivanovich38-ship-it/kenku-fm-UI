@@ -716,6 +716,3 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 /* Round 10 (R10-FIX §3): Find's results are a side panel beside Live (kit/SidePanel), not over On air. */
 .side-panel .lv-found { position: static; width: auto; max-height: none; height: 100%; border: 0; border-radius: 0; box-shadow: none; overflow-y: auto; }
 .side-panel .lv-found .lv-off-f { position: sticky; top: 0; z-index: 1; background: var(--surface); flex-wrap: wrap; }
-/* Round 10: with the Undo place and Arrange in the bar its controls sat half a pixel high (content 33 px, centred); one
-   pixel more at the top keeps On air within 24 px of the Find field, as round 6 part 6 asks. */
-.lv-top { padding-top: 6px; padding-bottom: 4px; }

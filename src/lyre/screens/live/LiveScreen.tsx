@@ -614,11 +614,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       <React.Fragment key={id}>{node}</React.Fragment>
     );
   };
-  const onAir = (inColumn: boolean) => (
-    <div className={inColumn ? "lv-dock lv-dock-in" : "lv-dock"} key="onair">
-      <OnAirPane />
-    </div>
-  );
+  const onAir = (inColumn: boolean) => <OnAirPane key="onair" inColumn={inColumn} />;
   return (
     <LiveDataProvider value={data}>
       <div className="lv">

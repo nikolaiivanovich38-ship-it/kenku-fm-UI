@@ -52,7 +52,8 @@ function useShortWindow(): boolean {
 /** A room's id as part of a data-lv or an element id. */
 const lk = (roomId: string) => roomId.replace(/[^\w-]/g, "-");
 
-export function OnAirPane() {
+/** `inColumn`: Arrange moved On air into a column (round 10); it is a box like the others there. */
+export function OnAirPane({ inColumn = false }: { inColumn?: boolean }) {
   const d = useLive();
   const { rooms, now, outputs, client } = d;
   const short = useShortWindow();
@@ -62,7 +63,7 @@ export function OnAirPane() {
   const words = (rooms.length ? rooms.map((r) => ({ name: r.name, music: r.room?.music })) : [{ name: "No room", music: table?.music }]).map((r) => `${r.name}: ${r.music ? r.music.title : "silent"}`).join(" · ");
   const summary = useFoldedSummary("lv-onair", true, <span className="ellipsis" title={words}>{words}</span>);
   return (
-    <div className="lv-dock">
+    <div className={inColumn ? "lv-dock lv-dock-in" : "lv-dock"}>
       <Pane id="lv-onair" title="On air" icon="broadcast" kind="onair" size="auto" flush noMax keys="Alt+1" actions={canAdd ? <AddRoom /> : undefined} summary={summary}>
         <div className={cx("lv-rooms", rooms.length > 1 && "many")}>
           {rooms.length ? rooms.map((r) => <RoomPart key={r.roomId} r={r} short={short} />) : <NoRoomPart table={table} short={short} />}
