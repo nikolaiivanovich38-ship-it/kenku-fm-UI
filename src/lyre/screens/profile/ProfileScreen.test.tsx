@@ -813,3 +813,37 @@ describe("round 5: volume normalisation in the header (PLY-15)", () => {
     expect(screen.getByTitle("In the playlist Ashen King: this track's own choice.")).toBeInTheDocument();
   });
 });
+
+describe("round 9: Split into parts", () => {
+  it("offers each marker inside the track as a split point; Make n tracks makes parts of the same file; Undo takes them out", async () => {
+    const { api, audio, user } = await open();
+    await user.click(within(screen.getByRole("region", { name: "Markers" })).getByRole("button", { name: "Split into parts…" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Split into parts" }));
+    const points = within(dialog.getByRole("group", { name: "Split at" })).getAllByRole("checkbox");
+    expect(points).toHaveLength(3);
+    expect(dialog.getByRole("button", { name: "Make 4 tracks" })).toBeInTheDocument();
+    await user.click(points[1]);
+    expect(dialog.getByRole("button", { name: "Make 3 tracks" })).toBeInTheDocument();
+    expect(dialog.getByRole("table")).toHaveTextContent("1:04 – 5:18");
+    await user.click(dialog.getByRole("button", { name: "Preview part 2" }));
+    expect(audio.calls.some(([m, id, o]) => m === "previewTrack" && id === "t13" && (o as { profile?: { startMs: number } })?.profile?.startMs === 64000)).toBe(true);
+    await user.clear(dialog.getByRole("textbox", { name: "Name of part 2" }));
+    await user.type(dialog.getByRole("textbox", { name: "Name of part 2" }), "Choir section");
+    await user.click(dialog.getByRole("button", { name: "Make 3 tracks" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    const part = (await api.library.listTracks()).find((t) => t.title === "Choir section");
+    expect(part?.partOf).toEqual({ trackId: "t13", startMs: 64000, endMs: 318000 });
+    expect([part?.profile?.startMs, part?.profile?.endMs]).toEqual([64000, 318000]);
+    // One undo step takes every part out (this harness has no Undo note; the Track library's tests press it).
+    expect((await api.history.state()).undoLabel).toMatch(/^Split .* into 3 parts$/);
+    await api.history.undo();
+    await waitFor(async () => expect((await api.library.listTracks()).some((t) => t.title === "Choir section")).toBe(false));
+  });
+
+  it("with no marker inside the track, Split into parts… says to add one first", async () => {
+    const { user } = await open("profile/t44");
+    await user.click(within(screen.getByRole("region", { name: "Markers" })).getByRole("button", { name: "Split into parts…" }));
+    expect(screen.queryByRole("dialog", { name: "Split into parts" })).toBeNull();
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent("Add a marker first: each marker starts a new part"));
+  });
+});

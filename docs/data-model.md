@@ -535,6 +535,32 @@ when a screen asks for the waveform (`peaksOf`). The correction is bookkeeping o
 | `peaks.test.ts` (version 10) | A waveform kept unchecked shows at once and is read once more, the length put right; once checked, not read again; a reader that cannot tell the length leaves it |
 | `../lyreApi/libraryApi.test.ts` (0.5.2 review) | A library with a waveform saved before 0.5.2: `peaksOf` returns it at once and the length is put right in the background |
 
+### Version 11: track parts (0.6.0, r10-tracks)
+
+`schema/v011-track-parts.ts` (round 9 §10, item 8; Nik, 18 Nov, Q11 a: a part plays its part of the same file). Markers ›
+Split into parts… in the Audio profile makes a track for each part between the ticked markers
+(`library.splitIntoParts`, one undo step):
+
+- `tracks.part_of` (the whole track's id; no foreign key, so removing the whole leaves its parts playing),
+  `part_start_ms`, `part_end_ms` (where the file was cut). A part copies its whole's file columns (`root_id`, `path`,
+  `url`, name, size, time, checksum, length), its kind, artist and album, and, when "Copy its tags, Type and Use it
+  for" is ticked, its tags, energy, shape, role and loop advice. Its own audio profile starts and ends it at its cut
+  (Start, End and Loop start at the cut, the whole's markers inside it), so the engine plays the part from the same
+  file with no change of its own. With "Add the parts beside it in its manual playlists", each manual playlist that
+  has the whole gets the parts right after it.
+- The unique indexes that keep one track per file (`tracks_root_path`, `tracks_absolute_path`, `tracks_url`) take,
+  after the file, `iif(part_of IS NULL, '', id)`: two whole tracks still cannot share a file, a part can. Finding a
+  track by its file (`TRACK_BY_PATH_SQL`) asks for `part_of IS NULL` and still uses the same index. `tracks_part_of`
+  finds a whole track's parts.
+- `LibraryTrack.partOf` (`{ trackId, startMs, endMs }`, or null) says it in the details ("Part of …, 1:04–5:18");
+  the whole track lists its parts. Delete file from disk… keeps a part, and a track that has parts, with a reason in
+  `problems`: their file is shared.
+
+| Test | Covers |
+| --- | --- |
+| `schema/v011.test.ts` | Parts share their whole's file, two whole tracks still cannot, the look-up by file finds the whole; the upgrade from version 10 leaves every track whole |
+| `../../common/lyre/contract.ts` (round 9) | `splitIntoParts` in the library and the fake: the parts, their files, tags and profiles, the playlists, Undo, and what it refuses |
+
 ### Import (EDT-6, DAT-5, DAT-8, DAT-4)
 
 - `importAudio(store, { paths }, { tagReader, onProgress, signal, batchSize })`: walks the folders (no links followed), skips files already in the library (one read of every track's location, keyed by `fileKey`: case ignored, as the coming unique path indexes will), reads file facts and tags 8 files at a time, and saves 500 tracks per `changeWithoutHistory` transaction, letting the event loop run between batches. Clears the undo history afterwards (DB review item 10; `changeWithoutHistory` now does it by itself). Measured: 5,000 files into a 20,000-track library in about 1.2 s, saving 0.5 s, longest batch 70 ms (budget: 5 s, 2 s, 200 ms; `import/pipeline.perf.test.ts`). The tag reader's own time comes on top.

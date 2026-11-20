@@ -21,7 +21,7 @@ import { shownTitle } from "../../../common/lyre/text";
 import type { ScreenProps } from "..";
 import { DraftField } from "../campaigns/parts";
 import { sceneOf, sessionOf } from "./places";
-import { AddMarkerButton, EndBox, endStatus, FadesBox, fadesStatus, ListenBox, listenStatus, MarkersBox, markersStatus, PlaceBar } from "./boxes";
+import { AddMarkerButton, EndBox, endStatus, FadesBox, fadesStatus, ListenBox, listenStatus, MarkersBox, markersStatus, PlaceBar, SplitPartsButton } from "./boxes";
 import { fmt } from "./profileModel";
 import { useProfileController } from "./useProfileController";
 import { forgetUndoUnless, useProfileEditor, type ProfileEditor } from "./useProfileEditor";
@@ -208,7 +208,12 @@ function ProfileBody({ editor }: { editor: ProfileEditor }) {
             noMax
             kind="plain"
             status={{ text: markersStatus(c), tone: "idle" }}
-            actions={<AddMarkerButton c={c} />}
+            actions={
+              <>
+                <AddMarkerButton c={c} />
+                <SplitPartsButton c={c} />
+              </>
+            }
           >
             <MarkersBox c={c} />
           </Pane>

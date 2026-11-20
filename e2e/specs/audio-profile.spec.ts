@@ -454,7 +454,6 @@ test.describe("0.5.2: Nik's play test", () => {
    (Nik, 18 Nov, Q11 a). Round 9 left these checks to the build stream: written by r10-tracks against the prototype
    first. t13 has markers at 1:04 (Choir enters), 3:10 (Low swell) and 5:18 (Loop back) in a 7:21 file. */
 test.describe("round 9: Split into parts", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-tracks"));
   const markers = (page: Page) => page.getByRole("region", { name: "Markers", exact: true });
   const library = (page: Page) => page.getByRole("link", { name: /^Track library/ }).first();
 

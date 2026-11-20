@@ -189,6 +189,8 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     removeTracks: write(list(id)),
     deleteFiles: write(list(id, 10_000)),
     setKind: write(list(id), literal("music", "amb", "fx")),
+    // --- r10-tracks --- Round 9: Split into parts… (at most 100 parts, each a name and a range in whole ms).
+    splitIntoParts: write(id, object({ parts: list(object({ name: text(500), startMs: whole, endMs: whole }), 100), copyTags: bool, addToPlaylists: bool })),
   },
   tags: {
     listGroups: read(),

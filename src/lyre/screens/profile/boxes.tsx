@@ -16,6 +16,8 @@ import { envAt, fmt, fmt1, fmtPoint, POINT, sketchPath, startAtChoices, times, t
 import { endOf, type TrackEnd } from "../library/trackEnd";
 import { followNameOf } from "../library/TrackBehaviour";
 import { PlayAfterPicker } from "../library/PlayAfterPicker";
+import { SplitPartsDialog } from "./SplitPartsDialog";
+import { useAnnounce } from "../../shell/Announcer";
 import { ProfileLink } from "../../kit/ProfileLink";
 import { TrackPickUp } from "../library/PickUpSwitch";
 import type { ProfileController } from "./useProfileController";
@@ -442,6 +444,34 @@ export function AddMarkerButton({ c }: C) {
     >
       Add marker at playhead
     </Button>
+  );
+}
+
+/**
+ * Round 9 (ROUND9.md §10, item 8): Split into parts… beside Add marker. Each marker inside the track starts a part;
+ * with none, the button says to add a marker first.
+ */
+export function SplitPartsButton({ c }: C) {
+  const { toast } = useAnnounce();
+  const [open, setOpen] = useState(false);
+  const markers = c.p.markers.map((m) => ({ atMs: Math.round(m.at * 1000), label: m.label }));
+  const inside = markers.filter((m) => m.atMs > 0 && m.atMs < c.editor.track.durationMs).length;
+  const none = "Add a marker first: each marker starts a new part";
+  return (
+    <>
+      <button
+        type="button"
+        className="btn s"
+        data-k="r9-split"
+        aria-disabled={inside ? undefined : "true"}
+        title={inside ? "Make a track for each part between markers. Your file is not changed." : none}
+        onClick={() => (inside ? setOpen(true) : toast(none))}
+      >
+        <Icon name="list" size="s" />
+        Split into parts…
+      </button>
+      {open && <SplitPartsDialog track={c.editor.track} markers={markers} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
