@@ -28,8 +28,8 @@ function Chip3({ state, words, count, glyph, onClick }: { state: ChipState; word
       type="button"
       className={cx("chip lb-fchip r9-c3", state === "hide" && "is-hide")}
       // The 0.6.0 usability test (F-P16): the state is in the name, "Heroic, hidden, 14", with no stray space before the
-      // comma (a hidden tag is not pressed, as an unused one is not).
-      aria-label={`${words}${SAID[state] ? `${SAID[state]},` : ""} ${count}`}
+      // comma (a hidden tag is not pressed, as an unused one is not); "Heroic, 14" at rest (language review E8).
+      aria-label={`${words}${SAID[state]}, ${count}`}
       aria-pressed={state === "show"}
       aria-describedby={HINT_ID}
       title={`${words}: ${NEXT_TIP[state]}`}

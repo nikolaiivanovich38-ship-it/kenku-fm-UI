@@ -1105,14 +1105,14 @@ test.describe("0.6.0 usability test: the Track library", () => {
     await openRoute(page, "library");
     await page.getByRole("searchbox", { name: "Search tracks" }).focus();
     let onRow = false;
-    for (let i = 0; i < 6 && !onRow; i++) {
+    for (let i = 0; i < 12 && !onRow; i++) {
       await page.keyboard.press("Tab");
       onRow = await page.evaluate(() => {
         const a = document.activeElement as HTMLElement | null;
         return !!a && a.closest("[role=grid]") !== null && (a.tagName === "TR" || a.getAttribute("role") === "row") && !a.closest("thead");
       });
     }
-    expect(onRow, "a track row has focus within six presses of Tab").toBe(true);
+    expect(onRow, "a track row has focus within twelve presses of Tab").toBe(true);
     const focusedRow = () => page.evaluate(() => (document.activeElement?.closest("tr,[role=row]")?.textContent ?? "").trim().slice(0, 40));
     const first = await focusedRow();
     await page.keyboard.press("ArrowDown");

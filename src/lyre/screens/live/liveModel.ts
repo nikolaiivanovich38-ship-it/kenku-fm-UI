@@ -116,6 +116,8 @@ export interface ChannelChoice {
   taken: boolean;
   /** "5 people · players" (Must 2: where most players are), "1 person", "empty", or "a room already". */
   sub: string;
+  /** The same for a screen reader, in words (language review E2): "5 people, most of the players". */
+  said: string;
   /** Nobody is in it (UX-R9: a bot joining says "nobody there"). */
   empty: boolean;
 }
@@ -137,7 +139,15 @@ function channelsIn(outputs: LyreOutputs, server: LyreOutputs["servers"][number]
     const here = view.bots.some((b) => b.bot.id === bot.id && b.inRoom && b.bot.room?.channelId === c.id);
     const taken = view.bots.some((b) => b.bot.id !== bot.id && b.inRoom && b.bot.room?.channelId === c.id);
     const most = !!players && players.people > 0 && players.channelId === c.id;
-    return { channelId: c.id, name: c.name, here, taken, empty: c.members.length === 0, sub: taken ? "a room already" : `${peopleWords(c.members.length)}${most ? " · players" : ""}` };
+    return {
+      channelId: c.id,
+      name: c.name,
+      here,
+      taken,
+      empty: c.members.length === 0,
+      sub: taken ? "a room already" : `${peopleWords(c.members.length)}${most ? " · players" : ""}`,
+      said: taken ? "a room already" : `${peopleWords(c.members.length)}${most ? ", most of the players" : ""}`,
+    };
   });
 }
 

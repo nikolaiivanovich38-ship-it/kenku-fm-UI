@@ -33,7 +33,7 @@ describe("which side panel gives way (R10-FIX §3: the screen keeps 600 px)", ()
 /* The 0.6.0 usability test (F-P11): a panel that gives way says so. */
 describe("gaveWayWords", () => {
   it("names the panel that closed and the one it made room for, as a sentence", () => {
-    expect(gaveWayWords("trackPanel", "help")).toBe("The Track panel closed to make room for Help.");
+    expect(gaveWayWords("trackPanel", "help")).toBe("The track details closed to make room for Help.");
     expect(gaveWayWords("help", "queue")).toBe("Help closed to make room for the queue.");
   });
 });

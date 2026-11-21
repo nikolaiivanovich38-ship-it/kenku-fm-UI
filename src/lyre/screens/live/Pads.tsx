@@ -162,8 +162,13 @@ function PadTile({ board, pad, box, rooms, now, keys, dips, inWhere, mine, press
       aria-keyshortcuts={pad.key && keys ? pad.key : undefined}
       // 0.6.0 usability test (F-P4): a pad with no sound is read "Owl, No sound", with no stray space before the comma.
       aria-label={none ? `${pad.label}, No sound` : undefined}
-      // F-C9: the hover says when the music dips while it plays (round 10: no mark on the pad's face).
-      title={none ? noSoundWords(pad) : `${pad.label}${pad.key && keys ? ` (key ${pad.key.toUpperCase()})` : ""}: ${MODE_NAME[pad.mode]}${dips ? ", dips the music" : ""}${inWhere}${inRooms.length ? `. Sounding in ${inRooms.join(" and ")}` : ""}`}
+      // F-C9: the hover says when the music dips while it plays (round 10: no mark on the pad's face); in whole
+      // sentences (language review E1).
+      title={
+        none
+          ? noSoundWords(pad)
+          : `${pad.label}${pad.key && keys ? ` (key ${pad.key.toUpperCase()})` : ""} is a ${MODE_NAME[pad.mode]} pad${inWhere ? ` that plays${inWhere}` : ""}.${dips ? " It dips the music while it plays." : ""}${inRooms.length ? ` It is playing in ${inRooms.join(" and ")}.` : ""}`
+      }
       onClick={isHold ? undefined : () => press("down")}
       onPointerDown={
         isHold

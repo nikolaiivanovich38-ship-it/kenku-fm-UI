@@ -187,7 +187,7 @@ export function PlaceTracks({
                   className="btn s icon cp-prof"
                   data-ctl="profile"
                   href={`#/profile/${t.id}/${key}`}
-                  title={`Audio profile of ${n.name} in this ${place.kind}: its waveform, end and fades`}
+                  title={`Open the Audio profile of ${n.name} in this ${place.kind} to see its waveform and change how it ends and fades.`}
                   aria-label={`Audio profile in this ${place.kind}: ${n.name}`}
                 >
                   <Icon name="wave" size="s" />

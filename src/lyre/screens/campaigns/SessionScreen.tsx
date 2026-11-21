@@ -328,7 +328,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
   const makePlaylist: PickerMakeNew = {
     label: "Make a playlist of these…",
     icon: "playlist",
-    hint: "Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and adds it to the scene.",
+    hint: "Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in place of those tracks.",
     field: "New playlist",
     suggest: () => freeName("New playlist", index.playlists.map((p) => p.name)),
     refuse: (chosen) => (tickedTracks(chosen).length ? null : "Tick the tracks first. They go into the new playlist."),
@@ -960,7 +960,7 @@ function ItemRow({
             className="btn s icon cp-prof"
             href={`#/profile/${info.id}/${placeKey}`}
             data-k={`prof-${scene.id}-music-${info.id}`}
-            title={`Audio profile of ${shown} in this scene: its waveform, end and fades`}
+            title={`Open the Audio profile of ${shown} in this scene to see its waveform and change how it ends and fades.`}
             aria-label={`Audio profile in this scene: ${shown}`}
           >
             <Icon name="wave" size="s" />

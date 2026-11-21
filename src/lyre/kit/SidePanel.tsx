@@ -100,9 +100,9 @@ export interface SidePanelProviderProps {
 export function SidePanelProvider({ children, openTrackPanel = goToTrackLibrary, measureRoom = measureShellRoom }: SidePanelProviderProps) {
   const [entries, setEntries] = useState<readonly Entry[]>([]);
   const [slots, setSlots] = useState<Shown["slots"]>({});
-  const { toast } = useAnnounce();
-  const toastRef = useRef(toast);
-  toastRef.current = toast;
+  const { toast, say } = useAnnounce();
+  const toastRef = useRef({ toast, say });
+  toastRef.current = { toast, say };
   const opener = useRef(openTrackPanel);
   opener.current = openTrackPanel;
   const measure = useRef(measureRoom);
@@ -200,7 +200,12 @@ export function SidePanelProvider({ children, openTrackPanel = goToTrackLibrary,
     // says why.
     const left = open.filter((e) => e.kind !== gives);
     const kept = left[left.length - 1];
-    if (kept) toastRef.current(gaveWayWords(gives, kept.kind));
+    if (kept) {
+      // Said as well as shown: the panel that opened has just been announced, and a pop-up that soon after is not read.
+      const words = gaveWayWords(gives, kept.kind);
+      toastRef.current.say(words);
+      toastRef.current.toast(words);
+    }
     // Focus stays where Nik is working (the panel he just opened).
     if (focused instanceof HTMLElement && focused !== document.body && document.contains(focused)) focused.focus({ preventScroll: true });
   }, []);
@@ -299,11 +304,11 @@ const PANEL_WORDS: Record<SidePanelKind, [string, string]> = {
   addMusic: ["Add music", "Add music"],
   find: ["Find", "Find"],
   queue: ["The queue", "the queue"],
-  trackPanel: ["The Track panel", "the Track panel"],
+  trackPanel: ["The track details", "the track details"],
   help: ["Help", "Help"],
 };
 
-/** F-P11: "The Track panel closed to make room for Help." */
+/** F-P11: "The track details closed to make room for Help." (the panel's name on screen, language review E4) */
 export function gaveWayWords(closed: SidePanelKind, kept: SidePanelKind): string {
   return `${PANEL_WORDS[closed][0]} closed to make room for ${PANEL_WORDS[kept][1]}.`;
 }
