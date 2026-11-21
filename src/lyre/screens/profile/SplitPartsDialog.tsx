@@ -31,7 +31,8 @@ export function SplitPartsDialog({ track, markers, onClose }: { track: LibraryTr
   const [names, setNames] = useState<Record<number, string>>({});
   const [copyTags, setCopyTags] = useState(true);
   const [addToPlaylists, setAddToPlaylists] = useState(false);
-  const parts = partsOf(points, dur, track.metaTitle || title, names);
+  // The 0.6.0 usability test (F-P17): parts are named from the track's title in Lyre, so they look like the track split.
+  const parts = partsOf(points, dur, title, names);
 
   const preview = (startMs: number, endMs: number) => {
     const whole = resolveProfile(track, [], {}).profile;

@@ -532,7 +532,7 @@
       var body = '<div class="viewbody ap-body" data-scroll="ap-body"><div class="ap-grid">' +
         // Round 10 (prep S1, look S11): the first box has the screen's name; the waveform is what it shows.
         L.pane({ id: 'ap-wave', title: 'Audio profile', icon: 'wave', cls: 'ap-wavepane', noMax: true, kind: 'music', status: waveStatus(), body: listenHTML(t, p) }) +
-        L.pane({ id: 'ap-end', title: 'At the end', icon: 'loop', cls: 'ap-endpane', noMax: true, kind: 'plain', status: { text: endStatus(p), tone: 'idle' }, body: endHTML(t, p) }) +
+        L.pane({ id: 'ap-end', title: 'At its end', icon: 'loop', cls: 'ap-endpane', noMax: true, kind: 'plain', status: { text: endStatus(p), tone: 'idle' }, body: endHTML(t, p) }) +
         L.pane({ id: 'ap-fades', title: 'Fades', icon: 'fade', cls: 'ap-fadepane', noMax: true, kind: 'plain', status: { text: p.fadeIn.dur || p.fadeOut.dur ? 'In ' + secs(p.fadeIn.dur) + ' · out ' + secs(p.fadeOut.dur) : 'No fades', tone: 'idle' }, body: fadesHTML(t, p) }) +
         L.pane({ id: 'ap-markers', title: 'Markers', icon: 'tag', cls: 'ap-mpane', noMax: true, kind: 'plain', status: { text: p.markers.length ? p.markers.length + ' marker' + (p.markers.length === 1 ? '' : 's') : 'Empty', tone: 'idle' },
           actions: '<button class="btn s" data-act="apmadd" data-k="ap-madd"' + (S.keys1 ? ' aria-keyshortcuts="M"' : '') + ' title="Add a marker at the playhead (' + L.fmt(S.pos) + ')"' + dis(t) + '>' + L.icon('plus', 's') + 'Add marker at playhead</button>' + (L.splitButton ? L.splitButton(t, p) : ''), body: markersHTML(t, p) }) +

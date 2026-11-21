@@ -49,7 +49,7 @@ function go(path: string) {
 const slider = (name: string) => screen.getByRole("slider", { name });
 const value = (name: string) => Number(slider(name).getAttribute("aria-valuenow"));
 const region = (name: string) => screen.getByRole("region", { name });
-const atEnd = () => within(region("At the end"));
+const atEnd = () => within(region("At its end"));
 const fades = () => within(region("Fades"));
 
 async function savedProfile(api: ReturnType<typeof createFakeLyreApi>, id = "t13") {
@@ -206,15 +206,15 @@ describe("what happens at the end", () => {
     expect(within(group).getByRole("radio", { name: /^Loop with a crossfade The same loop, with 2 s/ })).toBeChecked();
     expect(within(group).getByRole("radio", { name: /^Loop Back to the loop start: 1:04 to 5:18/ })).not.toBeChecked();
     expect(within(group).getByRole("radio", { name: /^Next track/ })).not.toBeChecked();
-    expect(region("At the end")).toHaveTextContent("Loops from 1:04");
+    expect(region("At its end")).toHaveTextContent("Loops from 1:04");
   });
 
   it("moving on drops the loop start and names the next track", async () => {
     const { api, user } = await open();
     await user.click(atEnd().getByRole("radio", { name: /^Next track/ }));
-    expect(region("At the end")).toHaveTextContent("Moves on at 5:18");
+    expect(region("At its end")).toHaveTextContent("Moves on at 5:18");
     expect(screen.queryByRole("slider", { name: "Loop start" })).toBeNull();
-    expect(region("At the end")).toHaveTextContent("Next track");
+    expect(region("At its end")).toHaveTextContent("Next track");
     await waitFor(async () => expect((await savedProfile(api))?.after).toBe("next"));
   });
 
@@ -229,10 +229,10 @@ describe("what happens at the end", () => {
     await user.clear(end);
     await user.type(end, "4:75");
     expect(end).toHaveAttribute("aria-invalid", "true");
-    expect(region("At the end")).toHaveTextContent("Type minutes and seconds, like 5:18");
+    expect(region("At its end")).toHaveTextContent("Type minutes and seconds, like 5:18");
     await user.clear(end);
     await user.type(end, "9:00");
-    expect(region("At the end")).toHaveTextContent("Between 0:01 and 7:21");
+    expect(region("At its end")).toHaveTextContent("Between 0:01 and 7:21");
     await user.keyboard("{Escape}");
     expect(end).toHaveValue("4:30");
   });
@@ -243,7 +243,7 @@ describe("what happens at the end", () => {
     await user.clear(end);
     await user.type(end, "9:00{Enter}");
     expect(end).toHaveAttribute("aria-invalid", "true");
-    expect(region("At the end")).toHaveTextContent("Between 0:01 and 7:21");
+    expect(region("At its end")).toHaveTextContent("Between 0:01 and 7:21");
     expect(value("End")).toBe(318);
     await act(() => new Promise((r) => setTimeout(r, 800)));
     expect((await savedProfile(api))?.endMs ?? 318_000).toBe(318_000);

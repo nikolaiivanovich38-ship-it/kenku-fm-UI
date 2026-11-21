@@ -160,7 +160,7 @@
     return '<button class="btn s" data-act="r9split" data-k="r9-split"' + (n ? '' : ' aria-disabled="true"') + ' title="' + (n ? 'Make a track for each part between markers. Your file is not changed.' : 'Add a marker first. Each marker starts a new part.') + '">' + L.icon('list', 's') + 'Split into parts…</button>';
   };
   function parts(t) {
-    var cuts = SP.cuts.filter(function (c) { return c.on; }), out = [], from = 0, label = 'opening', base = t.metaTitle || L.title(t);
+    var cuts = SP.cuts.filter(function (c) { return c.on; }), out = [], from = 0, label = 'opening', base = L.title(t); // 0.6.0 usability test F-P17: the track's title in Lyre, so the parts look like the track
     cuts.forEach(function (c, i) { out.push({ from: from, to: c.at, name: SP.names[i] != null ? SP.names[i] : base + ' – ' + label }); from = c.at; label = c.label.toLowerCase(); });
     out.push({ from: from, to: t.dur, name: SP.names[cuts.length] != null ? SP.names[cuts.length] : base + ' – ' + label });
     return out;

@@ -27,6 +27,9 @@ function Chip3({ state, words, count, glyph, onClick }: { state: ChipState; word
     <button
       type="button"
       className={cx("chip lb-fchip r9-c3", state === "hide" && "is-hide")}
+      // The 0.6.0 usability test (F-P16): the state is in the name, "Heroic, hidden, 14", with no stray space before the
+      // comma (a hidden tag is not pressed, as an unused one is not).
+      aria-label={`${words}${SAID[state] ? `${SAID[state]},` : ""} ${count}`}
       aria-pressed={state === "show"}
       aria-describedby={HINT_ID}
       title={`${words}: ${NEXT_TIP[state]}`}
@@ -34,7 +37,6 @@ function Chip3({ state, words, count, glyph, onClick }: { state: ChipState; word
     >
       {state === "show" ? <Icon name="check" size="s" /> : state === "hide" ? <Icon name="close" size="s" /> : glyph}
       <span className="r9-c3-w">{words}</span>
-      <span className="sr-only">{SAID[state]}</span>
       <span className="lb-n num">{count}</span>
     </button>
   );
