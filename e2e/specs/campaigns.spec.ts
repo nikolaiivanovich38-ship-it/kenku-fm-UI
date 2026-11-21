@@ -3,8 +3,8 @@
  * Source: design/prototype/tools/cp-tab.js and src/views/campaigns.js.
  */
 import type { Page } from "@playwright/test";
-import { appOnly, expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, metByTheAppAlready } from "./support/test";
-import { failNextSave, openRoute } from "./support/target";
+import { expect, test, expectFailureUntilScreenBuilt } from "./support/test";
+import { failNextSave, joinRoom, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
 const dialog = (page: Page) => page.getByRole("dialog");
@@ -169,7 +169,7 @@ test.describe("playlists and pad boards on hand in every session", () => {
   });
 
   test("Play on air from a campaign playlist shows the bar of what the players hear, with Stop and Go to Live", async ({ page }) => {
-    expectFailureUntilScreenBuilt("on-air bar"); // the shell's on-air bar is not built yet
+    expectFailureUntilScreenBuilt("on-air bar");
     await openRoute(page, "campaign/crown");
     await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
     // 0.3's bar is "On air"; round 5 calls it "Now playing" (it also shows a preview).
@@ -303,10 +303,9 @@ test.describe("round 5: volume normalisation in the Now playing bar", () => {
   });
 });
 
-/* Round 6, part 2 (design/prototype/ROUND6.md, "Your notes on 0.4.0", Nik, 6 Nov 10:34). Not built yet. */
+/* Round 6, part 2 (design/prototype/ROUND6.md, "Your notes on 0.4.0", Nik, 6 Nov 10:34). */
 test.describe("round 6: Repeat on the Now playing bar, the campaign's own order, and Back", () => {
   test("PLY-17: a Now playing row has Shuffle and Repeat; Repeat goes off, all, one for what plays now, not saved (round 6 part 3)", async ({ page }) => {
-    expectFailureUntilBuilt("live", "prep");
     await openRoute(page, "campaign/crown");
     await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
     const row = region(page, "Now playing").getByRole("group", { name: "On air", exact: true });
@@ -323,7 +322,6 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("ORG-13: a campaign playlist's tracks can be put in another order for this campaign only, and back", async ({ page }) => {
-    expectFailureUntilBuilt("prep");
     await openRoute(page, "campaign/crown");
     const box = region(page, "Campaign playlists");
     await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
@@ -338,7 +336,6 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("ORG-13: Back to the playlist's order undoes the campaign's own order", async ({ page }) => {
-    expectFailureUntilBuilt("prep");
     await openRoute(page, "campaign/crown");
     const box = region(page, "Campaign playlists");
     await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
@@ -352,7 +349,6 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("ORG-13: the campaign's playlists themselves can be moved into another order", async ({ page }) => {
-    expectFailureUntilBuilt("prep");
     await openRoute(page, "campaign/crown");
     const box = region(page, "Campaign playlists");
     await box.getByRole("link", { name: "The Company themes" }).focus();
@@ -362,7 +358,6 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("UX-18: a playlist opened from the campaign page has Back to the campaign, and Back returns to the same row", async ({ page }) => {
-    expectFailureUntilBuilt("shell");
     await openRoute(page, "campaign/crown");
     await expect(page.getByRole("button", { name: /^Back to / })).toHaveCount(0);
     await region(page, "Campaign playlists").getByRole("link", { name: "Ashen King" }).click();
@@ -373,7 +368,6 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("UX-18, round 6 part 7 (Nik, 22:04): a screen opened from the menu has Back to where Nik was", async ({ page }) => {
-    expectFailureUntilBuilt("shell"); // was: screens opened from the menu have no Back
     await openRoute(page, "campaign/crown");
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
     await expect(page.getByRole("button", { name: "Back to The Sunken Crown" })).toBeVisible();
@@ -382,9 +376,8 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
 
 /* Round 6, part 5 (design/prototype/ROUND6.md "Part 5: the Saved pop-up"). Nik, 6 Nov 16:14: "little pop ups somewhere
    unobtrusive but noticeable as a consistent design standard indicating something has been saved, so we have
-   consistent feedback across the whole platform. I don't want saved in each box." Not built yet. */
+   consistent feedback across the whole platform. I don't want saved in each box." */
 test.describe("round 6, part 5: the Saved pop-up", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("shell"));
   const notes = (page: Page) => region(page, "Notes").getByRole("textbox", { name: "Campaign notes" });
   const savedNotes = (page: Page) => page.getByRole("status").filter({ hasText: "Saved: The Sunken Crown notes" });
   /** Where the pop-up is: its right edge's distance from the work area's right edge, and its bottom's distance from
@@ -423,7 +416,6 @@ test.describe("round 6, part 5: the Saved pop-up", () => {
   });
 
   test("the pop-up is in the same place on a prep screen and in Live: bottom right of the work area (part 6)", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "live"); // Repeat one in Live's Current scene
     await openRoute(page, "campaign/crown");
     await notes(page).fill("Bring dice");
     await page.keyboard.press("Tab");
@@ -455,9 +447,8 @@ test.describe("round 6, part 5: the Saved pop-up", () => {
 
 /* Round 6, part 6 (design/prototype/ROUND6.md "Part 6"; Nik, 6 Nov 17:14: "Let's move the saved pop up to the bottom
    right hand corner [...] I'm missing the contextual back button in the top bar. It should be constantly present in the
-   top left of the top bar. We should also have a sensible place for breadcrumbs."). Not built yet. */
+   top left of the top bar. We should also have a sensible place for breadcrumbs."). */
 test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back always top left, one place for the trail", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("shell"));
   const back = (page: Page) => page.getByRole("main").getByRole("button", { name: /^Back( to .+)?$/ }).first();
   const trail = (page: Page) => page.getByRole("navigation", { name: "Breadcrumb" });
   // Measured once drawn: right after a route change the screen draws again, and a box read in between is null.
@@ -482,7 +473,6 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
   });
 
   test("Back is top left on every screen, in the same place, before anything else in the bar", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "rooms-settings"); // it opens Settings
     const places: { x: number; y: number }[] = [];
     for (const route of ["settings", "campaigns", "campaign/crown", "session/crown/s14", "library", "playlist/p-abbess", "board/abbey", "profile/t13", "outputs", "live"]) {
       await openRoute(page, route);
@@ -572,9 +562,8 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
 
 /* Round 6, part 7 (design/prototype/ROUND6.md "Part 7"; Nik, 6 Nov 22:04: "Back should just be a < symbol in a box, it
    doesn't need text. It should function across tabs in the side menu: it should record where I am and where I was
-   before regardless of what happened between [...] and should let me go back at least five steps."). Not built yet. */
+   before regardless of what happened between [...] and should let me go back at least five steps."). */
 test.describe("round 6, part 7: Back is one history across the whole app", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("shell"));
   const back = (page: Page) => page.getByRole("main").getByRole("button", { name: /^Back( to .+)?$/ }).first();
   const menu = (page: Page, name: string | RegExp) => page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name });
   const h1 = (page: Page) => page.getByRole("heading", { level: 1 });
@@ -582,7 +571,6 @@ test.describe("round 6, part 7: Back is one history across the whole app", () =>
   const scenes = (page: Page) => region(page, "Scenes");
 
   test("five steps and more: Library, a track, its Audio profile, Pad boards (menu), a board, Live with a scene unfolded; Back walks back through each, as it was", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "live"); // a scene unfolded in Live's Scenes (SHW-7)
     await openRoute(page, "library");
     await expect(back(page)).toHaveAttribute("aria-disabled", "true");
     await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("gridcell").nth(1).click();
@@ -618,7 +606,6 @@ test.describe("round 6, part 7: Back is one history across the whole app", () =>
   });
 
   test("Back is a ‹ in a box at least 24 px square, and Alt+Left does the same as Back", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "rooms-settings"); // it starts on Settings
     await openRoute(page, "settings");
     await menu(page, "Library").click();
     // Measured once Back is drawn for the new place (its name follows the route change), not the frame before.
@@ -652,7 +639,6 @@ test.describe("round 6, part 7: Back is one history across the whole app", () =>
    on Ctrl+K (UX-12), both reached from any screen. */
 test.describe("round 7: what played, and Find and play", () => {
   test("What played lists the room's tracks, newest first, each with Play again and Play next", async ({ page }) => {
-    expectFailureUntilBuilt("live", "prep");
     await openRoute(page, "campaign/crown");
     await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
     const row = region(page, "Now playing").getByRole("group", { name: "On air", exact: true });
@@ -668,7 +654,6 @@ test.describe("round 7: what played, and Find and play", () => {
   });
 
   test("Ctrl+K opens Find and play: type part of a name, Enter plays it on air, Esc closes and puts focus back", async ({ page }) => {
-    expectFailureUntilBuilt("shell");
     await openRoute(page, "campaign/crown");
     // Focus starts on a control of the screen (the heading takes focus only after moving between screens).
     const start = region(page, "Campaign playlists").getByRole("button", { name: "Preview The Company themes" });
@@ -687,7 +672,6 @@ test.describe("round 7: what played, and Find and play", () => {
   });
 
   test("in Find and play, Alt+Enter previews, Shift+Enter adds to the queue, and a pad or a scene can be found too", async ({ page }) => {
-    expectFailureUntilBuilt("shell");
     await openRoute(page, "campaign/crown");
     await page.keyboard.press("Control+K");
     const d = page.getByRole("dialog", { name: "Find and play" });
@@ -735,7 +719,6 @@ test.describe("round 6 cuts on the campaign screens", () => {
 /* 0.5.1 (design/prototype/ROUND8.md, part 2): Nik's findings from testing 0.5.0, 11 Nov. Campaign order and the
    campaign's theme are checked by w51-feat's block below, as the app built them. */
 test.describe("0.5.1: the Now playing bar's position, and a session dragged last", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("feat"));
   const bar = (page: Page) => page.getByRole("region", { name: "Now playing" });
 
   /* "The now playing bar track position tracker doesn't work. It just displays 0:00 and no position indicator, until I
@@ -766,7 +749,6 @@ test.describe("0.5.1: the Now playing bar's position, and a session dragged last
 
   /* "Dragging and dropping a session into last position in the session list doesn't work." */
   test("a session can be dragged into the last place of the list", async ({ page }) => {
-    metByTheAppAlready("the app drops a session dragged below the last one in the last place already");
     await openRoute(page, "campaign/crown");
     const rows = page.getByRole("list", { name: "Sessions in order" }).getByRole("listitem");
     const n = await rows.count();
@@ -778,10 +760,9 @@ test.describe("0.5.1: the Now playing bar's position, and a session dragged last
   });
 });
 
-/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("a campaign's theme shows on its pages whatever Look and feel chose; Look and feel is the base elsewhere", async ({ page }) => {
-    appOnly();
     const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
     await openRoute(page, "campaign/crown", { theme: "parchment" });
     await expect.poll(theme).toBe("hearth");
@@ -793,7 +774,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("campaigns can be put in order: Reorder's Move down, and dragging a card; the order is kept", async ({ page }) => {
-    appOnly();
     await openRoute(page, "campaigns");
     const cards = page.getByRole("main").getByRole("article");
     const names = async () => (await cards.allInnerTexts()).map((t) => t.split("\n").find((line) => /Crown|Masks|Sixth/.test(line)) ?? t);
@@ -832,7 +812,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("Live is first in the menu (\"move the live tab to the top of the left side bar\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "campaigns");
     const links = page.getByRole("navigation", { name: "Lyre" }).getByRole("link");
     await expect(links.first()).toHaveAccessibleName(/^Live/);
@@ -840,12 +819,11 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 });
 
-/* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.2: deleting campaigns and sessions, and session numbers", () => {
   const sessions = (page: Page) => page.getByRole("list", { name: "Sessions in order" }).getByRole("listitem");
 
   test("a campaign's ⋯ › Delete… names what goes with it, deletes it, and Undo brings it back (items 15 and 48)", async ({ page }) => {
-    appOnly();
     await openRoute(page, "campaigns");
     const cards = page.getByRole("main").getByRole("article");
     await page.getByRole("article", { name: "The Sunken Crown" }).getByRole("button", { name: "More for The Sunken Crown" }).click();
@@ -860,7 +838,6 @@ test.describe("0.5.2: deleting campaigns and sessions, and session numbers", () 
   });
 
   test("a session's ⋯ › Delete… deletes it with its scenes; the sessions after it count on (items 15 and 48)", async ({ page }) => {
-    appOnly();
     await openRoute(page, "campaign/crown");
     await page.getByRole("button", { name: "More for Session 13: The coast road" }).click();
     await page.getByRole("menuitem", { name: "Delete…" }).click();
@@ -870,7 +847,6 @@ test.describe("0.5.2: deleting campaigns and sessions, and session numbers", () 
   });
 
   test("Session numbers: a first number renumbers the sessions; Type each number lets a session keep its own (item 13)", async ({ page }) => {
-    appOnly();
     await openRoute(page, "campaign/crown");
     const first = page.getByRole("spinbutton", { name: "First session number" });
     await first.fill("1");
@@ -928,4 +904,18 @@ test("0.6.0 finishing (f-live): a room on air has Back, Next and its queue on th
   await expect(air).not.toContainText(next);
   await controls.getByRole("button", { name: "Next", exact: true }).click();
   await expect(air).toContainText(next);
+});
+
+/* 0.6.0 language review C15 (QueuePanel; prototype r9live.js queueHTML): a room's queue says the players hear it, and
+   with two or more rooms it names the room. */
+test("0.6.0: a room's queue says it is on air, and names the room when there are two or more", async ({ page }) => {
+  await openRoute(page, "campaign/crown");
+  await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+  const controls = region(page, "Now playing").getByRole("group", { name: /^On air/ }).first().getByRole("group", { name: /^Control what the players hear/ });
+  await controls.getByRole("button", { name: /^Queue/ }).click();
+  const queue = page.getByRole("region", { name: /^Queue/ });
+  await expect(queue).toContainText("The Company themes · on air");
+  await expect(queue).not.toContainText("on air in ");
+  await joinRoom(page, "Lyre Side", "Side room");
+  await expect(queue).toContainText("The Company themes · on air in Table");
 });

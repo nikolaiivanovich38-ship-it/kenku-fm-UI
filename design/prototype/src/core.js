@@ -716,7 +716,9 @@ var L = (function () {
       if (!m.music && m.rep) m.rep = null;
     });
     pb.fx = pb.fx.filter(function (f) { f.pos += dt; if (f.fadeOut) { f.fadeOut -= dt; return f.fadeOut > 0; } return f.loop || f.pos < f.dur; });
-    if (pb.preview && !pb.preview.paused) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) { if (pb.preview.queue && pb.preview.qi < pb.preview.queue.length - 1) L.previewAt(pb.preview.qi + 1); else pb.preview = null; } moved = true; }
+    // 0.6.0 sync: a preview the Audio profile drives (ap) moves with that page, not here.
+    if (pb.preview && pb.preview.ap && !pb.preview.paused) moved = true;
+    if (pb.preview && !pb.preview.paused && !pb.preview.ap) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) { if (pb.preview.queue && pb.preview.qi < pb.preview.queue.length - 1) L.previewAt(pb.preview.qi + 1); else pb.preview = null; } moved = true; }
     if (moved || pb.fx.length) L.tick();
   }, 250);
   /* PLY-17 Repeat (Nik, 6 Nov 10:34; round 6 part 3, Nik, 6 Nov 12:24: "Repeat on the now playing bar should not

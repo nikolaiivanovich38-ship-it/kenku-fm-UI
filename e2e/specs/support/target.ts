@@ -173,6 +173,21 @@ export function screenOfRoute(route: Route): string {
 }
 
 /**
+ * The route the page shows now ("library/t24"). The app's address is "#/library/t24"; the prototype's is
+ * "#library--t24" (the artifact host passes only plain #names: core.js encodeRoute), so a check reads the route
+ * through this instead of the address.
+ */
+export function routeOf(page: Page): string {
+  const hash = new URL(page.url()).hash.replace(/^#\/?/, "");
+  return isApp() ? hash : hash.split("--").join("/");
+}
+
+/** Wait until the page shows a route that matches `pattern` (matched against "library/t24", with no "#/"). */
+export async function expectRoute(page: Page, pattern: RegExp): Promise<void> {
+  await expect.poll(() => routeOf(page)).toMatch(pattern);
+}
+
+/**
  * Open a screen. `theme: "default"` keeps the default base theme; "parchment" makes Parchment the base. In the app a
  * campaign's own theme still shows on its pages (0.5.1); the prototype's "parchment" still forces it everywhere.
  */

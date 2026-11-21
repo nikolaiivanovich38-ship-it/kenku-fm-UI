@@ -157,7 +157,9 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .empty { padding: 16px; text-align: center; color: var(--ink-2); font-size: var(--fs-s); }
 .hint { font-size: var(--fs-xs); color: var(--ink-3); }
 /* Round 6: key legends show while the keyboard is in their box (and are read out through aria-describedby). */
-.pane:not(:focus-within) .keys-on-focus { display: none !important; }
+/* 0.5.2 (the app's ui.css; 0.6.0 sync): only focus that shows a ring (:focus-visible), so a mouse click does not open
+   the legend; it used to, and the list then shrank under the pointer between press and release. */
+.pane:not(:has(:focus-visible)) .keys-on-focus { display: none !important; }
 .status-line { font-size: var(--fs-xs); color: var(--ink-2); }
 
 /* ---------- App shell ---------- */

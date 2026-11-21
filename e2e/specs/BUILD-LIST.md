@@ -1,5 +1,9 @@
 # Build list: the round 6 and round 7 checks (0.5.0)
 
+> **0.6.0 (20 Nov 2026): history only.** Every stream is in `BUILT_STREAMS`, so the `expectFailureUntilBuilt(...)` and
+> `metByTheAppAlready(...)` marks this list describes were taken out of the spec files (p60-sync); every check named
+> here is required in the app.
+
 Generated from the `app` project run of 7 Nov 2026, 00:22 to 02:02 UTC (commit d83c904), on the packaged test build of b6 with w6-specs. Every check
 listed here was marked `round 6` or `round 7` and failed in the app as expected.
 

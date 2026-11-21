@@ -4,7 +4,7 @@
  * search and filter.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { openRoute } from "./support/target";
 
 const boards = (page: Page) => page.getByRole("list", { name: "Pad boards", exact: true });
@@ -128,7 +128,6 @@ test.describe("resizing a board: spare pads", () => {
 
   test("the editor says why spare pads exist", async ({ page }) => {
     // Round 6: read out with the box (and its hover text) instead of a line on screen.
-    expectFailureUntilBuilt("prep");
     await openRoute(page, "board/weather");
     await expect(spare(page)).toHaveAccessibleDescription("Pads that are not on the grid wait here; their keys do nothing until you put them back.");
   });
@@ -320,7 +319,6 @@ test.describe("round 5: resizing fills the grid; trying pads as they play", () =
 /* Round 6, part 4 (design/prototype/ROUND6.md "Part 4: review fixes", Must 5): an empty slot is named as it reads. */
 test.describe("round 6, part 4: the review's fixes on a pad board", () => {
   test("Must 5 (WCAG 2.5.3): an empty slot shows Add pad and is named Add pad: row, column", async ({ page }) => {
-    expectFailureUntilBuilt("prep");
     await openRoute(page, "board/combat");
     await expect(page.getByRole("button", { name: "Add pad: row 3, column 4", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /^Empty slot/ })).toHaveCount(0);
@@ -330,7 +328,6 @@ test.describe("round 6, part 4: the review's fixes on a pad board", () => {
 /* Round 7 (design/prototype/ROUND7.md): folders for boards and section dividers on a board (ORG-4), and what a pad
    does, as steps (PLY-8). */
 test.describe("round 7: folders and dividers", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("boards go into folders with Move to folder… (New folder… makes one)", async ({ page }) => {
     await openRoute(page, "boards");
@@ -359,7 +356,6 @@ test.describe("round 7: folders and dividers", () => {
 });
 
 test.describe("round 7: what a pad does", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("a pad plays its sound; its ⋯ › What it does… adds steps such as turning the music down first", async ({ page }) => {
     await openRoute(page, "board/weather");
@@ -392,7 +388,6 @@ test.describe("round 6 cuts on a pad board", () => {
 
 /* Round 10 fixes (R10-FIX §2): Delete on a focused board card asks to delete it, as its ⋯'s Delete board… does. */
 test("round 10: Delete on a focused board card on Pad boards asks to delete it, and Undo brings it back", async ({ page }) => {
-  expectFailureUntilBuilt("r10-prep");
   await openRoute(page, "boards");
   await page.getByRole("button", { name: "More for Spellwork" }).focus();
   await page.keyboard.press("Delete");

@@ -159,3 +159,8 @@ li.pl-item.r9-pl-dragging { opacity: .5; }
 .rail.min .r9-help-ring { position: absolute; margin: 0; transform: translate(14px, -10px); }
 #r9-guide .r9-tourpop::before, #r9-guide .r9-tourpop::after { display: none; }
 .r9-botstart .st-l { min-width: 150px; }
+/* 0.6.0 sync (0.5.2 item 7): the length its Audio profile plays, under the file's length. */
+.lb-table .lb-len { display: flex; flex-direction: column; line-height: 1.1; }
+.lb-table .lb-played { font-size: var(--fs-xs); color: var(--ink-3); }
+/* 0.6.0 sync (the app's PickUpSwitch): Next time, start where it stopped is a switch on a row of its own. */
+.lb-tg.r9-resume-row { grid-template-columns: minmax(0, 1fr); }

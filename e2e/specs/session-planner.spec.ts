@@ -4,7 +4,7 @@
  * has mixed music (track, playlist, track, playlist), an ambience playlist and two pad boards.
  */
 import type { Locator, Page } from "@playwright/test";
-import { appOnly, expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, metByTheAppAlready } from "./support/test";
+import { expect, test, expectFailureUntilScreenBuilt } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -411,7 +411,6 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
   });
 
   test("ORG-11: tracks in a scene's music show their tags, and so does the music picker", async ({ page }) => {
-    expectFailureUntilBuilt("prep");
     // DAT-10 (Nik, 11 Nov): a track's tags in vocabulary order, as the Tags screen lists them; t13 was tagged Dread, Eerie.
     await openAbbey(page);
     const first = musicOf(abbey(page)).getByRole("listitem").first();
@@ -474,7 +473,6 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
 // Text for screen readers only is one pixel wide (Playwright counts it as visible); text on screen is wider. 0 if absent.
 const shownWidth = async (text: Locator) => ((await text.count()) ? ((await text.first().boundingBox())?.width ?? 0) : 0);
 test.describe("round 6: fewer sentences in the planner", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("the music picker's how-to is read out with the dialog, not shown above the list", async ({ page }) => {
     await openAbbey(page);
@@ -492,9 +490,8 @@ test.describe("round 6: fewer sentences in the planner", () => {
   });
 });
 
-/* Round 6, part 4 (design/prototype/ROUND6.md "Part 4: review fixes"). Not built yet. */
+/* Round 6, part 4 (design/prototype/ROUND6.md "Part 4: review fixes"). */
 test.describe("round 6, part 4: the review's fixes in the planner", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("Must 3 (WCAG 2.5.7; Nik, 6 Nov 13:51): Reorder shows Move up and Move down on a scene's playlist, for this scene only", async ({ page }) => {
     await openAbbey(page);
@@ -537,7 +534,6 @@ test.describe("round 6, part 5: no scene count, no sentence about Live, and the 
   const scenesBox = (page: Page) => page.getByRole("region", { name: "Scenes", exact: true });
 
   test("the Scenes box has no scene count, open or folded", async ({ page }) => {
-    expectFailureUntilBuilt("prep");
     await openRoute(page, "session/crown/s14");
     await expect(scenesBox(page).getByText(/^\d+ scenes?$/)).toHaveCount(0);
     await scenesBox(page).getByRole("button", { name: "Scenes", exact: true }).click();
@@ -545,13 +541,11 @@ test.describe("round 6, part 5: no scene count, no sentence about Live, and the 
   });
 
   test("the sentence about the order of Live's lists is gone, for screen readers too", async ({ page }) => {
-    expectFailureUntilBuilt("prep");
     await openRoute(page, "session/crown/s14");
     await expect(page.getByText(/^In play:/)).toHaveCount(0);
   });
 
   test("a scene's notes save after a pause in typing, with the Saved pop-up", async ({ page }) => {
-    expectFailureUntilBuilt("shell");
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "Scene 3: The abbey ruins", exact: true }).click();
     const notes = scene(page, "The abbey ruins").getByRole("textbox", { name: "Notes" });
@@ -565,7 +559,6 @@ test.describe("round 6, part 5: no scene count, no sentence about Live, and the 
    by itself (SHW-3). Out of sight until wanted: the steps are behind the scene's ⋯ menu, and only a scene that does
    something other than the usual is marked. */
 test.describe("round 7: what a scene does when it starts", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
   const steps = (page: Page) => dialog(page).getByRole("list", { name: "Steps" }).getByRole("listitem");
 
   test("the usual start is three steps: its music, its ambience and its first pad board", async ({ page }) => {
@@ -636,12 +629,10 @@ test.describe("round 7: what a scene does when it starts", () => {
 /* 0.5.1 (design/prototype/ROUND8.md, part 2): Nik's findings from testing 0.5.0, 11 Nov. Play on air for each track
    and where Add scene puts a scene are checked by w51-feat's block below, as the app built them. */
 test.describe("0.5.1: dragging a scene into the last place", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("feat"));
   const scenes = (page: Page) => page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem", { name: /^Scene \d+: / });
 
   /* "Dragging and dropping a scene into last position in the scene list doesn't work." */
   test("a scene can be dragged into the last place of the list", async ({ page }) => {
-    metByTheAppAlready("the app drops a scene dragged below the last one in the last place already");
     await openRoute(page, "session/crown/s14");
     const rows = scenes(page);
     const last = rows.nth(5);
@@ -651,13 +642,12 @@ test.describe("0.5.1: dragging a scene into the last place", () => {
   });
 });
 
-/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   // Scene cards only: an open scene lists its music inside its card, as list items too.
   const scenes = (page: Page) => page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem", { name: /^Scene \d+: / });
 
   test("each track of a scene's playlist has Play on air, as the playlist has (\"I need that at track level\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
     const music = page.getByRole("list", { name: "Music in order" });
@@ -673,7 +663,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("Add scene goes at the end with no scene selected, and right after the scene selected", async ({ page }) => {
-    appOnly();
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "Add scene" }).click();
     await expect(scenes(page)).toHaveCount(7);
@@ -686,10 +675,9 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 });
 
-/* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.2: from Nik's list of 14 Nov (w52-prep), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.2: dragging in a scene's music (items 41 and 36)", () => {
   test("a scene's track dragged by its handle onto the lower half of the last item goes last, exactly where the line showed", async ({ page }) => {
-    appOnly();
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
     const rows = page.getByRole("list", { name: "Music in order" }).locator(":scope > li");
@@ -709,9 +697,8 @@ test.describe("0.5.2: dragging in a scene's music (items 41 and 36)", () => {
   });
 });
 
-/* Round 10 (design/prototype/ROUND10.md). Not built yet. */
+/* Round 10 (design/prototype/ROUND10.md). */
 test.describe("round 10: the planner", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-prep"));
 
   test("no Open all: each scene stays open until it is closed (Nik, 18 Nov, answer 2b)", async ({ page }) => {
     await openAbbey(page);
@@ -786,7 +773,6 @@ test.describe("round 10: the planner", () => {
 /* Round 10 fixes (R10-FIX §1 and §2): a scene's music and the session's lists. Delete on a focused row takes it out of
    the scene or session, as its ⋯'s "Remove from this scene / session" does, with Undo; the track or playlist stays. */
 test.describe("round 10: taking things out of a scene and a session", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-prep"));
 
   test("Delete on a focused music row takes it out of the scene; Undo puts it back", async ({ page }) => {
     await openAbbey(page);
@@ -900,7 +886,6 @@ test.describe("0.6.0: dragging a track of an unfolded playlist to another list (
   });
 
   test("the keyboard does the same: Add to… in the track's ⋯, and the list says so to a screen reader", async ({ page }) => {
-    appOnly(); // the prototype drags only; the app adds its Add to… (Library, playlist page) here too
     const { title } = await openBoth(page);
     await expect(abbessTracks(page)).toHaveAccessibleDescription(/Add to…/);
     await abbessTracks(page).getByRole("button", { name: `More for ${title}` }).click();

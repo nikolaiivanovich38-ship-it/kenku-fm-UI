@@ -152,8 +152,20 @@
   };
 
   /* ---------- reordering (buttons and drag and drop) ---------- */
-  function renumber(c) { if (!c.sessions.length) return; var base = Math.min.apply(null, c.sessions.map(function (s) { return s.n; })); c.sessions.forEach(function (s, i) { s.n = base + i; }); }
+  // 0.5.2 item 13 (the app since 0.5.2; 0.6.0 sync): sessions count on in their order from the first session's number
+  // (c.firstN), unless the campaign's numbers are typed for each session (c.numbering 'typed'), which nothing renumbers.
+  function firstN(c) { return c.firstN != null ? c.firstN : c.sessions.length ? Math.min.apply(null, c.sessions.map(function (s) { return s.n; })) : 1; }
+  function renumber(c) { if (!c.sessions.length || c.numbering === 'typed') return; var base = firstN(c); c.firstN = base; c.sessions.forEach(function (s, i) { s.n = base + i; }); }
   function moveItem(list, from, to) {
+    // A scene's music or pad boards ('items|<scene id>|music'): as its ⋯ Move up and Move down do.
+    if (list.indexOf('items|') === 0) {
+      var a = list.split('|'), f = findScene(a[1]); if (!f) return false;
+      if (a[2] === 'boards' && !f.sc.boards) f.sc.boards = L.sceneBoards(f.sc).slice();
+      var items = f.sc[a[2]]; if (to < 0 || to >= items.length || from === to) return false;
+      var moved = items.splice(from, 1)[0]; items.splice(to, 0, moved); current = f.sc.id;
+      L.say(itemName(moved, a[2]) + ' moved to position ' + (to + 1) + ' of ' + items.length); L.saved((f.sc.name || 'scene') + (a[2] === 'boards' ? ' pad boards' : ' music'));
+      return true;
+    }
     var x = ctx(), arr = list === 'sessions' ? x.c.sessions : x.s.scenes;
     if (to < 0 || to >= arr.length || from === to) return false;
     var item = arr.splice(from, 1)[0]; arr.splice(to, 0, item);
@@ -243,15 +255,18 @@
   var reorderingCards = false;
   function card(c, i, all) {
     var nx = nextSession(c), th = themeFor(c.theme), n = all.length, nm = esc(c.name);
-    var moves = reorderingCards && n > 1 ? '<span class="cp-cmoves">' +
-      '<button class="btn s icon" data-act="cpcmove" data-idx="' + i + '" data-dir="-1" data-k="cpcup-' + c.id + '" aria-label="Move earlier: ' + nm + '" title="Move earlier (Alt+Left)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevleft', 's') + '</button>' +
-      '<button class="btn s icon" data-act="cpcmove" data-idx="' + i + '" data-dir="1" data-k="cpcdn-' + c.id + '" aria-label="Move later: ' + nm + '" title="Move later (Alt+Right)"' + (i === n - 1 ? ' disabled' : '') + '>' + L.icon('chevright', 's') + '</button></span>' : '';
+    // 0.5.1 (the app's CampaignsScreen; 0.6.0 sync): Move up and Move down, as every other list's Reorder says.
+    var moves = reorderingCards && n > 1 ? '<span class="cp-cmoves ro-btns">' +
+      '<button class="closer" data-act="cpcmove" data-idx="' + i + '" data-dir="-1" data-k="cpcup-' + c.id + '" aria-label="Move up: ' + nm + '" title="Move up (Alt+Up)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + '</button>' +
+      '<button class="closer" data-act="cpcmove" data-idx="' + i + '" data-dir="1" data-k="cpcdn-' + c.id + '" aria-label="Move down: ' + nm + '" title="Move down (Alt+Down)"' + (i === n - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + '</button></span>' : '';
+    // 0.5.2 items 15 and 48 (the app's CampaignCard): a card's ⋯ has Open and Delete….
+    moves += '<button class="closer cp-more-btn" data-act="cpcardmenu" data-cid="' + c.id + '" data-k="cpm-' + c.id + '" title="More for ' + nm + '" aria-label="More for ' + nm + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button>';
     return '<li class="cp-cardwrap" data-drag="campaigns" data-axis="x" data-idx="' + i + '" data-cid="' + c.id + '">' + cardBody(c, nx, th, moves, n > 1) + '</li>';
   }
   function cardBody(c, nx, th, moves, handle) {
     // Round 6: the card is drawn in its theme, so the theme's name is hover text.
     return '<article class="cp-card" data-theme="' + th + '" aria-labelledby="cph-' + c.id + '" title="' + esc(plural(c.sessions.length, 'session') + ' · ' + plural(usedPlaylists(c), 'playlist') + ' · ' + plural(usedBoards(c), 'pad board') + ' · theme: ' + themeName(c.theme || defTheme())) + '">' +
-      '<div class="cp-card-top">' + (handle ? '<span class="cp-handle" title="Drag to change the order" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + '<span class="cp-sys grow">' + esc(c.system || 'No game system') + '</span>' + moves + '</div>' +
+      '<div class="cp-card-top">' + (handle ? '<span class="cp-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + '<span class="cp-sys grow">' + esc(c.system || 'No game system') + '</span>' + moves + '</div>' +
       '<h2 class="display cp-card-name" id="cph-' + c.id + '">' + esc(c.name) + '</h2>' +
       '<p class="cp-blurb ellipsis" title="' + esc(c.blurb) + '">' + (c.blurb ? esc(c.blurb) : '<span class="faint">No description</span>') + '</p>' +
       '<p class="cp-next">' + (nx ? '<span class="cp-next-lbl">Next</span><span class="cp-next-name ellipsis">' + esc(sLabel(nx)) + '</span><span class="cp-next-date">' + esc(fmtDate(nx.date)) + '</span>'
@@ -273,7 +288,7 @@
     if (!b || b.disabled) b = document.querySelector('[data-k="' + (d < 0 ? 'cpcdn-' : 'cpcup-') + c.id + '"]');
     if (b) b.focus();
   };
-  L.acts.cpreorder = function (el) { reorderingCards = !reorderingCards; L.render(); var b = document.querySelector('[data-k="cpreorder"]'); if (b) b.focus(); L.say(reorderingCards ? 'Move earlier and Move later shown on each campaign' : 'Done reordering'); };
+  L.acts.cpreorder = function (el) { reorderingCards = !reorderingCards; L.render(); var b = document.querySelector('[data-k="cpreorder"]'); if (b) b.focus(); L.say(reorderingCards ? 'Move up and Move down shown on each campaign' : 'Done reordering'); };
   document.addEventListener('keydown', function (e) {
     if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].indexOf(e.key) < 0) return;
     var w = e.target && e.target.closest && e.target.closest('[data-drag="campaigns"]'); if (!w || L.typing(e.target)) return;
@@ -295,7 +310,7 @@
     ],
     render: function () {
       return '<div class="viewhead"><h1>Campaigns</h1><span class="grow"></span>' +
-        (D.campaigns.length > 1 ? '<button type="button" class="btn s ghost ro-tog" data-act="cpreorder" data-k="cpreorder" aria-pressed="' + reorderingCards + '" title="' + (reorderingCards ? 'Done reordering' : 'Show Move earlier and Move later on each campaign (or drag a card by its handle)') + '">' + L.icon('drag', 's') + 'Reorder</button>' : '') +
+        (D.campaigns.length > 1 ? '<button type="button" class="btn s ghost ro-tog" data-act="cpreorder" data-k="cpreorder" aria-pressed="' + reorderingCards + '" title="' + (reorderingCards ? 'Done reordering' : 'Show Move up and Move down on each campaign (or drag a card)') + '">' + L.icon('drag', 's') + 'Reorder</button>' : '') +
         '<button class="btn primary" data-act="cpnew" data-k="cpnew">' + L.icon('plus', 's') + 'New campaign</button></div>' +
         '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<ol class="cp-grid" aria-label="Campaigns in order">' + D.campaigns.map(card).join('') + '</ol>'
           // A first-time user: what a campaign is and what to do first (w3-ux 9).
@@ -371,7 +386,9 @@
     var c = ctx().c, i = +el.dataset.idx, s = c.sessions[i], mv = 'data-list="sessions" data-idx="' + i + '" data-fk="sm-' + s.id + '"';
     L.menu(el, '<button role="menuitem" data-act="cpgo" data-href="#/session/' + c.id + '/' + s.id + '">' + L.icon('right') + 'Open</button>' +
       (i > 0 ? '<button role="menuitem" data-act="cpmove" data-dir="-1" ' + mv + '>' + L.icon('chevup') + 'Move up</button>' : '') +
-      (i < c.sessions.length - 1 ? '<button role="menuitem" data-act="cpmove" data-dir="1" ' + mv + '>' + L.icon('chevdown') + 'Move down</button>' : ''), 'Session actions');
+      (i < c.sessions.length - 1 ? '<button role="menuitem" data-act="cpmove" data-dir="1" ' + mv + '>' + L.icon('chevdown') + 'Move down</button>' : '') +
+      // 0.5.2 items 15 and 48 (the app's SessionList): Delete… asks first; Undo brings it back.
+      '<div class="sep"></div><button role="menuitem" data-act="cpsessdelask" data-sid="' + s.id + '" class="cp-danger">' + L.icon('trash') + 'Delete…</button>', 'More for ' + sLabel(s));
   };
   L.acts.cpnewsession = function () {
     var c = ctx().c, last = c.sessions[c.sessions.length - 1], n = last ? last.n + 1 : 1, id = 's' + n;
@@ -405,7 +422,9 @@
       if (!c) return '<div class="viewhead"><h1>Campaign not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
       var nx = nextSession(c);
       var head = '<div class="viewhead">' +
-        '<h1>' + esc(c.name || 'Untitled campaign') + '</h1><span class="grow"></span>' +
+        '<h1>' + esc(c.name || 'Untitled campaign') + '</h1>' +
+        // 0.5.2 items 15 and 48 (the app's CampaignScreen): the campaign's ⋯ › Delete campaign….
+        '<button class="closer cp-more-btn" data-act="cpheadmenu" data-what="campaign" data-k="cp-more" title="More for ' + esc(c.name) + '" aria-label="More for ' + esc(c.name) + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button><span class="grow"></span>' +
         L.modeSwitch(c.id) + (nx ? '<button class="btn primary" data-act="cprun" data-cid="' + c.id + '" data-sid="' + nx.id + '" data-k="hrun">' + L.icon('broadcast', 's') + 'Run next session <span class="cp-btnsub">S' + nx.n + '</span></button>' : '') + '</div>';
       var details = '<div class="cp-details">' +
         '<div class="field cp-f-name"><label for="cp-c-name">Name</label><input class="input" id="cp-c-name" data-input="cpcamp" data-f="name" data-k="c-name" data-save="campaign name {v}" value="' + esc(c.name) + '" autocomplete="off"></div>' +
@@ -414,6 +433,11 @@
         '<div class="field cp-f-theme"><label for="cp-c-theme">Theme</label><select class="input" id="cp-c-theme" data-input="cpcamp" data-f="theme" data-k="c-theme" data-save="' + esc(c.name) + ' theme">' +
         L.THEMES.map(function (t) { return '<option value="' + t[0] + '"' + (c.theme === t[0] ? ' selected' : '') + '>' + esc(themeName(t[0])) + '</option>'; }).join('') + '</select></div>' +
         '<div class="field cp-f-blurb"><label for="cp-c-blurb">Description</label><input class="input" id="cp-c-blurb" data-input="cpcamp" data-f="blurb" data-k="c-blurb" data-save="' + esc(c.name) + ' description" value="' + esc(c.blurb) + '" autocomplete="off"></div>' +
+        // 0.5.2 item 13 (the app's SessionNumbers): counting on from a first number, or each number typed.
+        '<div class="field cp-f-numbers"><label for="cp-c-numbers">Session numbers</label><select class="input" id="cp-c-numbers" data-input="cpnumbering" data-k="c-numbers">' +
+          '<option value="auto"' + (c.numbering !== 'typed' ? ' selected' : '') + '>Count on from a number</option><option value="typed"' + (c.numbering === 'typed' ? ' selected' : '') + '>Type each number</option></select></div>' +
+        (c.numbering !== 'typed' ? '<div class="field cp-f-first"><label for="cp-c-first">First session number</label><input class="input" type="number" inputmode="numeric" min="0" max="9999" id="cp-c-first" data-k="c-first" data-cpfirst="1" value="' + firstN(c) + '" title="The first session\'s number. The others follow in order. Use it for a campaign you began before Lyre."></div>'
+          : '<p class="hint cp-f-first">Type each session\'s number in its details. New sessions follow the last one.</p>') +
         // Round 8: no note that Look and feel overrides this; the campaign's theme always shows on its pages.
         '</div>';
 
@@ -467,7 +491,9 @@
   function itemRow(sc, list, it, i, n, firstTag) {
     var xk = 'cp-' + sc.id + ':' + list + ':' + it.id, k = sc.id + '-' + list + '-' + it.id, key = sceneKey(sc);
     var isTrack = list === 'music' && it.kind === 'track', own = isTrack ? L.title(it.obj) : it.name, shown = isTrack ? L.nameIn(it.obj, key) : it.name, nm = esc(shown);
-    return '<li class="cp-it' + (i === 0 ? ' first' : '') + '"><div class="cp-it-row">' + xpBtn(it, xk) +
+    // 0.5.2 items 41 and 36 (the app's SessionScreen; 0.6.0 sync): a handle to drag the item to another place in the list.
+    return '<li class="cp-it' + (i === 0 ? ' first' : '') + '" data-drag="items|' + sc.id + '|' + list + '" data-idx="' + i + '"><div class="cp-it-row">' +
+      (n > 1 ? '<span class="cp-handle" title="Drag to change the order (or use ⋯ Move up and Move down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + xpBtn(it, xk) +
       '<span class="num cp-it-n" aria-hidden="true">' + (i + 1) + '</span>' +
       '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
       (isTrack ? '<span class="cp-it-main">' : '') +
@@ -683,6 +709,64 @@
   L.acts.cprunthis = function () { var x = ctx(); run(x.c.id, x.s.id); };
   L.renameSession = function (s, backK) { L.startRename('sess-' + s.id, function (name) { s.name = name; L.say('Session ' + s.n + ' is now called ' + name); }, backK); };
   L.acts.cprename = function () { L.renameSession(ctx().s, 'cp-h1-name'); };
+
+  /* ---------- 0.5.2 (the app since 0.5.2; 0.6.0 sync): deleting campaigns and sessions, and session numbers ----------
+     Items 15 and 48: Delete a campaign or a session from its ⋯ menu; the question names what goes with it and what
+     stays; the message offers Undo. Item 13: how sessions are numbered (the app's SessionNumbers). */
+  var STAYS = 'Tracks, playlists and pad boards stay in your library.';
+  function scenesIn(ss) { return ss.reduce(function (n, x) { return n + x.scenes.length; }, 0); }
+  L.acts.cpcardmenu = function (el) {
+    var c = L.campaign(el.dataset.cid); if (!c) return;
+    L.menu(el, '<button role="menuitem" data-act="cpgo" data-href="#/campaign/' + c.id + '">' + L.icon('right') + 'Open</button><div class="sep"></div>' +
+      '<button role="menuitem" data-act="cpcampdelask" data-cid="' + c.id + '" class="cp-danger">' + L.icon('trash') + 'Delete…</button>', 'More for ' + c.name);
+  };
+  L.acts.cpheadmenu = function (el) {
+    var x = ctx(), camp = el.dataset.what === 'campaign';
+    L.menu(el, camp ? '<button role="menuitem" data-act="cpcampdelask" data-cid="' + x.c.id + '" class="cp-danger">' + L.icon('trash') + 'Delete campaign…</button>'
+      : '<button role="menuitem" data-act="cpsessdelask" data-sid="' + x.s.id + '" class="cp-danger">' + L.icon('trash') + 'Delete session…</button>', 'More for ' + (camp ? x.c.name : sLabel(x.s)));
+  };
+  L.acts.cpcampdelask = function (el) {
+    var c = L.campaign(el.dataset.cid); if (!c) return;
+    L.sheet({ title: 'Delete this campaign?', body: '<p>Delete <b>' + esc(c.name) + '</b> with its ' + plural(c.sessions.length, 'session') + ', ' + plural(scenesIn(c.sessions), 'scene') + " and notes, and the campaign's playlists and pads? " + STAYS + '</p>',
+      footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="cpcampdel" data-cid="' + c.id + '">' + L.icon('trash', 's') + 'Delete campaign</button>' });
+  };
+  L.acts.cpcampdel = function (el) {
+    var i = D.campaigns.map(function (c) { return c.id; }).indexOf(el.dataset.cid); L.closeSheet(); if (i < 0) return;
+    var c = D.campaigns[i];
+    L.undoNote('Deleted the campaign "' + c.name + '".', L.snapshot(['campaigns']));
+    D.campaigns.splice(i, 1);
+    if (L.current().p.cid === c.id) L.route('#/campaigns'); else L.render();
+  };
+  L.acts.cpsessdelask = function (el) {
+    var c = ctx().c, s = c && L.session(c.id, el.dataset.sid); if (!s) return;
+    L.sheet({ title: 'Delete this session?', body: '<p>Delete ' + (s.name ? 'Session ' + s.n + ', <b>' + esc(s.name) + '</b>,' : '<b>Session ' + s.n + '</b>') + ' with its ' + plural(s.scenes.length, 'scene') + " and notes, and the session's playlists and pads? " + STAYS + '</p>',
+      footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="cpsessdel" data-sid="' + s.id + '">' + L.icon('trash', 's') + 'Delete session</button>' });
+  };
+  L.acts.cpsessdel = function (el) {
+    var c = ctx().c; L.closeSheet(); if (!c) return;
+    var i = c.sessions.map(function (x) { return x.id; }).indexOf(el.dataset.sid); if (i < 0) return;
+    var s = c.sessions[i];
+    L.undoNote('Deleted ' + (s.name ? 'Session ' + s.n + ', ' + s.name : 'Session ' + s.n) + '.', L.snapshot(['campaigns']));
+    if (c.firstN == null) c.firstN = firstN(c);
+    c.sessions.splice(i, 1); renumber(c);
+    if (L.current().p.sid === s.id) L.route('#/campaign/' + c.id); else L.render();
+  };
+  L.inputs.cpnumbering = function (el) {
+    var c = ctx().c; if (!c) return;
+    if (c.firstN == null) c.firstN = firstN(c);
+    c.numbering = el.value === 'typed' ? 'typed' : 'auto'; renumber(c);
+    L.saved(c.name + ' session numbers'); L.render();
+    L.say(c.numbering === 'typed' ? 'Each session keeps the number typed for it' : "Sessions count on from the first one's number");
+  };
+  // A number is saved when it is typed and Enter is pressed, or the field is left (the app's DraftField).
+  function saveNumber(el) {
+    var x = ctx(), v = el.value.trim(), n = Number(v); if (!x.c || v === '' || !(n >= 0) || n > 9999 || Math.floor(n) !== n) return;
+    if (el.dataset.cpfirst) { if (n === firstN(x.c)) return; x.c.firstN = n; renumber(x.c); L.saved(x.c.name + ' first session number'); }
+    else if (x.s) { if (n === x.s.n) return; x.s.n = n; L.saved('session number ' + v); }
+    L.render();
+  }
+  document.addEventListener('keydown', function (e) { var el = e.target; if (e.key === 'Enter' && el && el.dataset && (el.dataset.cpfirst || el.dataset.cpnumber)) { e.preventDefault(); saveNumber(el); } }, true);
+  document.addEventListener('focusout', function (e) { var el = e.target; if (el && el.dataset && (el.dataset.cpfirst || el.dataset.cpnumber)) saveNumber(el); });
   // F2 on a control marked data-f2 runs that action (rename in place).
   document.addEventListener('keydown', function (e) {
     var t = e.target; if (e.key !== 'F2' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !t || !t.dataset || !t.dataset.f2) return;
@@ -715,10 +799,15 @@
         // BUG-21: the title renames the session in place (click or F2); only the name, not the number.
         '<h1>' + (L.renaming('sess-' + s.id) ? 'Session ' + s.n + ': ' + L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'cp-h1-rename') :
           '<button class="cp-h1-name" data-act="cprename" data-k="cp-h1-name" data-f2="cprename" title="Rename (click or F2)">' + esc(sLabel(s)) + '</button>') + '</h1>' +
-        statusBadge(s.status) + '<span class="grow"></span>' + L.modeSwitch(c.id) +
+        statusBadge(s.status) +
+        // 0.5.2 items 15 and 48 (the app's SessionScreen): the session's ⋯ › Delete session….
+        '<button class="closer cp-more-btn" data-act="cpheadmenu" data-what="session" data-k="ss-more" title="More for ' + esc(sLabel(s)) + '" aria-label="More for ' + esc(sLabel(s)) + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button>' +
+        '<span class="grow"></span>' + L.modeSwitch(c.id) +
         '<button class="btn' + (s.status === 'next' ? ' primary' : '') + '" data-act="cprunthis" data-k="runthis">' + L.icon('broadcast', 's') + 'Run this session</button></div>';
       var details = '<div class="cp-details cp-sdetails">' +
         '<div class="field cp-f-name"><label for="cp-s-name">Session name</label><input class="input" id="cp-s-name" data-input="cpsess" data-f="name" data-k="s-name" data-save="session name {v}" value="' + esc(s.name) + '" placeholder="Name this session" autocomplete="off"></div>' +
+        // 0.5.2 item 13 (the app's SessionScreen): a campaign whose numbers are typed has each session's number here.
+        (c.numbering === 'typed' ? '<div class="field cp-f-number"><label for="cp-s-number">Session number</label><input class="input" type="number" inputmode="numeric" min="0" max="9999" id="cp-s-number" data-k="s-number" data-cpnumber="1" value="' + s.n + '"></div>' : '') +
         '<div class="field cp-f-date"><label for="cp-s-date">Date</label><input class="input" type="date" id="cp-s-date" data-input="cpsess" data-f="date" data-k="s-date" data-save="Session ' + s.n + ' date" value="' + esc(s.date) + '"></div>' +
         '<div class="field cp-f-status"><label for="cp-s-status">Status</label><select class="input" id="cp-s-status" data-input="cpsess" data-f="status" data-k="s-status" data-save="Session ' + s.n + ' status">' +
         ['played', 'next', 'draft'].map(function (k) { return '<option value="' + k + '"' + (s.status === k ? ' selected' : '') + '>' + STATUS[k] + '</option>'; }).join('') + '</select></div></div>';

@@ -15,6 +15,10 @@
 (function () {
   var D = L.data, esc = L.esc;
   D.watched = D.watched || [];
+  // 0.5.2 items 20 and 40 (the app's FolderActions; 0.6.0 sync): what kind a library folder's new tracks are (none:
+  // guessed from the folder name), and the folders listed only because tracks sit outside every library folder.
+  D.folderKinds = D.folderKinds || {};
+  D.autoFolders = D.autoFolders || [];
   var ROLES = ['Loop bed', 'Underscore', 'Sting', 'Transition'];
   var LOOPS = [['yes', 'Loops well'], ['crossfade', 'Crossfade the loop'], ['no', 'Do not loop']];
   var SORTS = [['title', 'Title A to Z'], ['title-d', 'Title Z to A'], ['artist', 'Artist A to Z'], ['artist-d', 'Artist Z to A'], ['short', 'Shortest first'], ['long', 'Longest first'], ['new', 'Newest first'], ['old', 'Oldest first']];
@@ -36,7 +40,8 @@
   function tagsOf(t) { return D.tagGroups.reduce(function (a, g) { return a.concat(t.tags[g.id] || []); }, []); }
   function untagged(t) { return tagsOf(t).length === 0; }
   function newish(t) { return t.isNew || untagged(t); }
-  function settle(t) { if (t.isNew && t.title && !untagged(t)) t.isNew = false; }
+  // 0.5.2 item 10 (the app since 0.5.2; 0.6.0 sync): a New track the game master tags is no longer New, title or not.
+  function settle(t) { if (t.isNew && !untagged(t)) t.isNew = false; }
   function addedAt(t) { return t.addedAt || (t.added === 'Today' ? Date.now() - 1e6 : Date.parse(t.added) || 0); }
   function cap(s) { s = s.trim().replace(/\s+/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1); }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
@@ -141,6 +146,11 @@
     if (st.folder) parts.push(shortPath(st.folder));
     return parts.length ? esc(parts.join(' · ')) : '';
   }
+  // 0.5.2 item 21 (the app's FilterHeading): a filter's heading, with Clear beside it while something is chosen there.
+  function fHead(id, name, on, what, g, label) {
+    return '<div class="lb-fhrow"><h3 class="lb-fh"' + (id ? ' id="' + id + '"' : '') + '>' + esc(name) + '</h3>' +
+      (on ? '<button class="btn s ghost lb-fclear" data-act="lbfclear" data-what="' + what + '"' + (g ? ' data-g="' + g + '"' : '') + ' data-k="lb-fclear-' + (g || what) + '" aria-label="' + esc(label || 'Clear ' + name) + '" title="' + esc(label || 'Clear ' + name) + '">Clear</button>' : '') + '</div>';
+  }
   function filtersBody() {
     var base = D.tracks.filter(function (t) { return kindOk(t); });
     var nNew = base.filter(newish).length, nMissing = D.tracks.filter(function (t) { return t.missing; }).length;
@@ -155,25 +165,26 @@
     // Round 9 (items 27, 34): one line says how the chips work; each chip is off, Show (✓) or Hide (struck out).
     h += '<p class="hint r9-fhint" id="r9-fhint">Click a filter once to show only those tracks, and again to hide them.</p>';
     var shapes = orderVals(L.SHAPES.map(function (x) { return [x[0], base.filter(function (t) { return L.shapeOf(t) === x[0]; }).length, x[1]]; }));
-    h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-shape"><h3 class="lb-fh" id="lb-fh-shape">Shape</h3><div class="chips">' + shapes.map(function (x) {
+    h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-shape">' + fHead('lb-fh-shape', 'Shape', st.shapes.length || st.hideShapes.length, 'shape') + '<div class="chips">' + shapes.map(function (x) {
       var state = st.shapes.indexOf(x[0]) > -1 ? 'show' : st.hideShapes.indexOf(x[0]) > -1 ? 'hide' : 'off';
       return chip3('lbfshape', 'data-v="' + x[0] + '" data-k="lb-fs-' + x[0] + '"', state, x[2], x[1], L.shapeGlyph(x[0]));
     }).join('') + '</div></div>';
     D.tagGroups.forEach(function (g) {
       var vals = orderVals(D.tagValues[g.id].map(function (v) { return [v, base.filter(function (t) { return L.trackHasTag(t, g.id, v); }).length, v]; })
         .filter(function (x) { return x[1] || want(g.id).indexOf(x[0]) > -1 || hid(g.id).indexOf(x[0]) > -1; }));
-      h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-' + g.id + '"><h3 class="lb-fh" id="lb-fh-' + g.id + '">' + esc(g.name) + '' + '</h3><div class="chips">' +
+      h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-' + g.id + '">' + fHead('lb-fh-' + g.id, g.name, want(g.id).length || hid(g.id).length, 'tag', g.id) + '<div class="chips">' +
         (vals.length ? vals.map(function (x, i) {
           var state = want(g.id).indexOf(x[0]) > -1 ? 'show' : hid(g.id).indexOf(x[0]) > -1 ? 'hide' : 'off';
           return chip3('lbftag', 'data-g="' + g.id + '" data-v="' + esc(x[0]) + '" data-k="lb-ft-' + g.id + '-' + esc(x[0]).replace(/\W/g, '_') + '"', state, x[0], x[1], '');
         }).join('') : '<span class="hint">No values used yet</span>') + '</div></div>';
     });
     var opts = function (sel) { var o = ''; for (var i = 1; i <= 5; i++) o += '<option' + (i === sel ? ' selected' : '') + '>' + i + '</option>'; return o; };
-    h += '<div class="lb-fg"><h3 class="lb-fh">Energy</h3><div class="lb-erange"><label>From <select class="input lb-sel" data-input="lbemin" data-k="lb-emin" aria-label="Lowest energy">' + opts(st.emin) + '</select></label>' +
+    h += '<div class="lb-fg">' + fHead('', 'Energy', st.emin > 1 || st.emax < 5, 'energy', '', 'Clear energy') + '<div class="lb-erange"><label>From <select class="input lb-sel" data-input="lbemin" data-k="lb-emin" aria-label="Lowest energy">' + opts(st.emin) + '</select></label>' +
       '<label>to <select class="input lb-sel" data-input="lbemax" data-k="lb-emax" aria-label="Highest energy">' + opts(st.emax) + '</select></label></div></div>';
-    D.tracks.forEach(function (t) { var root = t.folder.split('\\').slice(0, 3).join('\\'); if (!D.folders.some(function (f) { return inFolder(t, f); })) D.folders.push(root); });
+    // A folder Lyre adds for tracks outside every library folder is listed, but has no ⋯ (it is not one of Lyre's folders).
+    D.tracks.forEach(function (t) { var root = t.folder.split('\\').slice(0, 3).join('\\'); if (!D.folders.some(function (f) { return inFolder(t, f); })) { D.folders.push(root); D.autoFolders.push(root); } });
     var cnt = function (f) { return base.filter(function (t) { return inFolder(t, f); }).length; };
-    h += '<div class="lb-fg"><h3 class="lb-fh">Folders</h3><ul class="lb-folders">' + folderBtn('', 'All folders', base.length, 0);
+    h += '<div class="lb-fg">' + fHead('', 'Folders', st.folder || st.hideFolders.length, 'folder', '', 'Clear folder') + '<ul class="lb-folders">' + folderBtn('', 'All folders', base.length, 0);
     D.folders.forEach(function (f) {
       h += folderBtn(f, f, cnt(f), 0);
       if (st.folder && inFolder({ folder: st.folder }, f)) {
@@ -186,7 +197,9 @@
   function folderBtn(f, label, n, sub) {
     var watched = D.watched.indexOf(f) > -1, hidden = st.hideFolders.indexOf(f) > -1, fk = f.replace(/\W/g, '_');
     return '<li class="r9-fo' + (sub ? ' sub' : '') + (hidden ? ' is-hide' : '') + '"><button data-act="lbfolder" data-f="' + esc(f) + '" data-k="lb-fo-' + fk + '" aria-pressed="' + (st.folder === f) + '" title="' + esc(f || 'Every folder') + (f ? (st.folder === f ? ': click again to hide its tracks' : hidden ? ': hidden. Click to show it again' : '') : '') + '">' +
-      (hidden ? L.icon('close', 's') : L.icon(watched ? 'eye' : 'folder', 's')) + '<span class="ellipsis grow">' + esc(label) + (hidden ? '<span class="sr-only">, hidden</span>' : '') + '</span>' + (watched ? '<span class="hint">watched</span>' : '') + '<span class="num lb-n">' + n + '</span></button>' +
+      (hidden ? L.icon('close', 's') : L.icon(watched ? 'eye' : 'folder', 's')) + '<span class="ellipsis grow">' + esc(label) + (hidden ? '<span class="sr-only">, hidden</span>' : '') + '</span>' + (watched ? '<span class="hint">watched</span>' : '') + (D.folderKinds[f] ? '<span class="hint">' + L.kindName[D.folderKinds[f]] + '</span>' : '') + '<span class="num lb-n">' + n + '</span></button>' +
+      // 0.5.2 items 20 and 40 (the app's FolderActions): one of Lyre's folders has a ⋯.
+      (f && !sub && D.autoFolders.indexOf(f) < 0 ? '<button class="btn s icon ghost lb-fmore" data-act="lbfomenu" data-f="' + esc(f) + '" data-k="lb-fomore-' + fk + '" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for the folder ' + esc(f) + '">' + L.icon('more', 's') + '</button>' : '') +
       '</li>';
   }
 
@@ -208,8 +221,9 @@
       '<button class="btn s" data-act="lbbnew" data-k="lb-bnew">' + L.icon('plus', 's') + 'New playlist from these</button>' +
       // Round 10 fixes (R10-FIX §1): Remove from library for the selection, in words; Delete files from disk… in its ⋯.
       '<button class="btn s" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '" data-k="lb-brm">' + L.icon('close', 's') + 'Remove from library…</button>' +
-      '<button class="btn s icon" data-act="r10selmore" data-k="lb-bmore" aria-haspopup="menu" aria-expanded="false" aria-label="More for the selected tracks" title="More">' + L.icon('more', 's') + '</button>' +
-      '<button class="btn s ghost" data-act="lbbclear" data-k="lb-bclear">Clear selection</button></div>';
+      // 0.6.0 sync (the app's selection bar): Clear selection, then the ⋯ last (Type, Remove from library, Delete files).
+      '<button class="btn s ghost" data-act="lbbclear" data-k="lb-bclear">Clear selection</button>' +
+      '<button class="btn s icon ghost" data-act="r10selmore" data-k="lb-bmore" aria-haspopup="menu" aria-expanded="false" aria-label="More for the selected tracks" title="More">' + L.icon('more', 's') + '</button></div>';
     var allOn = list.length && shownSel === list.length;
     var cols = COLS.filter(function (c) { return st.cols.indexOf(c[0]) > -1; });
     // Round 9 (item 25): a header sorts by its column, A to Z first, then Z to A; aria-sort says which.
@@ -248,7 +262,10 @@
     switch (c) {
       case 'tags': return '<td class="lb-c-tags"><span class="lb-tagcell">' + (st.cols.indexOf('shape') > -1 ? '' : L.shapeTag(t, true)) + rowChips(t, st.cols.indexOf('shape') > -1 ? 2 : 1) + '</span></td>';
       case 'energy': return '<td class="lb-c-energy">' + (t.energy ? L.energy(t.energy) : '<span class="lb-none" aria-label="No energy yet">–</span>') + '</td>';
-      case 'len': return '<td class="lb-c-len num">' + L.fmt(t.dur) + '</td>';
+      // 0.5.2 item 7 (in the app since 0.5.2; 0.6.0 sync): the file's length, and under it the length its Audio profile
+      // plays when the two differ, unless the Plays for column already says it.
+      case 'len': return '<td class="lb-c-len lb-c-dur num">' + (st.cols.indexOf('plays') > -1 || L.fmt(pf) === L.fmt(t.dur) ? L.fmt(t.dur) :
+        '<span class="lb-len"><span>' + L.fmt(t.dur) + '</span><span class="lb-played" title="Plays ' + L.fmt(pf) + ' with its Audio profile (file ' + L.fmt(t.dur) + ')"><span class="sr-only">, plays </span>' + L.fmt(pf) + '</span></span>') + '</td>';
       case 'plays': return '<td class="lb-c-plays num"' + (Math.round(pf) !== Math.round(t.dur) ? ' title="Plays ' + L.fmt(pf) + ' of the file\'s ' + L.fmt(t.dur) + ' (its Audio profile)"' : '') + '>' + (Math.round(pf) !== Math.round(t.dur) ? '<b>' + L.fmt(pf) + '</b>' : L.fmt(pf)) + '</td>';
       case 'artist': return '<td class="lb-c-artist"><span class="ellipsis">' + esc(t.artist || '') + '</span></td>';
       case 'album': return '<td class="lb-c-album"><span class="ellipsis">' + esc(t.album || '') + '</span></td>';
@@ -459,7 +476,8 @@
       function fPane(strip) {
         return L.pane({ id: 'lb-filters', title: 'Filters', icon: 'rule', cls: 'lb-filters' + (strip ? ' lb-strip' : ''), collapsed: mode !== 'wide', kind: 'search', summary: filterSummary(), scroll: 'lb-filters', status: nFilters() ? { text: nFilters() + (nFilters() > 1 ? ' filters on' : ' filter on'), tone: 'on' } : null,
           actions: '<button class="btn s icon ghost" data-act="r9forder" data-k="lb-forder" aria-haspopup="menu" aria-expanded="false" aria-label="Order the filters" title="Order the filters (now ' + FORDERS.filter(function (x) { return x[0] === st.forder; })[0][1] + ')">' + L.icon('inorder', 's') + '</button>' +
-            (filtersOn() ? '<button class="btn s ghost" data-act="lbclearall" data-k="lb-clearall">Clear all</button>' : ''), body: filtersBody() });
+            // 0.5.2 item 21 (the app since 0.5.2; 0.6.0 sync): every filter, shown or hidden, and not the search.
+            (filtersOn() ? '<button class="btn s ghost" data-act="lbclearfilters" data-k="lb-clearall">Clear all filters</button>' : ''), body: filtersBody() });
       }
       function tPane(strip) {
         return L.pane({ id: 'lb-tracks', title: 'Tracks', icon: 'library', cls: 'lb-tracks' + (strip ? ' lb-strip' : ''), flush: true, kind: 'music',
@@ -529,11 +547,69 @@
   };
   L.inputs.lbemin = function (el) { st.emin = +el.value; if (st.emax < st.emin) st.emax = st.emin; L.render(); };
   L.inputs.lbemax = function (el) { st.emax = +el.value; if (st.emin > st.emax) st.emin = st.emax; L.render(); };
+  L.acts.lbclearfilters = function () { clearFilters(); L.render(); L.say('Filters cleared'); };
+  // 0.5.2 item 21 (the app's FilterHeading): Clear beside a filter's heading takes off that filter only.
+  var CLEARS = {
+    shape: ['Shape', function () { st.shapes = []; st.hideShapes = []; }, '[aria-labelledby="lb-fh-shape"] .chips button'],
+    energy: ['energy', function () { st.emin = 1; st.emax = 5; }, '[data-k="lb-emin"]'],
+    folder: ['folder', function () { st.folder = ''; st.hideFolders = []; }, '.lb-folders button']
+  };
+  L.acts.lbfclear = function (el) {
+    var w = el.dataset.what, g = el.dataset.g, c = CLEARS[w];
+    var name = c ? c[0] : groupName(g), focus = c ? c[2] : '[aria-labelledby="lb-fh-' + g + '"] .chips button';
+    if (c) c[1](); else { st.tags[g] = []; st.hide[g] = []; }
+    L.render(); L.say(name + ' filter cleared. ' + visible().length + ' tracks shown');
+    var f = document.querySelector(focus); if (f) f.focus();
+  };
   L.acts.lbclearall = function () { clearFilters(); st.q = ''; L.render(); L.say('Filters cleared'); };
   L.acts.lbshownew = function () { clearFilters(); st.newOnly = true; st.q = ''; if (mode === 'narrow') L.route('#/library'); L.render(); };
   L.inputs.lbq = function (el) { st.q = el.value; L.render(); };
   L.inputs.lbsort = function (el) { st.sort = el.value; L.render(); };
   L.acts.lbguideclose = function () { st.guide = null; L.render(); var q = document.querySelector('[data-k="lb-q"]'); if (q) q.focus(); };
+
+  /* ---------- a library folder's ⋯ (0.5.2 items 20 and 40, the app's FolderActions; 0.6.0 sync) ---------- */
+  L.acts.lbfomenu = function (el) {
+    var f = el.dataset.f, k = D.folderKinds[f] || '';
+    var radio = function (v, words) { return '<button role="menuitemradio" aria-checked="' + (k === v) + '" data-act="lbfokind" data-f="' + esc(f) + '" data-v="' + v + '">' + (k === v ? L.icon('check', 's') : '<span style="width:14px"></span>') + words + '</button>'; };
+    L.menu(el, '<div class="group">New tracks here are</div>' + radio('', 'Guessed from the folder name') + ['music', 'amb', 'fx'].map(function (x) { return radio(x, 'Always ' + L.kindName[x]); }).join('') +
+      '<div class="sep"></div><button role="menuitem" data-act="lbforemove" data-f="' + esc(f) + '">' + L.icon('close', 's') + 'Remove folder…</button>', 'More for ' + shortPath(f));
+  };
+  L.acts.lbfokind = function (el) {
+    var f = el.dataset.f, v = el.dataset.v, restore = L.snapshot(['folderKinds']);
+    if (v) D.folderKinds[f] = v; else delete D.folderKinds[f];
+    var text = v ? 'New tracks in ' + shortPath(f) + ' are ' + L.kindName[v] + '.' : 'New tracks in ' + shortPath(f) + ' are guessed from their folder names.';
+    L.undoNote(text, restore); L.render(); L.say(text);
+    var b = document.querySelector('[data-k="lb-fomore-' + f.replace(/\W/g, '_') + '"]'); if (b) b.focus();
+  };
+  var removingFolder = null;
+  L.acts.lbforemove = function (el) {
+    var f = el.dataset.f, under = D.tracks.filter(function (t) { return inFolder(t, f); }), n = under.length, watched = D.watched.indexOf(f) > -1;
+    removingFolder = f;
+    L.sheet({ title: 'Remove ' + shortPath(f) + '?', body: '<p>Lyre ' + (watched ? 'stops watching' : 'forgets') + ' <b>' + esc(f) + '</b>. Nothing is deleted from your computer.</p>' +
+      (n ? '<label class="lb-check"><input type="checkbox" id="lb-fo-with" data-k="lb-fo-with"><span>Also remove its ' + plural(n, 'track') + ' from the library</span></label>' +
+        '<p class="hint">The ' + plural(n, 'track') + ' stay in your library, where they are.</p>' : '<p class="hint">No track in your library is in it.</p>'),
+      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="lbforemovedo">Remove folder</button>' });
+  };
+  L.acts.lbforemovedo = function () {
+    var f = removingFolder; if (!f) return; removingFolder = null;
+    var w = document.getElementById('lb-fo-with'), withTracks = !!(w && w.checked);
+    var restore = L.snapshot(['folders', 'watched', 'folderKinds', 'autoFolders', 'tracks', 'playlists', 'campaigns']);
+    var gone = withTracks ? D.tracks.filter(function (t) { return inFolder(t, f); }).map(function (t) { return t.id; }) : [];
+    [D.folders, D.watched].forEach(function (a) { var i = a.indexOf(f); if (i > -1) a.splice(i, 1); });
+    delete D.folderKinds[f];
+    if (gone.length) {
+      var out = function (a) { for (var i = a.length - 1; i >= 0; i--) if (gone.indexOf(a[i]) > -1) a.splice(i, 1); };
+      for (var i = D.tracks.length - 1; i >= 0; i--) if (gone.indexOf(D.tracks[i].id) > -1) D.tracks.splice(i, 1);
+      D.playlists.forEach(function (p) { if (p.items) out(p.items); });
+      D.campaigns.forEach(function (c) { out(c.tracks || []); c.sessions.forEach(function (s) { out(s.tracks || []); s.scenes.forEach(function (sc) { out(sc.music || []); if (gone.indexOf(sc.amb) > -1) sc.amb = ''; }); }); });
+      st.sel = st.sel.filter(function (x) { return gone.indexOf(x) < 0; });
+    }
+    if (st.folder && inFolder({ folder: st.folder }, f)) st.folder = '';
+    L.closeSheet();
+    var text = withTracks ? 'Removed ' + f + ' and its ' + plural(gone.length, 'track') + ' from the library. The files are still on your computer.' : 'Removed ' + f + " from Lyre's folders. Its tracks stay in your library.";
+    L.undoNote(text, restore); L.render(); L.say(text);
+    var q = document.querySelector('[data-k="lb-q"]'); if (q) q.focus();
+  };
 
   /* ---------- rows: open, select, preview, keys ---------- */
   function openTrack(id, keepRow) {
@@ -542,6 +618,15 @@
     L.route('#/library/' + id);
   }
   L.acts.lbopen = function (el) { openTrack(el.dataset.tid, true); };
+  // 0.5.2 item 6 (in the app since 0.5.2; 0.6.0 sync): Preview or Play on air on a row opens that track's details too.
+  ['pv', 'onair'].forEach(function (a) {
+    var f0 = L.acts[a];
+    L.acts[a] = function (el) {
+      var r = isLib() && el.dataset.kind === 'track' && el.closest('.lb-table tr[data-tid]');
+      f0.apply(this, arguments);
+      if (r && L.current().p.tid !== r.dataset.tid) openTrack(r.dataset.tid, true);
+    };
+  });
   L.acts.lbclose = function () { pendingFocus = st.cursor ? 'lbrow-' + st.cursor : null; L.route('#/library'); };
   L.acts.lbback = L.acts.lbclose;
   function toggleSel(id, range) {
@@ -610,16 +695,19 @@
        Delete file from disk…  the files go to the Recycle Bin and their tracks leave Lyre. The confirmation names the
                                files; Undo brings the tracks back (missing until the files are restored). */
   var NAMED_FILES = 10, removal = null;
+  // 0.6.0 sync (the app's trackUses.ts usesLines): one line per kind of place, the five first and then "and n more":
+  // manual playlists, scenes ("The abbey ruins (Session 14)") and pads ("Thunder (Weather)").
   function usesOf(ids) {
-    var on = function (id) { return ids.indexOf(id) > -1; }, out = [];
-    D.playlists.forEach(function (p) { if (p.kind === 'manual' && p.items.some(on)) out.push('Playlist: ' + p.name); });
-    D.campaigns.forEach(function (c) {
-      if ((c.tracks || []).some(on)) out.push(c.name + ' (whole campaign)');
-      c.sessions.forEach(function (s) {
-        if ((s.tracks || []).some(on)) out.push(c.name + ' › Session ' + s.n);
-        s.scenes.forEach(function (sc) { if ((sc.music || []).some(on) || on(sc.amb)) out.push(c.name + ' › Session ' + s.n + ' › ' + sc.name); });
-      });
-    });
+    var on = function (id) { return ids.indexOf(id) > -1; }, pls = [], scenes = [], pads = [], out = [];
+    var few = function (names) { return names.length > 5 ? names.slice(0, 5).join(', ') + ' and ' + (names.length - 5) + ' more' : names.join(', '); };
+    D.playlists.forEach(function (p) { if (p.kind === 'manual' && p.items.some(on)) pls.push(p.name); });
+    D.campaigns.forEach(function (c) { c.sessions.forEach(function (s) { s.scenes.forEach(function (sc) { if ((sc.music || []).some(on) || on(sc.amb)) scenes.push(sc.name + ' (Session ' + s.n + ')'); }); }); });
+    // A pad names its sounds by file.
+    var files = ids.map(function (id) { var t = L.track(id); return t ? t.file : ''; }).filter(Boolean);
+    D.boards.forEach(function (b) { b.slots.concat(b.spare).forEach(function (x) { if (x && x.sound && (x.sound.files || []).some(function (f) { return files.indexOf(f) > -1; })) pads.push((x.label || 'A pad') + ' (' + b.name + ')'); }); });
+    if (pls.length) out.push('Playlists: ' + few(pls));
+    if (scenes.length) out.push('Scenes: ' + few(scenes));
+    if (pads.length) out.push('Pads: ' + few(pads));
     return out;
   }
   function askRemove(how, ids, shown) {
@@ -638,7 +726,8 @@
   }
   L.acts.r10rmask = function (el) { if (el.disabled) return; askRemove(el.dataset.how, (el.dataset.ids || '').split(',').filter(Boolean), !!el.dataset.shown); };
   L.acts.r10selmore = function (el) {
-    L.menu(el, '<button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '">' + L.icon('close', 's') + 'Remove from library…</button>' +
+    // 0.5.2 items 4 and 39 (the app's selection menu; 0.6.0 sync): Type first, for every ticked track at once.
+    L.menu(el, (L.r60typeMenu ? L.r60typeMenu(st.sel) : '') + '<button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '">' + L.icon('close', 's') + 'Remove from library…</button>' +
       '<div class="sep"></div><button role="menuitem" class="r10-mi-quiet" data-act="r10rmask" data-how="delete" data-ids="' + st.sel.join(',') + '">' + L.icon('warn', 's') + (st.sel.length === 1 ? 'Delete file from disk…' : 'Delete files from disk…') + '</button>', 'More for the selected tracks');
   };
   L.acts.r10rmdo = function () {

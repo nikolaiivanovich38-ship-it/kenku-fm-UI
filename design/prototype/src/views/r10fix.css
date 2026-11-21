@@ -88,8 +88,6 @@
 .rail:not(.min) button.nav:has(.r9-help-ring) { gap: 6px; padding-right: 4px; }
 .rail:not(.min) .r9-help-ring { flex: none; padding: 0 4px; }
 
-/* Live's rows keep their height when a control in them takes focus: the name used to grow to its full length then,
-   moving the row's buttons between press and release, so the click was lost (seen at half a 1920 screen on the ⋯ of a
-   playlist's track). The full name is in the hover text, which keyboard focus shows as well (UX-6); a row opened for
-   its details keeps its whole name, as before. */
-.lv-trk-r:focus-within .lv-trk-t:not([aria-expanded="true"]) > span, .lv-trk-r:focus-within .lv-pli-n > b.ellipsis { display: -webkit-box; -webkit-line-clamp: 2; }
+/* Live's rows keep their height when a mouse click puts focus in them (the name used to grow, moving the row's buttons
+   between press and release, so the click was lost). 0.6.0 sync: as the app since 0.5.2, live.css unfolds the name only
+   for keyboard focus (:focus-visible), so the rule that kept it folded for any focus went. */

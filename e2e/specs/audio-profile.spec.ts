@@ -4,7 +4,7 @@
  * (t13), which loops from 1:04 to 5:18 and has its own settings in the scene "The abbey ruins".
  */
 import type { Page } from "@playwright/test";
-import { appOnly, expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { openRoute, reopen } from "./support/target";
 
 // Round 10 (prep review S1): the first box is "Audio profile" in the design; the app's name until built: Waveform and listening.
@@ -38,9 +38,9 @@ test.describe("the handles", () => {
     expect(typed).not.toBe("5:18");
   });
 
-  test("on the End handle, the arrow keys move 1 s and Shift+Right 10 s, and the new time is announced", async ({ page }) => {
-    // 0.5.2 (item 2, Nik: "More granular positions"): in the app an arrow moves 0.1 s and Shift+arrow 1 s.
-    const [arrow, shift] = test.info().project.name === "app" ? [0.1, 1] : [1, 10];
+  test("on the End handle, the arrow keys move 0.1 s and Shift+Right 1 s, and the new time is announced", async ({ page }) => {
+    // 0.5.2 (item 2, Nik: "More granular positions"): an arrow moves 0.1 s and Shift+arrow 1 s (the prototype too since 0.6.0).
+    const [arrow, shift] = [0.1, 1];
     await openRoute(page, "profile/t13");
     const end = handle(page, "End");
     await end.focus();
@@ -53,8 +53,8 @@ test.describe("the handles", () => {
   });
 
   test("the fade out handle changes the fade by a second per arrow key", async ({ page }) => {
-    // 0.5.2 (item 2): in the app a second is Shift+arrow; an arrow alone is a tenth.
-    const key = test.info().project.name === "app" ? "Shift+ArrowRight" : "ArrowRight";
+    // 0.5.2 (item 2): a second is Shift+arrow; an arrow alone is a tenth (the prototype too since 0.6.0).
+    const key = "Shift+ArrowRight";
     await openRoute(page, "profile/t13");
     const knob = handle(page, "Fade out length");
     await knob.focus();
@@ -129,7 +129,6 @@ test.describe("fades", () => {
 
   test("a looping track also has a loop crossfade that smooths the jump back", async ({ page }) => {
     // Round 6: what it does is read out with the group (and is its hover text) instead of a line on screen.
-    expectFailureUntilBuilt("prep");
     await openRoute(page, "profile/t13");
     await expect(fades(page).getByRole("group", { name: "Crossfade the loop" })).toHaveAccessibleDescription("Smooths the jump back to 1:04");
     await expect(fades(page).getByRole("textbox", { name: "loop crossfade length in seconds" })).toHaveValue("2");
@@ -152,8 +151,7 @@ test.describe("listening while you set it", () => {
     test.setTimeout(40_000);
     // Crowd whispers (f14) is a 20-second loop. In the app the seeded tracks play a six-minute stand-in tone
     // (seedAudio.ts), and since 0.5.2 (item 52) an End at the track's length in the library means the end of the file,
-    // so the tone would play on past 0:20. End is moved in one step (a tenth of a second in the app, a second in the
-    // prototype) to be a real End inside the track. Counted at least once: the count can pass "once" between two looks.
+    // so the tone would play on past 0:20. End is moved in one step (a tenth of a second) to be a real End inside the track. Counted at least once: the count can pass "once" between two looks.
     await openRoute(page, "profile/f14");
     const end = handle(page, "End");
     const before = await num(end);
@@ -304,7 +302,6 @@ test.describe("round 5: volume normalisation", () => {
 /* Round 7 (design/prototype/ROUND7.md, DAT-3): the mix-out marker, where the next track crossfades in, and playing on
    air from a marker. Loop in and loop out are the Loop and End handles a loop bed already has. */
 test.describe("round 7: mix out and playing from a marker", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
   const markers = (page: Page) => page.getByRole("region", { name: "Markers", exact: true });
 
   test("one marker can be the mix-out point; choosing another moves it", async ({ page }) => {
@@ -337,10 +334,9 @@ test.describe("round 6 cuts on the Audio profile", () => {
   });
 });
 
-/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("Start at a marker: the track then starts there when played on air from the Library (\"Start at [select marker]\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "profile/t13");
     const startAt = page.getByRole("region", { name: "At the end" }).getByRole("combobox", { name: "Start at" });
     await expect(startAt).toHaveValue("");
@@ -352,7 +348,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("Pick up where it stopped is in the Audio profile too, the track's own choice (\"I don't see pickup where it stops in details or audio profile views\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "profile/t13");
     const pickUp = page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: /^(Pick up where it stopped|Next time, start where it stopped)$/ });
     await expect(pickUp).not.toBeChecked();
@@ -363,10 +358,9 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 });
 
-/* 0.5.2: from Nik's play test (14 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.2: from Nik's play test (14 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.2: Nik's play test", () => {
   test("item 2: Start and End move in tenths of a second, a time can be typed with tenths, and the strip zooms in (\"More granular positions on the audio profile tracking bar\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "profile/t13");
     const end = handle(page, "End");
     await end.focus();
@@ -390,7 +384,6 @@ test.describe("0.5.2: Nik's play test", () => {
   });
 
   test("round 8 #3: Start at shows its whole choice, not \"Begi\"", async ({ page }) => {
-    appOnly();
     await openRoute(page, "profile/t13");
     const startAt = atEnd(page).getByRole("combobox", { name: "Start at" });
     const fits = await startAt.evaluate((select: HTMLSelectElement) => {
@@ -407,7 +400,6 @@ test.describe("0.5.2: Nik's play test", () => {
   });
 
   test("round 8 #1: right after Add marker, the Saved pop-up leaves the new marker's row and its buttons in sight (WCAG 2.4.11)", async ({ page }) => {
-    appOnly();
     await openRoute(page, "profile/t13");
     const markers = page.getByRole("region", { name: "Markers", exact: true });
     await markers.scrollIntoViewIfNeeded();
@@ -421,7 +413,6 @@ test.describe("0.5.2: Nik's play test", () => {
   });
 
   test("item 24: Back from the Audio profile keeps the preview playing, and the Now playing bar stays (\"At the moment, it stops and the bar disappears\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library/t13");
     await page.evaluate(() => {
       window.location.hash = "#/profile/t13";
@@ -436,7 +427,6 @@ test.describe("0.5.2: Nik's play test", () => {
   });
 
   test("item 28: a setting changed while the track previews applies to the sound that plays, without starting it again", async ({ page }) => {
-    appOnly();
     await openRoute(page, "profile/t13");
     await wave(page).getByRole("button", { name: "Play the last 10 s before End" }).click();
     const bar = page.getByRole("region", { name: "Now playing" });

@@ -19,7 +19,8 @@
   var esc = L.esc, D = L.data;
   var S = {
     tid: null, key: '', pos: 0, playing: false, mode: 'play', loops: 0, event: null, handover: null, since: 0, last: 0,
-    ctx: 0, saved: false, editing: null, editText: '', invalid: {}, keys1: true, focusK: null, lastSec: -1, undoClear: null
+    ctx: 0, saved: false, editing: null, editText: '', invalid: {}, keys1: true, focusK: null, lastSec: -1, undoClear: null,
+    zoom: 1, waveLeft: 0, centre: false
   };
   // Single-key shortcuts can be switched off (WCAG 2.1.4); remembered in this browser only.
   try { S.keys1 = localStorage.getItem('lyre-r2-profile-keys1') !== 'off'; } catch (e) { S.keys1 = true; }
@@ -37,12 +38,19 @@
 
   /* ---------- time and curve helpers ---------- */
   function fmt1(s) { var tt = Math.floor(Math.max(0, s) * 10 + 1e-6), m = Math.floor(tt / 600), sec = Math.floor((tt % 600) / 10); return m + ':' + (sec < 10 ? '0' : '') + sec + '.' + (tt % 10); }
+  // 0.5.2 item 2 (the app's profileModel parseTime; 0.6.0 sync): a typed time may have tenths ("5:12.4", "270.5").
   function parse(txt, secsOnly) {
     var s = String(txt).trim();
     if (secsOnly) return /^\d{1,3}(\.\d)?$/.test(s) ? +s : null;
-    var m = s.match(/^(\d{1,3})(?::(\d{1,2}))?$/); if (!m) return null;
-    if (m[2] == null) return +m[1]; // a bare number is seconds
-    return +m[2] > 59 ? null : (+m[1]) * 60 + (+m[2]);
+    var m = s.match(/^(\d{1,4})(?::(\d{1,2}))?(?:\.(\d))?$/); if (!m) return null;
+    var tenth = m[3] == null ? 0 : +m[3] / 10;
+    if (m[2] == null) return +m[1] + tenth; // a bare number is seconds
+    return +m[2] > 59 ? null : (+m[1]) * 60 + (+m[2]) + tenth;
+  }
+  // 0.5.2 item 2 (the app's fmtPoint): "5:18", or "5:18.4" when a point is not a whole second.
+  function fmtPoint(sec) {
+    var tt = Math.round(Math.max(0, sec) * 10); if (tt % 10 === 0) return L.fmt(tt / 10);
+    var m = Math.floor(tt / 600); return m + ':' + ((tt - m * 600) / 10).toFixed(1).padStart(4, '0');
   }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function times(n) { return n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times'; }
@@ -117,11 +125,21 @@
   }
   // Move one point or length, keeping Start < End, the loop start between them and the fades inside.
   function movePoint(t, which, v) {
-    var p = prof(t), r = range(t, which); v = clamp(Math.round(v * (which.indexOf('fade') === 0 || which === 'xfade' ? 2 : 1)) / (which.indexOf('fade') === 0 || which === 'xfade' ? 2 : 1), r[0], r[1]);
+    // 0.5.2 item 2 (the app since 0.5.2): points and lengths move in tenths of a second.
+    var p = prof(t), r = range(t, which); v = clamp(Math.round(v * 10) / 10, r[0], r[1]);
     var patch = {};
     if (which === 'start') patch.start = v; else if (which === 'end') patch.end = v; else if (which === 'loop') patch.loopStart = v; else if (which === 'xfade') patch.loopXfade = v;
     else if (which === 'fadein') patch.fadeIn = { dur: v, shape: p.fadeIn.shape }; else patch.fadeOut = { dur: v, shape: p.fadeOut.shape };
-    write(t, patch); return v;
+    write(t, patch);
+    // 0.5.2 item 28 (the app since 0.5.2): a change made while the track previews applies to the sound that plays at once:
+    // with End moved before the playhead, the preview goes round to the loop start (or reaches End) straight away.
+    if (which === 'end' && S.playing && !S.handover && S.pos > v) {
+      var np = prof(t);
+      if (np.after === 'loop') { S.pos = np.loopStart; S.loops++; S.since = 0; S.event = { type: 'loop', text: 'Looped back to ' + L.fmt(np.loopStart) }; }
+      else S.pos = Math.max(np.start, v - 0.01);
+      syncPreview();
+    }
+    return v;
   }
   function envAt(p, pos, looped) {
     if (pos < p.start || pos > p.end) return 1;
@@ -189,22 +207,35 @@
     if (p.after === 'loop' && p.loopXfade > 0 && S.pos > p.end - p.loopXfade && S.pos < p.end) return 1; // crossfading: out and in together
     return envAt(p, S.pos, S.loops > 0);
   }
+  /* 0.5.2 items 24 and 28 (the app since 0.5.2; 0.6.0 sync): the preview here is the app's one preview, so it shows on
+     the Now playing bar as Only you, follows every change made here, and goes on playing after Back. The page drives it
+     while it is open (pb.preview.ap); after Back the bar's own preview carries on from where it was. */
+  function syncPreview() {
+    var pv = L.pb.preview, t = track(); if (!pv || !pv.ap || !t) return;
+    pv.pos = S.pos; pv.paused = !S.playing;
+  }
+  function startPreview(t) {
+    L.preview(t.id); var pv = L.pb.preview; if (!pv) return;
+    pv.ap = true; pv.dur = t.dur; syncPreview();
+  }
   function play(mode) {
     var t = track(); if (!t) return; var p = prof(t);
-    if (L.pb.preview) L.stopPreview(); // only one preview at a time
+    if (L.pb.preview) { L.pb.preview.ap = false; L.stopPreview(); } // only one preview at a time
     S.mode = mode || 'play'; S.event = null; S.handover = null; S.since = 0;
     if (S.mode === 'last10') { S.pos = Math.max(p.start, p.end - 10); S.loops = 0; }
     else if (S.pos >= t.dur - .05) { S.pos = p.from; S.loops = 0; }
-    S.playing = true; S.last = performance.now();
+    S.playing = true; S.last = performance.now(); startPreview(t);
     L.say(S.mode === 'last10' ? 'Preview: the last 10 seconds before End, from ' + L.fmt(S.pos) : 'Preview from ' + L.fmt(S.pos));
     L.render(); requestAnimationFrame(frame);
   }
-  function pause(msg) { S.playing = false; if (msg) L.say(msg); L.render(); }
-  function stop() { S.playing = false; S.handover = null; S.event = null; S.mode = 'play'; S.loops = 0; var t = track(); if (t) S.pos = prof(t).from; L.say('Preview stopped'); L.render(); }
+  function pause(msg) { S.playing = false; syncPreview(); if (msg) L.say(msg); L.render(); }
+  function stop() { S.playing = false; S.handover = null; S.event = null; S.mode = 'play'; S.loops = 0; var t = track(); if (t) S.pos = prof(t).from; if (L.pb.preview && L.pb.preview.ap) L.stopPreview(); L.say('Preview stopped'); L.render(); }
   function seek(v, silent) { var t = track(); if (!t) return; S.pos = clamp(v, 0, t.dur); S.handover = null; S.event = null; if (!silent) L.say('Playhead ' + L.fmt(S.pos)); }
   function frame(now) {
     if (!S.playing) return;
-    var dt = Math.min(.25, (now - S.last) / 1000); S.last = now; advance(dt); paintLive();
+    // Stopped or paused from the Now playing bar: the page follows.
+    var pv = L.pb.preview; if (!pv || !pv.ap) { S.playing = false; L.render(); return; } if (pv.paused) { pause(); return; }
+    var dt = Math.min(.25, (now - S.last) / 1000); S.last = now; advance(dt); syncPreview(); paintLive();
     if (S.playing) requestAnimationFrame(frame);
   }
   function advance(dt) {
@@ -231,7 +262,8 @@
     if (S.pos >= t.dur) { S.pos = t.dur; S.event = { type: 'eof', text: 'End of the file. Players never hear the part after End.' }; pause(S.event.text); }
   }
   // Leaving the view, or opening another track or place, stops the preview.
-  window.addEventListener('lyre:route', function () { var r = L.current(); if (S.playing && (r.name !== 'profile' || r.p.tid !== S.tid || (r.p.ctx || '') !== S.key)) { S.playing = false; S.handover = null; } });
+  // 0.5.2 item 24: the bar's preview goes on from where it was; the page stops driving it.
+  window.addEventListener('lyre:route', function () { var r = L.current(); if (S.playing && (r.name !== 'profile' || r.p.tid !== S.tid || (r.p.ctx || '') !== S.key)) { syncPreview(); if (L.pb.preview) L.pb.preview.ap = false; S.playing = false; S.handover = null; L.render(); } });
 
   /* ---------- painting without a re-render (every frame while listening) ---------- */
   var colours = null;
@@ -304,7 +336,7 @@
   }
   function err(which) { return S.invalid[which] ? '<span class="ap-err" id="ap-f-' + which + '-err">' + esc(S.invalid[which]) + '</span>' : ''; }
   function field(t, which, value, btnLabel, key) {
-    return '<div class="ap-frow"><label for="ap-f-' + which + '">' + POINT[which] + '</label>' + timeInput(t, which, L.fmt(value), false) +
+    return '<div class="ap-frow"><label for="ap-f-' + which + '">' + POINT[which] + '</label>' + timeInput(t, which, fmtPoint(value), false) +
       '<button class="btn s" data-act="aphere" data-f="' + which + '" data-k="ap-here-' + which + '"' + (key && S.keys1 ? ' aria-keyshortcuts="' + key + '"' : '') + ' title="' + esc(btnLabel) + ' (' + L.fmt(S.pos) + ')' + (key && S.keys1 ? ', key ' + key : '') + '"' + dis(t) + '>' + L.icon('arrow', 's') + btnLabel + '</button>' + err(which) + '</div>';
   }
   function stepper(t, which, val, unitLabel) {
@@ -332,11 +364,25 @@
   function handle(t, which, v, label, cls) {
     var r = range(t, which), ro = !editable(t), len = which.indexOf('fade') === 0;
     return '<div class="ap-h ' + cls + '" role="slider" tabindex="0" data-aph="' + which + '" data-k="ap-h-' + which + '" style="left:' + pct(t, which === 'fadein' ? value(prof(t), 'start') + v : which === 'fadeout' ? value(prof(t), 'end') - v : v) + '" aria-label="' + label + '" aria-orientation="horizontal"' +
-      (ro ? ' aria-readonly="true"' : '') + ' aria-valuemin="' + r[0] + '" aria-valuemax="' + r[1] + '" aria-valuenow="' + v + '" aria-valuetext="' + (len ? secs(v) : L.fmt(v)) + '" title="' + label + ' ' + (len ? secs(v) : L.fmt(v)) + (ro ? ' (the track\'s settings: they cannot be changed here)' : len ? ': drag along the volume line, or arrow keys to change the length' : ': drag, or use the arrow keys (Shift for 10 s)') + '">' +
+      (ro ? ' aria-readonly="true"' : '') + ' aria-valuemin="' + r[0] + '" aria-valuemax="' + r[1] + '" aria-valuenow="' + v + '" aria-valuetext="' + (len ? secs(v) : fmtPoint(v)) + '" title="' + label + ' ' + (len ? secs(v) : fmtPoint(v)) + (ro ? ' (the track\'s settings: they cannot be changed here)' : len ? ': drag along the volume line, or arrow keys to change the length (0.1 s; Shift: 1 s)' : ': drag, or use the arrow keys (0.1 s; Shift: 1 s; Page Up and Down: 10 s)') + '">' +
       (len ? '<span class="ap-knob"></span>' : '<span class="ap-htab">' + L.icon('drag', 's') + (which === 'loop' ? 'Loop' : label) + '</span>') + '</div>';
   }
+  // 0.5.2 item 2 (the app's Waveform.tsx; 0.6.0 sync): Zoom in widens the strip, up to 16 times, inside a box that
+  // scrolls sideways, to place Start and End to a tenth of a second.
+  var ZOOMS = [1, 2, 4, 8, 16];
+  function zoomHTML() {
+    var i = ZOOMS.indexOf(S.zoom);
+    return '<div class="ap-zoom" role="group" aria-label="Zoom">' +
+      '<button class="btn s icon" data-act="apzoom" data-d="-1" data-k="ap-zoom-out" aria-label="Zoom out" title="Zoom out: see more of the track"' + (i <= 0 ? ' disabled' : '') + '>' + L.icon('minus', 's') + '</button>' +
+      '<span class="num faint ap-zoom-v">' + S.zoom + '×</span>' +
+      '<button class="btn s icon" data-act="apzoom" data-d="1" data-k="ap-zoom-in" aria-label="Zoom in" title="Zoom in, to place Start and End to a tenth of a second"' + (i >= ZOOMS.length - 1 ? ' disabled' : '') + '>' + L.icon('plus', 's') + '</button></div>';
+  }
+  L.acts.apzoom = function (el) {
+    var i = ZOOMS.indexOf(S.zoom) + (+el.dataset.d); S.zoom = ZOOMS[clamp(i, 0, ZOOMS.length - 1)]; S.centre = true;
+    L.render(); L.say('Zoom ' + S.zoom + '×');
+  };
   function waveHTML(t, p) {
-    return '<div class="ap-wave' + (editable(t) ? '' : ' ro') + '">' +
+    return zoomHTML() + '<div class="ap-wavescroll"><div class="ap-wave' + (editable(t) ? '' : ' ro') + '" style="width:' + (S.zoom * 100) + '%">' +
       '<div class="ap-out" style="left:0;width:' + pct(t, p.start) + '"><span>Not played</span></div>' +
       '<div class="ap-out" style="left:' + pct(t, p.end) + ';right:0"><span>Not played</span></div>' +
       (p.after === 'loop' ? '<div class="ap-loop" style="left:' + pct(t, p.loopStart) + ';width:' + ((p.end - p.loopStart) / t.dur * 100).toFixed(3) + '%"></div>' : '') +
@@ -347,7 +393,7 @@
       p.markers.map(function (m) { var st = p.startAt === m.at; return '<span class="ap-flag' + (st ? ' ap-startat' : '') + '" data-act="apgo" data-at="' + m.at + '" style="left:' + pct(t, m.at) + '" title="' + esc(m.label) + ' (' + L.fmt(m.at) + ')' + (st ? ': the track starts here' : '') + ': go there" aria-hidden="true"><span class="ap-flag-l">' + (st ? L.icon('play', 's') + 'Starts here: ' : '') + esc(m.label) + '</span></span>'; }).join('') +
       handle(t, 'start', p.start, 'Start', 'ap-h-start') + handle(t, 'end', p.end, 'End', 'ap-h-end') + (p.after === 'loop' ? handle(t, 'loop', p.loopStart, 'Loop start', 'ap-h-loop') : '') +
       handle(t, 'fadein', p.fadeIn.dur, 'Fade in length', 'ap-fk ap-fk-in') + handle(t, 'fadeout', p.fadeOut.dur, 'Fade out length', 'ap-fk ap-fk-out') +
-      '<div class="ap-ruler" aria-hidden="true"></div></div>';
+      '<div class="ap-ruler" aria-hidden="true"></div></div></div>';
   }
   function listenHTML(t, p) {
     var c = ctxOf(t), onAir = L.pb.music && L.pb.music.id === t.id;
@@ -398,9 +444,12 @@
         '<div class="row-flex"><span class="grow ellipsis" title="' + esc(L.title(n)) + '"><b>' + esc(L.title(n)) + '</b></span>' + L.profileLink(n.id, c.place, true) + '</div>' +
         (c.lib ? '<p class="hint">This track is not in a scene or playlist yet, so the preview uses the next track in the Track library.</p>' : '') + '</div>';
     }
-    var fields = '<div class="ap-fields">' + field(t, 'start', p.start, 'Start at playhead', 'I') + field(t, 'end', p.end, 'End at playhead', 'O') +
+    // 0.5.1 (the app's EndBox; 0.6.0 sync): Start at sits between Start and End, and Next time, start where it stopped,
+    // the track's own choice wherever it plays, comes last.
+    var fields = '<div class="ap-fields">' + field(t, 'start', p.start, 'Start at playhead', 'I') + startAtHTML(t, p) + field(t, 'end', p.end, 'End at playhead', 'O') +
       (p.after === 'loop' ? field(t, 'loop', p.loopStart, 'Loop from playhead', 'L') : '') + '</div>';
-    return opts + nx + fields;
+    var resume = t.kind !== 'fx' && t.role !== 'Sting' ? '<div class="lb-tg r9-resume-row"><label class="lv-switch lb-resume" title="A long underscore or bed starts again where it was last stopped"><input type="checkbox" role="switch" data-input="apresume" data-k="ap-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Next time, start where it stopped</b></span></label></div>' : '';
+    return opts + nx + fields + resume;
   }
   function fadesHTML(t, p) {
     var h = fadeBlock(t, p, 'in') + fadeBlock(t, p, 'out');
@@ -415,19 +464,24 @@
   /* Round 8: Start at, Beginning or one of the markers: where the track starts wherever it plays (Live, scenes, the
      Now playing bar), in this place's settings or the track's own. */
   function startAtHTML(t, p) {
-    return '<div class="field ap-startat-f"><label for="ap-startat">Start at</label><select id="ap-startat" class="input" data-input="apstartat" data-k="ap-startat"' + dis(t) + '>' +
+    return '<div class="ap-frow"><label for="ap-startat">Start at</label><select id="ap-startat" class="input" data-input="apstartat" data-k="ap-startat" title="Where it starts wherever it plays (a scene, Live, Play on air). Add a marker to start there."' + dis(t) + '>' +
       '<option value=""' + (p.startAt == null ? ' selected' : '') + '>Beginning (' + L.fmt(p.start) + ')</option>' +
       p.markers.filter(function (m) { return m.at >= p.start && m.at < p.end; }).map(function (m) { return '<option value="' + m.at + '"' + (p.startAt === m.at ? ' selected' : '') + '>' + esc(m.label) + ' (' + L.fmt(m.at) + ')</option>'; }).join('') + '</select></div>';
   }
   L.inputs.apstartat = function (el) {
     var t = track(); if (!t) return; var v = el.value === '' ? null : +el.value;
-    if (!write(t, { startAt: v })) return; S.focusK = 'ap-startat'; L.render();
+    if (!write(t, { startAt: v })) return; S.focusK = 'ap-startat'; noProfileSave(); L.render();
     var m = v == null ? null : prof(t).markers.filter(function (x) { return x.at === v; })[0];
-    L.say(m ? 'Starts at ' + m.label + ', ' + L.fmt(m.at) : 'Starts at the beginning');
+    // The app's words in the Saved pop-up (useProfileController setStartAt).
+    L.saved(m ? 'start at ' + L.fmt(m.at) + ', ' + m.label : 'start at the beginning', { key: 'ap-startat-' + t.id });
+  };
+  L.inputs.apresume = function (el) {
+    var t = track(); if (!t) return; t.resume = el.checked; if (!t.resume && D.resumeAt) delete D.resumeAt[t.id];
+    if (L.keepResume) L.keepResume(t); L.saved(L.title(t) + (t.resume ? ' picks up where it stopped' : ' starts from the top'));
   };
   function markersHTML(t, p) {
     if (!p.markers.length) return '<p class="empty">No markers yet. Add one to start the track there.</p>';
-    return startAtHTML(t, p) + '<ol class="list ap-mlist">' + p.markers.map(function (m, i) {
+    return '<ol class="list ap-mlist">' + p.markers.map(function (m, i) {
       return '<li class="lrow ap-mrow"><span class="num faint ap-mt">' + L.fmt(m.at) + '</span>' +
         '<input class="input ap-ml" data-input="apmlabel" data-i="' + i + '" data-k="ap-ml-' + i + '" value="' + esc(m.label) + '" aria-label="Marker label at ' + L.fmt(m.at) + '"' + dis(t) + '>' +
         '<button class="btn s" data-act="apgo" data-at="' + m.at + '" data-k="ap-mgo-' + i + '" title="Move the playhead to ' + L.fmt(m.at) + '" aria-label="Go to ' + esc(m.label) + '">' + L.icon('right', 's') + 'Go to</button>' +
@@ -513,6 +567,7 @@
       var key = prm.ctx || '';
       if (S.tid !== t.id || S.key !== key) {
         if (S.tid !== t.id) S.undoClear = null;
+        if (S.tid !== t.id) { S.zoom = 1; S.waveLeft = 0; }
         S.tid = t.id; S.key = key; S.playing = false; S.handover = null; S.event = null; S.loops = 0; S.ctx = 0; S.saved = false; S.editing = null; S.invalid = {}; S.pos = prof(t).from;
       }
       var p = prof(t), ed = editable(t);
@@ -541,7 +596,20 @@
     },
     after: function (root) {
       var t = track(); if (!t || !root.querySelector('.ap-wave')) return;
+      // 0.5.2 item 2: the zoomed strip keeps its place across redraws; after a zoom the handle with the focus (else the
+      // playhead) is in the middle of the box; a handle moved by its keys stays in view.
+      var box = root.querySelector('.ap-wavescroll');
+      if (box) {
+        if (S.centre) {
+          S.centre = false; var fa = document.activeElement, fw = fa && fa.dataset && fa.dataset.aph;
+          var sec = fw && fw.indexOf('fade') !== 0 ? +fa.getAttribute('aria-valuenow') : S.pos;
+          box.scrollLeft = Math.max(0, sec / t.dur * box.scrollWidth - box.clientWidth / 2);
+        } else box.scrollLeft = S.waveLeft;
+        S.waveLeft = box.scrollLeft;
+        box.addEventListener('scroll', function () { S.waveLeft = box.scrollLeft; });
+      }
       readColours(); layout(root); paintLive();
+      if (S.inView) { var hv = root.querySelector('[data-aph="' + S.inView + '"]'); S.inView = null; if (hv && S.zoom > 1) hv.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
       if (S.playing) S.last = performance.now();
       root.querySelectorAll('[data-aph]').forEach(function (h) { h.addEventListener('pointerdown', handleDown); h.addEventListener('keydown', handleKey); });
       var sc = root.querySelector('.ap-scrub'); sc.addEventListener('pointerdown', scrubDown); sc.addEventListener('keydown', scrubKey);
@@ -577,7 +645,7 @@
     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   }
   function fromSec(p, which, sec) { return which === 'fadein' ? sec - p.start : which === 'fadeout' ? p.end - sec : sec; }
-  function sayPoint(which) { var p = prof(track()), v = value(p, which); L.say(POINT[which] + ' ' + (which.indexOf('fade') === 0 || which === 'xfade' ? secs(v) : L.fmt(v))); }
+  function sayPoint(which) { var p = prof(track()), v = value(p, which); L.say(POINT[which] + ' ' + (which.indexOf('fade') === 0 || which === 'xfade' ? secs(v) : fmtPoint(v))); }
   function readOnlyNote() { L.toast('These are the track\'s settings. To change them only here, press Use separate settings here.'); }
   function handleDown(e) {
     if (e.button !== 0) return; e.preventDefault(); var which = e.currentTarget.dataset.aph, t = track(); e.currentTarget.focus();
@@ -585,12 +653,14 @@
     dragWith(function (ev) { movePoint(t, which, fromSec(prof(t), which, secAt(ev))); L.render(); }, function () { sayPoint(which); L.render(); });
   }
   function handleKey(e) {
-    var which = e.currentTarget.dataset.aph, t = track(), cur = value(prof(t), which), r = range(t, which), v = null, big = e.shiftKey ? 10 : 1;
+    // 0.5.2 item 2 (the app's HANDLE_STEP): an arrow moves a handle a tenth of a second, Shift and an arrow a second,
+    // Page Up and Down ten.
+    var which = e.currentTarget.dataset.aph, t = track(), cur = value(prof(t), which), r = range(t, which), v = null, big = e.shiftKey ? 1 : 0.1;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') v = cur - big; else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') v = cur + big;
     else if (e.key === 'PageDown') v = cur - 10; else if (e.key === 'PageUp') v = cur + 10; else if (e.key === 'Home') v = r[0]; else if (e.key === 'End') v = r[1];
     if (v == null) return; e.preventDefault(); e.stopPropagation();
     if (!editable(t)) { readOnlyNote(); return; }
-    movePoint(t, which, v); L.render(); sayPoint(which);
+    movePoint(t, which, v); S.inView = which; L.render(); sayPoint(which);
   }
   function scrubDown(e) {
     if (e.button !== 0) return; e.preventDefault(); e.currentTarget.focus(); seek(secAt(e), true); L.render();

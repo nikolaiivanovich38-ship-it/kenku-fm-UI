@@ -4,7 +4,7 @@
  * The sample library has three files that moved (t19, t26, t37); the sample file to open is "Curse of Strahd from Sam.lyre".
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { arriveFromKenkuFM, openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -83,7 +83,6 @@ test.describe("what came across from Kenku FM", () => {
 /* 0.5.1 (design/prototype/ROUND8.md): website tabs are gone from Lyre (Nik, 11 Nov: "Keep the code, remove them from
    the interface"), so the old bookmarks are listed once on What came across, each with Copy. */
 test.describe("0.5.1: the old bookmarks, to copy", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
 
   test("a Bookmarks box lists each bookmark's title and address with Copy, and says websites can't be opened in Lyre for now", async ({ page }) => {
     await openRoute(page, "moved");
@@ -100,7 +99,6 @@ test.describe("0.5.1: the old bookmarks, to copy", () => {
   test("Copy puts a bookmark's address on the clipboard and says so", async ({ page }) => {
     // The app's Lyre page may write to the clipboard only with w51-fix's permission (Copy path), which comes with the
     // w51-feat stream's merge.
-    expectFailureUntilBuilt("retire", "feat");
     await openRoute(page, "moved");
     const items = region(page, "Bookmarks").getByRole("list", { name: "Bookmarks from Kenku FM" }).getByRole("listitem");
     await items.first().getByRole("button", { name: "Copy the address of YouTube" }).click();
