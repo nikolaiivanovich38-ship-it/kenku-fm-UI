@@ -4,6 +4,60 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-21: your round 9 and round 10 requests
+
+**Track library**
+- Choose what a track is used for, and what happens at its end: stop, loop, fade out or play another track.
+- Choose which columns the Track library shows and in which order. Click a column header to sort by it.
+- A filter can show or hide what it names, and you can put the filters in the order you want.
+- Split a long recording into parts that play as separate tracks.
+- Click a track's title anywhere to see its details in a panel beside the screen.
+- A track's tags that a filter hides are read out with the track.
+
+**Playlists**
+- Sort playlists, or put them in your own order by dragging or with Alt+Up and Alt+Down.
+- Delete a playlist, or remove a track from one, and undo it.
+- When you preview a playlist, the Now playing bar has Back, Forward and the queue.
+
+**Live**
+- The room's name is the button that moves it: press it to move the room to another voice channel, copy what another room plays, make its bot leave, or use another bot instead.
+- + Room asks which voice channel, and Lyre uses a bot that is not in a room yet.
+- Undo is always in the same place in the top bar, and now also undoes Play on air, Fade all and Stop all.
+- Stop all also stops what you are previewing in your headphones.
+- On air no longer jumps when a scene starts or a pad plays, and it shows how the music loops.
+- Move and resize Live's boxes with Arrange. Lyre keeps a layout for each window size.
+- Find's results open beside Live instead of over On air.
+- Up next has Play now on a planned track, and Delete removes the focused track.
+- A room on air has Back, Forward and its queue, and on-air rows in a queue have a red edge.
+- Unfolded playlists show their dividers, and you can play from a divider.
+- Remove a track from a playlist from Live.
+- Pads with no sound are marked and say so when you press them.
+
+**Sound to Discord**
+- The music dips under sound effects. Choose how much in Settings › Sound to Discord, and choose for each pad what it does to the music while it plays.
+- Each bot has a starting volume, and Rooms is now in Settings.
+
+**Preparing your games**
+- Add music opens beside the screen, and you can dock it left or right or let it float.
+- Make a playlist or a new pad board from a scene.
+- Drag a track from an open playlist in the planner onto a scene or a playlist, or use Add to… in its ⋯ menu.
+- Taking something out of a scene or session can be undone.
+
+**Help and words**
+- Help has a step-by-step Set up Lyre, and Tour of this screen points at every control on every screen.
+- The words on every screen and in Help were checked against one word guide, so each thing has one name everywhere.
+- No text in Lyre is smaller than 12 px.
+- Side panels give focus back when they close. In a narrow window, Tab stays inside the open panel, and Lyre says which panel closed to make room for another.
+- The Hearth and Iron and Parchment themes no longer have buttons that look like the red On air light.
+
+**Fixes from the 0.6.0 usability test**
+- Add music starts with nothing ticked, and Done adds what you ticked at the end of the scene's music. What the scene already has says "in this scene". To take something out of a scene, use its ⋯ menu or the Delete key.
+- Make a playlist of these… puts the new playlist in the scene in place of the tracks you ticked.
+- What played and Connection lost no longer push a room's lines down in On air.
+- On air can use up to half the screen's height before it scrolls.
+- The Undo note in the top bar wraps onto a second line instead of being cut off.
+- Find is a plain search box, without a second × from the browser.
+
 ## [0.5.2] - 2026-11-18: fixes and requests from your play test of 0.5.1
 
 **Track library**
