@@ -44,6 +44,8 @@
     var first = opened.shift(), a = document.activeElement;
     PANELS.filter(function (p) { return p.id === first; })[0].close();
     if (a && document.contains(a) && a !== document.body) a.focus({ preventScroll: true });
+    // 0.6.0 usability test F-P11: a short line, shown and read out, says why the first panel went.
+    if (L.panelGaveWay) L.panelGaveWay(first, opened[opened.length - 1]);
   }
 
   /* ---------- after every render ---------- */
