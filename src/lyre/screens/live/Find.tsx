@@ -73,7 +73,10 @@ export function Find() {
         <Icon name="search" />
         <input
           className="input"
-          type="search"
+          // The 0.6.0 usability test (F-P10): a text field with the searchbox role, so the browser draws no × of its own
+          // (it ran into the typed words); Esc and Clear in the results empty it.
+          type="text"
+          role="searchbox"
           data-lv="search"
           value={state.search.q}
           placeholder="Find a track or playlist"

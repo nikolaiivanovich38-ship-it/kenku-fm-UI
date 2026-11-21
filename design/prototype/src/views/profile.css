@@ -37,7 +37,11 @@
 .ap-wavepane .pane-h, .ap-endpane .pane-h, .ap-fadepane .pane-h, .ap-mpane .pane-h { max-width: 70%; }
 
 /* ---------- waveform ---------- */
-.ap-wave { position: relative; height: 202px; margin: 2px 8px 0; user-select: none; touch-action: none; }
+/* 0.5.2 item 2 (the app's profile.css; 0.6.0 sync): the strip sits in a box that scrolls sideways when zoomed in. */
+.ap-wavescroll { margin: 2px 8px 0; overflow-x: auto; overflow-y: hidden; }
+.ap-zoom { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin: 0 8px; }
+.ap-zoom-v { min-width: 3ch; text-align: center; }
+.ap-wave { position: relative; height: 202px; min-width: 100%; user-select: none; touch-action: none; }
 .ap-canvas { position: absolute; left: 0; top: 52px; width: 100%; height: 112px; display: block; }
 .ap-scrub { position: absolute; left: 0; right: 0; top: 0; height: 186px; z-index: 2; cursor: pointer; border-radius: var(--r-s); }
 .ap-scrub:focus-visible { outline-offset: 1px; }
@@ -127,7 +131,10 @@
 .ap-next { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; padding: 6px 8px; border-radius: var(--r-m); background: var(--surface-2); min-width: 0; }
 .ap-next select { width: 100%; }
 .ap-fields { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.ap-frow { display: grid; grid-template-columns: 84px 66px minmax(0, auto); justify-content: start; gap: 4px 8px; align-items: center; }
+/* 0.6.0 sync (the app's profile.css): the time column holds tenths ("5:12.4"); Start at shows its whole choice
+   ("Beginning (0:00)", a marker's name), across the field and button columns (round 8 #3). */
+.ap-frow { display: grid; grid-template-columns: 84px 80px minmax(0, auto); justify-content: start; gap: 4px 8px; align-items: center; }
+.ap-frow > select { grid-column: 2 / -1; width: auto; max-width: 100%; }
 .ap-frow > label { font-size: var(--fs-s); font-weight: 700; color: var(--ink-2); }
 .ap-time { text-align: center; font-size: 15px; }
 .ap-time[aria-invalid="true"] { border-color: var(--danger); }

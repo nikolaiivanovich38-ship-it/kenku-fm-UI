@@ -116,7 +116,9 @@
       var ron = !!L.state.reordering[grp], divs = L.dividersBefore ? L.dividersBefore(p) : {};
       return (orderKey ? '<div class="ro-own">' + '<button type="button" class="btn s ghost ro-tog" data-act="rotoggle" data-g="' + esc(grp) + '" data-k="rotog-' + esc(did) + '" aria-pressed="' + ron + '" title="' + (ron ? 'Done reordering' : 'Show Move up and Move down on each track (or drag a track)') + '">' + L.icon('drag', 's') + 'Reorder</button>' +
         (own ? '<span class="ro-own-t">Order ' + esc(where) + '</span><button type="button" class="btn s ghost" data-act="roclear" data-key="' + esc(orderKey) + '" data-pid="' + esc(id) + '" data-k="roclear-' + esc(did) + '">' + L.icon('restart', 's') + 'Back to the playlist\'s order</button>' : '') + '</div>' : '') +
-        (orderKey ? '<p class="sr-only" id="' + did + '">Drag a track, or press Alt+Up or Alt+Down on it, to change the order ' + esc(where) + ' only.</p>' : '') +
+        // 0.6.0 (f-prep item 32, language review C12; as the app's PlaceTracks): the keyboard's way to another list is
+        // Add to… in each track's ⋯, and the list says so.
+        (orderKey ? '<p class="sr-only" id="' + did + '">Drag a track, or press Alt+Up or Alt+Down on it, to change the order ' + esc(where) + ' only. To add a track to another playlist or a scene, drag its name there, or use Add to… in its More menu.</p>' : '') +
         '<ol class="list' + (orderKey ? ' ro-list' : '') + '" aria-label="Tracks in ' + esc(p.name) + (orderKey ? ', in the order ' + esc(where) : '') + '"' + (orderKey ? ' aria-describedby="' + did + '"' : '') + '>' + ts.map(function (t, i) {
         var nm = L.nameIn(t, inScene);
         // Round 9 (item 42): a manual playlist's dividers show wherever its tracks are listed.
@@ -131,7 +133,8 @@
           // Round 6 part 3 (decision 4): a scene's Repeat one, saved with the scene, shows and changes here as in Live.
           (inScene && p.lane === 'music' ? L.repeatOneButton(inScene, t.id, 'r1-' + (did || id) + '-' + t.id, nm) : '') +
           // Round 10 fixes (R10-FIX §1): a manual playlist's track comes out of the playlist from here too (r10remove.js).
-          (p.kind === 'manual' && L.acts.r10xpmore ? '<button type="button" class="btn s icon r10-xpmore" data-act="r10xpmore" data-pid="' + esc(id) + '" data-tid="' + t.id + '" data-row="' + i + '" data-k="xpm-' + esc(did || id) + '-' + t.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(nm) + '" title="More">' + L.icon('more', 's') + '</button>' : '') +
+          // 0.6.0 (f-prep item 32, as the app): every playlist's track has the ⋯, with Add to… first.
+          (L.acts.r10xpmore ? '<button type="button" class="btn s icon r10-xpmore" data-act="r10xpmore" data-pid="' + esc(id) + '" data-tid="' + t.id + '" data-row="' + i + '"' + (p.kind === 'manual' ? ' data-manual="1"' : '') + ' data-k="xpm-' + esc(did || id) + '-' + t.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(nm) + '" title="More">' + L.icon('more', 's') + '</button>' : '') +
           (ron ? '<span class="ro-btns"><button type="button" class="closer" data-act="romove" data-d="-1" data-k="roup-' + did + '-' + t.id + '" aria-label="Move up: ' + esc(nm) + '" title="Move up (Alt+Up)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + '</button>' +
             '<button type="button" class="closer" data-act="romove" data-d="1" data-k="rodn-' + did + '-' + t.id + '" aria-label="Move down: ' + esc(nm) + '" title="Move down (Alt+Down)"' + (i === ts.length - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + '</button></span>' : '') + '</li>';
       }).join('') + '</ol>';
@@ -158,7 +161,7 @@
     L.saved('order of ' + L.playlist(pid).name + ' ' + placeWords(key), { key: 'tro-' + key + pid }); return true;
   };
   L.state.reordering = L.state.reordering || {};
-  L.acts.rotoggle = function (el) { var g = el.dataset.g; L.state.reordering[g] = !L.state.reordering[g]; L.render(); var b = document.querySelector('[data-k="' + el.dataset.k + '"]'); if (b) b.focus(); L.say(L.state.reordering[g] ? 'Move up and Move down shown on each track' : 'Done reordering'); };
+  L.acts.rotoggle = function (el) { var g = el.dataset.g; L.state.reordering[g] = !L.state.reordering[g]; L.render(); var b = document.querySelector('[data-k="' + el.dataset.k + '"]'); if (b) b.focus(); L.say(L.state.reordering[g] ? 'Move up and Move down are now on each track.' : 'Move up and Move down are hidden again.'); };
   // A Move up / Move down button: the row moves, and focus stays on the same button in its new place (or on the
   // other one when it reaches the top or the bottom).
   L.acts.romove = function (el) {
@@ -208,8 +211,21 @@
   }, true);
   document.addEventListener('dragend', function () { if (!roDrag) return; roDrag = null; roClear(); document.querySelectorAll('[data-ro][draggable="true"]').forEach(function (n) { n.removeAttribute('draggable'); }); }, true);
 
+  /* 0.5.2 item 17 (the app's kit/ShapeFilter; 0.6.0 sync): the Library's Shape filter for other lists of tracks: Add
+     tracks on a playlist and the scene pickers. Five chips, any number pressed (none: any shape), with Clear while one
+     is. act: the action a chip and Clear call (data-v is the shape, or '' for Clear). */
+  L.shapeFilterHTML = function (shapes, act, cls) {
+    return '<div class="chips shape-filter' + (cls ? ' ' + cls : '') + '" role="group" aria-label="Shape" title="None pressed: any shape"><span class="faint">Shape</span>' + L.SHAPES.map(function (x) {
+      var on = shapes.indexOf(x[0]) > -1;
+      return '<button type="button" class="chip" data-act="' + act + '" data-keep-menu="1" data-v="' + x[0] + '" data-k="' + act + '-' + x[0] + '" aria-pressed="' + on + '">' + (on ? L.icon('check', 's') : L.shapeGlyph(x[0])) + x[1] + '</button>';
+    }).join('') + (shapes.length ? '<button type="button" class="btn s ghost" data-act="' + act + '" data-keep-menu="1" data-v="" data-k="' + act + '-clear" aria-label="Clear Shape" title="Clear Shape">Clear</button>' : '') + '</div>';
+  };
+  L.toggleShape = function (shapes, v) { if (!v) return []; var i = shapes.indexOf(v); return i > -1 ? shapes.slice(0, i).concat(shapes.slice(i + 1)) : shapes.concat([v]); };
+
   /* ---------- picker sheet ---------- */
   function visible(it) {
+    // 0.5.2 item 17: with a shape pressed, only tracks of those shapes (as the app's picker; playlists go too).
+    if (pk.shapes && pk.shapes.length && !(it.track && pk.shapes.indexOf(L.shapeOf(it.track)) > -1)) return false;
     var q = (pk.q || '').toLowerCase();
     if (q && (it.label + ' ' + (it.sub || '') + ' ' + (it.search || '')).toLowerCase().indexOf(q) < 0) return false;
     var f = pk.filters && pk.filters.filter(function (x) { return x.id === pk.filter; })[0];
@@ -257,7 +273,7 @@
   L.pickerSheet = function (o) {
     pk = { items: o.items, sel: (o.selected || []).slice(), multi: !!o.multi, inside: !!o.inside, onDone: o.onDone, q: '', fold: !!o.fold, open: {}, filters: o.filters || null, filter: o.filters ? o.filters[0].id : '',
       // Round 6, part 5: what Done saves, for the Saved pop-up (shown only when the ticks changed).
-      saved: o.saved || '', was: (o.selected || []).join('|'), makePl: !!o.makePlaylist, makeBoard: !!o.makeBoard };
+      saved: o.saved || '', was: (o.selected || []).join('|'), makePl: !!o.makePlaylist, makeBoard: !!o.makeBoard, shapes: o.shapes ? [] : null };
     if (pk.fold) { (o.openGroups || []).forEach(function (g) { pk.open[g] = true; }); o.items.forEach(function (it) { if (pk.sel.indexOf(it.id) > -1) pk.open[it.group] = true; }); }
     L.sheet({ title: o.title, wide: !!o.wide, float: !!o.float,
       // Round 6: the intro is read out with the dialog (its description) and is the list's hover text; on screen the
@@ -265,7 +281,8 @@
       describe: o.intro || '',
       body: '' +
         '<div class="row-flex" style="margin-bottom:8px;flex-wrap:wrap"><div class="search grow" style="min-width:180px">' + L.icon('search') + '<input class="input" type="search" placeholder="Search" aria-label="Search the list" data-input="pkq"></div>' +
-        (pk.filters ? '<div class="seg" role="group" aria-label="Show">' + pk.filters.map(function (f) { return '<button type="button" data-act="pkfilter" data-keep-menu="1" data-f="' + f.id + '" aria-pressed="' + (pk.filter === f.id) + '">' + esc(f.label) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
+        (pk.filters ? '<div class="seg" role="group" aria-label="Show">' + pk.filters.map(function (f) { return '<button type="button" data-act="pkfilter" data-keep-menu="1" data-f="' + f.id + '" aria-pressed="' + (pk.filter === f.id) + '">' + esc(f.label) + '</button>'; }).join('') + '</div>' : '') +
+        (pk.shapes ? '</div><div id="pk-shapes">' + L.shapeFilterHTML(pk.shapes, 'pkshape', 'pk-shapes') : '') + '</div>' +
         '<div id="pk-list" class="pk-list" role="group" aria-label="' + esc(o.title) + '"' + (o.intro ? ' title="' + esc(o.intro) + '"' : '') + '>' + list() + '</div>',
       footer: footer(o.okLabel) });
   };
@@ -282,7 +299,7 @@
     if (pk.namingBoard) return '<label class="r10-mkpl" for="pk-bdname" title="An empty 4 × 3 board; you give it pads, and change its size, on its own page"><span>New board</span><input class="input" id="pk-bdname" data-k="pk-bdname" autocomplete="off" value="' + esc(pk.namingBoard) + '"></label>' +
       '<span class="grow"></span><button class="btn" data-act="pkbdcancel" data-k="pk-bdcancel">Back</button><button class="btn primary" data-act="pkbdok" data-k="pk-bdok">Make it and add it</button>';
     return '<span id="pk-count" class="muted grow">' + count() + '</span>' +
-      (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and adds it to the scene.">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
+      (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in place of those tracks.">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
       (pk.makeBoard ? '<button class="btn" data-act="pkmkbd" data-k="pk-mkbd" title="Make an empty pad board and put it in this scene. You give it pads on its page.">' + L.icon('plus', 's') + 'New board…</button>' : '') +
       '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="pkdone">' + esc(pk.okLabel) + '</button>';
   }
@@ -319,6 +336,11 @@
     else if (e.target.id === 'pk-bdname') { e.preventDefault(); L.acts.pkbdok(); }
   });
   L.inputs.pkq = function (el) { pk.q = el.value; paintList(); };
+  L.acts.pkshape = function (el) {
+    pk.shapes = L.toggleShape(pk.shapes, el.dataset.v); var box = document.getElementById('pk-shapes');
+    if (box) box.innerHTML = L.shapeFilterHTML(pk.shapes, 'pkshape', 'pk-shapes'); paintList();
+    var f = document.querySelector('[data-k="pkshape-' + (el.dataset.v || L.SHAPES[0][0]) + '"]'); if (f) f.focus();
+  };
   L.acts.pkfilter = function (el) { pk.filter = el.dataset.f; document.querySelectorAll('[data-act="pkfilter"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); paintList(); };
   L.acts.pkgroup = function (el) { var g = el.dataset.g; pk.open[g] = !pk.open[g]; paintList(); var b = document.querySelector('.pk-groupbtn[data-g="' + g.replace(/"/g, '\\"') + '"]'); if (b) b.focus(); };
   L.inputs.pkpick = function (el) {
@@ -374,7 +396,7 @@
     var items = D.playlists.filter(function (p) { return p.lane !== 'amb'; }).map(function (p) { return playlistItem(p, 'Playlists'); })
       .concat(D.tracks.filter(function (t) { return t.kind !== 'amb'; }).map(function (t) { return trackItem(t, 'Tracks'); }));
     // Round 9 (item 33): a floating panel beside the scene, moved and sized by Nik (r9guide.js).
-    L.pickerSheet({ title: o.title || 'Add music to the scene', items: items, selected: o.selected, multi: true, inside: true, onDone: o.onDone, wide: true, float: true, saved: o.saved, makePlaylist: true,
+    L.pickerSheet({ title: o.title || 'Add music to the scene', items: items, selected: o.selected, multi: true, inside: true, shapes: true, onDone: o.onDone, wide: true, float: true, saved: o.saved, makePlaylist: true,
       intro: o.intro || 'Tick playlists, single tracks or both; open a playlist to tick only some of its tracks. They play in the scene in the order you tick them; you can reorder them afterwards.',
       filters: [{ id: 'all', label: 'All', test: function () { return true; } }, { id: 'pl', label: 'Playlists', test: function (it) { return it.isPlaylist; } },
         { id: 'music', label: 'Tracks', test: function (it) { return !it.isPlaylist && it.kind === 'music' && !L.isFx(it.track); } }, { id: 'fx', label: 'FX', test: function (it) { return it.isPlaylist ? it.lane === 'fx' : L.isFx(it.track); } }] });
@@ -382,7 +404,7 @@
   L.pickAmbience = function (o) {
     var items = D.playlists.filter(function (p) { return p.lane === 'amb'; }).map(function (p) { return playlistItem(p, 'Ambience playlists'); })
       .concat(D.tracks.filter(function (t) { return t.kind === 'amb'; }).map(function (t) { return trackItem(t, 'Ambience tracks'); }));
-    L.pickerSheet({ title: o.title || 'Choose the ambience', items: items, selected: o.selected, multi: false, onDone: o.onDone, saved: o.saved, intro: o.intro || 'One ambience track, or an ambience playlist that moves from bed to bed.' });
+    L.pickerSheet({ title: o.title || 'Choose the ambience', items: items, selected: o.selected, multi: false, shapes: true, onDone: o.onDone, saved: o.saved, intro: o.intro || 'One ambience track, or an ambience playlist that moves from bed to bed.' });
   };
 
   /* ---------- Use in… ---------- */

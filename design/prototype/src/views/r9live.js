@@ -102,6 +102,12 @@
     return '<button class="btn s r9-qbtn" data-act="r9queue" data-kind="' + kind + '" data-tg="' + esc(tg) + '" data-k="' + k + '-queue" aria-expanded="' + open + '" aria-controls="r9-queue" aria-label="Queue, ' + left + ' to come" title="Open the queue of what played and what comes next">' + L.icon('queue', 's') + 'Queue <span class="num">' + left + '</span></button>';
   };
   L.acts.r9queue = function (el) { var key = el.dataset.kind + ':' + el.dataset.tg; Q.open = Q.open === key ? null : key; Q.back = el.dataset.k; L.render(); var f = document.querySelector('#r9-queue .r9-q-now button, #r9-queue button'); if (Q.open && f) f.focus(); };
+  // 0.6.0 language review C15 (as the app's QueuePanel): with two or more rooms, a room's queue names its room.
+  function roomWords(tg) {
+    var rs = L.rooms(); if (rs.length < 2) return '';
+    var r = rs.filter(function (x) { return tg === 'table' ? x.main : x.id === tg; })[0];
+    return r ? ' in ' + r.name : '';
+  }
   function queueHTML() {
     if (!Q.open) return '';
     var a = Q.open.split(':'), q = queueOf(a[0], a.slice(1).join(':')); if (!q) { Q.open = null; return ''; }
@@ -114,7 +120,7 @@
         '<li class="r9-q-' + cls + '"' + (i === q.at ? ' aria-current="true"' : '') + '><span class="num faint">' + (i + 1) + '</span><span class="ellipsis grow" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</span><span class="num faint">' + L.fmt(t.dur) + '</span>' +
         (i === q.at ? '<span class="badge">Now</span>' : '<button class="btn s icon" data-act="r9qplay" data-i="' + i + '" data-k="r9q-' + i + '" aria-label="Play now: ' + esc(L.title(t)) + '" title="' + (a[0] === 'preview' ? 'Play it now. The queue continues from there.' : 'Play it now on air. Up next continues from there.') + '">' + L.icon('play', 's') + '</button>') + '</li>';
     }).join('');
-    return '<section id="r9-queue" class="r9-queue" aria-label="Queue: ' + esc(q.name) + '"><header><b>Queue</b><span class="faint ellipsis">' + esc(q.name) + (a[0] === 'preview' ? ' · only you' : ' · on air') + '</span><span class="grow"></span>' +
+    return '<section id="r9-queue" class="r9-queue" aria-label="Queue: ' + esc(q.name) + '"><header><b>Queue</b><span class="faint ellipsis">' + esc(q.name) + (a[0] === 'preview' ? ' · only you' : ' · on air' + roomWords(a.slice(1).join(':'))) + '</span><span class="grow"></span>' +
       '<button class="closer" data-act="r9qclose" data-k="r9q-x" title="Close (Esc)" aria-label="Close the queue">' + L.icon('close') + '</button></header><ol class="r9-q-list">' + rows + '</ol></section>';
   }
   L.acts.r9qclose = function () { Q.open = null; L.render(); var b = Q.back && document.querySelector('[data-k="' + Q.back + '"]'); if (b) b.focus(); };

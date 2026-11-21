@@ -1,0 +1,29 @@
+/* 0.6.0 sync (Nik, 20 Nov: "We need our prototype to either be what ships or ahead of it"): the styles of what the app
+   has and the prototype gained in p60-sync (R60-PROTO-SYNC.md). */
+
+/* 0.5.2 item 21: Clear beside a filter's heading. */
+.lb-fhrow { display: flex; align-items: center; gap: 6px; }
+.lb-fhrow .lb-fh { flex: 1; min-width: 0; }
+/* 0.5.2 items 20 and 40: a library folder's ⋯ beside its row in the Folders filter. */
+.lb-folders li { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.lb-folders li > button[aria-pressed] { flex: 1; min-width: 0; }
+.lb-folders .lb-fmore { flex: none; width: 24px; height: var(--ctl-s); padding: 0; justify-content: center; }
+.lb-check { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 4px; cursor: pointer; }
+.lb-check input { margin-top: 3px; }
+/* 0.5.2 item 53: a track's loop setting in On air (the app's live.css). */
+.lv-loop { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; color: var(--ink-3); vertical-align: -3px; margin-right: 4px; }
+.lv-loop-none { opacity: .7; }
+.lv-lane-link { color: inherit; text-decoration: none; }
+.lv-lane-link:hover { text-decoration: underline; }
+/* 0.5.2 item 17: the Library's Shape filter in Add tracks and the scene pickers (the app's ui.css, playlists.css). */
+.shape-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-s); }
+.shape-filter > .faint { margin-right: 2px; }
+.shape-filter .chip { gap: 5px; }
+.shape-filter .chip svg.i { width: 12px; height: 12px; }
+.pl-addshapes { padding: 0 10px 8px; }
+.pk-shapes { margin-bottom: 8px; }
+/* The playing title: the loop mark, then the name as a link with the two-line clamp on the link (the app's live.css; the
+   sweep found a clamp on the box cut the link and squeezed the position bar). */
+.lv-lane-tl { display: flex; align-items: flex-start; min-height: 40px; }
+.lv-lane-tl > .lv-loop { flex: none; margin-top: 2px; }
+.lv-lane-tl > a.lv-clamp2-l { min-width: 0; flex: 0 1 auto; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; overflow-wrap: anywhere; line-height: 20px; min-height: 24px; }

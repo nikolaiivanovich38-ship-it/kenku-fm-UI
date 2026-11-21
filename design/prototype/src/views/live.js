@@ -362,7 +362,7 @@
         L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm sr-only">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
     return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() + undoSlot() +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade all: everything fades out over ' + L.FADE + ' seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
-      '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop all: everything stops at once, your preview too" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
+      '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once, your preview too." aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
       '<span class="lv-keyswrap"><button class="btn s" data-act="lvkeys" data-k="lv-keys" aria-expanded="' + S.keysOpen + '" aria-controls="lv-keys-pop" title="Keyboard keys for the live screen">Keys' + L.icon(S.keysOpen ? 'chevup' : 'chevdown', 's') + '</button>' +
       (S.keysOpen ? keysPop() : '') + '</span>' +
       // Round 9 (item 44): Arrange moves and sizes the boxes (r9live.js); last in the strip, so Tab order stays as before.
@@ -446,7 +446,10 @@
         (L.dippedIn && L.dippedIn(tg, ln) ? '<span class="r9-dipped r10-status" title="' + (ln === 'music' ? 'The music' : 'The ambience') + ' is quieter while an effect plays. It comes back by itself.">Dipped</span>' : '') + '</div>' +
       // The scene position and the end rule are hover text (and read out); the track list shows where it is.
       // Round 10 (look M2): the playing title gets up to two lines; it is the most important text on screen.
-      '<div class="lv-lane-m"><div class="lv-lane-t r10-clamp2" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
+      // 0.5.2 items 53, 3 and 11 (the app's OnAir; 0.6.0 sync): its loop setting first, so a long name never hides it, and
+      // the name is a link to the track's details (the Track panel beside Live, r9nav.js).
+      '<div class="lv-lane-m"><div class="lv-lane-t lv-lane-tl" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + loopMark(t, L.laneContext(ln, tg)) +
+        '<a class="lv-lane-link lv-clamp2-l" href="#/library/' + t.id + '" data-k="lv-lane-' + ln + at + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + '</a>' + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
         // Round 8 (Nik, 11 Nov: "click in the tracking bar for the currently playing track and skip to a certain point"):
         // the bar is a slider (core's L.seekBar), with the markers on it as before.
         '<div class="lv-lane-pr">' + L.seekBar(ln + at, shown, 'lv-mkbar ' + ln, markTicks(t, c, ln, tg)) + '<span class="num lv-time" data-time="' + ln + at + '"></span></div>';
@@ -656,6 +659,8 @@
       // Round 6 part 3: moods and energy are in the row's details (and Find's results), not on the row on air.
       (open || o.box === 'off' ? '<span class="chips lv-trk-chips">' + moodChips(t, o.prefer) + '</span>' + (isAmb || isFx ? '' : L.energy(t.energy)) : '') +
       // Round 10 (table review S3): a track whose file is missing says so before Nik presses anything.
+      // 0.5.2 item 53 (the app's Rows): in a scene's list, the track's loop setting there.
+      (o.seq && pk && pk.indexOf('sc:') === 0 ? loopMark(t, sceneCtx(pk, o)) : '') +
       (t.missing ? '<span class="badge warn r10-miss" title="Lyre cannot find this file. To look for it, use Find missing files… in the Track library.">Missing</span>' : '') +
       '<span class="num lv-dur" title="' + (Math.round(len) !== Math.round(t.dur) ? 'Plays ' + L.fmt(len) + ' of the file\'s ' + L.fmt(t.dur) : 'Length ' + L.fmt(t.dur)) + '">' + L.fmt(len) + '</span>' +
       '<span class="lv-trk-acts' + (onAirNow ? ' shown' : '') + '">' +
@@ -837,7 +842,7 @@
       // BUG-20: every pad says whether it plays (pressed), since pressing a playing pad stops it.
       return '<button class="lv-pad' + (on ? ' on' : '') + '" data-bid="' + b.id + '" data-pid="' + p.id + '" data-mode="' + p.mode + '" data-box="' + box + '"' + (p.mode === 'hold' ? '' : ' data-act="lvpad"') +
         ' data-k="lv-pad-' + box + '-' + b.id + '-' + p.id + '" style="--pad:' + (L.colors[p.color] || L.colors.bone) + '" aria-pressed="' + (many ? onHere : on) + '"' +
-        ' title="' + esc(p.label) + (key ? ' (key ' + String(p.key).toUpperCase() + ')' : '') + ': ' + L.modeName[p.mode] + (L.padDips && L.padDips(p) ? ', dips the music' : '') + inWhere(box) + (inRooms.length ? '. Sounding in ' + esc(inRooms.join(' and ')) : '') + '"' + (key ? ' aria-keyshortcuts="' + esc(p.key) + '"' : '') + '>' +
+        ' title="' + esc(p.label) + (key ? ' (key ' + String(p.key).toUpperCase() + ')' : '') + ' is a ' + L.modeName[p.mode] + ' pad' + (inWhere(box) ? ' that plays' + inWhere(box) : '') + '.' + (L.padDips && L.padDips(p) ? ' It dips the music while it plays.' : '') + (inRooms.length ? ' It is playing in ' + esc(inRooms.join(' and ')) + '.' : '') + '"' + (key ? ' aria-keyshortcuts="' + esc(p.key) + '"' : '') + '>' +
         L.icon(p.icon, 's') + '<span class="lv-pad-l ellipsis">' + esc(p.label) + '</span>' +
         (inRooms.length ? '<span class="lv-pad-rm" aria-hidden="true">' + inRooms.map(function (n) { return esc(n.charAt(0)); }).join('') + '</span><span class="sr-only">, sounding in ' + esc(inRooms.join(' and ')) + '</span>' : '') +
         (on && !many ? '<span class="lv-pad-on">On</span>' : p.mode === 'oneshot' || on ? '' : '<span class="lv-pad-mode" title="' + L.modeName[p.mode] + '">' + L.icon(L.modeIcon[p.mode], 's') + '<span class="sr-only">' + L.modeName[p.mode] + '</span></span>') +
@@ -896,7 +901,7 @@
   }
   function tagChip(g, v) { var gn = D.tagGroups.filter(function (x) { return x.id === g; })[0]; return '<button class="chip lv-mood" data-act="lvtag" data-g="' + g + '" data-v="' + esc(v) + '" data-k="lv-tag-' + g + '-' + esc(v) + '" aria-pressed="' + tagOn(g, v) + '" title="' + esc(gn ? gn.name : '') + '">' + (tagOn(g, v) ? L.icon('check', 's') : '') + esc(v) + '</button>'; }
   function find() {
-    var field = '<div class="search lv-find-f">' + L.icon('search') + '<input class="input" type="search" data-input="lvq" data-k="lv-q" value="' + esc(S.q) + '" placeholder="Find a track or playlist" aria-label="Find a track or playlist in the whole library"' + (S.findOpen ? ' aria-controls="lv-found"' : '') + '' + (S.keys1 ? ' aria-keyshortcuts="/"><span class="kbd" aria-hidden="true">/</span>' : '>') + '</div>';
+    var field = '<div class="search lv-find-f">' + L.icon('search') + '<input class="input" type="text" role="searchbox" data-input="lvq" data-k="lv-q" value="' + esc(S.q) + '" placeholder="Find a track or playlist" aria-label="Find a track or playlist in the whole library"' + (S.findOpen ? ' aria-controls="lv-found"' : '') + '' + (S.keys1 ? ' aria-keyshortcuts="/"><span class="kbd" aria-hidden="true">/</span>' : '>') + '</div>';
     return '<div class="lv-find">' + field + (S.findOpen ? found() : '') + '</div>';
   }
   function found() {
@@ -989,6 +994,8 @@
       var cols = L.liveLayout ? L.liveLayout(mode, LAYOUT[mode]) : LAYOUT[mode];
       var airTop = !cols.some(function (c) { return c.indexOf('onair') > -1; }), wrapTop = L.arrangeWrap || function (id, html) { return html; };
       return '<div class="lv' + (L.arranging && L.arranging() ? ' r9-arranging' : '') + '">' + top() + (L.arrangeBar ? L.arrangeBar(mode) : '') + (airTop ? wrapTop('onair', onAir(), -1, mode) : '') + '<div class="lv-cols c' + mode + (cols.widths ? ' r9-sized' : '') + '" data-scroll="lv-page"' + (cols.widths ? ' style="grid-template-columns:' + cols.widths + '"' : '') + '>' + cols.map(function (ids, ci) {
+        // 0.5.2 item 49 (the app's liveModel trayShown; 0.6.0 sync): a tray box with nothing in it is not shown.
+        ids = ids.filter(function (id) { return !/^(ss|cp)/.test(id) || trayShown(id); });
         var trays = mode === 3 && /^(ss|cp)/.test(ids[0]);
         var wrap = L.arrangeWrap || function (id, html) { return html; };
         return '<div class="col' + (trays ? ' lv-c-trays' : '') + '" data-col="' + ci + '">' + groups(ids).map(function (g) {
@@ -1078,9 +1085,22 @@
   L.acts.lvnextt = function (el) { touched(); L.next(el.dataset.lane, tgArg(el)); };
   L.acts.lvpause = function (el) { touched(); var ln = el.dataset.lane, tg = tgArg(el), c = M(tg)[ln]; L.pauseLane(ln, tg); L.say((ln === 'music' ? 'Music ' : 'Ambience ') + (c && c.paused ? 'paused' : 'playing')); };
   function inRoom(tg) { return rooms().length > 1 ? ' in ' + roomName(tg) : ''; }
-  function shuffleIn(tg, kx) {
-    return L.shuffleButton('music', tg, 'lv-shuf' + kx) || '<button class="btn s icon rep" data-k="lv-shuf' + kx + '" aria-pressed="false" aria-label="Shuffle" title="Only music from a playlist can be shuffled" disabled>' + L.icon('inorder', 's') + '</button>';
+  // 0.5.1 (the app's OnAir ShuffleButton; 0.6.0 sync): the room's Shuffle, beside its Repeat and like it: for what plays
+  // now in that room, never saved (a playlist's own play order is set where it is listed). It ends with the room's music.
+  // 0.5.2 item 53 (the app's liveModel loopSettingAt and Rows LoopMark): Loop, Crossfade loop or Don't loop, where it plays.
+  var LOOP_WORDS = { loop: 'Loop', crossfade: 'Crossfade loop', none: "Don't loop" };
+  function loopMark(t, ctx) {
+    var p = L.profileOf(t, ctx), set = p.after !== 'loop' ? 'none' : p.loopXfade > 0 || t.loop === 'crossfade' ? 'crossfade' : 'loop';
+    return '<span class="lv-loop lv-loop-' + set + '" role="img" aria-label="' + LOOP_WORDS[set] + '" title="' + LOOP_WORDS[set] + '">' + L.icon(set === 'none' ? 'next' : set === 'crossfade' ? 'fade' : 'loop', 's') + '</span>';
   }
+  L.liveLoopMark = loopMark;
+  // A scene row's place for its audio profile ('sc:<cid>:<sid>:<scene id>'), as core's laneCtx writes it.
+  function sceneCtx(pk, o) { var a = pk.split(':'); return { playlistId: o.pl || '', cid: a[1], sid: a[2], sceneId: a[3], place: '' }; }
+  function shuffleIn(tg, kx) {
+    var m = M(tg), on = !!(m && m.shuffle);
+    return '<button class="btn s icon rep' + (on ? ' on' : '') + '" data-act="lvroomshuffle" data-tg="' + esc(tg) + '" data-k="lv-shuf' + kx + '" aria-pressed="' + on + '" aria-label="Shuffle" title="Shuffle ' + (on ? 'on' : 'off') + ', for what plays now' + inRoom(tg) + ' (not saved)">' + L.icon(on ? 'shuffle' : 'inorder', 's') + '</button>';
+  }
+  L.acts.lvroomshuffle = function (el) { touched(); var m = M(tgArg(el)); if (!m) return; m.shuffle = !m.shuffle; L.say(m.shuffle ? 'Shuffle on' : 'Shuffle off'); L.changed(); };
   L.acts.lvstoplane = function (el) { touched(); var ln = el.dataset.lane, tg = tgArg(el); L.stopLane(ln, 1, tg); L.say((ln === 'music' ? 'Music' : 'Ambience') + ' stopped' + inRoom(tg)); };
   L.acts.lvfadeout = function (el) { touched(); L.stopLane(el.dataset.lane, L.FADE, tgArg(el)); L.say((el.dataset.lane === 'music' ? 'Music' : 'Ambience') + ' fading out'); };
   // Up next: × takes one entry out for this evening (a planned track is skipped, an added one goes), with Undo.
@@ -1119,9 +1139,9 @@
     return D.discord.servers.map(function (g) {
       return '<div class="group">' + esc(g.name) + '</div>' + g.channels.map(function (c) {
         var here = b.status !== 'idle' && b.server === g.id && b.channel === c.id, taken = L.bots().some(function (x) { return x !== b && x.status !== 'idle' && x.server === g.id && x.channel === c.id; });
-        var sub = taken ? 'a room already' : !c.members.length ? 'empty' : people(c.members.length) + (best && best.c === c ? ' · players' : '');
+        var said = taken ? 'a room already' : !c.members.length ? 'empty' : people(c.members.length) + (best && best.c === c ? ', most of the players' : '');
         // 0.6.0 usability test F-P4: read as "Table, a room already", with no stray space before the comma.
-        return '<button role="menuitemradio" aria-label="' + esc(c.name + ', ' + sub) + '" aria-checked="' + here + '" data-act="' + act + '" data-id="' + b.id + '" data-g="' + g.id + '" data-c="' + c.id + '"' + (here || taken ? ' disabled' : '') + '>' +
+        return '<button role="menuitemradio" aria-label="' + esc(c.name + ', ' + said) + '" aria-checked="' + here + '" data-act="' + act + '" data-id="' + b.id + '" data-g="' + g.id + '" data-c="' + c.id + '"' + (here || taken ? ' disabled' : '') + '>' +
           (here ? L.icon('check', 's') : '<span style="width:14px"></span>') + '<span class="grow ellipsis">' + esc(c.name) + '</span>' +
           // Must 2 (c): where the players are is marked, and a channel with nobody in it says so.
           (taken ? '<span class="faint">a room already</span>' : !c.members.length ? '<span class="faint">empty</span>' : '<span class="faint">' + people(c.members.length) + (best && best.c === c ? ' · players' : '') + '</span>') + '</button>';
@@ -1178,8 +1198,10 @@
     // Round 9 (item 56): + Room lists voice channels; Lyre takes a free bot itself (the one that joins there when Lyre
     // starts, else the first free). With none free, the list is greyed and one line says where bots are added.
     var pick = idle[0];
-    L.menu(el, '<div class="group">Add a room in</div>' + (pick ? channelItems(pick, 'lvaddjoin').replace(/data-id="[^"]*"/g, 'data-id="auto"') :
-      '<p class="item faint r9-nobot">Every bot is in a room. Add a bot in <a href="#/settings" data-k="lv-addbot-link">Settings › Discord bots</a>.</p>'), 'Add a room');
+    // 0.6.0 (g60-room, the app's newRoomEntries): a link in a menu has to be one of its items (axe: a menu holds only
+    // items), so Settings › Discord bots is a menu item. Language review D6: the menu is "Add a room".
+    L.menu(el, pick ? '<div class="group">Add a room in</div>' + channelItems(pick, 'lvaddjoin').replace(/data-id="[^"]*"/g, 'data-id="auto"') :
+      '<p class="item faint r9-nobot">Every bot is in a room. Add a bot in <a href="#/settings" role="menuitem" tabindex="-1" data-k="lv-addbot-link">Settings › Discord bots</a>.</p>', 'Add a room');
   };
   // Add a bot… opens Settings' three steps over Live; once connected, the new bot joins from Add a room.
   L.acts.lvaddbot = function () { if (L.acts.stadd) L.acts.stadd(); else L.route('#/settings'); };
@@ -1297,8 +1319,22 @@
   // F6 moves between boxes unless a pad of the Current scene's board has F6 as its key (pad keys F1 to F12 win in Live).
   L.f6Taken = function () { return onLive() && S.keys1 && !!padFor('f6'); };
   function focusSearch() { S.findOpen = true; L.render(); var q = document.querySelector('[data-k="lv-q"]'); if (q) { q.focus(); q.select(); } }
+  // 0.5.2 item 49: a tray box shows only when it lists something: a music playlist or a single track (Playlists), a
+  // pad board (Pads); "if there are no contents in [them], they should not appear, but only if there are no contents".
+  var TRAY_NAMES = { 'lv-ssp': 'Session playlists', 'lv-ssd': 'Session pads', 'lv-cpp': 'Campaign playlists', 'lv-cpd': 'Campaign pads' };
+  function trayShown(id) {
+    var own = id.slice(0, 2) === 'ss' ? sess() : camp(); if (!own) return true;
+    if (id.slice(-1) === 'd') return boardsOf(own.boards).length > 0;
+    return musicOnly(own.playlists).length + (own.tracks || []).filter(L.track).length > 0;
+  }
   function goBox(n) {
-    var t = boxesOnScreen()[n]; if (!t) return false;
+    var t = boxesOnScreen()[n];
+    // The key of a box that is not shown says so (the app's words); the other keys keep their boxes.
+    if (!(L.liveArranged && L.liveArranged())) {
+      var id = BOXES[n]; t = id && document.querySelector('[data-k="pane-' + id + '"]');
+      if (!t && TRAY_NAMES[id] && !trayShown(id.slice(3))) { L.say(TRAY_NAMES[id] + ': nothing in it, so it is not shown'); return true; }
+    }
+    if (!t) return false;
     t.focus(); t.scrollIntoView({ block: 'nearest' }); L.say(t.textContent.trim() + (t.getAttribute('aria-expanded') === 'false' ? ', folded' : ''));
     return true;
   }

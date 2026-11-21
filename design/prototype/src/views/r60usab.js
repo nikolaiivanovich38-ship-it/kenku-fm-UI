@@ -88,7 +88,7 @@
   }, true);
 
   /* ---------- F-P11: one panel gave way to another ---------- */
-  var PANEL_WORDS = { help: ['Help', 'Help'], track: ['The Track panel', 'the Track panel'], queue: ['The queue', 'the queue'], find: ['Find', 'Find'], music: ['Add music', 'Add music'] };
+  var PANEL_WORDS = { help: ['Help', 'Help'], track: ['The track details', 'the track details'], queue: ['The queue', 'the queue'], find: ['Find', 'Find'], music: ['Add music', 'Add music'] };
   L.panelGaveWay = function (closed, kept) {
     var c = PANEL_WORDS[closed], k = PANEL_WORDS[kept]; if (!c || !k) return;
     L.toast(c[0] + ' closed to make room for ' + k[1] + '.');
@@ -121,7 +121,7 @@
     try {
       return music0.call(L, Object.assign({}, o, {
         selected: [],
-        intro: 'Tick playlists, single tracks or both; open a playlist to tick only some of its tracks. They are added at the end of the scene’s music, in the order you tick them.',
+        intro: 'Tick playlists, single tracks or both. They are added at the end of the scene’s music, in the order you tick them. To tick only some of a playlist’s tracks, open the playlist.',
         onDone: function (ids) {
           var list = had.slice();
           ids.forEach(function (id) {

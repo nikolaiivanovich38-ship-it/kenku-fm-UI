@@ -17,7 +17,10 @@
   /* ---------- a manual playlist's track, wherever the playlist is shown unfolded ---------- */
   L.acts.r10xpmore = function (el) {
     var p = L.playlist(el.dataset.pid), id = el.dataset.tid; if (!p || !L.track(id)) return;
-    L.menu(el, '<button role="menuitem" data-act="r10xprm" data-pid="' + esc(p.id) + '" data-tid="' + esc(id) + '" data-row="' + esc(el.dataset.row || '') + '">' + L.icon('close', 's') + 'Remove from this playlist</button>' +
+    // 0.6.0 (f-prep item 32, as the app's PlaceTracks): Add to… first, the keyboard's way to drag it to another list;
+    // Remove from this playlist only for a manual playlist.
+    L.menu(el, '<button role="menuitem" data-act="addto" data-ids="' + esc(id) + '" data-from="' + (p.kind === 'manual' ? esc(p.id) : '') + '">' + L.icon('plus', 's') + 'Add to…</button>' +
+      (p.kind === 'manual' ? '<button role="menuitem" data-act="r10xprm" data-pid="' + esc(p.id) + '" data-tid="' + esc(id) + '" data-row="' + esc(el.dataset.row || '') + '">' + L.icon('close', 's') + 'Remove from this playlist</button>' : '') +
       '<div class="sep"></div><button role="menuitem" data-act="r10xplib" data-tid="' + esc(id) + '">' + L.icon('library', 's') + 'Open in Track library</button>', 'More for ' + title(id));
   };
   L.acts.r10xplib = function (el) { L.route('#/library/' + el.dataset.tid); };
@@ -63,7 +66,7 @@
   function as(b, extra) { var d = Object.assign({}, b.dataset, extra || {}); return { dataset: d, getAttribute: function () { return null; } }; }
   var RULES = [
     ['[data-act="pltmore"][data-manual]', function (b) { L.acts.plrm(b); }],
-    ['[data-act="r10xpmore"]', function (b) { L.acts.r10xprm(b); }],
+    ['[data-act="r10xpmore"][data-manual]', function (b) { L.acts.r10xprm(b); }],
     ['[data-act="plrowmore"]', function (b) { L.acts.r10pldelask(b); }],
     ['[data-act="cprowmenu"][data-menu="item"]', function (b) { L.acts.cpitem(as(b, { op: 'remove' })); }],
     ['[data-act="cprowmenu"][data-menu="amb"]', function (b) { L.acts.cpclearamb(b); }],

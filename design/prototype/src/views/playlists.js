@@ -6,7 +6,7 @@
   var esc = L.esc, D = L.data;
   var KIND = { manual: { name: 'Manual', icon: 'hand' }, dynamic: { name: 'Dynamic', icon: 'tag' } };
   var filt = { lane: 'all', kind: 'all', used: 'all', q: '' };   // All playlists filters
-  var addQuery = '', addLimit = 20, addLane = {};                 // Add tracks: search text, how many results show, Music/Ambience/FX per playlist
+  var addQuery = '', addLimit = 20, addLane = {}, addShapes = [];   // addShapes: 0.5.2 item 17, the Shape filter                 // Add tracks: search text, how many results show, Music/Ambience/FX per playlist
   var dragId = null, focusAfter = null, valCond = -1;
 
   /* ---------- small helpers ---------- */
@@ -197,7 +197,7 @@
     return out;
   }
   function addPane(pl) {
-    var lane = addLane[pl.id] || pl.lane, q = addQuery.trim(), pool = D.tracks.filter(laneTest(lane));
+    var lane = addLane[pl.id] || pl.lane, q = addQuery.trim(), pool = D.tracks.filter(laneTest(lane)).filter(function (t) { return !addShapes.length || addShapes.indexOf(L.shapeOf(t)) > -1; });
     var hits = q ? pool.filter(function (t) { return matchesQuery(haystack(t), q); }) : pool;
     var list = hits.length ? '<ul class="pl-tracks">' + hits.slice(0, addLimit).map(function (t) { return trackRow(t, { prefix: 'a-', add: true, inList: pl.items.indexOf(t.id) > -1 }); }).join('') + '</ul>' +
         (hits.length > addLimit ? '<div class="pl-more"><button class="btn s" data-act="plmore" data-k="plmore">Show ' + Math.min(25, hits.length - addLimit) + ' more of ' + hits.length + '</button></div>' : '')
@@ -208,6 +208,8 @@
       body: '<div class="pl-addbar"><div class="search grow">' + L.icon('search') + '<input class="input" type="search" data-input="plq" data-k="plq" value="' + esc(addQuery) + '" placeholder="Any name or tag: Abbess, Eerie, Conan, Lothlorien…" aria-label="Search the library by any name or tag"></div>' +
         '<div class="seg s" role="group" aria-label="Search in">' + ['music', 'amb', 'fx'].map(function (l) { return '<button type="button" data-act="pladdlane" data-v="' + l + '" data-k="al-' + l + '" aria-pressed="' + (lane === l) + '">' + laneName(l) + '</button>'; }).join('') + '</div>' +
         '<span class="muted pl-count">' + (q ? hits.length + (hits.length === 1 ? ' match' : ' matches') : plural(hits.length, 'track')) + '</span></div>' +
+        // 0.5.2 item 17 (the app's PlaylistPage; 0.6.0 sync): the Library's Shape filter.
+        L.shapeFilterHTML(addShapes, 'pladdshape', 'pl-addshapes') +
         '<div class="pl-scroll" data-scroll="pl-add-n" title="Or drop audio files here">' + list + '</div>' });
   }
   function condRow(c, i) {
@@ -348,6 +350,10 @@
   };
   L.acts.pladdopen = function () { L.state.panes['pl-add'] = 'o'; if (L.state.maxed) L.state.maxed = null; L.render(); focusK('plq'); };
   L.inputs.plq = function (el) { addQuery = el.value; addLimit = 20; L.render(); };
+  L.acts.pladdshape = function (el) {
+    addShapes = L.toggleShape(addShapes, el.dataset.v); addLimit = 20; L.render();
+    var f = document.querySelector('[data-k="pladdshape-' + (el.dataset.v || L.SHAPES[0][0]) + '"]'); if (f) f.focus();
+  };
   L.acts.pladdlane = function (el) { addLane[cur().id] = el.dataset.v; addLimit = 20; L.render(); L.say('Searching ' + laneName(el.dataset.v)); };
   // Play one track on air. An effect plays over the music (core layers kind 'fx'); music and ambience keep the playlist so Next follows it.
   L.acts.pltair = function (el) {

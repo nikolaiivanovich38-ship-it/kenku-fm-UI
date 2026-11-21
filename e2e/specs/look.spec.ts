@@ -4,7 +4,7 @@
  * these options are not yet, so each check is marked "round 7".
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { BASE_THEMES, openRoute, showTheme } from "./support/target";
 
 const display = (page: Page) => page.getByRole("region", { name: "Display", exact: true });
@@ -33,7 +33,6 @@ async function contrastOf(page: Page, selector: string): Promise<number> {
 }
 
 test.describe("round 7: display options", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("shell"));
 
   test("Compact is the default; Comfortable makes every control taller", async ({ page }) => {
     await openRoute(page, "look");
@@ -47,7 +46,6 @@ test.describe("round 7: display options", () => {
   });
 
   test("Text size goes from 100 to 200 %, and at 200 % nothing scrolls sideways", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "rooms-settings"); // it opens Settings too
     await openRoute(page, "look");
     const size = display(page).getByRole("slider", { name: "Text size" });
     await expect(size).toHaveAttribute("aria-valuetext", "100 percent");
@@ -68,7 +66,6 @@ test.describe("round 7: display options", () => {
   });
 
   test("tag colours are edited with the tags, and always come with the tag's name", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "prep"); // it ends on the Tags screen
     await openRoute(page, "look");
     await display(page).getByRole("link", { name: "Tag colours…" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tags");
@@ -76,7 +73,6 @@ test.describe("round 7: display options", () => {
 });
 
 test.describe("round 7: motion and target size", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("shell"));
 
   test("with reduced motion asked for, nothing slides or pulses", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -92,7 +88,6 @@ test.describe("round 7: motion and target size", () => {
   });
 
   test("every button and link on the Library and a pad board is at least 24 by 24 px, or has 24 px of space around it", async ({ page }) => {
-    metByTheAppAlready("the app's Library and pad board controls meet the 24 px target size at Compact");
     // WCAG 2.2 2.5.8: a target smaller than 24 × 24 passes when a 24 px circle on its centre touches no other target
     // and no other small target's circle. Links inside a sentence are exempt.
     for (const route of ["library", "board/combat"]) {
@@ -120,9 +115,8 @@ test.describe("round 7: motion and target size", () => {
 
 
 /* Round 10 (Nik, 18 Nov, answer 1 to round 10's questions): Parchment's oxblood buttons become ink blue, so the red On
-   air light stands out, as Hearth and Iron's orange became iron teal. Not built yet. */
+   air light stands out, as Hearth and Iron's orange became iron teal. */
 test.describe("round 10: Parchment's buttons are ink blue", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("r10-prep"));
 
   test("a main button in Parchment is ink blue, far from On air's red, and its words and its edge keep AA contrast", async ({ page }) => {
     await openRoute(page, "boards", { theme: "parchment" });

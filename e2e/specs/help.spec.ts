@@ -6,7 +6,7 @@
  */
 import type { Page } from "@playwright/test";
 import fs from "fs";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { knownLongHelpArticle, openFirstStart, openRoute, reopen, reportUpdate, type Theme } from "./support/target";
 
 const helpPanel = (page: Page) => page.getByRole("complementary", { name: "Help", exact: true });
@@ -84,7 +84,6 @@ test.describe("FND-8 the Help entry", () => {
 
   test("round 6: Play next, Add to queue and Repeat is a fifteenth article, under Run a session", async ({ page }) => {
     // Round 6 review, Should 12 (src/lyre/help/articles/15-up-next.md): what left Live's screen is in Help.
-    expectFailureUntilBuilt("shell");
     await openRoute(page, "campaigns");
     await page.keyboard.press("F1");
     const run = helpPanel(page).getByRole("list", { name: "Run a session" });
@@ -261,7 +260,6 @@ test.describe("FND-8 the first-run tour", () => {
 const OFFLINE = "net::ERR_INTERNET_DISCONNECTED";
 
 test.describe("0.5.1: update news and the version", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
 
   test("an update that has downloaded says so at the bottom right with Restart now, and stays until dismissed", async ({ page }) => {
     await openRoute(page, "library");
@@ -319,7 +317,6 @@ test.describe("0.5.1: update news and the version", () => {
 });
 
 test.describe("0.5.1: help for Lyre as one window", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
 
   test("no article mentions the Lyre Player tab, website tabs or remote control", async ({ page }) => {
     await openRoute(page, "campaigns");
@@ -354,7 +351,6 @@ test.describe("0.5.1: help for Lyre as one window", () => {
 
 /* 0.5.1 (ROUND8.md, part 3): Nik, 11 Nov 20:33, on fades and the split headset. */
 test("0.5.1: Run a session in Live says Fade all takes 5 seconds; Preview or play on air says when one headset is split", async ({ page }) => {
-  expectFailureUntilBuilt("retire");
   await openRoute(page, "campaigns");
   await page.keyboard.press("F1");
   await helpPanel(page).getByRole("button", { name: "Run a session in Live", exact: true }).click();
@@ -457,7 +453,7 @@ test.describe("0.6.0: a tour per screen, every step finding its control", () => 
     return titles;
   }
 
-  const SCREENS: { route: string; name: string; steps: string[]; also?: "f-live" }[] = [
+  const SCREENS: { route: string; name: string; steps: string[] }[] = [
     { route: "settings", name: "Settings › Discord bots", steps: SETTINGS },
     { route: "library", name: "Track library", steps: LIBRARY },
     { route: "library/t13", name: "Track library", steps: LIBRARY },
@@ -466,15 +462,13 @@ test.describe("0.6.0: a tour per screen, every step finding its control", () => 
     { route: "campaigns", name: "Planning a session", steps: SESSION },
     { route: "campaign/crown", name: "Planning a session", steps: SESSION },
     { route: "session/crown/s14", name: "Planning a session", steps: SESSION },
-    // The pad's While it plays field comes with f-live (R60-FINISH.md, f-live 1).
-    { route: "boards", name: "A pad board", steps: BOARD, also: "f-live" },
-    { route: "board/weather", name: "A pad board", steps: BOARD, also: "f-live" },
+    { route: "boards", name: "A pad board", steps: BOARD },
+    { route: "board/weather", name: "A pad board", steps: BOARD },
     { route: "profile/t13", name: "A track’s details", steps: DETAILS },
     { route: "look", name: "Look and feel", steps: ["Look and feel"] },
   ];
   for (const s of SCREENS) {
     test(`#/${s.route}: Tour of this screen goes through "${s.name}", every step on its control`, async ({ page }) => {
-      if (s.also) expectFailureUntilBuilt(s.also);
       // Wide enough for the Track library's Filters to be open (folded below 1200 px of screen, as designed).
       await page.setViewportSize({ width: 1600, height: 1000 });
       await openRoute(page, s.route);
@@ -518,7 +512,7 @@ test("0.6.0 usability test, F-P11: a side panel that closes another says so", as
   await expect(page.getByRole("complementary").first()).toBeVisible();
   await page.keyboard.press("F1");
   await expect(helpPanel(page)).toBeVisible();
-  const words = "The Track panel closed to make room for Help.";
+  const words = "The track details closed to make room for Help.";
   await expect(page.getByRole("status").filter({ hasText: words })).toBeVisible();
   await expect
     .poll(() => page.evaluate((t) => Array.from(document.querySelectorAll("[aria-live], [role=status], [role=alert]")).filter((e) => e.getAttribute("aria-live") !== "off" && (e.textContent ?? "").includes(t)).length, words))

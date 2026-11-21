@@ -39,13 +39,26 @@
     opened = opened.filter(function (id) { return now.indexOf(id) > -1; });
     now.forEach(function (id) { if (opened.indexOf(id) < 0) opened.push(id); });
     var w = work(), narrow = w && w.getBoundingClientRect().width < NARROW;
+    // 0.6.0 review M10 (the app's SidePanel host): below 760 px a panel covers the screen, so the screen is inert then
+    // and Tab and a screen reader stay in the panel.
+    var app = document.getElementById('app'); if (app) app.inert = !!(narrow && opened.length);
     if (opened.length < 2 || (!narrow && appWidth() >= MIN_SCREEN)) return;
     // The panel opened first gives way; focus stays where Nik is working.
     var first = opened.shift(), a = document.activeElement;
     PANELS.filter(function (p) { return p.id === first; })[0].close();
     if (a && document.contains(a) && a !== document.body) a.focus({ preventScroll: true });
+    else focusAfterClose();
     // 0.6.0 usability test F-P11: a short line, shown and read out, says why the first panel went.
     if (L.panelGaveWay) L.panelGaveWay(first, opened[opened.length - 1]);
+    if (app) app.inert = !!(narrow && opened.length);
+  }
+  // 0.6.0 review M9 (the app's SidePanel host): a panel that closes with the focus in it gives the focus to the panel
+  // still open, else to the screen's heading, never to nothing.
+  function focusAfterClose() {
+    var a = document.activeElement; if (a && a !== document.body && document.contains(a)) return;
+    var open = document.querySelector('#lyre-help:not([hidden]) h2, #r9-tp:not([hidden]) h2, #r9-queue button, #r10-find button');
+    var h = open || document.querySelector('#view h1'); if (!h) return;
+    if (!open) h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true });
   }
 
   /* ---------- after every render ---------- */

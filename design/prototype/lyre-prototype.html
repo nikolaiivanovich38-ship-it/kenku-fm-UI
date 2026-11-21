@@ -396,7 +396,9 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .empty { padding: 16px; text-align: center; color: var(--ink-2); font-size: var(--fs-s); }
 .hint { font-size: var(--fs-xs); color: var(--ink-3); }
 /* Round 6: key legends show while the keyboard is in their box (and are read out through aria-describedby). */
-.pane:not(:focus-within) .keys-on-focus { display: none !important; }
+/* 0.5.2 (the app's ui.css; 0.6.0 sync): only focus that shows a ring (:focus-visible), so a mouse click does not open
+   the legend; it used to, and the list then shrank under the pointer between press and release. */
+.pane:not(:has(:focus-visible)) .keys-on-focus { display: none !important; }
 .status-line { font-size: var(--fs-xs); color: var(--ink-2); }
 
 /* ---------- App shell ---------- */
@@ -952,7 +954,11 @@ select.input.pl-asksel { width: auto; max-width: 220px; height: var(--ctl-s); pa
 .ap-wavepane .pane-h, .ap-endpane .pane-h, .ap-fadepane .pane-h, .ap-mpane .pane-h { max-width: 70%; }
 
 /* ---------- waveform ---------- */
-.ap-wave { position: relative; height: 202px; margin: 2px 8px 0; user-select: none; touch-action: none; }
+/* 0.5.2 item 2 (the app's profile.css; 0.6.0 sync): the strip sits in a box that scrolls sideways when zoomed in. */
+.ap-wavescroll { margin: 2px 8px 0; overflow-x: auto; overflow-y: hidden; }
+.ap-zoom { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin: 0 8px; }
+.ap-zoom-v { min-width: 3ch; text-align: center; }
+.ap-wave { position: relative; height: 202px; min-width: 100%; user-select: none; touch-action: none; }
 .ap-canvas { position: absolute; left: 0; top: 52px; width: 100%; height: 112px; display: block; }
 .ap-scrub { position: absolute; left: 0; right: 0; top: 0; height: 186px; z-index: 2; cursor: pointer; border-radius: var(--r-s); }
 .ap-scrub:focus-visible { outline-offset: 1px; }
@@ -1042,7 +1048,10 @@ select.input.pl-asksel { width: auto; max-width: 220px; height: var(--ctl-s); pa
 .ap-next { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; padding: 6px 8px; border-radius: var(--r-m); background: var(--surface-2); min-width: 0; }
 .ap-next select { width: 100%; }
 .ap-fields { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
-.ap-frow { display: grid; grid-template-columns: 84px 66px minmax(0, auto); justify-content: start; gap: 4px 8px; align-items: center; }
+/* 0.6.0 sync (the app's profile.css): the time column holds tenths ("5:12.4"); Start at shows its whole choice
+   ("Beginning (0:00)", a marker's name), across the field and button columns (round 8 #3). */
+.ap-frow { display: grid; grid-template-columns: 84px 80px minmax(0, auto); justify-content: start; gap: 4px 8px; align-items: center; }
+.ap-frow > select { grid-column: 2 / -1; width: auto; max-width: 100%; }
 .ap-frow > label { font-size: var(--fs-s); font-weight: 700; color: var(--ink-2); }
 .ap-time { text-align: center; font-size: 15px; }
 .ap-time[aria-invalid="true"] { border-color: var(--danger); }
@@ -2395,7 +2404,10 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-trk-r > .lv-trk-t, .lv-trk-r > .lv-pli-n { flex: 1 1 14ch; min-width: 14ch; }
 .lv-trk-r > .lv-trk-acts { margin-left: auto; }
 .lv-trk-t > span, .lv-pli-n > b.ellipsis { overflow-wrap: break-word; }
-.lv-trk-r:focus-within .lv-trk-t > span, .lv-trk-r:focus-within .lv-pli-n > b.ellipsis { -webkit-line-clamp: unset; display: block; }
+/* The whole name while the keyboard is in the row (:focus-visible). Not after a mouse click: the row grew, and when the
+   next press took the focus away it shrank, so the rows below moved between press and release and that click landed
+   elsewhere (0.5.2, the app's live.css; 0.6.0 sync: the title shows the whole name on hover). */
+.lv-trk-r:has(:focus-visible) .lv-trk-t > span, .lv-trk-r:has(:focus-visible) .lv-pli-n > b.ellipsis { -webkit-line-clamp: unset; display: block; }
 /* Round 7 part 2: What played in a room (PLY-1), dividers over a row of pads (ORG-4), marker ticks (DAT-3). */
 .lv-rm-played:not(.on):not(:focus-visible) { opacity: 0; }
 .lv-rm-h:is(:hover, :focus-within) .lv-rm-played { opacity: 1; }
@@ -2783,6 +2795,11 @@ li.pl-item.r9-pl-dragging { opacity: .5; }
 .rail.min .r9-help-ring { position: absolute; margin: 0; transform: translate(14px, -10px); }
 #r9-guide .r9-tourpop::before, #r9-guide .r9-tourpop::after { display: none; }
 .r9-botstart .st-l { min-width: 150px; }
+/* 0.6.0 sync (0.5.2 item 7): the length its Audio profile plays, under the file's length. */
+.lb-table .lb-len { display: flex; flex-direction: column; line-height: 1.1; }
+.lb-table .lb-played { font-size: var(--fs-xs); color: var(--ink-3); }
+/* 0.6.0 sync (the app's PickUpSwitch): Next time, start where it stopped is a switch on a row of its own. */
+.lb-tg.r9-resume-row { grid-template-columns: minmax(0, 1fr); }
 
 /* Round 10 (ROUND10.md): the final design for 0.6.0. Loaded last. */
 
@@ -3013,11 +3030,9 @@ a.r9-dragname:hover, a.r9-dragname:focus-visible { text-decoration: underline; }
 .rail:not(.min) button.nav:has(.r9-help-ring) { gap: 6px; padding-right: 4px; }
 .rail:not(.min) .r9-help-ring { flex: none; padding: 0 4px; }
 
-/* Live's rows keep their height when a control in them takes focus: the name used to grow to its full length then,
-   moving the row's buttons between press and release, so the click was lost (seen at half a 1920 screen on the ⋯ of a
-   playlist's track). The full name is in the hover text, which keyboard focus shows as well (UX-6); a row opened for
-   its details keeps its whole name, as before. */
-.lv-trk-r:focus-within .lv-trk-t:not([aria-expanded="true"]) > span, .lv-trk-r:focus-within .lv-pli-n > b.ellipsis { display: -webkit-box; -webkit-line-clamp: 2; }
+/* Live's rows keep their height when a mouse click puts focus in them (the name used to grow, moving the row's buttons
+   between press and release, so the click was lost). 0.6.0 sync: as the app since 0.5.2, live.css unfolds the name only
+   for keyboard focus (:focus-visible), so the rule that kept it folded for any focus went. */
 
 /* Round 10 fixes (R10-FIX §1 and §2, r10remove.js and library.js): taking tracks out, deleting in line. */
 /* Delete file from disk… is last in its menu and plainer than the items above it. */
@@ -3030,6 +3045,36 @@ a.r9-dragname:hover, a.r9-dragname:focus-visible { text-decoration: underline; }
 .r10-uses ul { margin: 0; padding-left: 20px; }
 /* A manual playlist's track shown unfolded: its ⋯ greyed at rest like the other row buttons. */
 .xp-row .r10-xpmore:not(:hover):not(:focus-visible):not([aria-expanded="true"]) { opacity: .62; }
+
+/* 0.6.0 sync (Nik, 20 Nov: "We need our prototype to either be what ships or ahead of it"): the styles of what the app
+   has and the prototype gained in p60-sync (R60-PROTO-SYNC.md). */
+
+/* 0.5.2 item 21: Clear beside a filter's heading. */
+.lb-fhrow { display: flex; align-items: center; gap: 6px; }
+.lb-fhrow .lb-fh { flex: 1; min-width: 0; }
+/* 0.5.2 items 20 and 40: a library folder's ⋯ beside its row in the Folders filter. */
+.lb-folders li { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.lb-folders li > button[aria-pressed] { flex: 1; min-width: 0; }
+.lb-folders .lb-fmore { flex: none; width: 24px; height: var(--ctl-s); padding: 0; justify-content: center; }
+.lb-check { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 4px; cursor: pointer; }
+.lb-check input { margin-top: 3px; }
+/* 0.5.2 item 53: a track's loop setting in On air (the app's live.css). */
+.lv-loop { display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; color: var(--ink-3); vertical-align: -3px; margin-right: 4px; }
+.lv-loop-none { opacity: .7; }
+.lv-lane-link { color: inherit; text-decoration: none; }
+.lv-lane-link:hover { text-decoration: underline; }
+/* 0.5.2 item 17: the Library's Shape filter in Add tracks and the scene pickers (the app's ui.css, playlists.css). */
+.shape-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; font-size: var(--fs-s); }
+.shape-filter > .faint { margin-right: 2px; }
+.shape-filter .chip { gap: 5px; }
+.shape-filter .chip svg.i { width: 12px; height: 12px; }
+.pl-addshapes { padding: 0 10px 8px; }
+.pk-shapes { margin-bottom: 8px; }
+/* The playing title: the loop mark, then the name as a link with the two-line clamp on the link (the app's live.css; the
+   sweep found a clamp on the box cut the link and squeezed the position bar). */
+.lv-lane-tl { display: flex; align-items: flex-start; min-height: 40px; }
+.lv-lane-tl > .lv-loop { flex: none; margin-top: 2px; }
+.lv-lane-tl > a.lv-clamp2-l { min-width: 0; flex: 0 1 auto; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; overflow-wrap: anywhere; line-height: 20px; min-height: 24px; }
 
 /* 0.6.0 usability test (R60-USABILITY.md): the prototype brought up with the app's fixes (r60usab.js). */
 
@@ -3060,8 +3105,6 @@ a.r9-dragname:hover, a.r9-dragname:focus-visible { text-decoration: underline; }
 @container lvlanes (max-width: 640px) { .lv-lane { grid-template-areas: "l t t" "l p c" "l e e" "l s s"; } }
 @container lvrm (min-width: 620px) and (max-width: 759px) { .lv-rm-b { grid-template-columns: minmax(0, 1fr); } .lv-rm-up { border-left: 0; border-top: 1px solid var(--line); } }
 
-/* F-P10: the browser's own × is not drawn in Find (it ran into the words); Esc and Clear in the results empty it. */
-.lv-find-f input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
 
 /* The 0.6.0 usability test (F-P16): the Filters header had room for one letter of its summary ("n…" beside "1 filter
    on"); the summary goes on a line of its own under the header's first row and wraps, so it shows whole. */
@@ -4091,7 +4134,9 @@ var L = (function () {
       if (!m.music && m.rep) m.rep = null;
     });
     pb.fx = pb.fx.filter(function (f) { f.pos += dt; if (f.fadeOut) { f.fadeOut -= dt; return f.fadeOut > 0; } return f.loop || f.pos < f.dur; });
-    if (pb.preview && !pb.preview.paused) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) { if (pb.preview.queue && pb.preview.qi < pb.preview.queue.length - 1) L.previewAt(pb.preview.qi + 1); else pb.preview = null; } moved = true; }
+    // 0.6.0 sync: a preview the Audio profile drives (ap) moves with that page, not here.
+    if (pb.preview && pb.preview.ap && !pb.preview.paused) moved = true;
+    if (pb.preview && !pb.preview.paused && !pb.preview.ap) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) { if (pb.preview.queue && pb.preview.qi < pb.preview.queue.length - 1) L.previewAt(pb.preview.qi + 1); else pb.preview = null; } moved = true; }
     if (moved || pb.fx.length) L.tick();
   }, 250);
   /* PLY-17 Repeat (Nik, 6 Nov 10:34; round 6 part 3, Nik, 6 Nov 12:24: "Repeat on the now playing bar should not
@@ -5329,7 +5374,7 @@ var L = (function () {
   var esc = L.esc, D = L.data;
   var KIND = { manual: { name: 'Manual', icon: 'hand' }, dynamic: { name: 'Dynamic', icon: 'tag' } };
   var filt = { lane: 'all', kind: 'all', used: 'all', q: '' };   // All playlists filters
-  var addQuery = '', addLimit = 20, addLane = {};                 // Add tracks: search text, how many results show, Music/Ambience/FX per playlist
+  var addQuery = '', addLimit = 20, addLane = {}, addShapes = [];   // addShapes: 0.5.2 item 17, the Shape filter                 // Add tracks: search text, how many results show, Music/Ambience/FX per playlist
   var dragId = null, focusAfter = null, valCond = -1;
 
   /* ---------- small helpers ---------- */
@@ -5520,7 +5565,7 @@ var L = (function () {
     return out;
   }
   function addPane(pl) {
-    var lane = addLane[pl.id] || pl.lane, q = addQuery.trim(), pool = D.tracks.filter(laneTest(lane));
+    var lane = addLane[pl.id] || pl.lane, q = addQuery.trim(), pool = D.tracks.filter(laneTest(lane)).filter(function (t) { return !addShapes.length || addShapes.indexOf(L.shapeOf(t)) > -1; });
     var hits = q ? pool.filter(function (t) { return matchesQuery(haystack(t), q); }) : pool;
     var list = hits.length ? '<ul class="pl-tracks">' + hits.slice(0, addLimit).map(function (t) { return trackRow(t, { prefix: 'a-', add: true, inList: pl.items.indexOf(t.id) > -1 }); }).join('') + '</ul>' +
         (hits.length > addLimit ? '<div class="pl-more"><button class="btn s" data-act="plmore" data-k="plmore">Show ' + Math.min(25, hits.length - addLimit) + ' more of ' + hits.length + '</button></div>' : '')
@@ -5531,6 +5576,8 @@ var L = (function () {
       body: '<div class="pl-addbar"><div class="search grow">' + L.icon('search') + '<input class="input" type="search" data-input="plq" data-k="plq" value="' + esc(addQuery) + '" placeholder="Any name or tag: Abbess, Eerie, Conan, Lothlorien…" aria-label="Search the library by any name or tag"></div>' +
         '<div class="seg s" role="group" aria-label="Search in">' + ['music', 'amb', 'fx'].map(function (l) { return '<button type="button" data-act="pladdlane" data-v="' + l + '" data-k="al-' + l + '" aria-pressed="' + (lane === l) + '">' + laneName(l) + '</button>'; }).join('') + '</div>' +
         '<span class="muted pl-count">' + (q ? hits.length + (hits.length === 1 ? ' match' : ' matches') : plural(hits.length, 'track')) + '</span></div>' +
+        // 0.5.2 item 17 (the app's PlaylistPage; 0.6.0 sync): the Library's Shape filter.
+        L.shapeFilterHTML(addShapes, 'pladdshape', 'pl-addshapes') +
         '<div class="pl-scroll" data-scroll="pl-add-n" title="Or drop audio files here">' + list + '</div>' });
   }
   function condRow(c, i) {
@@ -5671,6 +5718,10 @@ var L = (function () {
   };
   L.acts.pladdopen = function () { L.state.panes['pl-add'] = 'o'; if (L.state.maxed) L.state.maxed = null; L.render(); focusK('plq'); };
   L.inputs.plq = function (el) { addQuery = el.value; addLimit = 20; L.render(); };
+  L.acts.pladdshape = function (el) {
+    addShapes = L.toggleShape(addShapes, el.dataset.v); addLimit = 20; L.render();
+    var f = document.querySelector('[data-k="pladdshape-' + (el.dataset.v || L.SHAPES[0][0]) + '"]'); if (f) f.focus();
+  };
   L.acts.pladdlane = function (el) { addLane[cur().id] = el.dataset.v; addLimit = 20; L.render(); L.say('Searching ' + laneName(el.dataset.v)); };
   // Play one track on air. An effect plays over the music (core layers kind 'fx'); music and ambience keep the playlist so Next follows it.
   L.acts.pltair = function (el) {
@@ -5952,7 +6003,8 @@ var L = (function () {
   var esc = L.esc, D = L.data;
   var S = {
     tid: null, key: '', pos: 0, playing: false, mode: 'play', loops: 0, event: null, handover: null, since: 0, last: 0,
-    ctx: 0, saved: false, editing: null, editText: '', invalid: {}, keys1: true, focusK: null, lastSec: -1, undoClear: null
+    ctx: 0, saved: false, editing: null, editText: '', invalid: {}, keys1: true, focusK: null, lastSec: -1, undoClear: null,
+    zoom: 1, waveLeft: 0, centre: false
   };
   // Single-key shortcuts can be switched off (WCAG 2.1.4); remembered in this browser only.
   try { S.keys1 = localStorage.getItem('lyre-r2-profile-keys1') !== 'off'; } catch (e) { S.keys1 = true; }
@@ -5970,12 +6022,19 @@ var L = (function () {
 
   /* ---------- time and curve helpers ---------- */
   function fmt1(s) { var tt = Math.floor(Math.max(0, s) * 10 + 1e-6), m = Math.floor(tt / 600), sec = Math.floor((tt % 600) / 10); return m + ':' + (sec < 10 ? '0' : '') + sec + '.' + (tt % 10); }
+  // 0.5.2 item 2 (the app's profileModel parseTime; 0.6.0 sync): a typed time may have tenths ("5:12.4", "270.5").
   function parse(txt, secsOnly) {
     var s = String(txt).trim();
     if (secsOnly) return /^\d{1,3}(\.\d)?$/.test(s) ? +s : null;
-    var m = s.match(/^(\d{1,3})(?::(\d{1,2}))?$/); if (!m) return null;
-    if (m[2] == null) return +m[1]; // a bare number is seconds
-    return +m[2] > 59 ? null : (+m[1]) * 60 + (+m[2]);
+    var m = s.match(/^(\d{1,4})(?::(\d{1,2}))?(?:\.(\d))?$/); if (!m) return null;
+    var tenth = m[3] == null ? 0 : +m[3] / 10;
+    if (m[2] == null) return +m[1] + tenth; // a bare number is seconds
+    return +m[2] > 59 ? null : (+m[1]) * 60 + (+m[2]) + tenth;
+  }
+  // 0.5.2 item 2 (the app's fmtPoint): "5:18", or "5:18.4" when a point is not a whole second.
+  function fmtPoint(sec) {
+    var tt = Math.round(Math.max(0, sec) * 10); if (tt % 10 === 0) return L.fmt(tt / 10);
+    var m = Math.floor(tt / 600); return m + ':' + ((tt - m * 600) / 10).toFixed(1).padStart(4, '0');
   }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function times(n) { return n === 1 ? 'once' : n === 2 ? 'twice' : n + ' times'; }
@@ -6050,11 +6109,21 @@ var L = (function () {
   }
   // Move one point or length, keeping Start < End, the loop start between them and the fades inside.
   function movePoint(t, which, v) {
-    var p = prof(t), r = range(t, which); v = clamp(Math.round(v * (which.indexOf('fade') === 0 || which === 'xfade' ? 2 : 1)) / (which.indexOf('fade') === 0 || which === 'xfade' ? 2 : 1), r[0], r[1]);
+    // 0.5.2 item 2 (the app since 0.5.2): points and lengths move in tenths of a second.
+    var p = prof(t), r = range(t, which); v = clamp(Math.round(v * 10) / 10, r[0], r[1]);
     var patch = {};
     if (which === 'start') patch.start = v; else if (which === 'end') patch.end = v; else if (which === 'loop') patch.loopStart = v; else if (which === 'xfade') patch.loopXfade = v;
     else if (which === 'fadein') patch.fadeIn = { dur: v, shape: p.fadeIn.shape }; else patch.fadeOut = { dur: v, shape: p.fadeOut.shape };
-    write(t, patch); return v;
+    write(t, patch);
+    // 0.5.2 item 28 (the app since 0.5.2): a change made while the track previews applies to the sound that plays at once:
+    // with End moved before the playhead, the preview goes round to the loop start (or reaches End) straight away.
+    if (which === 'end' && S.playing && !S.handover && S.pos > v) {
+      var np = prof(t);
+      if (np.after === 'loop') { S.pos = np.loopStart; S.loops++; S.since = 0; S.event = { type: 'loop', text: 'Looped back to ' + L.fmt(np.loopStart) }; }
+      else S.pos = Math.max(np.start, v - 0.01);
+      syncPreview();
+    }
+    return v;
   }
   function envAt(p, pos, looped) {
     if (pos < p.start || pos > p.end) return 1;
@@ -6122,22 +6191,35 @@ var L = (function () {
     if (p.after === 'loop' && p.loopXfade > 0 && S.pos > p.end - p.loopXfade && S.pos < p.end) return 1; // crossfading: out and in together
     return envAt(p, S.pos, S.loops > 0);
   }
+  /* 0.5.2 items 24 and 28 (the app since 0.5.2; 0.6.0 sync): the preview here is the app's one preview, so it shows on
+     the Now playing bar as Only you, follows every change made here, and goes on playing after Back. The page drives it
+     while it is open (pb.preview.ap); after Back the bar's own preview carries on from where it was. */
+  function syncPreview() {
+    var pv = L.pb.preview, t = track(); if (!pv || !pv.ap || !t) return;
+    pv.pos = S.pos; pv.paused = !S.playing;
+  }
+  function startPreview(t) {
+    L.preview(t.id); var pv = L.pb.preview; if (!pv) return;
+    pv.ap = true; pv.dur = t.dur; syncPreview();
+  }
   function play(mode) {
     var t = track(); if (!t) return; var p = prof(t);
-    if (L.pb.preview) L.stopPreview(); // only one preview at a time
+    if (L.pb.preview) { L.pb.preview.ap = false; L.stopPreview(); } // only one preview at a time
     S.mode = mode || 'play'; S.event = null; S.handover = null; S.since = 0;
     if (S.mode === 'last10') { S.pos = Math.max(p.start, p.end - 10); S.loops = 0; }
     else if (S.pos >= t.dur - .05) { S.pos = p.from; S.loops = 0; }
-    S.playing = true; S.last = performance.now();
+    S.playing = true; S.last = performance.now(); startPreview(t);
     L.say(S.mode === 'last10' ? 'Preview: the last 10 seconds before End, from ' + L.fmt(S.pos) : 'Preview from ' + L.fmt(S.pos));
     L.render(); requestAnimationFrame(frame);
   }
-  function pause(msg) { S.playing = false; if (msg) L.say(msg); L.render(); }
-  function stop() { S.playing = false; S.handover = null; S.event = null; S.mode = 'play'; S.loops = 0; var t = track(); if (t) S.pos = prof(t).from; L.say('Preview stopped'); L.render(); }
+  function pause(msg) { S.playing = false; syncPreview(); if (msg) L.say(msg); L.render(); }
+  function stop() { S.playing = false; S.handover = null; S.event = null; S.mode = 'play'; S.loops = 0; var t = track(); if (t) S.pos = prof(t).from; if (L.pb.preview && L.pb.preview.ap) L.stopPreview(); L.say('Preview stopped'); L.render(); }
   function seek(v, silent) { var t = track(); if (!t) return; S.pos = clamp(v, 0, t.dur); S.handover = null; S.event = null; if (!silent) L.say('Playhead ' + L.fmt(S.pos)); }
   function frame(now) {
     if (!S.playing) return;
-    var dt = Math.min(.25, (now - S.last) / 1000); S.last = now; advance(dt); paintLive();
+    // Stopped or paused from the Now playing bar: the page follows.
+    var pv = L.pb.preview; if (!pv || !pv.ap) { S.playing = false; L.render(); return; } if (pv.paused) { pause(); return; }
+    var dt = Math.min(.25, (now - S.last) / 1000); S.last = now; advance(dt); syncPreview(); paintLive();
     if (S.playing) requestAnimationFrame(frame);
   }
   function advance(dt) {
@@ -6164,7 +6246,8 @@ var L = (function () {
     if (S.pos >= t.dur) { S.pos = t.dur; S.event = { type: 'eof', text: 'End of the file. Players never hear the part after End.' }; pause(S.event.text); }
   }
   // Leaving the view, or opening another track or place, stops the preview.
-  window.addEventListener('lyre:route', function () { var r = L.current(); if (S.playing && (r.name !== 'profile' || r.p.tid !== S.tid || (r.p.ctx || '') !== S.key)) { S.playing = false; S.handover = null; } });
+  // 0.5.2 item 24: the bar's preview goes on from where it was; the page stops driving it.
+  window.addEventListener('lyre:route', function () { var r = L.current(); if (S.playing && (r.name !== 'profile' || r.p.tid !== S.tid || (r.p.ctx || '') !== S.key)) { syncPreview(); if (L.pb.preview) L.pb.preview.ap = false; S.playing = false; S.handover = null; L.render(); } });
 
   /* ---------- painting without a re-render (every frame while listening) ---------- */
   var colours = null;
@@ -6237,7 +6320,7 @@ var L = (function () {
   }
   function err(which) { return S.invalid[which] ? '<span class="ap-err" id="ap-f-' + which + '-err">' + esc(S.invalid[which]) + '</span>' : ''; }
   function field(t, which, value, btnLabel, key) {
-    return '<div class="ap-frow"><label for="ap-f-' + which + '">' + POINT[which] + '</label>' + timeInput(t, which, L.fmt(value), false) +
+    return '<div class="ap-frow"><label for="ap-f-' + which + '">' + POINT[which] + '</label>' + timeInput(t, which, fmtPoint(value), false) +
       '<button class="btn s" data-act="aphere" data-f="' + which + '" data-k="ap-here-' + which + '"' + (key && S.keys1 ? ' aria-keyshortcuts="' + key + '"' : '') + ' title="' + esc(btnLabel) + ' (' + L.fmt(S.pos) + ')' + (key && S.keys1 ? ', key ' + key : '') + '"' + dis(t) + '>' + L.icon('arrow', 's') + btnLabel + '</button>' + err(which) + '</div>';
   }
   function stepper(t, which, val, unitLabel) {
@@ -6265,11 +6348,25 @@ var L = (function () {
   function handle(t, which, v, label, cls) {
     var r = range(t, which), ro = !editable(t), len = which.indexOf('fade') === 0;
     return '<div class="ap-h ' + cls + '" role="slider" tabindex="0" data-aph="' + which + '" data-k="ap-h-' + which + '" style="left:' + pct(t, which === 'fadein' ? value(prof(t), 'start') + v : which === 'fadeout' ? value(prof(t), 'end') - v : v) + '" aria-label="' + label + '" aria-orientation="horizontal"' +
-      (ro ? ' aria-readonly="true"' : '') + ' aria-valuemin="' + r[0] + '" aria-valuemax="' + r[1] + '" aria-valuenow="' + v + '" aria-valuetext="' + (len ? secs(v) : L.fmt(v)) + '" title="' + label + ' ' + (len ? secs(v) : L.fmt(v)) + (ro ? ' (the track\'s settings: they cannot be changed here)' : len ? ': drag along the volume line, or arrow keys to change the length' : ': drag, or use the arrow keys (Shift for 10 s)') + '">' +
+      (ro ? ' aria-readonly="true"' : '') + ' aria-valuemin="' + r[0] + '" aria-valuemax="' + r[1] + '" aria-valuenow="' + v + '" aria-valuetext="' + (len ? secs(v) : fmtPoint(v)) + '" title="' + label + ' ' + (len ? secs(v) : fmtPoint(v)) + (ro ? ' (the track\'s settings: they cannot be changed here)' : len ? ': drag along the volume line, or arrow keys to change the length (0.1 s; Shift: 1 s)' : ': drag, or use the arrow keys (0.1 s; Shift: 1 s; Page Up and Down: 10 s)') + '">' +
       (len ? '<span class="ap-knob"></span>' : '<span class="ap-htab">' + L.icon('drag', 's') + (which === 'loop' ? 'Loop' : label) + '</span>') + '</div>';
   }
+  // 0.5.2 item 2 (the app's Waveform.tsx; 0.6.0 sync): Zoom in widens the strip, up to 16 times, inside a box that
+  // scrolls sideways, to place Start and End to a tenth of a second.
+  var ZOOMS = [1, 2, 4, 8, 16];
+  function zoomHTML() {
+    var i = ZOOMS.indexOf(S.zoom);
+    return '<div class="ap-zoom" role="group" aria-label="Zoom">' +
+      '<button class="btn s icon" data-act="apzoom" data-d="-1" data-k="ap-zoom-out" aria-label="Zoom out" title="Zoom out: see more of the track"' + (i <= 0 ? ' disabled' : '') + '>' + L.icon('minus', 's') + '</button>' +
+      '<span class="num faint ap-zoom-v">' + S.zoom + '×</span>' +
+      '<button class="btn s icon" data-act="apzoom" data-d="1" data-k="ap-zoom-in" aria-label="Zoom in" title="Zoom in, to place Start and End to a tenth of a second"' + (i >= ZOOMS.length - 1 ? ' disabled' : '') + '>' + L.icon('plus', 's') + '</button></div>';
+  }
+  L.acts.apzoom = function (el) {
+    var i = ZOOMS.indexOf(S.zoom) + (+el.dataset.d); S.zoom = ZOOMS[clamp(i, 0, ZOOMS.length - 1)]; S.centre = true;
+    L.render(); L.say('Zoom ' + S.zoom + '×');
+  };
   function waveHTML(t, p) {
-    return '<div class="ap-wave' + (editable(t) ? '' : ' ro') + '">' +
+    return zoomHTML() + '<div class="ap-wavescroll"><div class="ap-wave' + (editable(t) ? '' : ' ro') + '" style="width:' + (S.zoom * 100) + '%">' +
       '<div class="ap-out" style="left:0;width:' + pct(t, p.start) + '"><span>Not played</span></div>' +
       '<div class="ap-out" style="left:' + pct(t, p.end) + ';right:0"><span>Not played</span></div>' +
       (p.after === 'loop' ? '<div class="ap-loop" style="left:' + pct(t, p.loopStart) + ';width:' + ((p.end - p.loopStart) / t.dur * 100).toFixed(3) + '%"></div>' : '') +
@@ -6280,7 +6377,7 @@ var L = (function () {
       p.markers.map(function (m) { var st = p.startAt === m.at; return '<span class="ap-flag' + (st ? ' ap-startat' : '') + '" data-act="apgo" data-at="' + m.at + '" style="left:' + pct(t, m.at) + '" title="' + esc(m.label) + ' (' + L.fmt(m.at) + ')' + (st ? ': the track starts here' : '') + ': go there" aria-hidden="true"><span class="ap-flag-l">' + (st ? L.icon('play', 's') + 'Starts here: ' : '') + esc(m.label) + '</span></span>'; }).join('') +
       handle(t, 'start', p.start, 'Start', 'ap-h-start') + handle(t, 'end', p.end, 'End', 'ap-h-end') + (p.after === 'loop' ? handle(t, 'loop', p.loopStart, 'Loop start', 'ap-h-loop') : '') +
       handle(t, 'fadein', p.fadeIn.dur, 'Fade in length', 'ap-fk ap-fk-in') + handle(t, 'fadeout', p.fadeOut.dur, 'Fade out length', 'ap-fk ap-fk-out') +
-      '<div class="ap-ruler" aria-hidden="true"></div></div>';
+      '<div class="ap-ruler" aria-hidden="true"></div></div></div>';
   }
   function listenHTML(t, p) {
     var c = ctxOf(t), onAir = L.pb.music && L.pb.music.id === t.id;
@@ -6331,9 +6428,12 @@ var L = (function () {
         '<div class="row-flex"><span class="grow ellipsis" title="' + esc(L.title(n)) + '"><b>' + esc(L.title(n)) + '</b></span>' + L.profileLink(n.id, c.place, true) + '</div>' +
         (c.lib ? '<p class="hint">This track is not in a scene or playlist yet, so the preview uses the next track in the Track library.</p>' : '') + '</div>';
     }
-    var fields = '<div class="ap-fields">' + field(t, 'start', p.start, 'Start at playhead', 'I') + field(t, 'end', p.end, 'End at playhead', 'O') +
+    // 0.5.1 (the app's EndBox; 0.6.0 sync): Start at sits between Start and End, and Next time, start where it stopped,
+    // the track's own choice wherever it plays, comes last.
+    var fields = '<div class="ap-fields">' + field(t, 'start', p.start, 'Start at playhead', 'I') + startAtHTML(t, p) + field(t, 'end', p.end, 'End at playhead', 'O') +
       (p.after === 'loop' ? field(t, 'loop', p.loopStart, 'Loop from playhead', 'L') : '') + '</div>';
-    return opts + nx + fields;
+    var resume = t.kind !== 'fx' && t.role !== 'Sting' ? '<div class="lb-tg r9-resume-row"><label class="lv-switch lb-resume" title="A long underscore or bed starts again where it was last stopped"><input type="checkbox" role="switch" data-input="apresume" data-k="ap-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Next time, start where it stopped</b></span></label></div>' : '';
+    return opts + nx + fields + resume;
   }
   function fadesHTML(t, p) {
     var h = fadeBlock(t, p, 'in') + fadeBlock(t, p, 'out');
@@ -6348,19 +6448,24 @@ var L = (function () {
   /* Round 8: Start at, Beginning or one of the markers: where the track starts wherever it plays (Live, scenes, the
      Now playing bar), in this place's settings or the track's own. */
   function startAtHTML(t, p) {
-    return '<div class="field ap-startat-f"><label for="ap-startat">Start at</label><select id="ap-startat" class="input" data-input="apstartat" data-k="ap-startat"' + dis(t) + '>' +
+    return '<div class="ap-frow"><label for="ap-startat">Start at</label><select id="ap-startat" class="input" data-input="apstartat" data-k="ap-startat" title="Where it starts wherever it plays (a scene, Live, Play on air). Add a marker to start there."' + dis(t) + '>' +
       '<option value=""' + (p.startAt == null ? ' selected' : '') + '>Beginning (' + L.fmt(p.start) + ')</option>' +
       p.markers.filter(function (m) { return m.at >= p.start && m.at < p.end; }).map(function (m) { return '<option value="' + m.at + '"' + (p.startAt === m.at ? ' selected' : '') + '>' + esc(m.label) + ' (' + L.fmt(m.at) + ')</option>'; }).join('') + '</select></div>';
   }
   L.inputs.apstartat = function (el) {
     var t = track(); if (!t) return; var v = el.value === '' ? null : +el.value;
-    if (!write(t, { startAt: v })) return; S.focusK = 'ap-startat'; L.render();
+    if (!write(t, { startAt: v })) return; S.focusK = 'ap-startat'; noProfileSave(); L.render();
     var m = v == null ? null : prof(t).markers.filter(function (x) { return x.at === v; })[0];
-    L.say(m ? 'Starts at ' + m.label + ', ' + L.fmt(m.at) : 'Starts at the beginning');
+    // The app's words in the Saved pop-up (useProfileController setStartAt).
+    L.saved(m ? 'start at ' + L.fmt(m.at) + ', ' + m.label : 'start at the beginning', { key: 'ap-startat-' + t.id });
+  };
+  L.inputs.apresume = function (el) {
+    var t = track(); if (!t) return; t.resume = el.checked; if (!t.resume && D.resumeAt) delete D.resumeAt[t.id];
+    if (L.keepResume) L.keepResume(t); L.saved(L.title(t) + (t.resume ? ' picks up where it stopped' : ' starts from the top'));
   };
   function markersHTML(t, p) {
     if (!p.markers.length) return '<p class="empty">No markers yet. Add one to start the track there.</p>';
-    return startAtHTML(t, p) + '<ol class="list ap-mlist">' + p.markers.map(function (m, i) {
+    return '<ol class="list ap-mlist">' + p.markers.map(function (m, i) {
       return '<li class="lrow ap-mrow"><span class="num faint ap-mt">' + L.fmt(m.at) + '</span>' +
         '<input class="input ap-ml" data-input="apmlabel" data-i="' + i + '" data-k="ap-ml-' + i + '" value="' + esc(m.label) + '" aria-label="Marker label at ' + L.fmt(m.at) + '"' + dis(t) + '>' +
         '<button class="btn s" data-act="apgo" data-at="' + m.at + '" data-k="ap-mgo-' + i + '" title="Move the playhead to ' + L.fmt(m.at) + '" aria-label="Go to ' + esc(m.label) + '">' + L.icon('right', 's') + 'Go to</button>' +
@@ -6446,6 +6551,7 @@ var L = (function () {
       var key = prm.ctx || '';
       if (S.tid !== t.id || S.key !== key) {
         if (S.tid !== t.id) S.undoClear = null;
+        if (S.tid !== t.id) { S.zoom = 1; S.waveLeft = 0; }
         S.tid = t.id; S.key = key; S.playing = false; S.handover = null; S.event = null; S.loops = 0; S.ctx = 0; S.saved = false; S.editing = null; S.invalid = {}; S.pos = prof(t).from;
       }
       var p = prof(t), ed = editable(t);
@@ -6474,7 +6580,20 @@ var L = (function () {
     },
     after: function (root) {
       var t = track(); if (!t || !root.querySelector('.ap-wave')) return;
+      // 0.5.2 item 2: the zoomed strip keeps its place across redraws; after a zoom the handle with the focus (else the
+      // playhead) is in the middle of the box; a handle moved by its keys stays in view.
+      var box = root.querySelector('.ap-wavescroll');
+      if (box) {
+        if (S.centre) {
+          S.centre = false; var fa = document.activeElement, fw = fa && fa.dataset && fa.dataset.aph;
+          var sec = fw && fw.indexOf('fade') !== 0 ? +fa.getAttribute('aria-valuenow') : S.pos;
+          box.scrollLeft = Math.max(0, sec / t.dur * box.scrollWidth - box.clientWidth / 2);
+        } else box.scrollLeft = S.waveLeft;
+        S.waveLeft = box.scrollLeft;
+        box.addEventListener('scroll', function () { S.waveLeft = box.scrollLeft; });
+      }
       readColours(); layout(root); paintLive();
+      if (S.inView) { var hv = root.querySelector('[data-aph="' + S.inView + '"]'); S.inView = null; if (hv && S.zoom > 1) hv.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
       if (S.playing) S.last = performance.now();
       root.querySelectorAll('[data-aph]').forEach(function (h) { h.addEventListener('pointerdown', handleDown); h.addEventListener('keydown', handleKey); });
       var sc = root.querySelector('.ap-scrub'); sc.addEventListener('pointerdown', scrubDown); sc.addEventListener('keydown', scrubKey);
@@ -6510,7 +6629,7 @@ var L = (function () {
     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   }
   function fromSec(p, which, sec) { return which === 'fadein' ? sec - p.start : which === 'fadeout' ? p.end - sec : sec; }
-  function sayPoint(which) { var p = prof(track()), v = value(p, which); L.say(POINT[which] + ' ' + (which.indexOf('fade') === 0 || which === 'xfade' ? secs(v) : L.fmt(v))); }
+  function sayPoint(which) { var p = prof(track()), v = value(p, which); L.say(POINT[which] + ' ' + (which.indexOf('fade') === 0 || which === 'xfade' ? secs(v) : fmtPoint(v))); }
   function readOnlyNote() { L.toast('These are the track\'s settings. To change them only here, press Use separate settings here.'); }
   function handleDown(e) {
     if (e.button !== 0) return; e.preventDefault(); var which = e.currentTarget.dataset.aph, t = track(); e.currentTarget.focus();
@@ -6518,12 +6637,14 @@ var L = (function () {
     dragWith(function (ev) { movePoint(t, which, fromSec(prof(t), which, secAt(ev))); L.render(); }, function () { sayPoint(which); L.render(); });
   }
   function handleKey(e) {
-    var which = e.currentTarget.dataset.aph, t = track(), cur = value(prof(t), which), r = range(t, which), v = null, big = e.shiftKey ? 10 : 1;
+    // 0.5.2 item 2 (the app's HANDLE_STEP): an arrow moves a handle a tenth of a second, Shift and an arrow a second,
+    // Page Up and Down ten.
+    var which = e.currentTarget.dataset.aph, t = track(), cur = value(prof(t), which), r = range(t, which), v = null, big = e.shiftKey ? 1 : 0.1;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') v = cur - big; else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') v = cur + big;
     else if (e.key === 'PageDown') v = cur - 10; else if (e.key === 'PageUp') v = cur + 10; else if (e.key === 'Home') v = r[0]; else if (e.key === 'End') v = r[1];
     if (v == null) return; e.preventDefault(); e.stopPropagation();
     if (!editable(t)) { readOnlyNote(); return; }
-    movePoint(t, which, v); L.render(); sayPoint(which);
+    movePoint(t, which, v); S.inView = which; L.render(); sayPoint(which);
   }
   function scrubDown(e) {
     if (e.button !== 0) return; e.preventDefault(); e.currentTarget.focus(); seek(secAt(e), true); L.render();
@@ -7380,7 +7501,9 @@ var L = (function () {
       var ron = !!L.state.reordering[grp], divs = L.dividersBefore ? L.dividersBefore(p) : {};
       return (orderKey ? '<div class="ro-own">' + '<button type="button" class="btn s ghost ro-tog" data-act="rotoggle" data-g="' + esc(grp) + '" data-k="rotog-' + esc(did) + '" aria-pressed="' + ron + '" title="' + (ron ? 'Done reordering' : 'Show Move up and Move down on each track (or drag a track)') + '">' + L.icon('drag', 's') + 'Reorder</button>' +
         (own ? '<span class="ro-own-t">Order ' + esc(where) + '</span><button type="button" class="btn s ghost" data-act="roclear" data-key="' + esc(orderKey) + '" data-pid="' + esc(id) + '" data-k="roclear-' + esc(did) + '">' + L.icon('restart', 's') + 'Back to the playlist\'s order</button>' : '') + '</div>' : '') +
-        (orderKey ? '<p class="sr-only" id="' + did + '">Drag a track, or press Alt+Up or Alt+Down on it, to change the order ' + esc(where) + ' only.</p>' : '') +
+        // 0.6.0 (f-prep item 32, language review C12; as the app's PlaceTracks): the keyboard's way to another list is
+        // Add to… in each track's ⋯, and the list says so.
+        (orderKey ? '<p class="sr-only" id="' + did + '">Drag a track, or press Alt+Up or Alt+Down on it, to change the order ' + esc(where) + ' only. To add a track to another playlist or a scene, drag its name there, or use Add to… in its More menu.</p>' : '') +
         '<ol class="list' + (orderKey ? ' ro-list' : '') + '" aria-label="Tracks in ' + esc(p.name) + (orderKey ? ', in the order ' + esc(where) : '') + '"' + (orderKey ? ' aria-describedby="' + did + '"' : '') + '>' + ts.map(function (t, i) {
         var nm = L.nameIn(t, inScene);
         // Round 9 (item 42): a manual playlist's dividers show wherever its tracks are listed.
@@ -7395,7 +7518,8 @@ var L = (function () {
           // Round 6 part 3 (decision 4): a scene's Repeat one, saved with the scene, shows and changes here as in Live.
           (inScene && p.lane === 'music' ? L.repeatOneButton(inScene, t.id, 'r1-' + (did || id) + '-' + t.id, nm) : '') +
           // Round 10 fixes (R10-FIX §1): a manual playlist's track comes out of the playlist from here too (r10remove.js).
-          (p.kind === 'manual' && L.acts.r10xpmore ? '<button type="button" class="btn s icon r10-xpmore" data-act="r10xpmore" data-pid="' + esc(id) + '" data-tid="' + t.id + '" data-row="' + i + '" data-k="xpm-' + esc(did || id) + '-' + t.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(nm) + '" title="More">' + L.icon('more', 's') + '</button>' : '') +
+          // 0.6.0 (f-prep item 32, as the app): every playlist's track has the ⋯, with Add to… first.
+          (L.acts.r10xpmore ? '<button type="button" class="btn s icon r10-xpmore" data-act="r10xpmore" data-pid="' + esc(id) + '" data-tid="' + t.id + '" data-row="' + i + '"' + (p.kind === 'manual' ? ' data-manual="1"' : '') + ' data-k="xpm-' + esc(did || id) + '-' + t.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(nm) + '" title="More">' + L.icon('more', 's') + '</button>' : '') +
           (ron ? '<span class="ro-btns"><button type="button" class="closer" data-act="romove" data-d="-1" data-k="roup-' + did + '-' + t.id + '" aria-label="Move up: ' + esc(nm) + '" title="Move up (Alt+Up)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + '</button>' +
             '<button type="button" class="closer" data-act="romove" data-d="1" data-k="rodn-' + did + '-' + t.id + '" aria-label="Move down: ' + esc(nm) + '" title="Move down (Alt+Down)"' + (i === ts.length - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + '</button></span>' : '') + '</li>';
       }).join('') + '</ol>';
@@ -7422,7 +7546,7 @@ var L = (function () {
     L.saved('order of ' + L.playlist(pid).name + ' ' + placeWords(key), { key: 'tro-' + key + pid }); return true;
   };
   L.state.reordering = L.state.reordering || {};
-  L.acts.rotoggle = function (el) { var g = el.dataset.g; L.state.reordering[g] = !L.state.reordering[g]; L.render(); var b = document.querySelector('[data-k="' + el.dataset.k + '"]'); if (b) b.focus(); L.say(L.state.reordering[g] ? 'Move up and Move down shown on each track' : 'Done reordering'); };
+  L.acts.rotoggle = function (el) { var g = el.dataset.g; L.state.reordering[g] = !L.state.reordering[g]; L.render(); var b = document.querySelector('[data-k="' + el.dataset.k + '"]'); if (b) b.focus(); L.say(L.state.reordering[g] ? 'Move up and Move down are now on each track.' : 'Move up and Move down are hidden again.'); };
   // A Move up / Move down button: the row moves, and focus stays on the same button in its new place (or on the
   // other one when it reaches the top or the bottom).
   L.acts.romove = function (el) {
@@ -7472,8 +7596,21 @@ var L = (function () {
   }, true);
   document.addEventListener('dragend', function () { if (!roDrag) return; roDrag = null; roClear(); document.querySelectorAll('[data-ro][draggable="true"]').forEach(function (n) { n.removeAttribute('draggable'); }); }, true);
 
+  /* 0.5.2 item 17 (the app's kit/ShapeFilter; 0.6.0 sync): the Library's Shape filter for other lists of tracks: Add
+     tracks on a playlist and the scene pickers. Five chips, any number pressed (none: any shape), with Clear while one
+     is. act: the action a chip and Clear call (data-v is the shape, or '' for Clear). */
+  L.shapeFilterHTML = function (shapes, act, cls) {
+    return '<div class="chips shape-filter' + (cls ? ' ' + cls : '') + '" role="group" aria-label="Shape" title="None pressed: any shape"><span class="faint">Shape</span>' + L.SHAPES.map(function (x) {
+      var on = shapes.indexOf(x[0]) > -1;
+      return '<button type="button" class="chip" data-act="' + act + '" data-keep-menu="1" data-v="' + x[0] + '" data-k="' + act + '-' + x[0] + '" aria-pressed="' + on + '">' + (on ? L.icon('check', 's') : L.shapeGlyph(x[0])) + x[1] + '</button>';
+    }).join('') + (shapes.length ? '<button type="button" class="btn s ghost" data-act="' + act + '" data-keep-menu="1" data-v="" data-k="' + act + '-clear" aria-label="Clear Shape" title="Clear Shape">Clear</button>' : '') + '</div>';
+  };
+  L.toggleShape = function (shapes, v) { if (!v) return []; var i = shapes.indexOf(v); return i > -1 ? shapes.slice(0, i).concat(shapes.slice(i + 1)) : shapes.concat([v]); };
+
   /* ---------- picker sheet ---------- */
   function visible(it) {
+    // 0.5.2 item 17: with a shape pressed, only tracks of those shapes (as the app's picker; playlists go too).
+    if (pk.shapes && pk.shapes.length && !(it.track && pk.shapes.indexOf(L.shapeOf(it.track)) > -1)) return false;
     var q = (pk.q || '').toLowerCase();
     if (q && (it.label + ' ' + (it.sub || '') + ' ' + (it.search || '')).toLowerCase().indexOf(q) < 0) return false;
     var f = pk.filters && pk.filters.filter(function (x) { return x.id === pk.filter; })[0];
@@ -7521,7 +7658,7 @@ var L = (function () {
   L.pickerSheet = function (o) {
     pk = { items: o.items, sel: (o.selected || []).slice(), multi: !!o.multi, inside: !!o.inside, onDone: o.onDone, q: '', fold: !!o.fold, open: {}, filters: o.filters || null, filter: o.filters ? o.filters[0].id : '',
       // Round 6, part 5: what Done saves, for the Saved pop-up (shown only when the ticks changed).
-      saved: o.saved || '', was: (o.selected || []).join('|'), makePl: !!o.makePlaylist, makeBoard: !!o.makeBoard };
+      saved: o.saved || '', was: (o.selected || []).join('|'), makePl: !!o.makePlaylist, makeBoard: !!o.makeBoard, shapes: o.shapes ? [] : null };
     if (pk.fold) { (o.openGroups || []).forEach(function (g) { pk.open[g] = true; }); o.items.forEach(function (it) { if (pk.sel.indexOf(it.id) > -1) pk.open[it.group] = true; }); }
     L.sheet({ title: o.title, wide: !!o.wide, float: !!o.float,
       // Round 6: the intro is read out with the dialog (its description) and is the list's hover text; on screen the
@@ -7529,7 +7666,8 @@ var L = (function () {
       describe: o.intro || '',
       body: '' +
         '<div class="row-flex" style="margin-bottom:8px;flex-wrap:wrap"><div class="search grow" style="min-width:180px">' + L.icon('search') + '<input class="input" type="search" placeholder="Search" aria-label="Search the list" data-input="pkq"></div>' +
-        (pk.filters ? '<div class="seg" role="group" aria-label="Show">' + pk.filters.map(function (f) { return '<button type="button" data-act="pkfilter" data-keep-menu="1" data-f="' + f.id + '" aria-pressed="' + (pk.filter === f.id) + '">' + esc(f.label) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
+        (pk.filters ? '<div class="seg" role="group" aria-label="Show">' + pk.filters.map(function (f) { return '<button type="button" data-act="pkfilter" data-keep-menu="1" data-f="' + f.id + '" aria-pressed="' + (pk.filter === f.id) + '">' + esc(f.label) + '</button>'; }).join('') + '</div>' : '') +
+        (pk.shapes ? '</div><div id="pk-shapes">' + L.shapeFilterHTML(pk.shapes, 'pkshape', 'pk-shapes') : '') + '</div>' +
         '<div id="pk-list" class="pk-list" role="group" aria-label="' + esc(o.title) + '"' + (o.intro ? ' title="' + esc(o.intro) + '"' : '') + '>' + list() + '</div>',
       footer: footer(o.okLabel) });
   };
@@ -7546,7 +7684,7 @@ var L = (function () {
     if (pk.namingBoard) return '<label class="r10-mkpl" for="pk-bdname" title="An empty 4 × 3 board; you give it pads, and change its size, on its own page"><span>New board</span><input class="input" id="pk-bdname" data-k="pk-bdname" autocomplete="off" value="' + esc(pk.namingBoard) + '"></label>' +
       '<span class="grow"></span><button class="btn" data-act="pkbdcancel" data-k="pk-bdcancel">Back</button><button class="btn primary" data-act="pkbdok" data-k="pk-bdok">Make it and add it</button>';
     return '<span id="pk-count" class="muted grow">' + count() + '</span>' +
-      (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and adds it to the scene.">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
+      (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in place of those tracks.">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
       (pk.makeBoard ? '<button class="btn" data-act="pkmkbd" data-k="pk-mkbd" title="Make an empty pad board and put it in this scene. You give it pads on its page.">' + L.icon('plus', 's') + 'New board…</button>' : '') +
       '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="pkdone">' + esc(pk.okLabel) + '</button>';
   }
@@ -7583,6 +7721,11 @@ var L = (function () {
     else if (e.target.id === 'pk-bdname') { e.preventDefault(); L.acts.pkbdok(); }
   });
   L.inputs.pkq = function (el) { pk.q = el.value; paintList(); };
+  L.acts.pkshape = function (el) {
+    pk.shapes = L.toggleShape(pk.shapes, el.dataset.v); var box = document.getElementById('pk-shapes');
+    if (box) box.innerHTML = L.shapeFilterHTML(pk.shapes, 'pkshape', 'pk-shapes'); paintList();
+    var f = document.querySelector('[data-k="pkshape-' + (el.dataset.v || L.SHAPES[0][0]) + '"]'); if (f) f.focus();
+  };
   L.acts.pkfilter = function (el) { pk.filter = el.dataset.f; document.querySelectorAll('[data-act="pkfilter"]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === el)); }); paintList(); };
   L.acts.pkgroup = function (el) { var g = el.dataset.g; pk.open[g] = !pk.open[g]; paintList(); var b = document.querySelector('.pk-groupbtn[data-g="' + g.replace(/"/g, '\\"') + '"]'); if (b) b.focus(); };
   L.inputs.pkpick = function (el) {
@@ -7638,7 +7781,7 @@ var L = (function () {
     var items = D.playlists.filter(function (p) { return p.lane !== 'amb'; }).map(function (p) { return playlistItem(p, 'Playlists'); })
       .concat(D.tracks.filter(function (t) { return t.kind !== 'amb'; }).map(function (t) { return trackItem(t, 'Tracks'); }));
     // Round 9 (item 33): a floating panel beside the scene, moved and sized by Nik (r9guide.js).
-    L.pickerSheet({ title: o.title || 'Add music to the scene', items: items, selected: o.selected, multi: true, inside: true, onDone: o.onDone, wide: true, float: true, saved: o.saved, makePlaylist: true,
+    L.pickerSheet({ title: o.title || 'Add music to the scene', items: items, selected: o.selected, multi: true, inside: true, shapes: true, onDone: o.onDone, wide: true, float: true, saved: o.saved, makePlaylist: true,
       intro: o.intro || 'Tick playlists, single tracks or both; open a playlist to tick only some of its tracks. They play in the scene in the order you tick them; you can reorder them afterwards.',
       filters: [{ id: 'all', label: 'All', test: function () { return true; } }, { id: 'pl', label: 'Playlists', test: function (it) { return it.isPlaylist; } },
         { id: 'music', label: 'Tracks', test: function (it) { return !it.isPlaylist && it.kind === 'music' && !L.isFx(it.track); } }, { id: 'fx', label: 'FX', test: function (it) { return it.isPlaylist ? it.lane === 'fx' : L.isFx(it.track); } }] });
@@ -7646,7 +7789,7 @@ var L = (function () {
   L.pickAmbience = function (o) {
     var items = D.playlists.filter(function (p) { return p.lane === 'amb'; }).map(function (p) { return playlistItem(p, 'Ambience playlists'); })
       .concat(D.tracks.filter(function (t) { return t.kind === 'amb'; }).map(function (t) { return trackItem(t, 'Ambience tracks'); }));
-    L.pickerSheet({ title: o.title || 'Choose the ambience', items: items, selected: o.selected, multi: false, onDone: o.onDone, saved: o.saved, intro: o.intro || 'One ambience track, or an ambience playlist that moves from bed to bed.' });
+    L.pickerSheet({ title: o.title || 'Choose the ambience', items: items, selected: o.selected, multi: false, shapes: true, onDone: o.onDone, saved: o.saved, intro: o.intro || 'One ambience track, or an ambience playlist that moves from bed to bed.' });
   };
 
   /* ---------- Use in… ---------- */
@@ -7936,8 +8079,20 @@ var L = (function () {
   };
 
   /* ---------- reordering (buttons and drag and drop) ---------- */
-  function renumber(c) { if (!c.sessions.length) return; var base = Math.min.apply(null, c.sessions.map(function (s) { return s.n; })); c.sessions.forEach(function (s, i) { s.n = base + i; }); }
+  // 0.5.2 item 13 (the app since 0.5.2; 0.6.0 sync): sessions count on in their order from the first session's number
+  // (c.firstN), unless the campaign's numbers are typed for each session (c.numbering 'typed'), which nothing renumbers.
+  function firstN(c) { return c.firstN != null ? c.firstN : c.sessions.length ? Math.min.apply(null, c.sessions.map(function (s) { return s.n; })) : 1; }
+  function renumber(c) { if (!c.sessions.length || c.numbering === 'typed') return; var base = firstN(c); c.firstN = base; c.sessions.forEach(function (s, i) { s.n = base + i; }); }
   function moveItem(list, from, to) {
+    // A scene's music or pad boards ('items|<scene id>|music'): as its ⋯ Move up and Move down do.
+    if (list.indexOf('items|') === 0) {
+      var a = list.split('|'), f = findScene(a[1]); if (!f) return false;
+      if (a[2] === 'boards' && !f.sc.boards) f.sc.boards = L.sceneBoards(f.sc).slice();
+      var items = f.sc[a[2]]; if (to < 0 || to >= items.length || from === to) return false;
+      var moved = items.splice(from, 1)[0]; items.splice(to, 0, moved); current = f.sc.id;
+      L.say(itemName(moved, a[2]) + ' moved to position ' + (to + 1) + ' of ' + items.length); L.saved((f.sc.name || 'scene') + (a[2] === 'boards' ? ' pad boards' : ' music'));
+      return true;
+    }
     var x = ctx(), arr = list === 'sessions' ? x.c.sessions : x.s.scenes;
     if (to < 0 || to >= arr.length || from === to) return false;
     var item = arr.splice(from, 1)[0]; arr.splice(to, 0, item);
@@ -8022,20 +8177,23 @@ var L = (function () {
   /* Round 8 (Nik, 11 Nov: "I need to be able to drag and drop to rearrange the order campaigns are displayed in in the
      campaigns view"): each card has a handle (greyed at rest) to drag it before or after another card; dropping on a
      card's left half puts it before, on its right half after (the cards run left to right, then down). The keyboard's
-     way, and one click's (WCAG 2.5.7): the Reorder switch in the top bar shows Move earlier and Move later on each card
+     way, and one click's (WCAG 2.5.7): the Reorder switch in the top bar shows Move up and Move down on each card
      while it is on; Alt+Left or Alt+Up and Alt+Right or Alt+Down move the card that has focus. The order is saved. */
   var reorderingCards = false;
   function card(c, i, all) {
     var nx = nextSession(c), th = themeFor(c.theme), n = all.length, nm = esc(c.name);
-    var moves = reorderingCards && n > 1 ? '<span class="cp-cmoves">' +
-      '<button class="btn s icon" data-act="cpcmove" data-idx="' + i + '" data-dir="-1" data-k="cpcup-' + c.id + '" aria-label="Move earlier: ' + nm + '" title="Move earlier (Alt+Left)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevleft', 's') + '</button>' +
-      '<button class="btn s icon" data-act="cpcmove" data-idx="' + i + '" data-dir="1" data-k="cpcdn-' + c.id + '" aria-label="Move later: ' + nm + '" title="Move later (Alt+Right)"' + (i === n - 1 ? ' disabled' : '') + '>' + L.icon('chevright', 's') + '</button></span>' : '';
+    // 0.5.1 (the app's CampaignsScreen; 0.6.0 sync): Move up and Move down, as every other list's Reorder says.
+    var moves = reorderingCards && n > 1 ? '<span class="cp-cmoves ro-btns">' +
+      '<button class="closer" data-act="cpcmove" data-idx="' + i + '" data-dir="-1" data-k="cpcup-' + c.id + '" aria-label="Move up: ' + nm + '" title="Move up (Alt+Up)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + '</button>' +
+      '<button class="closer" data-act="cpcmove" data-idx="' + i + '" data-dir="1" data-k="cpcdn-' + c.id + '" aria-label="Move down: ' + nm + '" title="Move down (Alt+Down)"' + (i === n - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + '</button></span>' : '';
+    // 0.5.2 items 15 and 48 (the app's CampaignCard): a card's ⋯ has Open and Delete….
+    moves += '<button class="closer cp-more-btn" data-act="cpcardmenu" data-cid="' + c.id + '" data-k="cpm-' + c.id + '" title="More for ' + nm + '" aria-label="More for ' + nm + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button>';
     return '<li class="cp-cardwrap" data-drag="campaigns" data-axis="x" data-idx="' + i + '" data-cid="' + c.id + '">' + cardBody(c, nx, th, moves, n > 1) + '</li>';
   }
   function cardBody(c, nx, th, moves, handle) {
     // Round 6: the card is drawn in its theme, so the theme's name is hover text.
     return '<article class="cp-card" data-theme="' + th + '" aria-labelledby="cph-' + c.id + '" title="' + esc(plural(c.sessions.length, 'session') + ' · ' + plural(usedPlaylists(c), 'playlist') + ' · ' + plural(usedBoards(c), 'pad board') + ' · theme: ' + themeName(c.theme || defTheme())) + '">' +
-      '<div class="cp-card-top">' + (handle ? '<span class="cp-handle" title="Drag to change the order" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + '<span class="cp-sys grow">' + esc(c.system || 'No game system') + '</span>' + moves + '</div>' +
+      '<div class="cp-card-top">' + (handle ? '<span class="cp-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + '<span class="cp-sys grow">' + esc(c.system || 'No game system') + '</span>' + moves + '</div>' +
       '<h2 class="display cp-card-name" id="cph-' + c.id + '">' + esc(c.name) + '</h2>' +
       '<p class="cp-blurb ellipsis" title="' + esc(c.blurb) + '">' + (c.blurb ? esc(c.blurb) : '<span class="faint">No description</span>') + '</p>' +
       '<p class="cp-next">' + (nx ? '<span class="cp-next-lbl">Next</span><span class="cp-next-name ellipsis">' + esc(sLabel(nx)) + '</span><span class="cp-next-date">' + esc(fmtDate(nx.date)) + '</span>'
@@ -8057,7 +8215,7 @@ var L = (function () {
     if (!b || b.disabled) b = document.querySelector('[data-k="' + (d < 0 ? 'cpcdn-' : 'cpcup-') + c.id + '"]');
     if (b) b.focus();
   };
-  L.acts.cpreorder = function (el) { reorderingCards = !reorderingCards; L.render(); var b = document.querySelector('[data-k="cpreorder"]'); if (b) b.focus(); L.say(reorderingCards ? 'Move earlier and Move later shown on each campaign' : 'Done reordering'); };
+  L.acts.cpreorder = function (el) { reorderingCards = !reorderingCards; L.render(); var b = document.querySelector('[data-k="cpreorder"]'); if (b) b.focus(); L.say(reorderingCards ? 'Move up and Move down are now on each campaign.' : 'Move up and Move down are hidden again.'); };
   document.addEventListener('keydown', function (e) {
     if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].indexOf(e.key) < 0) return;
     var w = e.target && e.target.closest && e.target.closest('[data-drag="campaigns"]'); if (!w || L.typing(e.target)) return;
@@ -8079,7 +8237,7 @@ var L = (function () {
     ],
     render: function () {
       return '<div class="viewhead"><h1>Campaigns</h1><span class="grow"></span>' +
-        (D.campaigns.length > 1 ? '<button type="button" class="btn s ghost ro-tog" data-act="cpreorder" data-k="cpreorder" aria-pressed="' + reorderingCards + '" title="' + (reorderingCards ? 'Done reordering' : 'Show Move earlier and Move later on each campaign (or drag a card by its handle)') + '">' + L.icon('drag', 's') + 'Reorder</button>' : '') +
+        (D.campaigns.length > 1 ? '<button type="button" class="btn s ghost ro-tog" data-act="cpreorder" data-k="cpreorder" aria-pressed="' + reorderingCards + '" title="' + (reorderingCards ? 'Done reordering' : 'Show Move up and Move down on each campaign (or drag a card)') + '">' + L.icon('drag', 's') + 'Reorder</button>' : '') +
         '<button class="btn primary" data-act="cpnew" data-k="cpnew">' + L.icon('plus', 's') + 'New campaign</button></div>' +
         '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<ol class="cp-grid" aria-label="Campaigns in order">' + D.campaigns.map(card).join('') + '</ol>'
           // A first-time user: what a campaign is and what to do first (w3-ux 9).
@@ -8155,7 +8313,9 @@ var L = (function () {
     var c = ctx().c, i = +el.dataset.idx, s = c.sessions[i], mv = 'data-list="sessions" data-idx="' + i + '" data-fk="sm-' + s.id + '"';
     L.menu(el, '<button role="menuitem" data-act="cpgo" data-href="#/session/' + c.id + '/' + s.id + '">' + L.icon('right') + 'Open</button>' +
       (i > 0 ? '<button role="menuitem" data-act="cpmove" data-dir="-1" ' + mv + '>' + L.icon('chevup') + 'Move up</button>' : '') +
-      (i < c.sessions.length - 1 ? '<button role="menuitem" data-act="cpmove" data-dir="1" ' + mv + '>' + L.icon('chevdown') + 'Move down</button>' : ''), 'Session actions');
+      (i < c.sessions.length - 1 ? '<button role="menuitem" data-act="cpmove" data-dir="1" ' + mv + '>' + L.icon('chevdown') + 'Move down</button>' : '') +
+      // 0.5.2 items 15 and 48 (the app's SessionList): Delete… asks first; Undo brings it back.
+      '<div class="sep"></div><button role="menuitem" data-act="cpsessdelask" data-sid="' + s.id + '" class="cp-danger">' + L.icon('trash') + 'Delete…</button>', 'More for ' + sLabel(s));
   };
   L.acts.cpnewsession = function () {
     var c = ctx().c, last = c.sessions[c.sessions.length - 1], n = last ? last.n + 1 : 1, id = 's' + n;
@@ -8189,7 +8349,9 @@ var L = (function () {
       if (!c) return '<div class="viewhead"><h1>Campaign not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
       var nx = nextSession(c);
       var head = '<div class="viewhead">' +
-        '<h1>' + esc(c.name || 'Untitled campaign') + '</h1><span class="grow"></span>' +
+        '<h1>' + esc(c.name || 'Untitled campaign') + '</h1>' +
+        // 0.5.2 items 15 and 48 (the app's CampaignScreen): the campaign's ⋯ › Delete campaign….
+        '<button class="closer cp-more-btn" data-act="cpheadmenu" data-what="campaign" data-k="cp-more" title="More for ' + esc(c.name) + '" aria-label="More for ' + esc(c.name) + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button><span class="grow"></span>' +
         L.modeSwitch(c.id) + (nx ? '<button class="btn primary" data-act="cprun" data-cid="' + c.id + '" data-sid="' + nx.id + '" data-k="hrun">' + L.icon('broadcast', 's') + 'Run next session <span class="cp-btnsub">S' + nx.n + '</span></button>' : '') + '</div>';
       var details = '<div class="cp-details">' +
         '<div class="field cp-f-name"><label for="cp-c-name">Name</label><input class="input" id="cp-c-name" data-input="cpcamp" data-f="name" data-k="c-name" data-save="campaign name {v}" value="' + esc(c.name) + '" autocomplete="off"></div>' +
@@ -8198,6 +8360,11 @@ var L = (function () {
         '<div class="field cp-f-theme"><label for="cp-c-theme">Theme</label><select class="input" id="cp-c-theme" data-input="cpcamp" data-f="theme" data-k="c-theme" data-save="' + esc(c.name) + ' theme">' +
         L.THEMES.map(function (t) { return '<option value="' + t[0] + '"' + (c.theme === t[0] ? ' selected' : '') + '>' + esc(themeName(t[0])) + '</option>'; }).join('') + '</select></div>' +
         '<div class="field cp-f-blurb"><label for="cp-c-blurb">Description</label><input class="input" id="cp-c-blurb" data-input="cpcamp" data-f="blurb" data-k="c-blurb" data-save="' + esc(c.name) + ' description" value="' + esc(c.blurb) + '" autocomplete="off"></div>' +
+        // 0.5.2 item 13 (the app's SessionNumbers): counting on from a first number, or each number typed.
+        '<div class="field cp-f-numbers"><label for="cp-c-numbers">Session numbers</label><select class="input" id="cp-c-numbers" data-input="cpnumbering" data-k="c-numbers">' +
+          '<option value="auto"' + (c.numbering !== 'typed' ? ' selected' : '') + '>Count on from a number</option><option value="typed"' + (c.numbering === 'typed' ? ' selected' : '') + '>Type each number</option></select></div>' +
+        (c.numbering !== 'typed' ? '<div class="field cp-f-first"><label for="cp-c-first">First session number</label><input class="input" type="number" inputmode="numeric" min="0" max="9999" id="cp-c-first" data-k="c-first" data-cpfirst="1" value="' + firstN(c) + '" title="The first session\'s number. The others follow in order. Use it for a campaign you began before Lyre."></div>'
+          : '<p class="hint cp-f-first">Type each session\'s number in its details. New sessions follow the last one.</p>') +
         // Round 8: no note that Look and feel overrides this; the campaign's theme always shows on its pages.
         '</div>';
 
@@ -8251,7 +8418,9 @@ var L = (function () {
   function itemRow(sc, list, it, i, n, firstTag) {
     var xk = 'cp-' + sc.id + ':' + list + ':' + it.id, k = sc.id + '-' + list + '-' + it.id, key = sceneKey(sc);
     var isTrack = list === 'music' && it.kind === 'track', own = isTrack ? L.title(it.obj) : it.name, shown = isTrack ? L.nameIn(it.obj, key) : it.name, nm = esc(shown);
-    return '<li class="cp-it' + (i === 0 ? ' first' : '') + '"><div class="cp-it-row">' + xpBtn(it, xk) +
+    // 0.5.2 items 41 and 36 (the app's SessionScreen; 0.6.0 sync): a handle to drag the item to another place in the list.
+    return '<li class="cp-it' + (i === 0 ? ' first' : '') + '" data-drag="items|' + sc.id + '|' + list + '" data-idx="' + i + '"><div class="cp-it-row">' +
+      (n > 1 ? '<span class="cp-handle" title="Drag to change the order (or use ⋯ Move up and Move down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + xpBtn(it, xk) +
       '<span class="num cp-it-n" aria-hidden="true">' + (i + 1) + '</span>' +
       '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
       (isTrack ? '<span class="cp-it-main">' : '') +
@@ -8264,7 +8433,7 @@ var L = (function () {
       // Repeat one, then ⋯. The Audio profile has one name everywhere (prep S1).
       L.previewButton(it.kind, it.id) +
       (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id, list === 'music' ? key : '', '', shown) : '') +
-      (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Audio profile of ' + esc(shown) + ' in this scene: its waveform, end and fades" aria-label="Audio profile in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
+      (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Open the Audio profile of ' + esc(shown) + ' in this scene to see its waveform and change how it ends and fades." aria-label="Audio profile in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       // Round 6 part 3 (decision 4): Repeat one, saved with the scene; the same button as on the track in Live.
       (isTrack ? L.repeatOneButton(key, it.id, 'r1-' + k, shown) : '') +
       moreBtn('im-' + k, nm, 'data-menu="item" data-list="' + list + '" data-sc="' + sc.id + '" data-idx="' + i + '"') +
@@ -8467,6 +8636,64 @@ var L = (function () {
   L.acts.cprunthis = function () { var x = ctx(); run(x.c.id, x.s.id); };
   L.renameSession = function (s, backK) { L.startRename('sess-' + s.id, function (name) { s.name = name; L.say('Session ' + s.n + ' is now called ' + name); }, backK); };
   L.acts.cprename = function () { L.renameSession(ctx().s, 'cp-h1-name'); };
+
+  /* ---------- 0.5.2 (the app since 0.5.2; 0.6.0 sync): deleting campaigns and sessions, and session numbers ----------
+     Items 15 and 48: Delete a campaign or a session from its ⋯ menu; the question names what goes with it and what
+     stays; the message offers Undo. Item 13: how sessions are numbered (the app's SessionNumbers). */
+  var STAYS = 'Tracks, playlists and pad boards stay in your library.';
+  function scenesIn(ss) { return ss.reduce(function (n, x) { return n + x.scenes.length; }, 0); }
+  L.acts.cpcardmenu = function (el) {
+    var c = L.campaign(el.dataset.cid); if (!c) return;
+    L.menu(el, '<button role="menuitem" data-act="cpgo" data-href="#/campaign/' + c.id + '">' + L.icon('right') + 'Open</button><div class="sep"></div>' +
+      '<button role="menuitem" data-act="cpcampdelask" data-cid="' + c.id + '" class="cp-danger">' + L.icon('trash') + 'Delete…</button>', 'More for ' + c.name);
+  };
+  L.acts.cpheadmenu = function (el) {
+    var x = ctx(), camp = el.dataset.what === 'campaign';
+    L.menu(el, camp ? '<button role="menuitem" data-act="cpcampdelask" data-cid="' + x.c.id + '" class="cp-danger">' + L.icon('trash') + 'Delete campaign…</button>'
+      : '<button role="menuitem" data-act="cpsessdelask" data-sid="' + x.s.id + '" class="cp-danger">' + L.icon('trash') + 'Delete session…</button>', 'More for ' + (camp ? x.c.name : sLabel(x.s)));
+  };
+  L.acts.cpcampdelask = function (el) {
+    var c = L.campaign(el.dataset.cid); if (!c) return;
+    L.sheet({ title: 'Delete this campaign?', body: '<p>Delete <b>' + esc(c.name) + '</b> with its ' + plural(c.sessions.length, 'session') + ', ' + plural(scenesIn(c.sessions), 'scene') + " and notes, and the campaign's playlists and pads? " + STAYS + '</p>',
+      footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="cpcampdel" data-cid="' + c.id + '">' + L.icon('trash', 's') + 'Delete campaign</button>' });
+  };
+  L.acts.cpcampdel = function (el) {
+    var i = D.campaigns.map(function (c) { return c.id; }).indexOf(el.dataset.cid); L.closeSheet(); if (i < 0) return;
+    var c = D.campaigns[i];
+    L.undoNote('Deleted the campaign "' + c.name + '".', L.snapshot(['campaigns']));
+    D.campaigns.splice(i, 1);
+    if (L.current().p.cid === c.id) L.route('#/campaigns'); else L.render();
+  };
+  L.acts.cpsessdelask = function (el) {
+    var c = ctx().c, s = c && L.session(c.id, el.dataset.sid); if (!s) return;
+    L.sheet({ title: 'Delete this session?', body: '<p>Delete ' + (s.name ? 'Session ' + s.n + ', <b>' + esc(s.name) + '</b>,' : '<b>Session ' + s.n + '</b>') + ' with its ' + plural(s.scenes.length, 'scene') + " and notes, and the session's playlists and pads? " + STAYS + '</p>',
+      footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="cpsessdel" data-sid="' + s.id + '">' + L.icon('trash', 's') + 'Delete session</button>' });
+  };
+  L.acts.cpsessdel = function (el) {
+    var c = ctx().c; L.closeSheet(); if (!c) return;
+    var i = c.sessions.map(function (x) { return x.id; }).indexOf(el.dataset.sid); if (i < 0) return;
+    var s = c.sessions[i];
+    L.undoNote('Deleted ' + (s.name ? 'Session ' + s.n + ', ' + s.name : 'Session ' + s.n) + '.', L.snapshot(['campaigns']));
+    if (c.firstN == null) c.firstN = firstN(c);
+    c.sessions.splice(i, 1); renumber(c);
+    if (L.current().p.sid === s.id) L.route('#/campaign/' + c.id); else L.render();
+  };
+  L.inputs.cpnumbering = function (el) {
+    var c = ctx().c; if (!c) return;
+    if (c.firstN == null) c.firstN = firstN(c);
+    c.numbering = el.value === 'typed' ? 'typed' : 'auto'; renumber(c);
+    L.saved(c.name + ' session numbers'); L.render();
+    L.say(c.numbering === 'typed' ? 'Each session keeps the number typed for it' : "Sessions count on from the first one's number");
+  };
+  // A number is saved when it is typed and Enter is pressed, or the field is left (the app's DraftField).
+  function saveNumber(el) {
+    var x = ctx(), v = el.value.trim(), n = Number(v); if (!x.c || v === '' || !(n >= 0) || n > 9999 || Math.floor(n) !== n) return;
+    if (el.dataset.cpfirst) { if (n === firstN(x.c)) return; x.c.firstN = n; renumber(x.c); L.saved(x.c.name + ' first session number'); }
+    else if (x.s) { if (n === x.s.n) return; x.s.n = n; L.saved('session number ' + v); }
+    L.render();
+  }
+  document.addEventListener('keydown', function (e) { var el = e.target; if (e.key === 'Enter' && el && el.dataset && (el.dataset.cpfirst || el.dataset.cpnumber)) { e.preventDefault(); saveNumber(el); } }, true);
+  document.addEventListener('focusout', function (e) { var el = e.target; if (el && el.dataset && (el.dataset.cpfirst || el.dataset.cpnumber)) saveNumber(el); });
   // F2 on a control marked data-f2 runs that action (rename in place).
   document.addEventListener('keydown', function (e) {
     var t = e.target; if (e.key !== 'F2' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !t || !t.dataset || !t.dataset.f2) return;
@@ -8499,10 +8726,15 @@ var L = (function () {
         // BUG-21: the title renames the session in place (click or F2); only the name, not the number.
         '<h1>' + (L.renaming('sess-' + s.id) ? 'Session ' + s.n + ': ' + L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'cp-h1-rename') :
           '<button class="cp-h1-name" data-act="cprename" data-k="cp-h1-name" data-f2="cprename" title="Rename (click or F2)">' + esc(sLabel(s)) + '</button>') + '</h1>' +
-        statusBadge(s.status) + '<span class="grow"></span>' + L.modeSwitch(c.id) +
+        statusBadge(s.status) +
+        // 0.5.2 items 15 and 48 (the app's SessionScreen): the session's ⋯ › Delete session….
+        '<button class="closer cp-more-btn" data-act="cpheadmenu" data-what="session" data-k="ss-more" title="More for ' + esc(sLabel(s)) + '" aria-label="More for ' + esc(sLabel(s)) + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button>' +
+        '<span class="grow"></span>' + L.modeSwitch(c.id) +
         '<button class="btn' + (s.status === 'next' ? ' primary' : '') + '" data-act="cprunthis" data-k="runthis">' + L.icon('broadcast', 's') + 'Run this session</button></div>';
       var details = '<div class="cp-details cp-sdetails">' +
         '<div class="field cp-f-name"><label for="cp-s-name">Session name</label><input class="input" id="cp-s-name" data-input="cpsess" data-f="name" data-k="s-name" data-save="session name {v}" value="' + esc(s.name) + '" placeholder="Name this session" autocomplete="off"></div>' +
+        // 0.5.2 item 13 (the app's SessionScreen): a campaign whose numbers are typed has each session's number here.
+        (c.numbering === 'typed' ? '<div class="field cp-f-number"><label for="cp-s-number">Session number</label><input class="input" type="number" inputmode="numeric" min="0" max="9999" id="cp-s-number" data-k="s-number" data-cpnumber="1" value="' + s.n + '"></div>' : '') +
         '<div class="field cp-f-date"><label for="cp-s-date">Date</label><input class="input" type="date" id="cp-s-date" data-input="cpsess" data-f="date" data-k="s-date" data-save="Session ' + s.n + ' date" value="' + esc(s.date) + '"></div>' +
         '<div class="field cp-f-status"><label for="cp-s-status">Status</label><select class="input" id="cp-s-status" data-input="cpsess" data-f="status" data-k="s-status" data-save="Session ' + s.n + ' status">' +
         ['played', 'next', 'draft'].map(function (k) { return '<option value="' + k + '"' + (s.status === k ? ' selected' : '') + '>' + STATUS[k] + '</option>'; }).join('') + '</select></div></div>';
@@ -8556,6 +8788,10 @@ var L = (function () {
 (function () {
   var D = L.data, esc = L.esc;
   D.watched = D.watched || [];
+  // 0.5.2 items 20 and 40 (the app's FolderActions; 0.6.0 sync): what kind a library folder's new tracks are (none:
+  // guessed from the folder name), and the folders listed only because tracks sit outside every library folder.
+  D.folderKinds = D.folderKinds || {};
+  D.autoFolders = D.autoFolders || [];
   var ROLES = ['Loop bed', 'Underscore', 'Sting', 'Transition'];
   var LOOPS = [['yes', 'Loops well'], ['crossfade', 'Crossfade the loop'], ['no', 'Do not loop']];
   var SORTS = [['title', 'Title A to Z'], ['title-d', 'Title Z to A'], ['artist', 'Artist A to Z'], ['artist-d', 'Artist Z to A'], ['short', 'Shortest first'], ['long', 'Longest first'], ['new', 'Newest first'], ['old', 'Oldest first']];
@@ -8577,7 +8813,8 @@ var L = (function () {
   function tagsOf(t) { return D.tagGroups.reduce(function (a, g) { return a.concat(t.tags[g.id] || []); }, []); }
   function untagged(t) { return tagsOf(t).length === 0; }
   function newish(t) { return t.isNew || untagged(t); }
-  function settle(t) { if (t.isNew && t.title && !untagged(t)) t.isNew = false; }
+  // 0.5.2 item 10 (the app since 0.5.2; 0.6.0 sync): a New track the game master tags is no longer New, title or not.
+  function settle(t) { if (t.isNew && !untagged(t)) t.isNew = false; }
   function addedAt(t) { return t.addedAt || (t.added === 'Today' ? Date.now() - 1e6 : Date.parse(t.added) || 0); }
   function cap(s) { s = s.trim().replace(/\s+/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1); }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
@@ -8664,7 +8901,7 @@ var L = (function () {
   // Round 9 (item 34): a filter chip with three states, in words for screen readers as well as the look.
   function chip3(act, attrs, state, words, n, glyph) {
     var said = state === 'show' ? ', shown' : state === 'hide' ? ', hidden' : '';
-    return '<button class="chip lb-fchip r9-c3' + (state === 'hide' ? ' is-hide' : '') + '" data-act="' + act + '" ' + attrs + ' data-state="' + state + '" aria-label="' + esc(words + (said ? said + ',' : '') + ' ' + n) + '" aria-pressed="' + (state === 'show') + '" aria-describedby="r9-fhint"' +
+    return '<button class="chip lb-fchip r9-c3' + (state === 'hide' ? ' is-hide' : '') + '" data-act="' + act + '" ' + attrs + ' data-state="' + state + '" aria-label="' + esc(words + said + ', ' + n) + '" aria-pressed="' + (state === 'show') + '" aria-describedby="r9-fhint"' +
       ' title="' + esc(words) + ': ' + (state === 'off' ? 'click to show only these' : state === 'show' ? 'click to hide these instead' : 'click to clear') + '">' +
       (state === 'show' ? L.icon('check', 's') : state === 'hide' ? L.icon('close', 's') : glyph || '') + '<span class="r9-c3-w">' + esc(words) + '</span><span class="lb-n num">' + n + '</span></button>';
   }
@@ -8682,6 +8919,11 @@ var L = (function () {
     if (st.folder) parts.push(shortPath(st.folder));
     return parts.length ? esc(parts.join(' · ')) : '';
   }
+  // 0.5.2 item 21 (the app's FilterHeading): a filter's heading, with Clear beside it while something is chosen there.
+  function fHead(id, name, on, what, g, label) {
+    return '<div class="lb-fhrow"><h3 class="lb-fh"' + (id ? ' id="' + id + '"' : '') + '>' + esc(name) + '</h3>' +
+      (on ? '<button class="btn s ghost lb-fclear" data-act="lbfclear" data-what="' + what + '"' + (g ? ' data-g="' + g + '"' : '') + ' data-k="lb-fclear-' + (g || what) + '" aria-label="' + esc(label || 'Clear ' + name) + '" title="' + esc(label || 'Clear ' + name) + '">Clear</button>' : '') + '</div>';
+  }
   function filtersBody() {
     var base = D.tracks.filter(function (t) { return kindOk(t); });
     var nNew = base.filter(newish).length, nMissing = D.tracks.filter(function (t) { return t.missing; }).length;
@@ -8696,25 +8938,26 @@ var L = (function () {
     // Round 9 (items 27, 34): one line says how the chips work; each chip is off, Show (✓) or Hide (struck out).
     h += '<p class="hint r9-fhint" id="r9-fhint">Click a filter once to show only those tracks, and again to hide them.</p>';
     var shapes = orderVals(L.SHAPES.map(function (x) { return [x[0], base.filter(function (t) { return L.shapeOf(t) === x[0]; }).length, x[1]]; }));
-    h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-shape"><h3 class="lb-fh" id="lb-fh-shape">Shape</h3><div class="chips">' + shapes.map(function (x) {
+    h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-shape">' + fHead('lb-fh-shape', 'Shape', st.shapes.length || st.hideShapes.length, 'shape') + '<div class="chips">' + shapes.map(function (x) {
       var state = st.shapes.indexOf(x[0]) > -1 ? 'show' : st.hideShapes.indexOf(x[0]) > -1 ? 'hide' : 'off';
       return chip3('lbfshape', 'data-v="' + x[0] + '" data-k="lb-fs-' + x[0] + '"', state, x[2], x[1], L.shapeGlyph(x[0]));
     }).join('') + '</div></div>';
     D.tagGroups.forEach(function (g) {
       var vals = orderVals(D.tagValues[g.id].map(function (v) { return [v, base.filter(function (t) { return L.trackHasTag(t, g.id, v); }).length, v]; })
         .filter(function (x) { return x[1] || want(g.id).indexOf(x[0]) > -1 || hid(g.id).indexOf(x[0]) > -1; }));
-      h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-' + g.id + '"><h3 class="lb-fh" id="lb-fh-' + g.id + '">' + esc(g.name) + '' + '</h3><div class="chips">' +
+      h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-' + g.id + '">' + fHead('lb-fh-' + g.id, g.name, want(g.id).length || hid(g.id).length, 'tag', g.id) + '<div class="chips">' +
         (vals.length ? vals.map(function (x, i) {
           var state = want(g.id).indexOf(x[0]) > -1 ? 'show' : hid(g.id).indexOf(x[0]) > -1 ? 'hide' : 'off';
           return chip3('lbftag', 'data-g="' + g.id + '" data-v="' + esc(x[0]) + '" data-k="lb-ft-' + g.id + '-' + esc(x[0]).replace(/\W/g, '_') + '"', state, x[0], x[1], '');
         }).join('') : '<span class="hint">No values used yet</span>') + '</div></div>';
     });
     var opts = function (sel) { var o = ''; for (var i = 1; i <= 5; i++) o += '<option' + (i === sel ? ' selected' : '') + '>' + i + '</option>'; return o; };
-    h += '<div class="lb-fg"><h3 class="lb-fh">Energy</h3><div class="lb-erange"><label>From <select class="input lb-sel" data-input="lbemin" data-k="lb-emin" aria-label="Lowest energy">' + opts(st.emin) + '</select></label>' +
+    h += '<div class="lb-fg">' + fHead('', 'Energy', st.emin > 1 || st.emax < 5, 'energy', '', 'Clear energy') + '<div class="lb-erange"><label>From <select class="input lb-sel" data-input="lbemin" data-k="lb-emin" aria-label="Lowest energy">' + opts(st.emin) + '</select></label>' +
       '<label>to <select class="input lb-sel" data-input="lbemax" data-k="lb-emax" aria-label="Highest energy">' + opts(st.emax) + '</select></label></div></div>';
-    D.tracks.forEach(function (t) { var root = t.folder.split('\\').slice(0, 3).join('\\'); if (!D.folders.some(function (f) { return inFolder(t, f); })) D.folders.push(root); });
+    // A folder Lyre adds for tracks outside every library folder is listed, but has no ⋯ (it is not one of Lyre's folders).
+    D.tracks.forEach(function (t) { var root = t.folder.split('\\').slice(0, 3).join('\\'); if (!D.folders.some(function (f) { return inFolder(t, f); })) { D.folders.push(root); D.autoFolders.push(root); } });
     var cnt = function (f) { return base.filter(function (t) { return inFolder(t, f); }).length; };
-    h += '<div class="lb-fg"><h3 class="lb-fh">Folders</h3><ul class="lb-folders">' + folderBtn('', 'All folders', base.length, 0);
+    h += '<div class="lb-fg">' + fHead('', 'Folders', st.folder || st.hideFolders.length, 'folder', '', 'Clear folder') + '<ul class="lb-folders">' + folderBtn('', 'All folders', base.length, 0);
     D.folders.forEach(function (f) {
       h += folderBtn(f, f, cnt(f), 0);
       if (st.folder && inFolder({ folder: st.folder }, f)) {
@@ -8727,7 +8970,9 @@ var L = (function () {
   function folderBtn(f, label, n, sub) {
     var watched = D.watched.indexOf(f) > -1, hidden = st.hideFolders.indexOf(f) > -1, fk = f.replace(/\W/g, '_');
     return '<li class="r9-fo' + (sub ? ' sub' : '') + (hidden ? ' is-hide' : '') + '"><button data-act="lbfolder" data-f="' + esc(f) + '" data-k="lb-fo-' + fk + '" aria-pressed="' + (st.folder === f) + '" title="' + esc(f || 'Every folder') + (f ? (st.folder === f ? ': click again to hide its tracks' : hidden ? ': hidden. Click to show it again' : '') : '') + '">' +
-      (hidden ? L.icon('close', 's') : L.icon(watched ? 'eye' : 'folder', 's')) + '<span class="ellipsis grow">' + esc(label) + (hidden ? '<span class="sr-only">, hidden</span>' : '') + '</span>' + (watched ? '<span class="hint">watched</span>' : '') + '<span class="num lb-n">' + n + '</span></button>' +
+      (hidden ? L.icon('close', 's') : L.icon(watched ? 'eye' : 'folder', 's')) + '<span class="ellipsis grow">' + esc(label) + (hidden ? '<span class="sr-only">, hidden</span>' : '') + '</span>' + (watched ? '<span class="hint">watched</span>' : '') + (D.folderKinds[f] ? '<span class="hint">' + L.kindName[D.folderKinds[f]] + '</span>' : '') + '<span class="num lb-n">' + n + '</span></button>' +
+      // 0.5.2 items 20 and 40 (the app's FolderActions): one of Lyre's folders has a ⋯.
+      (f && !sub && D.autoFolders.indexOf(f) < 0 ? '<button class="btn s icon ghost lb-fmore" data-act="lbfomenu" data-f="' + esc(f) + '" data-k="lb-fomore-' + fk + '" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for the folder ' + esc(f) + '">' + L.icon('more', 's') + '</button>' : '') +
       '</li>';
   }
 
@@ -8749,8 +8994,9 @@ var L = (function () {
       '<button class="btn s" data-act="lbbnew" data-k="lb-bnew">' + L.icon('plus', 's') + 'New playlist from these</button>' +
       // Round 10 fixes (R10-FIX §1): Remove from library for the selection, in words; Delete files from disk… in its ⋯.
       '<button class="btn s" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '" data-k="lb-brm">' + L.icon('close', 's') + 'Remove from library…</button>' +
-      '<button class="btn s icon" data-act="r10selmore" data-k="lb-bmore" aria-haspopup="menu" aria-expanded="false" aria-label="More for the selected tracks" title="More">' + L.icon('more', 's') + '</button>' +
-      '<button class="btn s ghost" data-act="lbbclear" data-k="lb-bclear">Clear selection</button></div>';
+      // 0.6.0 sync (the app's selection bar): Clear selection, then the ⋯ last (Type, Remove from library, Delete files).
+      '<button class="btn s ghost" data-act="lbbclear" data-k="lb-bclear">Clear selection</button>' +
+      '<button class="btn s icon ghost" data-act="r10selmore" data-k="lb-bmore" aria-haspopup="menu" aria-expanded="false" aria-label="More for the selected tracks" title="More">' + L.icon('more', 's') + '</button></div>';
     var allOn = list.length && shownSel === list.length;
     var cols = COLS.filter(function (c) { return st.cols.indexOf(c[0]) > -1; });
     // Round 9 (item 25): a header sorts by its column, A to Z first, then Z to A; aria-sort says which.
@@ -8792,7 +9038,10 @@ var L = (function () {
     switch (c) {
       case 'tags': return '<td class="lb-c-tags"><span class="lb-tagcell">' + (st.cols.indexOf('shape') > -1 ? '' : L.shapeTag(t, true)) + rowChips(t, st.cols.indexOf('shape') > -1 ? 2 : 1) + '</span></td>';
       case 'energy': return '<td class="lb-c-energy">' + (t.energy ? L.energy(t.energy) : '<span class="lb-none" aria-label="No energy yet">–</span>') + '</td>';
-      case 'len': return '<td class="lb-c-len num">' + L.fmt(t.dur) + '</td>';
+      // 0.5.2 item 7 (in the app since 0.5.2; 0.6.0 sync): the file's length, and under it the length its Audio profile
+      // plays when the two differ, unless the Plays for column already says it.
+      case 'len': return '<td class="lb-c-len lb-c-dur num">' + (st.cols.indexOf('plays') > -1 || L.fmt(pf) === L.fmt(t.dur) ? L.fmt(t.dur) :
+        '<span class="lb-len"><span>' + L.fmt(t.dur) + '</span><span class="lb-played" title="Plays ' + L.fmt(pf) + ' with its Audio profile (file ' + L.fmt(t.dur) + ')"><span class="sr-only">, plays </span>' + L.fmt(pf) + '</span></span>') + '</td>';
       case 'plays': return '<td class="lb-c-plays num"' + (Math.round(pf) !== Math.round(t.dur) ? ' title="Plays ' + L.fmt(pf) + ' of the file\'s ' + L.fmt(t.dur) + ' (its Audio profile)"' : '') + '>' + (Math.round(pf) !== Math.round(t.dur) ? '<b>' + L.fmt(pf) + '</b>' : L.fmt(pf)) + '</td>';
       case 'artist': return '<td class="lb-c-artist"><span class="ellipsis">' + esc(t.artist || '') + '</span></td>';
       case 'album': return '<td class="lb-c-album"><span class="ellipsis">' + esc(t.album || '') + '</span></td>';
@@ -9003,7 +9252,8 @@ var L = (function () {
       function fPane(strip) {
         return L.pane({ id: 'lb-filters', title: 'Filters', icon: 'rule', cls: 'lb-filters' + (strip ? ' lb-strip' : ''), collapsed: mode !== 'wide', kind: 'search', summary: filterSummary(), scroll: 'lb-filters', status: nFilters() ? { text: nFilters() + (nFilters() > 1 ? ' filters on' : ' filter on'), tone: 'on' } : null,
           actions: '<button class="btn s icon ghost" data-act="r9forder" data-k="lb-forder" aria-haspopup="menu" aria-expanded="false" aria-label="Order the filters" title="Order the filters (now ' + FORDERS.filter(function (x) { return x[0] === st.forder; })[0][1] + ')">' + L.icon('inorder', 's') + '</button>' +
-            (filtersOn() ? '<button class="btn s ghost" data-act="lbclearall" data-k="lb-clearall">Clear all</button>' : ''), body: filtersBody() });
+            // 0.5.2 item 21 (the app since 0.5.2; 0.6.0 sync): every filter, shown or hidden, and not the search.
+            (filtersOn() ? '<button class="btn s ghost" data-act="lbclearfilters" data-k="lb-clearall">Clear all filters</button>' : ''), body: filtersBody() });
       }
       function tPane(strip) {
         return L.pane({ id: 'lb-tracks', title: 'Tracks', icon: 'library', cls: 'lb-tracks' + (strip ? ' lb-strip' : ''), flush: true, kind: 'music',
@@ -9073,11 +9323,69 @@ var L = (function () {
   };
   L.inputs.lbemin = function (el) { st.emin = +el.value; if (st.emax < st.emin) st.emax = st.emin; L.render(); };
   L.inputs.lbemax = function (el) { st.emax = +el.value; if (st.emin > st.emax) st.emin = st.emax; L.render(); };
+  L.acts.lbclearfilters = function () { clearFilters(); L.render(); L.say('Filters cleared'); };
+  // 0.5.2 item 21 (the app's FilterHeading): Clear beside a filter's heading takes off that filter only.
+  var CLEARS = {
+    shape: ['Shape', function () { st.shapes = []; st.hideShapes = []; }, '[aria-labelledby="lb-fh-shape"] .chips button'],
+    energy: ['energy', function () { st.emin = 1; st.emax = 5; }, '[data-k="lb-emin"]'],
+    folder: ['folder', function () { st.folder = ''; st.hideFolders = []; }, '.lb-folders button']
+  };
+  L.acts.lbfclear = function (el) {
+    var w = el.dataset.what, g = el.dataset.g, c = CLEARS[w];
+    var name = c ? c[0] : groupName(g), focus = c ? c[2] : '[aria-labelledby="lb-fh-' + g + '"] .chips button';
+    if (c) c[1](); else { st.tags[g] = []; st.hide[g] = []; }
+    L.render(); L.say(name + ' filter cleared. ' + visible().length + ' tracks shown');
+    var f = document.querySelector(focus); if (f) f.focus();
+  };
   L.acts.lbclearall = function () { clearFilters(); st.q = ''; L.render(); L.say('Filters cleared'); };
   L.acts.lbshownew = function () { clearFilters(); st.newOnly = true; st.q = ''; if (mode === 'narrow') L.route('#/library'); L.render(); };
   L.inputs.lbq = function (el) { st.q = el.value; L.render(); };
   L.inputs.lbsort = function (el) { st.sort = el.value; L.render(); };
   L.acts.lbguideclose = function () { st.guide = null; L.render(); var q = document.querySelector('[data-k="lb-q"]'); if (q) q.focus(); };
+
+  /* ---------- a library folder's ⋯ (0.5.2 items 20 and 40, the app's FolderActions; 0.6.0 sync) ---------- */
+  L.acts.lbfomenu = function (el) {
+    var f = el.dataset.f, k = D.folderKinds[f] || '';
+    var radio = function (v, words) { return '<button role="menuitemradio" aria-checked="' + (k === v) + '" data-act="lbfokind" data-f="' + esc(f) + '" data-v="' + v + '">' + (k === v ? L.icon('check', 's') : '<span style="width:14px"></span>') + words + '</button>'; };
+    L.menu(el, '<div class="group">New tracks here are</div>' + radio('', 'Guessed from the folder name') + ['music', 'amb', 'fx'].map(function (x) { return radio(x, 'Always ' + L.kindName[x]); }).join('') +
+      '<div class="sep"></div><button role="menuitem" data-act="lbforemove" data-f="' + esc(f) + '">' + L.icon('close', 's') + 'Remove folder…</button>', 'More for ' + shortPath(f));
+  };
+  L.acts.lbfokind = function (el) {
+    var f = el.dataset.f, v = el.dataset.v, restore = L.snapshot(['folderKinds']);
+    if (v) D.folderKinds[f] = v; else delete D.folderKinds[f];
+    var text = v ? 'New tracks in ' + shortPath(f) + ' are ' + L.kindName[v] + '.' : 'New tracks in ' + shortPath(f) + ' are guessed from their folder names.';
+    L.undoNote(text, restore); L.render(); L.say(text);
+    var b = document.querySelector('[data-k="lb-fomore-' + f.replace(/\W/g, '_') + '"]'); if (b) b.focus();
+  };
+  var removingFolder = null;
+  L.acts.lbforemove = function (el) {
+    var f = el.dataset.f, under = D.tracks.filter(function (t) { return inFolder(t, f); }), n = under.length, watched = D.watched.indexOf(f) > -1;
+    removingFolder = f;
+    L.sheet({ title: 'Remove ' + shortPath(f) + '?', body: '<p>Lyre ' + (watched ? 'stops watching' : 'forgets') + ' <b>' + esc(f) + '</b>. Nothing is deleted from your computer.</p>' +
+      (n ? '<label class="lb-check"><input type="checkbox" id="lb-fo-with" data-k="lb-fo-with"><span>Also remove its ' + plural(n, 'track') + ' from the library</span></label>' +
+        '<p class="hint">The ' + plural(n, 'track') + ' stay in your library, where they are.</p>' : '<p class="hint">No track in your library is in it.</p>'),
+      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="lbforemovedo">Remove folder</button>' });
+  };
+  L.acts.lbforemovedo = function () {
+    var f = removingFolder; if (!f) return; removingFolder = null;
+    var w = document.getElementById('lb-fo-with'), withTracks = !!(w && w.checked);
+    var restore = L.snapshot(['folders', 'watched', 'folderKinds', 'autoFolders', 'tracks', 'playlists', 'campaigns']);
+    var gone = withTracks ? D.tracks.filter(function (t) { return inFolder(t, f); }).map(function (t) { return t.id; }) : [];
+    [D.folders, D.watched].forEach(function (a) { var i = a.indexOf(f); if (i > -1) a.splice(i, 1); });
+    delete D.folderKinds[f];
+    if (gone.length) {
+      var out = function (a) { for (var i = a.length - 1; i >= 0; i--) if (gone.indexOf(a[i]) > -1) a.splice(i, 1); };
+      for (var i = D.tracks.length - 1; i >= 0; i--) if (gone.indexOf(D.tracks[i].id) > -1) D.tracks.splice(i, 1);
+      D.playlists.forEach(function (p) { if (p.items) out(p.items); });
+      D.campaigns.forEach(function (c) { out(c.tracks || []); c.sessions.forEach(function (s) { out(s.tracks || []); s.scenes.forEach(function (sc) { out(sc.music || []); if (gone.indexOf(sc.amb) > -1) sc.amb = ''; }); }); });
+      st.sel = st.sel.filter(function (x) { return gone.indexOf(x) < 0; });
+    }
+    if (st.folder && inFolder({ folder: st.folder }, f)) st.folder = '';
+    L.closeSheet();
+    var text = withTracks ? 'Removed ' + f + ' and its ' + plural(gone.length, 'track') + ' from the library. The files are still on your computer.' : 'Removed ' + f + " from Lyre's folders. Its tracks stay in your library.";
+    L.undoNote(text, restore); L.render(); L.say(text);
+    var q = document.querySelector('[data-k="lb-q"]'); if (q) q.focus();
+  };
 
   /* ---------- rows: open, select, preview, keys ---------- */
   function openTrack(id, keepRow) {
@@ -9086,6 +9394,15 @@ var L = (function () {
     L.route('#/library/' + id);
   }
   L.acts.lbopen = function (el) { openTrack(el.dataset.tid, true); };
+  // 0.5.2 item 6 (in the app since 0.5.2; 0.6.0 sync): Preview or Play on air on a row opens that track's details too.
+  ['pv', 'onair'].forEach(function (a) {
+    var f0 = L.acts[a];
+    L.acts[a] = function (el) {
+      var r = isLib() && el.dataset.kind === 'track' && el.closest('.lb-table tr[data-tid]');
+      f0.apply(this, arguments);
+      if (r && L.current().p.tid !== r.dataset.tid) openTrack(r.dataset.tid, true);
+    };
+  });
   L.acts.lbclose = function () { pendingFocus = st.cursor ? 'lbrow-' + st.cursor : null; L.route('#/library'); };
   L.acts.lbback = L.acts.lbclose;
   function toggleSel(id, range) {
@@ -9154,16 +9471,19 @@ var L = (function () {
        Delete file from disk…  the files go to the Recycle Bin and their tracks leave Lyre. The confirmation names the
                                files; Undo brings the tracks back (missing until the files are restored). */
   var NAMED_FILES = 10, removal = null;
+  // 0.6.0 sync (the app's trackUses.ts usesLines): one line per kind of place, the five first and then "and n more":
+  // manual playlists, scenes ("The abbey ruins (Session 14)") and pads ("Thunder (Weather)").
   function usesOf(ids) {
-    var on = function (id) { return ids.indexOf(id) > -1; }, out = [];
-    D.playlists.forEach(function (p) { if (p.kind === 'manual' && p.items.some(on)) out.push('Playlist: ' + p.name); });
-    D.campaigns.forEach(function (c) {
-      if ((c.tracks || []).some(on)) out.push(c.name + ' (whole campaign)');
-      c.sessions.forEach(function (s) {
-        if ((s.tracks || []).some(on)) out.push(c.name + ' › Session ' + s.n);
-        s.scenes.forEach(function (sc) { if ((sc.music || []).some(on) || on(sc.amb)) out.push(c.name + ' › Session ' + s.n + ' › ' + sc.name); });
-      });
-    });
+    var on = function (id) { return ids.indexOf(id) > -1; }, pls = [], scenes = [], pads = [], out = [];
+    var few = function (names) { return names.length > 5 ? names.slice(0, 5).join(', ') + ' and ' + (names.length - 5) + ' more' : names.join(', '); };
+    D.playlists.forEach(function (p) { if (p.kind === 'manual' && p.items.some(on)) pls.push(p.name); });
+    D.campaigns.forEach(function (c) { c.sessions.forEach(function (s) { s.scenes.forEach(function (sc) { if ((sc.music || []).some(on) || on(sc.amb)) scenes.push(sc.name + ' (Session ' + s.n + ')'); }); }); });
+    // A pad names its sounds by file.
+    var files = ids.map(function (id) { var t = L.track(id); return t ? t.file : ''; }).filter(Boolean);
+    D.boards.forEach(function (b) { b.slots.concat(b.spare).forEach(function (x) { if (x && x.sound && (x.sound.files || []).some(function (f) { return files.indexOf(f) > -1; })) pads.push((x.label || 'A pad') + ' (' + b.name + ')'); }); });
+    if (pls.length) out.push('Playlists: ' + few(pls));
+    if (scenes.length) out.push('Scenes: ' + few(scenes));
+    if (pads.length) out.push('Pads: ' + few(pads));
     return out;
   }
   function askRemove(how, ids, shown) {
@@ -9182,7 +9502,8 @@ var L = (function () {
   }
   L.acts.r10rmask = function (el) { if (el.disabled) return; askRemove(el.dataset.how, (el.dataset.ids || '').split(',').filter(Boolean), !!el.dataset.shown); };
   L.acts.r10selmore = function (el) {
-    L.menu(el, '<button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '">' + L.icon('close', 's') + 'Remove from library…</button>' +
+    // 0.5.2 items 4 and 39 (the app's selection menu; 0.6.0 sync): Type first, for every ticked track at once.
+    L.menu(el, (L.r60typeMenu ? L.r60typeMenu(st.sel) : '') + '<button role="menuitem" data-act="r10rmask" data-how="remove" data-ids="' + st.sel.join(',') + '">' + L.icon('close', 's') + 'Remove from library…</button>' +
       '<div class="sep"></div><button role="menuitem" class="r10-mi-quiet" data-act="r10rmask" data-how="delete" data-ids="' + st.sel.join(',') + '">' + L.icon('warn', 's') + (st.sel.length === 1 ? 'Delete file from disk…' : 'Delete files from disk…') + '</button>', 'More for the selected tracks');
   };
   L.acts.r10rmdo = function () {
@@ -10501,7 +10822,7 @@ var L = (function () {
         L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm sr-only">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
     return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() + undoSlot() +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade all: everything fades out over ' + L.FADE + ' seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
-      '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop all: everything stops at once, your preview too" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
+      '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once, your preview too." aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
       '<span class="lv-keyswrap"><button class="btn s" data-act="lvkeys" data-k="lv-keys" aria-expanded="' + S.keysOpen + '" aria-controls="lv-keys-pop" title="Keyboard keys for the live screen">Keys' + L.icon(S.keysOpen ? 'chevup' : 'chevdown', 's') + '</button>' +
       (S.keysOpen ? keysPop() : '') + '</span>' +
       // Round 9 (item 44): Arrange moves and sizes the boxes (r9live.js); last in the strip, so Tab order stays as before.
@@ -10585,7 +10906,10 @@ var L = (function () {
         (L.dippedIn && L.dippedIn(tg, ln) ? '<span class="r9-dipped r10-status" title="' + (ln === 'music' ? 'The music' : 'The ambience') + ' is quieter while an effect plays. It comes back by itself.">Dipped</span>' : '') + '</div>' +
       // The scene position and the end rule are hover text (and read out); the track list shows where it is.
       // Round 10 (look M2): the playing title gets up to two lines; it is the most important text on screen.
-      '<div class="lv-lane-m"><div class="lv-lane-t r10-clamp2" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
+      // 0.5.2 items 53, 3 and 11 (the app's OnAir; 0.6.0 sync): its loop setting first, so a long name never hides it, and
+      // the name is a link to the track's details (the Track panel beside Live, r9nav.js).
+      '<div class="lv-lane-m"><div class="lv-lane-t lv-lane-tl" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + loopMark(t, L.laneContext(ln, tg)) +
+        '<a class="lv-lane-link lv-clamp2-l" href="#/library/' + t.id + '" data-k="lv-lane-' + ln + at + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + '</a>' + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
         // Round 8 (Nik, 11 Nov: "click in the tracking bar for the currently playing track and skip to a certain point"):
         // the bar is a slider (core's L.seekBar), with the markers on it as before.
         '<div class="lv-lane-pr">' + L.seekBar(ln + at, shown, 'lv-mkbar ' + ln, markTicks(t, c, ln, tg)) + '<span class="num lv-time" data-time="' + ln + at + '"></span></div>';
@@ -10795,6 +11119,8 @@ var L = (function () {
       // Round 6 part 3: moods and energy are in the row's details (and Find's results), not on the row on air.
       (open || o.box === 'off' ? '<span class="chips lv-trk-chips">' + moodChips(t, o.prefer) + '</span>' + (isAmb || isFx ? '' : L.energy(t.energy)) : '') +
       // Round 10 (table review S3): a track whose file is missing says so before Nik presses anything.
+      // 0.5.2 item 53 (the app's Rows): in a scene's list, the track's loop setting there.
+      (o.seq && pk && pk.indexOf('sc:') === 0 ? loopMark(t, sceneCtx(pk, o)) : '') +
       (t.missing ? '<span class="badge warn r10-miss" title="Lyre cannot find this file. To look for it, use Find missing files… in the Track library.">Missing</span>' : '') +
       '<span class="num lv-dur" title="' + (Math.round(len) !== Math.round(t.dur) ? 'Plays ' + L.fmt(len) + ' of the file\'s ' + L.fmt(t.dur) : 'Length ' + L.fmt(t.dur)) + '">' + L.fmt(len) + '</span>' +
       '<span class="lv-trk-acts' + (onAirNow ? ' shown' : '') + '">' +
@@ -10976,7 +11302,7 @@ var L = (function () {
       // BUG-20: every pad says whether it plays (pressed), since pressing a playing pad stops it.
       return '<button class="lv-pad' + (on ? ' on' : '') + '" data-bid="' + b.id + '" data-pid="' + p.id + '" data-mode="' + p.mode + '" data-box="' + box + '"' + (p.mode === 'hold' ? '' : ' data-act="lvpad"') +
         ' data-k="lv-pad-' + box + '-' + b.id + '-' + p.id + '" style="--pad:' + (L.colors[p.color] || L.colors.bone) + '" aria-pressed="' + (many ? onHere : on) + '"' +
-        ' title="' + esc(p.label) + (key ? ' (key ' + String(p.key).toUpperCase() + ')' : '') + ': ' + L.modeName[p.mode] + (L.padDips && L.padDips(p) ? ', dips the music' : '') + inWhere(box) + (inRooms.length ? '. Sounding in ' + esc(inRooms.join(' and ')) : '') + '"' + (key ? ' aria-keyshortcuts="' + esc(p.key) + '"' : '') + '>' +
+        ' title="' + esc(p.label) + (key ? ' (key ' + String(p.key).toUpperCase() + ')' : '') + ' is a ' + L.modeName[p.mode] + ' pad' + (inWhere(box) ? ' that plays' + inWhere(box) : '') + '.' + (L.padDips && L.padDips(p) ? ' It dips the music while it plays.' : '') + (inRooms.length ? ' It is playing in ' + esc(inRooms.join(' and ')) + '.' : '') + '"' + (key ? ' aria-keyshortcuts="' + esc(p.key) + '"' : '') + '>' +
         L.icon(p.icon, 's') + '<span class="lv-pad-l ellipsis">' + esc(p.label) + '</span>' +
         (inRooms.length ? '<span class="lv-pad-rm" aria-hidden="true">' + inRooms.map(function (n) { return esc(n.charAt(0)); }).join('') + '</span><span class="sr-only">, sounding in ' + esc(inRooms.join(' and ')) + '</span>' : '') +
         (on && !many ? '<span class="lv-pad-on">On</span>' : p.mode === 'oneshot' || on ? '' : '<span class="lv-pad-mode" title="' + L.modeName[p.mode] + '">' + L.icon(L.modeIcon[p.mode], 's') + '<span class="sr-only">' + L.modeName[p.mode] + '</span></span>') +
@@ -11035,7 +11361,7 @@ var L = (function () {
   }
   function tagChip(g, v) { var gn = D.tagGroups.filter(function (x) { return x.id === g; })[0]; return '<button class="chip lv-mood" data-act="lvtag" data-g="' + g + '" data-v="' + esc(v) + '" data-k="lv-tag-' + g + '-' + esc(v) + '" aria-pressed="' + tagOn(g, v) + '" title="' + esc(gn ? gn.name : '') + '">' + (tagOn(g, v) ? L.icon('check', 's') : '') + esc(v) + '</button>'; }
   function find() {
-    var field = '<div class="search lv-find-f">' + L.icon('search') + '<input class="input" type="search" data-input="lvq" data-k="lv-q" value="' + esc(S.q) + '" placeholder="Find a track or playlist" aria-label="Find a track or playlist in the whole library"' + (S.findOpen ? ' aria-controls="lv-found"' : '') + '' + (S.keys1 ? ' aria-keyshortcuts="/"><span class="kbd" aria-hidden="true">/</span>' : '>') + '</div>';
+    var field = '<div class="search lv-find-f">' + L.icon('search') + '<input class="input" type="text" role="searchbox" data-input="lvq" data-k="lv-q" value="' + esc(S.q) + '" placeholder="Find a track or playlist" aria-label="Find a track or playlist in the whole library"' + (S.findOpen ? ' aria-controls="lv-found"' : '') + '' + (S.keys1 ? ' aria-keyshortcuts="/"><span class="kbd" aria-hidden="true">/</span>' : '>') + '</div>';
     return '<div class="lv-find">' + field + (S.findOpen ? found() : '') + '</div>';
   }
   function found() {
@@ -11128,6 +11454,8 @@ var L = (function () {
       var cols = L.liveLayout ? L.liveLayout(mode, LAYOUT[mode]) : LAYOUT[mode];
       var airTop = !cols.some(function (c) { return c.indexOf('onair') > -1; }), wrapTop = L.arrangeWrap || function (id, html) { return html; };
       return '<div class="lv' + (L.arranging && L.arranging() ? ' r9-arranging' : '') + '">' + top() + (L.arrangeBar ? L.arrangeBar(mode) : '') + (airTop ? wrapTop('onair', onAir(), -1, mode) : '') + '<div class="lv-cols c' + mode + (cols.widths ? ' r9-sized' : '') + '" data-scroll="lv-page"' + (cols.widths ? ' style="grid-template-columns:' + cols.widths + '"' : '') + '>' + cols.map(function (ids, ci) {
+        // 0.5.2 item 49 (the app's liveModel trayShown; 0.6.0 sync): a tray box with nothing in it is not shown.
+        ids = ids.filter(function (id) { return !/^(ss|cp)/.test(id) || trayShown(id); });
         var trays = mode === 3 && /^(ss|cp)/.test(ids[0]);
         var wrap = L.arrangeWrap || function (id, html) { return html; };
         return '<div class="col' + (trays ? ' lv-c-trays' : '') + '" data-col="' + ci + '">' + groups(ids).map(function (g) {
@@ -11217,9 +11545,22 @@ var L = (function () {
   L.acts.lvnextt = function (el) { touched(); L.next(el.dataset.lane, tgArg(el)); };
   L.acts.lvpause = function (el) { touched(); var ln = el.dataset.lane, tg = tgArg(el), c = M(tg)[ln]; L.pauseLane(ln, tg); L.say((ln === 'music' ? 'Music ' : 'Ambience ') + (c && c.paused ? 'paused' : 'playing')); };
   function inRoom(tg) { return rooms().length > 1 ? ' in ' + roomName(tg) : ''; }
-  function shuffleIn(tg, kx) {
-    return L.shuffleButton('music', tg, 'lv-shuf' + kx) || '<button class="btn s icon rep" data-k="lv-shuf' + kx + '" aria-pressed="false" aria-label="Shuffle" title="Only music from a playlist can be shuffled" disabled>' + L.icon('inorder', 's') + '</button>';
+  // 0.5.1 (the app's OnAir ShuffleButton; 0.6.0 sync): the room's Shuffle, beside its Repeat and like it: for what plays
+  // now in that room, never saved (a playlist's own play order is set where it is listed). It ends with the room's music.
+  // 0.5.2 item 53 (the app's liveModel loopSettingAt and Rows LoopMark): Loop, Crossfade loop or Don't loop, where it plays.
+  var LOOP_WORDS = { loop: 'Loop', crossfade: 'Crossfade loop', none: "Don't loop" };
+  function loopMark(t, ctx) {
+    var p = L.profileOf(t, ctx), set = p.after !== 'loop' ? 'none' : p.loopXfade > 0 || t.loop === 'crossfade' ? 'crossfade' : 'loop';
+    return '<span class="lv-loop lv-loop-' + set + '" role="img" aria-label="' + LOOP_WORDS[set] + '" title="' + LOOP_WORDS[set] + '">' + L.icon(set === 'none' ? 'next' : set === 'crossfade' ? 'fade' : 'loop', 's') + '</span>';
   }
+  L.liveLoopMark = loopMark;
+  // A scene row's place for its audio profile ('sc:<cid>:<sid>:<scene id>'), as core's laneCtx writes it.
+  function sceneCtx(pk, o) { var a = pk.split(':'); return { playlistId: o.pl || '', cid: a[1], sid: a[2], sceneId: a[3], place: '' }; }
+  function shuffleIn(tg, kx) {
+    var m = M(tg), on = !!(m && m.shuffle);
+    return '<button class="btn s icon rep' + (on ? ' on' : '') + '" data-act="lvroomshuffle" data-tg="' + esc(tg) + '" data-k="lv-shuf' + kx + '" aria-pressed="' + on + '" aria-label="Shuffle" title="Shuffle ' + (on ? 'on' : 'off') + ', for what plays now' + inRoom(tg) + ' (not saved)">' + L.icon(on ? 'shuffle' : 'inorder', 's') + '</button>';
+  }
+  L.acts.lvroomshuffle = function (el) { touched(); var m = M(tgArg(el)); if (!m) return; m.shuffle = !m.shuffle; L.say(m.shuffle ? 'Shuffle on' : 'Shuffle off'); L.changed(); };
   L.acts.lvstoplane = function (el) { touched(); var ln = el.dataset.lane, tg = tgArg(el); L.stopLane(ln, 1, tg); L.say((ln === 'music' ? 'Music' : 'Ambience') + ' stopped' + inRoom(tg)); };
   L.acts.lvfadeout = function (el) { touched(); L.stopLane(el.dataset.lane, L.FADE, tgArg(el)); L.say((el.dataset.lane === 'music' ? 'Music' : 'Ambience') + ' fading out'); };
   // Up next: × takes one entry out for this evening (a planned track is skipped, an added one goes), with Undo.
@@ -11258,9 +11599,9 @@ var L = (function () {
     return D.discord.servers.map(function (g) {
       return '<div class="group">' + esc(g.name) + '</div>' + g.channels.map(function (c) {
         var here = b.status !== 'idle' && b.server === g.id && b.channel === c.id, taken = L.bots().some(function (x) { return x !== b && x.status !== 'idle' && x.server === g.id && x.channel === c.id; });
-        var sub = taken ? 'a room already' : !c.members.length ? 'empty' : people(c.members.length) + (best && best.c === c ? ' · players' : '');
+        var said = taken ? 'a room already' : !c.members.length ? 'empty' : people(c.members.length) + (best && best.c === c ? ', most of the players' : '');
         // 0.6.0 usability test F-P4: read as "Table, a room already", with no stray space before the comma.
-        return '<button role="menuitemradio" aria-label="' + esc(c.name + ', ' + sub) + '" aria-checked="' + here + '" data-act="' + act + '" data-id="' + b.id + '" data-g="' + g.id + '" data-c="' + c.id + '"' + (here || taken ? ' disabled' : '') + '>' +
+        return '<button role="menuitemradio" aria-label="' + esc(c.name + ', ' + said) + '" aria-checked="' + here + '" data-act="' + act + '" data-id="' + b.id + '" data-g="' + g.id + '" data-c="' + c.id + '"' + (here || taken ? ' disabled' : '') + '>' +
           (here ? L.icon('check', 's') : '<span style="width:14px"></span>') + '<span class="grow ellipsis">' + esc(c.name) + '</span>' +
           // Must 2 (c): where the players are is marked, and a channel with nobody in it says so.
           (taken ? '<span class="faint">a room already</span>' : !c.members.length ? '<span class="faint">empty</span>' : '<span class="faint">' + people(c.members.length) + (best && best.c === c ? ' · players' : '') + '</span>') + '</button>';
@@ -11317,8 +11658,10 @@ var L = (function () {
     // Round 9 (item 56): + Room lists voice channels; Lyre takes a free bot itself (the one that joins there when Lyre
     // starts, else the first free). With none free, the list is greyed and one line says where bots are added.
     var pick = idle[0];
-    L.menu(el, '<div class="group">Add a room in</div>' + (pick ? channelItems(pick, 'lvaddjoin').replace(/data-id="[^"]*"/g, 'data-id="auto"') :
-      '<p class="item faint r9-nobot">Every bot is in a room. Add a bot in <a href="#/settings" data-k="lv-addbot-link">Settings › Discord bots</a>.</p>'), 'Add a room');
+    // 0.6.0 (g60-room, the app's newRoomEntries): a link in a menu has to be one of its items (axe: a menu holds only
+    // items), so Settings › Discord bots is a menu item. Language review D6: the menu is "Add a room".
+    L.menu(el, pick ? '<div class="group">Add a room in</div>' + channelItems(pick, 'lvaddjoin').replace(/data-id="[^"]*"/g, 'data-id="auto"') :
+      '<p class="item faint r9-nobot">Every bot is in a room. Add a bot in <a href="#/settings" role="menuitem" tabindex="-1" data-k="lv-addbot-link">Settings › Discord bots</a>.</p>', 'Add a room');
   };
   // Add a bot… opens Settings' three steps over Live; once connected, the new bot joins from Add a room.
   L.acts.lvaddbot = function () { if (L.acts.stadd) L.acts.stadd(); else L.route('#/settings'); };
@@ -11436,8 +11779,22 @@ var L = (function () {
   // F6 moves between boxes unless a pad of the Current scene's board has F6 as its key (pad keys F1 to F12 win in Live).
   L.f6Taken = function () { return onLive() && S.keys1 && !!padFor('f6'); };
   function focusSearch() { S.findOpen = true; L.render(); var q = document.querySelector('[data-k="lv-q"]'); if (q) { q.focus(); q.select(); } }
+  // 0.5.2 item 49: a tray box shows only when it lists something: a music playlist or a single track (Playlists), a
+  // pad board (Pads); "if there are no contents in [them], they should not appear, but only if there are no contents".
+  var TRAY_NAMES = { 'lv-ssp': 'Session playlists', 'lv-ssd': 'Session pads', 'lv-cpp': 'Campaign playlists', 'lv-cpd': 'Campaign pads' };
+  function trayShown(id) {
+    var own = id.slice(0, 2) === 'ss' ? sess() : camp(); if (!own) return true;
+    if (id.slice(-1) === 'd') return boardsOf(own.boards).length > 0;
+    return musicOnly(own.playlists).length + (own.tracks || []).filter(L.track).length > 0;
+  }
   function goBox(n) {
-    var t = boxesOnScreen()[n]; if (!t) return false;
+    var t = boxesOnScreen()[n];
+    // The key of a box that is not shown says so (the app's words); the other keys keep their boxes.
+    if (!(L.liveArranged && L.liveArranged())) {
+      var id = BOXES[n]; t = id && document.querySelector('[data-k="pane-' + id + '"]');
+      if (!t && TRAY_NAMES[id] && !trayShown(id.slice(3))) { L.say(TRAY_NAMES[id] + ': nothing in it, so it is not shown'); return true; }
+    }
+    if (!t) return false;
     t.focus(); t.scrollIntoView({ block: 'nearest' }); L.say(t.textContent.trim() + (t.getAttribute('aria-expanded') === 'false' ? ', folded' : ''));
     return true;
   }
@@ -11872,6 +12229,13 @@ var L = (function () {
     D.tagValues[g].forEach(function (x) { if (L.tagParent(g, x) === v) { if (up) meta(g, x, true).parent = up; else delete meta(g, x, true).parent; } });
     var n = retag(g, v, '');
     D.tagValues[g].splice(D.tagValues[g].indexOf(v), 1); if (D.tagMeta[g]) delete D.tagMeta[g][v];
+    // 0.5.2 item 54 (the app since 0.5.2; 0.6.0 sync): the group's last tag takes the group with it, in the same Undo,
+    // unless a dynamic playlist's rule names the group.
+    var gr = group(g), ruled = D.playlists.some(function (p) { return p.kind === 'dynamic' && p.rule && (p.rule.conds || []).some(function (c) { return c.group === g; }); });
+    if (gr && !D.tagValues[g].length && !ruled) {
+      D.tagGroups.splice(D.tagGroups.indexOf(gr), 1); D.tracks.forEach(function (t) { delete t.tags[g]; });
+      done('Deleted ' + v + ' from ' + tracks(n) + '. The ' + gr.name + ' group had no other tags, so it went too', undo, 'tg-newgroup'); return;
+    }
     done('Deleted ' + v + ' from ' + tracks(n), undo, 'tg-add-' + g);
   };
   L.acts.tgparent = function (el) { var g = el.dataset.g, v = el.dataset.v; sheet('Put ' + v + ' inside', tagSelect('tg-in', 'Inside', g, [v].concat(L.tagInside(g, v)), 'Nothing: a tag of its own'), 'Done', 'tgparentok', d(el));
@@ -12966,7 +13330,8 @@ var L = (function () {
     var resume = t.kind !== 'fx' && !sting;
     var sum = [t.role ? L.roleWord[t.role] : '', L.endWords(t), resume && t.resume ? 'starts where it stopped' : ''].filter(Boolean).join(' · ');
     return '<div class="lb-tg"><div class="lb-tgl" id="r9-end-l">At its end</div><div class="chips r9-end" role="group" aria-labelledby="r9-end-l">' + chips + '</div></div>' +
-      (resume ? '<label class="r9-resume"><input type="checkbox" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '>Next time, start where it stopped</label>' : '') +
+      // 0.6.0 sync (the app's PickUpSwitch since 0.5.1): a switch on a row of its own.
+      (resume ? '<div class="lb-tg r9-resume-row"><label class="lv-switch lb-resume" title="A long underscore or bed starts again where it was last stopped"><input type="checkbox" role="switch" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Next time, start where it stopped</b></span></label></div>' : '') +
       '<p class="r9-sum">' + L.icon('fade', 's') + '<span>' + esc(sum.charAt(0).toUpperCase() + sum.slice(1)) + '.</span></p>';
   };
   L.acts.r9use = function (el) {
@@ -13324,6 +13689,12 @@ var L = (function () {
     return '<button class="btn s r9-qbtn" data-act="r9queue" data-kind="' + kind + '" data-tg="' + esc(tg) + '" data-k="' + k + '-queue" aria-expanded="' + open + '" aria-controls="r9-queue" aria-label="Queue, ' + left + ' to come" title="Open the queue of what played and what comes next">' + L.icon('queue', 's') + 'Queue <span class="num">' + left + '</span></button>';
   };
   L.acts.r9queue = function (el) { var key = el.dataset.kind + ':' + el.dataset.tg; Q.open = Q.open === key ? null : key; Q.back = el.dataset.k; L.render(); var f = document.querySelector('#r9-queue .r9-q-now button, #r9-queue button'); if (Q.open && f) f.focus(); };
+  // 0.6.0 language review C15 (as the app's QueuePanel): with two or more rooms, a room's queue names its room.
+  function roomWords(tg) {
+    var rs = L.rooms(); if (rs.length < 2) return '';
+    var r = rs.filter(function (x) { return tg === 'table' ? x.main : x.id === tg; })[0];
+    return r ? ' in ' + r.name : '';
+  }
   function queueHTML() {
     if (!Q.open) return '';
     var a = Q.open.split(':'), q = queueOf(a[0], a.slice(1).join(':')); if (!q) { Q.open = null; return ''; }
@@ -13336,7 +13707,7 @@ var L = (function () {
         '<li class="r9-q-' + cls + '"' + (i === q.at ? ' aria-current="true"' : '') + '><span class="num faint">' + (i + 1) + '</span><span class="ellipsis grow" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</span><span class="num faint">' + L.fmt(t.dur) + '</span>' +
         (i === q.at ? '<span class="badge">Now</span>' : '<button class="btn s icon" data-act="r9qplay" data-i="' + i + '" data-k="r9q-' + i + '" aria-label="Play now: ' + esc(L.title(t)) + '" title="' + (a[0] === 'preview' ? 'Play it now. The queue continues from there.' : 'Play it now on air. Up next continues from there.') + '">' + L.icon('play', 's') + '</button>') + '</li>';
     }).join('');
-    return '<section id="r9-queue" class="r9-queue" aria-label="Queue: ' + esc(q.name) + '"><header><b>Queue</b><span class="faint ellipsis">' + esc(q.name) + (a[0] === 'preview' ? ' · only you' : ' · on air') + '</span><span class="grow"></span>' +
+    return '<section id="r9-queue" class="r9-queue" aria-label="Queue: ' + esc(q.name) + '"><header><b>Queue</b><span class="faint ellipsis">' + esc(q.name) + (a[0] === 'preview' ? ' · only you' : ' · on air' + roomWords(a.slice(1).join(':'))) + '</span><span class="grow"></span>' +
       '<button class="closer" data-act="r9qclose" data-k="r9q-x" title="Close (Esc)" aria-label="Close the queue">' + L.icon('close') + '</button></header><ol class="r9-q-list">' + rows + '</ol></section>';
   }
   L.acts.r9qclose = function () { Q.open = null; L.render(); var b = Q.back && document.querySelector('[data-k="' + Q.back + '"]'); if (b) b.focus(); };
@@ -13626,8 +13997,13 @@ var L = (function () {
       if (side && grip) { apply(p, { dock: side, width: g0.width + (side === 'left' ? dx : -dx) }); return; }
       if (head) { g.left += dx; g.top += dy; } else { g.width += dx; g.height += dy; } apply(p, g);
     }
-    function up() { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); p.classList.remove('r9-moving'); var c = cur(p); if (side && grip) { c.dock = side; } saveGeo(c); }
-    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+    // 0.6.0 review M7 (as the app's PanelDialog): a cancelled pointer ends the drag too, and so does the panel closing.
+    function up() { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up); p.classList.remove('r9-moving'); if (!document.contains(p)) return; var c = cur(p); if (side && grip) { c.dock = side; } saveGeo(c); }
+    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
+  });
+  // 0.6.0 review M8 (as the app's PanelDialog): a floating panel moves back inside the window when the window gets smaller.
+  window.addEventListener('resize', function () {
+    var p = document.querySelector('.r9-float > .panel[data-dock="float"]'); if (p && p.style.left) apply(p, cur(p));
   });
   document.addEventListener('keydown', function (e) {
     var b = e.target.closest && e.target.closest('[data-r9-move]'); if (!b || !/^Arrow/.test(e.key)) { if (b && e.key === 'Home') { e.preventDefault(); var pp = b.closest('.panel'), dg = docked('right'); apply(pp, dg); saveGeo(dg); } return; }
@@ -13916,13 +14292,26 @@ var L = (function () {
     opened = opened.filter(function (id) { return now.indexOf(id) > -1; });
     now.forEach(function (id) { if (opened.indexOf(id) < 0) opened.push(id); });
     var w = work(), narrow = w && w.getBoundingClientRect().width < NARROW;
+    // 0.6.0 review M10 (the app's SidePanel host): below 760 px a panel covers the screen, so the screen is inert then
+    // and Tab and a screen reader stay in the panel.
+    var app = document.getElementById('app'); if (app) app.inert = !!(narrow && opened.length);
     if (opened.length < 2 || (!narrow && appWidth() >= MIN_SCREEN)) return;
     // The panel opened first gives way; focus stays where Nik is working.
     var first = opened.shift(), a = document.activeElement;
     PANELS.filter(function (p) { return p.id === first; })[0].close();
     if (a && document.contains(a) && a !== document.body) a.focus({ preventScroll: true });
+    else focusAfterClose();
     // 0.6.0 usability test F-P11: a short line, shown and read out, says why the first panel went.
     if (L.panelGaveWay) L.panelGaveWay(first, opened[opened.length - 1]);
+    if (app) app.inert = !!(narrow && opened.length);
+  }
+  // 0.6.0 review M9 (the app's SidePanel host): a panel that closes with the focus in it gives the focus to the panel
+  // still open, else to the screen's heading, never to nothing.
+  function focusAfterClose() {
+    var a = document.activeElement; if (a && a !== document.body && document.contains(a)) return;
+    var open = document.querySelector('#lyre-help:not([hidden]) h2, #r9-tp:not([hidden]) h2, #r9-queue button, #r10-find button');
+    var h = open || document.querySelector('#view h1'); if (!h) return;
+    if (!open) h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true });
   }
 
   /* ---------- after every render ---------- */
@@ -13968,7 +14357,10 @@ var L = (function () {
   /* ---------- a manual playlist's track, wherever the playlist is shown unfolded ---------- */
   L.acts.r10xpmore = function (el) {
     var p = L.playlist(el.dataset.pid), id = el.dataset.tid; if (!p || !L.track(id)) return;
-    L.menu(el, '<button role="menuitem" data-act="r10xprm" data-pid="' + esc(p.id) + '" data-tid="' + esc(id) + '" data-row="' + esc(el.dataset.row || '') + '">' + L.icon('close', 's') + 'Remove from this playlist</button>' +
+    // 0.6.0 (f-prep item 32, as the app's PlaceTracks): Add to… first, the keyboard's way to drag it to another list;
+    // Remove from this playlist only for a manual playlist.
+    L.menu(el, '<button role="menuitem" data-act="addto" data-ids="' + esc(id) + '" data-from="' + (p.kind === 'manual' ? esc(p.id) : '') + '">' + L.icon('plus', 's') + 'Add to…</button>' +
+      (p.kind === 'manual' ? '<button role="menuitem" data-act="r10xprm" data-pid="' + esc(p.id) + '" data-tid="' + esc(id) + '" data-row="' + esc(el.dataset.row || '') + '">' + L.icon('close', 's') + 'Remove from this playlist</button>' : '') +
       '<div class="sep"></div><button role="menuitem" data-act="r10xplib" data-tid="' + esc(id) + '">' + L.icon('library', 's') + 'Open in Track library</button>', 'More for ' + title(id));
   };
   L.acts.r10xplib = function (el) { L.route('#/library/' + el.dataset.tid); };
@@ -14014,7 +14406,7 @@ var L = (function () {
   function as(b, extra) { var d = Object.assign({}, b.dataset, extra || {}); return { dataset: d, getAttribute: function () { return null; } }; }
   var RULES = [
     ['[data-act="pltmore"][data-manual]', function (b) { L.acts.plrm(b); }],
-    ['[data-act="r10xpmore"]', function (b) { L.acts.r10xprm(b); }],
+    ['[data-act="r10xpmore"][data-manual]', function (b) { L.acts.r10xprm(b); }],
     ['[data-act="plrowmore"]', function (b) { L.acts.r10pldelask(b); }],
     ['[data-act="cprowmenu"][data-menu="item"]', function (b) { L.acts.cpitem(as(b, { op: 'remove' })); }],
     ['[data-act="cprowmenu"][data-menu="amb"]', function (b) { L.acts.cpclearamb(b); }],
@@ -14036,6 +14428,98 @@ var L = (function () {
       }
     }
   });
+})();
+
+;
+/* 0.6.0 sync (Nik, 20 Nov: "We need our prototype to either be what ships or ahead of it"): what the app built
+   without a prototype round (0.5.1, 0.5.2) or changed while building 0.6.0, brought into the prototype so that every
+   check runs in both projects (R60-PROTO-SYNC.md lists each item, its app file and where it is here). What fits into
+   an existing screen file is there, marked "0.6.0 sync"; this file holds what is added on top. */
+(function () {
+  var esc = L.esc, D = L.data;
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
+  function curTrack() { var c = L.current(), id = c.name === 'library' ? c.p.tid : (L.panelTrack && L.panelTrack()); return id ? L.track(id) : null; }
+
+  /* ---------- a track's Type (0.5.2 items 4, 12 and 39; the app's TypeChange.tsx) ----------
+     Music, Ambience or FX, for one track in its details or for the selection (its ⋯ › Type). FX tracks are what a
+     pad's sound chooser offers, ambience tracks what a scene's Ambience chooser offers. When the change affects
+     something (a manual playlist of another type lists one; a scene's ambience stops being ambience) a confirmation
+     says what first; otherwise it is done at once, with Undo. */
+  var TYPES = [['music', 'Music'], ['amb', 'Ambience'], ['fx', 'FX']];
+  function fits(lane, t, kind) { return lane === 'fx' ? kind === 'fx' || t.role === 'Sting' : lane === kind; }
+  function effects(tracks, kind) {
+    var changing = tracks.filter(function (t) { return t.kind !== kind; }), out = [];
+    D.playlists.forEach(function (p) {
+      if (p.kind !== 'manual') return;
+      var clash = changing.filter(function (t) { return p.items.indexOf(t.id) > -1 && !fits(p.lane, t, kind); });
+      if (clash.length) out.push((clash.length === 1 ? '"' + L.title(clash[0]) + '" is' : clash.length + ' of them are') + ' in ' + p.name + ', a ' + L.kindName[p.lane] + ' playlist.');
+    });
+    if (kind !== 'amb') D.campaigns.forEach(function (c) { c.sessions.forEach(function (s) { s.scenes.forEach(function (sc) {
+      var t = changing.filter(function (x) { return x.id === sc.amb; })[0];
+      if (t) out.push('"' + L.title(t) + '" is the ambience of ' + sc.name + ' (Session ' + s.n + ').');
+    }); }); });
+    return out;
+  }
+  var asking = null;
+  function apply(tracks, kind) {
+    var restore = L.snapshot(['tracks']);
+    tracks.forEach(function (t) { t.kind = kind; });
+    var text = 'Type: ' + L.kindName[kind] + ', for ' + (tracks.length === 1 ? L.title(tracks[0]) : plural(tracks.length, 'track')) + '.';
+    L.undoNote(text, restore); L.render(); L.say(text);
+  }
+  L.r60typeChange = function (tracks, kind) {
+    if (!tracks.some(function (t) { return t.kind !== kind; })) return;
+    var fx = effects(tracks, kind);
+    if (!fx.length) { apply(tracks, kind); return; }
+    asking = { ids: tracks.map(function (t) { return t.id; }), kind: kind };
+    L.sheet({ title: 'Make ' + (tracks.length === 1 ? '“' + L.title(tracks[0]) + '”' : plural(tracks.length, 'track')) + ' ' + L.kindName[kind] + '?',
+      body: '<p>This changes where ' + (tracks.length === 1 ? 'it is' : 'they are') + ' offered:</p><ul class="lb-effects">' + fx.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' +
+        '<p class="hint">' + (kind === 'fx' ? 'FX tracks are offered for pads.' : kind === 'amb' ? "Ambience tracks are offered as a scene's ambience." : "Music tracks are offered for a scene's music.") + '</p>',
+      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="r60typedo">Make ' + L.kindName[kind] + '</button>' });
+  };
+  L.acts.r60typedo = function () { var a = asking; asking = null; L.closeSheet(); if (a) apply(a.ids.map(L.track).filter(Boolean), a.kind); };
+  L.acts.r60type = function (el) { var t = curTrack(); if (t) L.r60typeChange([t], el.dataset.v); var b = document.querySelector('[data-k="r60-type-' + el.dataset.v + '"]'); if (b) b.focus(); };
+  L.acts.r60seltype = function (el) { L.r60typeChange((el.dataset.ids || '').split(',').map(L.track).filter(Boolean), el.dataset.v); };
+  L.r60typeRow = function (t) {
+    return '<div class="lb-tg"><div class="lb-tgl">Type</div><div class="chips" role="group" aria-label="Type">' + TYPES.map(function (x) {
+      var on = t.kind === x[0];
+      return '<button class="chip lb-pick" data-act="r60type" data-v="' + x[0] + '" data-k="r60-type-' + x[0] + '" aria-pressed="' + on + '">' + (on ? L.icon('check', 's') : '') + x[1] + '</button>';
+    }).join('') + '</div></div>';
+  };
+  L.r60typeMenu = function (ids) {
+    var list = ids.map(L.track).filter(Boolean);
+    return '<div class="group">Type</div>' + TYPES.map(function (x) {
+      var on = list.length > 0 && list.every(function (t) { return t.kind === x[0]; });
+      return '<button role="menuitemradio" aria-checked="' + on + '" data-act="r60seltype" data-v="' + x[0] + '" data-ids="' + esc(ids.join(',')) + '">' + (on ? L.icon('check', 's') : '<span style="width:14px"></span>') + x[1] + '</button>';
+    }).join('') + '<div class="sep"></div>';
+  };
+  // The details' How it plays starts with Type (round 9's Use it for follows).
+  var useFor0 = L.r9UseFor;
+  if (useFor0) L.r9UseFor = function (t) { return L.r60typeRow(t) + useFor0.apply(this, arguments); };
+  /* ---------- what is kept when Lyre opens again ----------
+     The prototype keeps its library in memory only. The app keeps everything; a check that reopens the page needs what
+     it reads to be kept here too (in this browser): Next time, start where it stopped (0.5.1, the Audio profile). */
+  var KEPT = 'lyre-r60-kept', kept = {};
+  try { kept = JSON.parse(localStorage.getItem(KEPT) || '{}') || {}; } catch (e) { kept = {}; }
+  kept.resume = kept.resume || {};
+  Object.keys(kept.resume).forEach(function (id) { var t = L.track(id); if (t) t.resume = !!kept.resume[id]; });
+  L.keepResume = function (t) { kept.resume[t.id] = !!t.resume; try { localStorage.setItem(KEPT, JSON.stringify(kept)); } catch (e) { /* storage unavailable: lasts for this visit */ } };
+  var resume0 = L.inputs.r7resume;
+  if (resume0) L.inputs.r7resume = function (el) { resume0.apply(this, arguments); var c = L.current(), id = c.name === 'library' ? c.p.tid : (L.panelTrack && L.panelTrack()), t = id && L.track(id); if (t) L.keepResume(t); };
+  /* ---------- a room's Shuffle in Live (0.5.1, the app's OnAir ShuffleButton and Director.toggleShuffle) ----------
+     Live's On air sets mix.shuffle (live.js shuffleIn): Next then picks another of the scene's tracks at random. The
+     flag ends when the room's music stops. */
+  var next0 = L.next, stopLane0 = L.stopLane;
+  L.next = function (ln, target) {
+    var m = L.mix(target), c = m && m[ln], s = c && c.seq && L.session(c.seq.cid, c.seq.sid), sc = s && s.scenes[c.seq.scene], q = sc ? L.sceneSequence(sc) : [];
+    if (ln === 'music' && m.shuffle && q.length > 1) {
+      var j; do { j = Math.floor(Math.random() * q.length); } while (j === c.seq.at);
+      L.play(q[j].trackId, { lane: 'music', playlistId: q[j].playlistId, fade: 3, seq: { cid: c.seq.cid, sid: c.seq.sid, scene: c.seq.scene, at: j }, target: target });
+      return;
+    }
+    next0.apply(this, arguments);
+  };
+  L.stopLane = function (ln, fade, target) { var m = L.mix(target); if (ln === 'music' && m) m.shuffle = false; stopLane0.apply(this, arguments); };
 })();
 
 ;
@@ -14129,7 +14613,7 @@ var L = (function () {
   }, true);
 
   /* ---------- F-P11: one panel gave way to another ---------- */
-  var PANEL_WORDS = { help: ['Help', 'Help'], track: ['The Track panel', 'the Track panel'], queue: ['The queue', 'the queue'], find: ['Find', 'Find'], music: ['Add music', 'Add music'] };
+  var PANEL_WORDS = { help: ['Help', 'Help'], track: ['The track details', 'the track details'], queue: ['The queue', 'the queue'], find: ['Find', 'Find'], music: ['Add music', 'Add music'] };
   L.panelGaveWay = function (closed, kept) {
     var c = PANEL_WORDS[closed], k = PANEL_WORDS[kept]; if (!c || !k) return;
     L.toast(c[0] + ' closed to make room for ' + k[1] + '.');
@@ -14162,7 +14646,7 @@ var L = (function () {
     try {
       return music0.call(L, Object.assign({}, o, {
         selected: [],
-        intro: 'Tick playlists, single tracks or both; open a playlist to tick only some of its tracks. They are added at the end of the scene’s music, in the order you tick them.',
+        intro: 'Tick playlists, single tracks or both. They are added at the end of the scene’s music, in the order you tick them. To tick only some of a playlist’s tracks, open the playlist.',
         onDone: function (ids) {
           var list = had.slice();
           ids.forEach(function (id) {

@@ -81,8 +81,13 @@
       if (side && grip) { apply(p, { dock: side, width: g0.width + (side === 'left' ? dx : -dx) }); return; }
       if (head) { g.left += dx; g.top += dy; } else { g.width += dx; g.height += dy; } apply(p, g);
     }
-    function up() { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); p.classList.remove('r9-moving'); var c = cur(p); if (side && grip) { c.dock = side; } saveGeo(c); }
-    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up);
+    // 0.6.0 review M7 (as the app's PanelDialog): a cancelled pointer ends the drag too, and so does the panel closing.
+    function up() { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up); p.classList.remove('r9-moving'); if (!document.contains(p)) return; var c = cur(p); if (side && grip) { c.dock = side; } saveGeo(c); }
+    document.addEventListener('pointermove', move); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up);
+  });
+  // 0.6.0 review M8 (as the app's PanelDialog): a floating panel moves back inside the window when the window gets smaller.
+  window.addEventListener('resize', function () {
+    var p = document.querySelector('.r9-float > .panel[data-dock="float"]'); if (p && p.style.left) apply(p, cur(p));
   });
   document.addEventListener('keydown', function (e) {
     var b = e.target.closest && e.target.closest('[data-r9-move]'); if (!b || !/^Arrow/.test(e.key)) { if (b && e.key === 'Home') { e.preventDefault(); var pp = b.closest('.panel'), dg = docked('right'); apply(pp, dg); saveGeo(dg); } return; }

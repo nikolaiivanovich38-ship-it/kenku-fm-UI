@@ -27,8 +27,6 @@
 @container lvlanes (max-width: 640px) { .lv-lane { grid-template-areas: "l t t" "l p c" "l e e" "l s s"; } }
 @container lvrm (min-width: 620px) and (max-width: 759px) { .lv-rm-b { grid-template-columns: minmax(0, 1fr); } .lv-rm-up { border-left: 0; border-top: 1px solid var(--line); } }
 
-/* F-P10: the browser's own × is not drawn in Find (it ran into the words); Esc and Clear in the results empty it. */
-.lv-find-f input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
 
 /* The 0.6.0 usability test (F-P16): the Filters header had room for one letter of its summary ("n…" beside "1 filter
    on"); the summary goes on a line of its own under the header's first row and wraps, so it shows whole. */

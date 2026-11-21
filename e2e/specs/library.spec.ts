@@ -3,8 +3,8 @@
  * (design/prototype/tools/lb-flow.js, lb-size.js and src/views/library.js).
  */
 import type { Locator, Page } from "@playwright/test";
-import { appOnly, expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
-import { openRoute, reopen } from "./support/target";
+import { expect, test } from "./support/test";
+import { expectRoute, openRoute, reopen } from "./support/target";
 import { dropFiles } from "./support/drop";
 
 const grid = (page: Page) => page.getByRole("grid", { name: "Tracks" });
@@ -283,10 +283,8 @@ test.describe("tagging many tracks at once", () => {
     await expect(bar).toContainText("2 selected");
     // Round 10 fixes (R10-FIX §1) add Remove from library and a ⋯ (Delete files from disk…); they are left out here.
     await expect(bar.getByRole("button").filter({ hasText: /\S/ }).filter({ hasNotText: "Remove from library" })).toHaveText(["Tag…", "Add to playlist…", "New playlist from these", "Clear selection"]);
-    if (test.info().project.name === "app") {
-      // 0.5.2 items 4, 12, 39 (built in the app only): a ⋯ after them, for Type and Remove from library.
-      await expect(bar.getByRole("button").last()).toHaveAccessibleName("More for the selected tracks");
-    }
+    // 0.5.2 items 4, 12, 39: a ⋯ after them, for Type and Remove from library (the prototype too since 0.6.0).
+    await expect(bar.getByRole("button").last()).toHaveAccessibleName("More for the selected tracks");
     await bar.getByRole("button", { name: "Clear selection" }).click();
     await expect(bar).toHaveCount(0);
   });
@@ -396,7 +394,6 @@ test.describe("round 5: shape, names in scenes, Use in… and missing files", ()
 
 /* Round 6 (design/prototype/ROUND6.md): less text on screen; what leaves the screen is read out instead. */
 test.describe("round 6: the key legend", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("the keys show under the list while the keyboard is in it, and are read out with the list", async ({ page }) => {
     await openRoute(page, "library");
@@ -408,7 +405,6 @@ test.describe("round 6: the key legend", () => {
   });
 
   test("a mouse click on a row leaves the legend hidden, so a row at the foot of the list opens (it moved away under the pointer); a key shows it", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const legend = page.getByText(/^Keys:/);
     // The last row wholly in sight, just above where the legend shows.
@@ -419,7 +415,7 @@ test.describe("round 6: the key legend", () => {
       return rows[rows.length - 1].dataset.tid as string;
     });
     await grid(page).locator(`tr[data-tid="${lastInSight}"] td.lb-c-title`).click();
-    await expect(page).toHaveURL(new RegExp(`#/library/${lastInSight}$`));
+    await expectRoute(page, new RegExp(`^library/${lastInSight}$`));
     await expect(legend).toBeHidden();
     await page.keyboard.press("ArrowUp");
     await expect(legend).toBeVisible();
@@ -483,7 +479,6 @@ test.describe("round 5: volume normalisation", () => {
 /* Round 7 (design/prototype/ROUND7.md): tracks behave as tagged (PLY-4), follow-with hand-overs (SHW-3), and dragging
    several selected tracks to another list (ORG-5). */
 test.describe("round 7: how a track behaves", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("a sting never loops: its loop choices are off, and say why", async ({ page }) => {
     // Round 9 (item 18): a sting is a Short cue; At its end offers no loop for it.
@@ -517,7 +512,6 @@ test.describe("round 7: how a track behaves", () => {
 });
 
 test.describe("round 7: dragging selected tracks to another list", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("two ticked tracks dragged onto a playlist are both added", async ({ page }) => {
     await openRoute(page, "library");
@@ -566,7 +560,6 @@ test.describe("Library targets", () => {
    elsewhere." */
 test.describe("0.5.1: Prep and Live in the Library", () => {
   test("the Library's top bar has Prep | Live; Prep is on, and Live opens the session loaded in Live", async ({ page }) => {
-    expectFailureUntilBuilt("feat");
     await openRoute(page, "library");
     const modes = page.getByRole("main").getByRole("group", { name: "Prep or live" });
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
@@ -580,7 +573,6 @@ test.describe("0.5.1: Prep and Live in the Library", () => {
    a track". It showed only for underscores and loop beds. */
 test.describe("0.5.1: Pick up where it stopped for every music track", () => {
   test("a track of any role but a sting, or with no role yet, has Pick up where it stopped in its details; a sting has not", async ({ page }) => {
-    expectFailureUntilBuilt("feat");
     await openRoute(page, "library");
     for (const title of ["Ashes", "Haunted sea shanty"]) {
       await openTrack(page, title);
@@ -593,10 +585,9 @@ test.describe("0.5.1: Pick up where it stopped for every music track", () => {
   });
 });
 
-/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("a music track with no role offers Pick up where it stopped in its details (\"I don't see pickup where it stops\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("gridcell").nth(1).click();
     const details = page.getByRole("region", { name: "Details", exact: true });
@@ -607,7 +598,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("the Now playing bar's time line is a seek bar: a click jumps the track there (\"choose to skip to a certain point\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("button", { name: /^Play on air: / }).click();
     const air = page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^On air/ });
@@ -623,7 +613,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   });
 
   test("the Library's top bar has the Prep | Live switch (\"In library view I still need the Prep and Live toggle\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const modes = page.getByRole("group", { name: "Prep or live" });
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
@@ -634,7 +623,6 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
 
 test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   test("item 7: a track's row shows its file's length and, under it, the length its Audio profile plays", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const length = row(page, /^Select Eerie dread/).locator("td.lb-c-dur");
     await expect(length).toContainText("7:21");
@@ -642,19 +630,17 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 6: Preview or Play on air on a row opens that track's details", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const ashes = row(page, "Ashes");
     await ashes.getByRole("button", { name: /^Preview / }).click();
     await expect(ashes).toHaveAttribute("aria-current", "true");
-    await expect(page).toHaveURL(/#\/library\/[^/]+$/);
+    await expectRoute(page, /^library\/[^/]+$/);
     const eerie = row(page, /^Select Eerie dread/);
     await eerie.getByRole("button", { name: /^Play on air: / }).click();
     await expect(eerie).toHaveAttribute("aria-current", "true");
   });
 
   test("item 35: opening a track keeps the list scrolled where it was", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const box = page.locator(".lb-scroll");
     await box.evaluate((el) => (el.scrollTop = 400));
@@ -666,18 +652,16 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 23: the menu, the heading and Back call it the Track library; the address stays #/library", async ({ page }) => {
-    appOnly();
     await openRoute(page, "settings");
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Track library", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Track library");
-    await expect(page).toHaveURL(/#\/library$/);
+    await expectRoute(page, /^library$/);
     await page.getByRole("button", { name: "More for the library" }).click();
     await page.getByRole("menuitem", { name: "Tags and groups…" }).click();
     await expect(page.getByRole("button", { name: "Back to Track library" })).toBeVisible();
   });
 
   test("item 21: Clear in one filter clears only that filter; Clear all filters clears every one", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const f = filters(page);
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
@@ -694,7 +678,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 25: a click on a column header sorts by it, ascending then descending, and says so with aria-sort", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const title = grid(page).getByRole("columnheader", { name: /^Title/ });
     const length = grid(page).getByRole("columnheader", { name: /^Length/ });
@@ -712,7 +695,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 10: a New track the game master tags is no longer New, with no title of its own", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const ashes = row(page, "Ashes");
     await expect(ashes.getByText("New", { exact: true })).toBeVisible();
@@ -723,7 +705,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 40: a library folder's ⋯ says what kind its new tracks are", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const f = filters(page);
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
@@ -737,7 +718,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 20: Remove folder… forgets a watched folder, its tracks stay unless ticked, and Undo brings it back", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const f = filters(page);
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
@@ -755,7 +735,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("items 1 and 50: Remove from library names where a track is used and works with Undo; Delete file from disk… asks first", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const eerie = row(page, /^Select Eerie dread/);
     await eerie.getByRole("button", { name: /^More for / }).click();
@@ -777,7 +756,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("item 50: Remove all shown… removes the tracks a filter shows, with the count in its confirmation", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
     if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
@@ -794,7 +772,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("items 4, 12 and 39: Type in a track's details; an FX track is offered for pads, and the selection's ⋯ changes several at once", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     const ashes = row(page, "Ashes");
     await ashes.locator("td.lb-c-title").click();
@@ -818,7 +795,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("round 8 #2: Pick up where it stopped fits on one line", async ({ page }) => {
-    appOnly();
     await openRoute(page, "library");
     // An Underscore track: it has Pick up where it stopped (round 9: Next time, start where it stopped). Round 8 #4 (the
     // Follow with list's line) went with that list: At its end › Play… is a picker (round 9 block).
@@ -829,7 +805,6 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 
   test("round 8 #5: a track title on a playlist page opens its details, and Open in Track library shows that row in view", async ({ page }) => {
-    appOnly();
     await openRoute(page, "playlist/p-abbess");
     const links = page.getByRole("main").locator('a[href^="#/library/"]');
     await expect(links.first()).toBeVisible();
@@ -843,10 +818,9 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
   });
 });
 
-/* 0.5.2: from Nik's play test (14 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+/* 0.5.2: from Nik's play test (14 Nov), built in the app with no prototype round; in the prototype too since 0.6.0 (p60-sync). */
 test.describe("0.5.2: Nik's play test", () => {
   test("item 29: with music on air and a preview playing, tracks dragged from the list onto the Drop on panel land, and nothing fails (\"crashed the interface\")", async ({ page }) => {
-    appOnly();
     await openRoute(page, "playlists");
     await page.getByRole("button", { name: "Play on air: The Abbess" }).first().click();
     await page.getByRole("button", { name: "Preview The Company themes" }).first().click();
@@ -884,7 +858,6 @@ test.describe("round 10: removing tracks from the Track library", () => {
   const eerie = "Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)";
 
   test("a row's ⋯ has Remove from library: it asks first, names the scene that uses it, and Undo brings it back", async ({ page }) => {
-    metByTheAppAlready("0.5.2 built Remove from library in a row's ⋯ with these words (RemoveTracks.tsx)");
     await openRoute(page, "library");
     await row(page, eerie).getByRole("button", { name: `More for ${eerie}` }).click();
     await page.getByRole("menuitem", { name: "Remove from library…", exact: true }).click();
@@ -1088,7 +1061,7 @@ test.describe("0.6.0 usability test: the Track library", () => {
     await openRoute(page, "library");
     await openFilters(page);
     const heroic = () => filters(page).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Heroic/ });
-    await expect(heroic()).toHaveAccessibleName(/^Heroic \d+$/);
+    await expect(heroic()).toHaveAccessibleName(/^Heroic, \d+$/);
     await heroic().click();
     await heroic().click();
     await expect(heroic()).toHaveAccessibleName(/^Heroic, hidden\b/);
