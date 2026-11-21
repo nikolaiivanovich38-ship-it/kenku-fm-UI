@@ -282,7 +282,7 @@
     if (pk.namingBoard) return '<label class="r10-mkpl" for="pk-bdname" title="An empty 4 × 3 board; you give it pads, and change its size, on its own page"><span>New board</span><input class="input" id="pk-bdname" data-k="pk-bdname" autocomplete="off" value="' + esc(pk.namingBoard) + '"></label>' +
       '<span class="grow"></span><button class="btn" data-act="pkbdcancel" data-k="pk-bdcancel">Back</button><button class="btn primary" data-act="pkbdok" data-k="pk-bdok">Make it and add it</button>';
     return '<span id="pk-count" class="muted grow">' + count() + '</span>' +
-      (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in their place.">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
+      (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and adds it to the scene.">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
       (pk.makeBoard ? '<button class="btn" data-act="pkmkbd" data-k="pk-mkbd" title="Make an empty pad board and put it in this scene. You give it pads on its page.">' + L.icon('plus', 's') + 'New board…</button>' : '') +
       '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="pkdone">' + esc(pk.okLabel) + '</button>';
   }

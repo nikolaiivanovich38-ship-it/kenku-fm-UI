@@ -153,7 +153,7 @@ export function PlaceTracks({
       </div>
       <p className="sr-only" id={descId}>
         Drag a track, or press Alt+Up or Alt+Down on it, to change the order {words} only. To add a track to another playlist or a scene, drag its name
-        there, or use Add to… in its More menu.
+        there{manual ? ", or use Add to… in its More menu" : ""}.
       </p>
       <ol ref={listRef} className="list ro-list" aria-label={`Tracks in ${name}, in the order ${words}`} aria-describedby={descId}>
         {ordered.map((t, i) => {
@@ -169,6 +169,15 @@ export function PlaceTracks({
               </TrackNameLink>
               {place.kind !== "campaign" && <TagStrip track={t} groups={groups} />}
               <span className="num faint">{formatLength(t.durationMs)}</span>
+              {/* Round 10 (row 14), built after the 0.6.0 usability test (F-C11): the order of every track row, Preview, Play on
+                  air, Audio profile, Repeat, then ⋯; the Audio profile button has one name everywhere. */}
+              <span data-ctl="preview">
+                <PreviewButton target={{ kind: "track", id: t.id, playlistId, place }} name={n.name} />
+              </span>
+              {/* 0.5.1 (Nik, 11 Nov): Play on air for each track, as the playlist's row has. */}
+              <span data-ctl="air">
+                <PlayOnAirButton target={{ kind: "track", id: t.id, playlistId }} name={n.name} />
+              </span>
               {place.kind === "campaign" ? (
                 <span data-ctl="profile">
                   <ProfileLink trackId={t.id} title={n.name} place={`pl:${playlistId}`} placeName={`the playlist ${name}`} iconOnly />
@@ -178,40 +187,36 @@ export function PlaceTracks({
                   className="btn s icon cp-prof"
                   data-ctl="profile"
                   href={`#/profile/${t.id}/${key}`}
-                  title={`Waveform, end and fades of ${n.name} in this ${place.kind}`}
-                  aria-label={`Waveform, end and fades in this ${place.kind}: ${n.name}`}
+                  title={`Audio profile of ${n.name} in this ${place.kind}: its waveform, end and fades`}
+                  aria-label={`Audio profile in this ${place.kind}: ${n.name}`}
                 >
                   <Icon name="wave" size="s" />
                 </a>
               )}
-              <span data-ctl="preview">
-                <PreviewButton target={{ kind: "track", id: t.id, playlistId, place }} name={n.name} />
-              </span>
-              {/* 0.5.1 (Nik, 11 Nov): Play on air for each track, as the playlist's row has. */}
-              <span data-ctl="air">
-                <PlayOnAirButton target={{ kind: "track", id: t.id, playlistId }} name={n.name} />
-              </span>
               {place.kind === "scene" && lane === "music" && (
                 <span data-ctl="rep1">
                   <RepeatOneButton scene={place} sceneName={scene?.name || "the scene"} trackId={t.id} name={n.name} on={!!scene?.repeatOnes.includes(t.id)} />
                 </span>
               )}
-              <span data-ctl="more">
-                <PopMenuButton
-                  label={`More for ${n.name}`}
-                  ariaLabel={`More for ${n.name}`}
-                  title="More"
-                  className="btn s icon ghost r10-xpmore"
-                  items={(): PopMenuEntry[] => [
-                    { key: "addto", content: <MenuWords icon="plus" text="Add to…" />, onSelect: () => setAddingTo(t.id) },
-                    ...(manual ? [{ key: "remove", content: <MenuWords icon="close" text="Remove from this playlist" />, onSelect: (): void => void removeFromPlaylist({ id: playlistId, name }, t.id) }] : []),
-                    { separator: true },
-                    { key: "library", content: <MenuWords icon="library" text="Open in Track library" />, onSelect: () => (window.location.hash = hashOf(`library/${t.id}`)) },
-                  ]}
-                >
-                  <Icon name="more" size="s" />
-                </PopMenuButton>
-              </span>
+              {/* Round 10 §1 (F-P12): a dynamic playlist's tracks have no ⋯, as its tags choose them. */}
+              {manual && (
+                <span data-ctl="more">
+                  <PopMenuButton
+                    label={`More for ${n.name}`}
+                    ariaLabel={`More for ${n.name}`}
+                    title="More"
+                    className="btn s icon ghost r10-xpmore"
+                    items={(): PopMenuEntry[] => [
+                      { key: "addto", content: <MenuWords icon="plus" text="Add to…" />, onSelect: () => setAddingTo(t.id) },
+                      { key: "remove", content: <MenuWords icon="close" text="Remove from this playlist" />, onSelect: (): void => void removeFromPlaylist({ id: playlistId, name }, t.id) },
+                      { separator: true },
+                      { key: "library", content: <MenuWords icon="library" text="Open in Track library" />, onSelect: () => (window.location.hash = hashOf(`library/${t.id}`)) },
+                    ]}
+                  >
+                    <Icon name="more" size="s" />
+                  </PopMenuButton>
+                </span>
+              )}
               {on && (
                 <span className="ro-btns">
                   <button type="button" className="closer" data-ctl="up" aria-label={`Move up: ${n.name}`} title="Move up (Alt+Up)" disabled={i === 0} onClick={() => void move(i, i - 1, "up")}>
