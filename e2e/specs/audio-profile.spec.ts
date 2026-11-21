@@ -10,7 +10,8 @@ import { openRoute, reopen } from "./support/target";
 // Round 10 (prep review S1): the first box is "Audio profile" in the design; the app's name until built: Waveform and listening.
 const wave = (page: Page) => page.getByRole("region", { name: /^(Waveform and listening|Audio profile)$/ });
 const handle = (page: Page, name: string) => wave(page).getByRole("slider", { name, exact: true });
-const atEnd = (page: Page) => page.getByRole("region", { name: "At the end", exact: true });
+/** The end box: At its end (round 10: one name; the 0.6.0 usability test F-P15 renamed it from At the end). */
+const atEnd = (page: Page) => page.getByRole("region", { name: "At its end", exact: true });
 const fades = (page: Page) => page.getByRole("region", { name: "Fades", exact: true });
 const num = async (l: ReturnType<Page["getByRole"]>) => Number(await l.getAttribute("aria-valuenow"));
 
@@ -338,7 +339,7 @@ test.describe("round 6 cuts on the Audio profile", () => {
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("Start at a marker: the track then starts there when played on air from the Library (\"Start at [select marker]\")", async ({ page }) => {
     await openRoute(page, "profile/t13");
-    const startAt = page.getByRole("region", { name: "At the end" }).getByRole("combobox", { name: "Start at" });
+    const startAt = page.getByRole("region", { name: "At its end" }).getByRole("combobox", { name: "Start at" });
     await expect(startAt).toHaveValue("");
     await startAt.selectOption({ label: "Low swell (3:10)" });
     await expect(page.getByRole("status").filter({ hasText: /start at 3:10, Low swell/ })).toBeVisible();
@@ -349,12 +350,12 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
 
   test("Pick up where it stopped is in the Audio profile too, the track's own choice (\"I don't see pickup where it stops in details or audio profile views\")", async ({ page }) => {
     await openRoute(page, "profile/t13");
-    const pickUp = page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: /^(Pick up where it stopped|Next time, start where it stopped)$/ });
+    const pickUp = page.getByRole("region", { name: "At its end" }).getByRole("switch", { name: /^(Pick up where it stopped|Next time, start where it stopped)$/ });
     await expect(pickUp).not.toBeChecked();
     await pickUp.check();
     await expect(page.getByRole("status").filter({ hasText: /picks up where it stopped/ })).toBeVisible();
     await reopen(page);
-    await expect(page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: /^(Pick up where it stopped|Next time, start where it stopped)$/ })).toBeChecked();
+    await expect(page.getByRole("region", { name: "At its end" }).getByRole("switch", { name: /^(Pick up where it stopped|Next time, start where it stopped)$/ })).toBeChecked();
   });
 });
 

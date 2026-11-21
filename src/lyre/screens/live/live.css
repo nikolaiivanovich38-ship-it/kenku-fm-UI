@@ -735,13 +735,20 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
   background: color-mix(in srgb, var(--warn) 14%, var(--surface)); }
 /* F-P1, F-P2: the Undo place keeps one width whether Undo shows or not, so nothing in the top bar moves, and the words
    have room for a scene's name. Below 1100 px of app it is a 24 px icon (Nik, round 10 answer 2). */
-.lv-undoplace, .lv-undoplace:empty, .lv-undoplace:not(:empty) { flex: 0 0 var(--lv-undo-w, 280px); min-width: 0; }
+/* The same flex whatever it holds (min-width 0, so its contents never size it): it gives way a little, after Find, when
+   the bar is short of room, and keeps its width when Undo shows or goes. */
+.lv-undoplace, .lv-undoplace:empty, .lv-undoplace:not(:empty) { flex: 0 0.4 var(--lv-undo-w, 280px); min-width: 0; }
 @container app (max-width: 1399px) { .lv-top { --lv-undo-w: 260px; } }
 @container app (max-width: 1099px) {
   .lv-undoplace, .lv-undoplace:empty, .lv-undoplace:not(:empty) { flex: 0 0 calc(var(--ctl-s) + 6px); }
   .lv-undoplace .lv-undo { justify-content: center; }
 }
 /* F-P8: a narrow room's playing title takes the lane's whole width; Up next goes under the lines below 760 px. */
-@container lvlanes (max-width: 640px) { .lv-lane { grid-template-areas: "l t t" "l p c" "l e e" "l s s"; } }
+@container lvlanes (max-width: 640px) {
+  .lv-lane { grid-template-areas: "l t t" "l p c" "l e e" "l s s"; }
+  /* The title has a row of its own, so each lane keeps room for it, playing or not (round 10: nothing moves). */
+  .lv-lane.lv-m { min-height: 134px; }
+  .lv-lane.lv-a { min-height: 104px; }
+}
 @container lvrm (min-width: 620px) and (max-width: 759px) { .lv-rm-b { grid-template-columns: minmax(0, 1fr); } .lv-rm-up { border-left: 0; border-top: 1px solid var(--line); } }
 

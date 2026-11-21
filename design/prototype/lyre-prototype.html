@@ -3092,7 +3092,9 @@ a.r9-dragname:hover, a.r9-dragname:focus-visible { text-decoration: underline; }
 
 /* F-P1, F-P2: the Undo place keeps one width whether Undo shows or not, so nothing in the top bar moves; the words
    have room for a scene's name. Below 1100 px it is an icon, at least 24 px (the target size). */
-.r10-undo-slot, .r10-undo-slot:empty, .r10-undo-slot:not(:empty) { flex: 0 0 var(--r60-undo-w, 280px); min-width: 0; }
+/* The same flex whatever it holds (min-width 0, so its contents never size it): it gives way a little, after Find, when
+   the bar is short of room, and keeps its width when Undo shows or goes. */
+.r10-undo-slot, .r10-undo-slot:empty, .r10-undo-slot:not(:empty) { flex: 0 0.4 var(--r60-undo-w, 280px); min-width: 0; }
 .r10-undo-slot .lv-undo .btn { max-width: none; min-width: var(--ctl-s); }
 @container app (max-width: 1399px) { .lv-top { --r60-undo-w: 260px; } }
 @container app (max-width: 1099px) {
@@ -3102,7 +3104,12 @@ a.r9-dragname:hover, a.r9-dragname:focus-visible { text-decoration: underline; }
 
 /* F-P8: a narrow room's playing title takes the lane's whole width; Up next goes under the lines below 760 px. */
 .lv-rm-lanes { container: lvlanes / inline-size; }
-@container lvlanes (max-width: 640px) { .lv-lane { grid-template-areas: "l t t" "l p c" "l e e" "l s s"; } }
+@container lvlanes (max-width: 640px) {
+  .lv-lane { grid-template-areas: "l t t" "l p c" "l e e" "l s s"; }
+  /* The title has a row of its own, so each lane keeps room for it, playing or not (round 10: nothing moves). */
+  .lv-lane.lv-m { min-height: 134px; }
+  .lv-lane.lv-a { min-height: 104px; }
+}
 @container lvrm (min-width: 620px) and (max-width: 759px) { .lv-rm-b { grid-template-columns: minmax(0, 1fr); } .lv-rm-up { border-left: 0; border-top: 1px solid var(--line); } }
 
 
@@ -7519,7 +7526,7 @@ var L = (function () {
           (inScene && p.lane === 'music' ? L.repeatOneButton(inScene, t.id, 'r1-' + (did || id) + '-' + t.id, nm) : '') +
           // Round 10 fixes (R10-FIX §1): a manual playlist's track comes out of the playlist from here too (r10remove.js).
           // 0.6.0 (f-prep item 32, as the app): every playlist's track has the ⋯, with Add to… first.
-          (L.acts.r10xpmore ? '<button type="button" class="btn s icon r10-xpmore" data-act="r10xpmore" data-pid="' + esc(id) + '" data-tid="' + t.id + '" data-row="' + i + '"' + (p.kind === 'manual' ? ' data-manual="1"' : '') + ' data-k="xpm-' + esc(did || id) + '-' + t.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(nm) + '" title="More">' + L.icon('more', 's') + '</button>' : '') +
+          (L.acts.r10xpmore && p.kind === 'manual' ? '<button type="button" class="btn s icon r10-xpmore" data-act="r10xpmore" data-pid="' + esc(id) + '" data-tid="' + t.id + '" data-row="' + i + '"' + (p.kind === 'manual' ? ' data-manual="1"' : '') + ' data-k="xpm-' + esc(did || id) + '-' + t.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(nm) + '" title="More">' + L.icon('more', 's') + '</button>' : '') +
           (ron ? '<span class="ro-btns"><button type="button" class="closer" data-act="romove" data-d="-1" data-k="roup-' + did + '-' + t.id + '" aria-label="Move up: ' + esc(nm) + '" title="Move up (Alt+Up)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + '</button>' +
             '<button type="button" class="closer" data-act="romove" data-d="1" data-k="rodn-' + did + '-' + t.id + '" aria-label="Move down: ' + esc(nm) + '" title="Move down (Alt+Down)"' + (i === ts.length - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + '</button></span>' : '') + '</li>';
       }).join('') + '</ol>';
@@ -8900,10 +8907,10 @@ var L = (function () {
   }
   // Round 9 (item 34): a filter chip with three states, in words for screen readers as well as the look.
   function chip3(act, attrs, state, words, n, glyph) {
-    var said = state === 'show' ? ', shown' : state === 'hide' ? ', hidden' : '';
-    return '<button class="chip lb-fchip r9-c3' + (state === 'hide' ? ' is-hide' : '') + '" data-act="' + act + '" ' + attrs + ' data-state="' + state + '" aria-label="' + esc(words + said + ', ' + n) + '" aria-pressed="' + (state === 'show') + '" aria-describedby="r9-fhint"' +
+    var said = state === 'show' ? '(shown)' : state === 'hide' ? '(hidden)' : '';
+    return '<button class="chip lb-fchip r9-c3' + (state === 'hide' ? ' is-hide' : '') + '" data-act="' + act + '" ' + attrs + ' data-state="' + state + '" aria-pressed="' + (state === 'show') + '" aria-describedby="r9-fhint"' +
       ' title="' + esc(words) + ': ' + (state === 'off' ? 'click to show only these' : state === 'show' ? 'click to hide these instead' : 'click to clear') + '">' +
-      (state === 'show' ? L.icon('check', 's') : state === 'hide' ? L.icon('close', 's') : glyph || '') + '<span class="r9-c3-w">' + esc(words) + '</span><span class="lb-n num">' + n + '</span></button>';
+      (state === 'show' ? L.icon('check', 's') : state === 'hide' ? L.icon('close', 's') : glyph || '') + '<span class="r9-c3-w">' + esc(words) + '</span><span class="lb-n num">' + n + '</span>' + (said ? '<span class="sr-only"> ' + said + '</span>' : '') + '</button>';
   }
   var FORDERS = [['vocab', 'Tag list order'], ['az', 'A to Z'], ['za', 'Z to A'], ['count', 'Most tracks first']];
   function filterSummary() {
@@ -11599,9 +11606,7 @@ var L = (function () {
     return D.discord.servers.map(function (g) {
       return '<div class="group">' + esc(g.name) + '</div>' + g.channels.map(function (c) {
         var here = b.status !== 'idle' && b.server === g.id && b.channel === c.id, taken = L.bots().some(function (x) { return x !== b && x.status !== 'idle' && x.server === g.id && x.channel === c.id; });
-        var said = taken ? 'a room already' : !c.members.length ? 'empty' : people(c.members.length) + (best && best.c === c ? ', most of the players' : '');
-        // 0.6.0 usability test F-P4: read as "Table, a room already", with no stray space before the comma.
-        return '<button role="menuitemradio" aria-label="' + esc(c.name + ', ' + said) + '" aria-checked="' + here + '" data-act="' + act + '" data-id="' + b.id + '" data-g="' + g.id + '" data-c="' + c.id + '"' + (here || taken ? ' disabled' : '') + '>' +
+        return '<button role="menuitemradio" aria-checked="' + here + '" data-act="' + act + '" data-id="' + b.id + '" data-g="' + g.id + '" data-c="' + c.id + '"' + (here || taken ? ' disabled' : '') + '>' +
           (here ? L.icon('check', 's') : '<span style="width:14px"></span>') + '<span class="grow ellipsis">' + esc(c.name) + '</span>' +
           // Must 2 (c): where the players are is marked, and a channel with nobody in it says so.
           (taken ? '<span class="faint">a room already</span>' : !c.members.length ? '<span class="faint">empty</span>' : '<span class="faint">' + people(c.members.length) + (best && best.c === c ? ' · players' : '') + '</span>') + '</button>';

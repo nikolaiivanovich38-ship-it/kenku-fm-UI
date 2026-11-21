@@ -1139,9 +1139,7 @@
     return D.discord.servers.map(function (g) {
       return '<div class="group">' + esc(g.name) + '</div>' + g.channels.map(function (c) {
         var here = b.status !== 'idle' && b.server === g.id && b.channel === c.id, taken = L.bots().some(function (x) { return x !== b && x.status !== 'idle' && x.server === g.id && x.channel === c.id; });
-        var said = taken ? 'a room already' : !c.members.length ? 'empty' : people(c.members.length) + (best && best.c === c ? ', most of the players' : '');
-        // 0.6.0 usability test F-P4: read as "Table, a room already", with no stray space before the comma.
-        return '<button role="menuitemradio" aria-label="' + esc(c.name + ', ' + said) + '" aria-checked="' + here + '" data-act="' + act + '" data-id="' + b.id + '" data-g="' + g.id + '" data-c="' + c.id + '"' + (here || taken ? ' disabled' : '') + '>' +
+        return '<button role="menuitemradio" aria-checked="' + here + '" data-act="' + act + '" data-id="' + b.id + '" data-g="' + g.id + '" data-c="' + c.id + '"' + (here || taken ? ' disabled' : '') + '>' +
           (here ? L.icon('check', 's') : '<span style="width:14px"></span>') + '<span class="grow ellipsis">' + esc(c.name) + '</span>' +
           // Must 2 (c): where the players are is marked, and a channel with nobody in it says so.
           (taken ? '<span class="faint">a room already</span>' : !c.members.length ? '<span class="faint">empty</span>' : '<span class="faint">' + people(c.members.length) + (best && best.c === c ? ' · players' : '') + '</span>') + '</button>';

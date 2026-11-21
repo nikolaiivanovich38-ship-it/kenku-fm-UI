@@ -127,10 +127,10 @@
   }
   // Round 9 (item 34): a filter chip with three states, in words for screen readers as well as the look.
   function chip3(act, attrs, state, words, n, glyph) {
-    var said = state === 'show' ? ', shown' : state === 'hide' ? ', hidden' : '';
-    return '<button class="chip lb-fchip r9-c3' + (state === 'hide' ? ' is-hide' : '') + '" data-act="' + act + '" ' + attrs + ' data-state="' + state + '" aria-label="' + esc(words + said + ', ' + n) + '" aria-pressed="' + (state === 'show') + '" aria-describedby="r9-fhint"' +
+    var said = state === 'show' ? '(shown)' : state === 'hide' ? '(hidden)' : '';
+    return '<button class="chip lb-fchip r9-c3' + (state === 'hide' ? ' is-hide' : '') + '" data-act="' + act + '" ' + attrs + ' data-state="' + state + '" aria-pressed="' + (state === 'show') + '" aria-describedby="r9-fhint"' +
       ' title="' + esc(words) + ': ' + (state === 'off' ? 'click to show only these' : state === 'show' ? 'click to hide these instead' : 'click to clear') + '">' +
-      (state === 'show' ? L.icon('check', 's') : state === 'hide' ? L.icon('close', 's') : glyph || '') + '<span class="r9-c3-w">' + esc(words) + '</span><span class="lb-n num">' + n + '</span></button>';
+      (state === 'show' ? L.icon('check', 's') : state === 'hide' ? L.icon('close', 's') : glyph || '') + '<span class="r9-c3-w">' + esc(words) + '</span><span class="lb-n num">' + n + '</span>' + (said ? '<span class="sr-only"> ' + said + '</span>' : '') + '</button>';
   }
   var FORDERS = [['vocab', 'Tag list order'], ['az', 'A to Z'], ['za', 'Z to A'], ['count', 'Most tracks first']];
   function filterSummary() {

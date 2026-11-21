@@ -1914,7 +1914,7 @@ test.describe("0.6.0 usability test: Live", () => {
     expect(pads.length).toBeGreaterThan(0);
     for (const pad of pads) await expect(pad).not.toHaveAccessibleName(/\s,/);
     await page.getByRole("button", { name: "Add a room" }).click();
-    await expect(page.getByRole("menu").getByRole("menuitemradio", { name: /^Table, a room already$/ })).toBeVisible();
+    await expect(page.getByRole("menu").getByRole("menuitemradio", { name: /^Table a room already$/ })).toBeVisible();
   });
 
   test("F-P5: Stop all's hover says it stops your preview too (the word the language review chose)", async ({ page }) => {
@@ -1925,7 +1925,7 @@ test.describe("0.6.0 usability test: Live", () => {
   test("F-P6 and F-P7: Arrange says the layout is kept for this window size, and Esc ends arranging as Done does", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await openRoute(page, "live");
-    const arrange = page.getByRole("button", { name: "Arrange" });
+    const arrange = page.getByRole("button", { name: /^(Arrange|Move and resize the boxes)/ });
     await arrange.click();
     await expect(page.getByRole("region", { name: "Arrange" })).toContainText("The layout is kept for this window size.");
     await page.keyboard.press("Escape");

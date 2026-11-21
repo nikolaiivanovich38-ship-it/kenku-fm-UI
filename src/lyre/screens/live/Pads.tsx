@@ -160,8 +160,7 @@ function PadTile({ board, pad, box, rooms, now, keys, dips, inWhere, mine, press
       style={{ ["--pad" as string]: (PAD_COLOUR[pad.color] ?? PAD_COLOUR.bone).hex }}
       aria-pressed={many ? onHere : on}
       aria-keyshortcuts={pad.key && keys ? pad.key : undefined}
-      // 0.6.0 usability test (F-P4): a pad with no sound is read "Owl, No sound", with no stray space before the comma.
-      aria-label={none ? `${pad.label}, No sound` : undefined}
+      // 0.6.0 usability test (F-P4): no stray ", " is read before "No sound" (the name is the words shown).
       // F-C9: the hover says when the music dips while it plays (round 10: no mark on the pad's face); in whole
       // sentences (language review E1).
       title={

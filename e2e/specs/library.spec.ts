@@ -1061,10 +1061,10 @@ test.describe("0.6.0 usability test: the Track library", () => {
     await openRoute(page, "library");
     await openFilters(page);
     const heroic = () => filters(page).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Heroic/ });
-    await expect(heroic()).toHaveAccessibleName(/^Heroic, \d+$/);
+    await expect(heroic()).toHaveAccessibleName(/^Heroic \d+$/);
     await heroic().click();
     await heroic().click();
-    await expect(heroic()).toHaveAccessibleName(/^Heroic, hidden\b/);
+    await expect(heroic()).toHaveAccessibleName(/^Heroic \d+ \(hidden\)$/);
     const cut = await filters(page)
       .getByRole("heading", { level: 2 })
       .evaluate((h) => {

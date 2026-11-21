@@ -441,7 +441,6 @@ function RoomButton({ r, headId }: { r: LiveRoom; headId: string }) {
           role: "menuitemradio",
           checked: c.here,
           disabled: c.here || c.taken,
-          label: `${c.name}, ${c.said}`,
           content: (
             <>
               {c.here ? <Icon name="check" size="s" /> : <span className="lv-mi-gap" />}
@@ -1142,7 +1141,6 @@ function newRoomEntries(outputs: LiveData["outputs"], add: (botId: string, c: { 
           role: "menuitemradio",
           checked: false,
           disabled: c.taken,
-          label: `${c.name}, ${c.said}`,
           content: (
             <>
               <span className="lv-mi-gap" />
