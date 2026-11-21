@@ -500,6 +500,21 @@ test.describe("0.6.0: a tour per screen, every step finding its control", () => 
     const step = (n: number) => page.getByRole("dialog", { name: new RegExp(`Rooms in Live · ${n} of ${ROOMS.length}$`) });
     await step(1).getByRole("button", { name: "Next", exact: true }).click();
     await expect(step(2)).toContainText("Move a room");
-    await expect(step(2)).toContainText("Press the room’s name to move it to another channel or make it leave. From the same menu you can copy what another room plays.");
+    await expect(step(2)).toContainText("Press the room’s name to move the room to another channel or make its bot leave. From the same menu you can copy what another room plays.");
   });
+});
+
+/* 0.6.0 usability test (/root/kenku-wt/R60-USABILITY.md, F-P11): when a side panel closes another to keep the screen's
+   room (kit/sidePanelRoom.ts), a short line says so on screen and to a screen reader. */
+test("0.6.0 usability test, F-P11: a side panel that closes another says so", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openRoute(page, "playlist/p-abbess/t41");
+  await expect(page.getByRole("complementary").first()).toBeVisible();
+  await page.keyboard.press("F1");
+  await expect(helpPanel(page)).toBeVisible();
+  const words = "The track details closed to make room for Help.";
+  await expect(page.getByRole("status").filter({ hasText: words })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate((t) => Array.from(document.querySelectorAll("[aria-live], [role=status], [role=alert]")).filter((e) => e.getAttribute("aria-live") !== "off" && (e.textContent ?? "").includes(t)).length, words))
+    .toBeGreaterThan(0);
 });

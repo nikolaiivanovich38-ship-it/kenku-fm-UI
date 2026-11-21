@@ -13,7 +13,7 @@ import { Icon } from "../../kit/Icon";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { cx } from "../../kit/cx";
 import { focusLive } from "./focus";
-import { arrange, BOX_NAMES, MAX_HEIGHT, MIN_HEIGHT, SIZE_WORDS, whereIs, type ArrangeAction, type ArrangeId, type Columns, type LiveLayout } from "./liveLayout";
+import { arrange, BOX_NAMES, MAX_HEIGHT, MIN_HEIGHT, whereIs, type ArrangeAction, type ArrangeId, type Columns, type LiveLayout } from "./liveLayout";
 
 export interface ArrangeProps {
   layout: LiveLayout;
@@ -52,14 +52,14 @@ function usePointerDrag(): (move: (event: PointerEvent) => void, end: (committed
   };
 }
 
-/** The bar over the boxes while arranging: what to do, Put back the usual layout and Done. */
-export function ArrangeBar({ columns, reset, done, dropTop }: { columns: Columns; reset: () => void; done: () => void; dropTop: DropTarget }) {
+/** The bar over the boxes while arranging: what to do, Put back the usual layout and Done (Esc does the same as Done). */
+export function ArrangeBar({ reset, done, dropTop }: { reset: () => void; done: () => void; dropTop: DropTarget }) {
   return (
     <div className={cx("lv-arrbar", dropTop.over && "lv-topover")} role="region" aria-label="Arrange" {...dropTop.handlers}>
       <span className="grow">
         <b>Arrange the boxes</b>{" "}
         <span className="faint">
-          · Drag a box by its header to move it, or by its bottom edge to resize it. You can also use its Move… button. The layout is kept for {SIZE_WORDS[columns]}.
+          · Drag a box by its header to move it, or by its bottom edge to resize it. You can also use its Move… button. The layout is kept for this window size.
         </span>
       </span>
       <button type="button" className="btn s ghost" data-lv="arr-reset" onClick={reset}>

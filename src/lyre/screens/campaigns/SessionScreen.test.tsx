@@ -229,6 +229,15 @@ describe("a scene's music", () => {
     ]);
   });
 
+  it("0.6.0 usability test F-C10: Add music starts with nothing ticked, and the scene's own items say so", async () => {
+    await openAbbey();
+    await userEvent.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
+    const sheet = within(screen.getByRole("dialog", { name: 'Music for "The abbey ruins"' }));
+    expect(sheet.queryAllByRole("checkbox", { checked: true })).toHaveLength(0);
+    expect(sheet.getByText("0 chosen")).toBeInTheDocument();
+    expect(sheet.getByRole("checkbox", { name: /^The Abbess.*in this scene/ })).toBeInTheDocument();
+  });
+
   it("round 10: Add music docks beside the page, which stays usable, and is not modal", async () => {
     await openAbbey();
     await userEvent.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
@@ -238,7 +247,7 @@ describe("a scene's music", () => {
     expect(within(sheet).getByRole("button", { name: /^Dock/ })).toBeInTheDocument();
   });
 
-  it("round 10: Make a playlist of these… makes a playlist of the ticked tracks and puts it in the scene in their place", async () => {
+  it("round 10, 0.6.0 usability test F-C10: Make a playlist of these… makes a playlist of the tracks ticked, and the scene keeps the rest", async () => {
     const { api } = await openAbbey();
     await userEvent.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
     const sheet = within(screen.getByRole("dialog", { name: 'Music for "The abbey ruins"' }));
@@ -253,10 +262,12 @@ describe("a scene's music", () => {
     await waitFor(() => expect(musicNames()).toContain("Abbey grief"));
     const made = (await api.playlists.list()).find((p) => p.name === "Abbey grief");
     expect(made?.kind).toBe("manual");
-    // Every ticked track goes into it (the scene's own tracks are ticked too), in the place of the first one.
+    // F-C10: the panel started with nothing ticked, so only Quiet grief went in; the scene keeps its own tracks and gets
+    // the new playlist at the end.
+    expect(made?.kind === "manual" ? made.trackIds : []).toHaveLength(1);
     const music = (await s14(api)).scenes[2].music;
-    expect(music).toContainEqual({ kind: "playlist", id: made?.id });
-    expect(music.filter((m) => m.kind === "track")).toEqual([]);
+    expect(music[music.length - 1]).toEqual({ kind: "playlist", id: made?.id });
+    expect(music.filter((m) => m.kind === "track")).toHaveLength(2);
   });
 
   it("round 10: New board… with Back keeps the ticks; Make it and add it puts an empty 4 × 3 board at the end", async () => {
@@ -628,7 +639,7 @@ describe("round 5 in the session planner", () => {
     const first = music().getAllByRole("listitem")[0];
     expect(first).toHaveTextContent("Tags: Eerie, Dread, Drowned Abbess, Exploration");
     expect(first).toHaveTextContent("+1");
-    expect(within(first).getByRole("link", { name: /^Waveform, end and fades in this scene: Eerie dread/ })).toHaveAttribute("href", "#/profile/t13/sc:crown:s14:sc3");
+    expect(within(first).getByRole("link", { name: /^Audio profile in this scene: Eerie dread/ })).toHaveAttribute("href", "#/profile/t13/sc:crown:s14:sc3");
     await userEvent.click(screen.getByRole("button", { name: "Scene 6: Aftermath" }));
     const aftermath = within(screen.getByRole("listitem", { name: /^Scene 6: Aftermath$/ }));
     const row = within(aftermath.getByRole("list", { name: "Music in order" })).getAllByRole("listitem")[0];
@@ -704,7 +715,7 @@ describe("round 5 in the session planner", () => {
     act(() => returnToSession({ campaignId: "crown", sessionId: "s14", sceneId: "sc3", trackId: "t13" }));
     act(() => window.dispatchEvent(new HashChangeEvent("hashchange")));
     await waitFor(() => expect(screen.getByRole("button", { name: "Scene 3: The abbey ruins" })).toHaveAttribute("aria-expanded", "true"));
-    await waitFor(() => expect(music().getByRole("link", { name: /^Waveform, end and fades in this scene: Eerie dread/ })).toHaveFocus());
+    await waitFor(() => expect(music().getByRole("link", { name: /^Audio profile in this scene: Eerie dread/ })).toHaveFocus());
   });
 
   it("has no accessibility failures with a scene open", async () => {

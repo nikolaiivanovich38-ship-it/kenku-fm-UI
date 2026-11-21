@@ -48,6 +48,8 @@
     PANELS.filter(function (p) { return p.id === first; })[0].close();
     if (a && document.contains(a) && a !== document.body) a.focus({ preventScroll: true });
     else focusAfterClose();
+    // 0.6.0 usability test F-P11: a short line, shown and read out, says why the first panel went.
+    if (L.panelGaveWay) L.panelGaveWay(first, opened[opened.length - 1]);
     if (app) app.inert = !!(narrow && opened.length);
   }
   // 0.6.0 review M9 (the app's SidePanel host): a panel that closes with the focus in it gives the focus to the panel

@@ -919,3 +919,18 @@ test("0.6.0: a room's queue says it is on air, and names the room when there are
   await joinRoom(page, "Lyre Side", "Side room");
   await expect(queue).toContainText("The Company themes · on air in Table");
 });
+
+/* 0.6.0 usability test (/root/kenku-wt/R60-USABILITY.md, F-P9): the first Esc's warning in New campaign is shown and
+   read out, so a screen reader user knows a second Esc throws the typing away. */
+test("0.6.0 usability test, F-P9: New campaign's 'press Esc once more' is read out as well as shown", async ({ page }) => {
+  await openRoute(page, "campaigns");
+  await page.getByRole("button", { name: "New campaign" }).click();
+  const sheet = page.getByRole("dialog", { name: "New campaign" });
+  await sheet.getByRole("textbox", { name: "Name" }).fill("The Iron Road");
+  await page.keyboard.press("Escape");
+  const words = "Press Esc or click outside once more to throw away the new campaign.";
+  await expect(sheet.getByText(words)).toBeVisible();
+  await expect
+    .poll(() => page.evaluate((t) => Array.from(document.querySelectorAll("[aria-live], [role=status], [role=alert]")).filter((e) => e.getAttribute("aria-live") !== "off" && (e.textContent ?? "").includes(t)).length, words))
+    .toBeGreaterThan(0);
+});

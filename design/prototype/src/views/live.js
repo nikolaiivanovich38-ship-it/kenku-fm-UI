@@ -362,7 +362,7 @@
         L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm sr-only">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
     return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() + undoSlot() +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade all: everything fades out over ' + L.FADE + ' seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
-      '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop all: everything stops at once, your headphones too" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
+      '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once, your preview too." aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
       '<span class="lv-keyswrap"><button class="btn s" data-act="lvkeys" data-k="lv-keys" aria-expanded="' + S.keysOpen + '" aria-controls="lv-keys-pop" title="Keyboard keys for the live screen">Keys' + L.icon(S.keysOpen ? 'chevup' : 'chevdown', 's') + '</button>' +
       (S.keysOpen ? keysPop() : '') + '</span>' +
       // Round 9 (item 44): Arrange moves and sizes the boxes (r9live.js); last in the strip, so Tab order stays as before.
@@ -438,7 +438,7 @@
     var m = M(tg), c = m[ln], t = c && L.track(c.id), isM = ln === 'music', word = isM ? 'Music' : 'Ambience', at = tg === 'table' ? '' : '@' + tg, kx = tg === 'table' ? '' : '-' + tg, tga = ' data-tg="' + tg + '"';
     // Round 10 (table review M1): an empty lane keeps its room, so On air does not grow when music starts.
     if (!c) return '<div class="lv-lane r10-lane-empty ' + (isM ? 'lv-m' : 'lv-a') + '" aria-hidden="true"></div>';
-    var shown = L.nameIn(t, L.lanePlace(c)), si = isM && seqItem(c), pos = si ? 'Item ' + (si.item + 1) + ' of ' + si.n : '';
+    var shown = L.nameIn(t, L.lanePlace(c)), si = isM && seqItem(c), pos = si && si.n > 1 ? 'Item ' + (si.item + 1) + ' of ' + si.n : ''; // 0.6.0 usability test F-P4: no 'Item 1 of 1'
     var h = '<div class="lv-lane ' + (isM ? 'lv-m' : 'lv-a') + '">' +
       '<div class="lv-lane-l"><span class="lv-lane-n"><span class="lane-dot ' + ln + '"></span>' + word + '</span>' + (c.paused ? '<span class="badge">Paused</span>' : '') +
         // Round 9 (item 47): while a dipping effect sounds, the music says so in words.
@@ -544,7 +544,7 @@
       var spare = (L.freeBots ? L.freeBots() : L.bots().filter(function (x) { return x.status === 'idle'; })).filter(function (x) { return x.id !== b.id && (!x.login || x.login === 'online'); })[0];
       none = '<div class="lv-noroom r10-lost-line" role="alert">' + L.icon('warn', 's') + '<span class="grow">Connection lost · players hear nothing</span>' +
         '<button class="btn s lv-fix" data-act="r10retry" data-id="' + b.id + '" data-k="r10-retry-' + b.id + '"' + (b.lost === 'retry' ? ' aria-disabled="true"' : '') + '>Try again</button>' +
-        (spare ? '<button class="btn s ghost" data-act="lvbotswap" data-from="' + b.id + '" data-to="' + spare.id + '" data-k="r10-swap-' + b.id + '">Use ' + esc(spare.name) + ' instead</button>' : '') + '</div>';
+        (spare ? '<button class="btn s ghost" data-act="lvbotswap" data-from="' + b.id + '" data-to="' + spare.id + '" data-k="r10-swap-' + b.id + '">Use ' + esc(spare.name) + ' instead of ' + esc(b.name) + '</button>' : '') + '</div>';
     } else if (nobodyThere(b)) {
       // The same one-click fix as "No room": move this bot to where the players are.
       var to = busiestChannel(b);
@@ -561,7 +561,7 @@
       '<button class="btn s icon" data-act="lvfxstop" data-tg="' + tg + '" data-k="lv-fxstop' + kx + '" title="Stop effects in ' + esc(name) + '" aria-label="Stop effects in ' + esc(name) + '">' + L.icon('stop', 's') + '</button></div>';
     var lanes = laneBlock('music', tg, name) + laneBlock('amb', tg, name) + fxLine, up = m.music || aqOf(tg).length ? upNextBlock(tg) : '';
     return '<div class="lv-rm' + (st.text === 'Playing' ? '' : ' is-silent') + (b && b.lost ? ' r10-lost' : '') + '" role="group" aria-labelledby="' + hid + '" data-room="' + tg + '"' + (rooms().length > 1 ? ' title="To play in ' + esc(name) + ', choose To: ' + esc(name) + ' in a box"' : '') + '>' +
-      '<div class="lv-rm-h">' + (short() ? '<button class="xp-btn" data-act="lvrmopen" data-tg="' + tg + '" data-k="lv-rmopen' + kx + '" aria-expanded="true" title="Show one line for ' + esc(name) + '" aria-label="Show everything in ' + esc(name) + '">' + L.icon('chevdown', 's') + '</button>' : '') + (b ? '<h3 class="lv-rm-n r9-rm-n"><button class="r9-roombtn" data-act="lvroommenu" data-id="' + b.id + '" data-k="lv-room-' + b.id + '" aria-haspopup="menu" aria-expanded="false" title="' + esc(name) + ' (via ' + esc(b.name) + '): move it to another voice channel" aria-label="Room ' + esc(name) + ': move or change"><span class="ellipsis" id="' + hid + '">' + esc(name) + '</span>' + L.icon('chevdown', 's') + '</button></h3>' : '<h3 id="' + hid + '" class="lv-rm-n ellipsis">' + esc(name) + '</h3>') + '<span class="pane-status s-' + st.tone + '">' + esc(st.text) + '</span><span class="grow"></span>' + playedButton(tg, name) + ctl + '</div>' + none + playedList(tg, name) +
+      '<div class="lv-rm-h">' + (short() ? '<button class="xp-btn" data-act="lvrmopen" data-tg="' + tg + '" data-k="lv-rmopen' + kx + '" aria-expanded="true" title="Show one line for ' + esc(name) + '" aria-label="Show everything in ' + esc(name) + '">' + L.icon('chevdown', 's') + '</button>' : '') + (b ? '<h3 class="lv-rm-n r9-rm-n"><button class="r9-roombtn" data-act="lvroommenu" data-id="' + b.id + '" data-k="lv-room-' + b.id + '" aria-haspopup="menu" aria-expanded="false" title="Move ' + esc(name) + ' to another voice channel. ' + esc(b.name) + ' plays there now." aria-label="' + esc(name) + ': move or change this room"><span class="ellipsis" id="' + hid + '">' + esc(name) + '</span>' + L.icon('chevdown', 's') + '</button></h3>' : '<h3 id="' + hid + '" class="lv-rm-n ellipsis">' + esc(name) + '</h3>') + '<span class="pane-status s-' + st.tone + '">' + esc(st.text) + '</span><span class="grow"></span>' + playedButton(tg, name) + ctl + '</div>' + none + playedList(tg, name) +
       (lanes || up ? '<div class="lv-rm-b"><div class="lv-rm-lanes">' + lanes + '</div>' + (up ? '<div class="lv-rm-up">' + up + '</div>' : '') + '</div>' : '') + undoStrip('room:' + tg) + '</div>';
   }
   /* Round 7 part 2 (PLY-1): What played in each room, newest first, opened in the room itself (Live never covers
@@ -605,7 +605,7 @@
     var rs = rooms(), idle = L.freeBots ? L.freeBots() : L.bots().filter(function (b) { return b.status === 'idle'; });
     var parts = rs.length ? rs.map(function (r) { return roomPart(roomTg(r.bots[0]), r.bots[0], r.name); }) : [roomPart('table', null, 'No room')];
     // Round 8: always there; with no free bot its menu offers Add a bot… (the Settings sheet, opened in place).
-    var add = '<button class="btn s" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false" aria-label="Add a room" title="' + (idle.length ? 'Play into another voice channel (' + idle.length + ' bot' + (idle.length === 1 ? '' : 's') + ' free)' : 'Every bot is in a room') + '">' + L.icon('plus', 's') + 'Room</button>';
+    var add = '<button class="btn s" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false" aria-label="Add a room" title="' + (idle.length ? 'Add a room in another voice channel. ' + (idle.length === 1 ? '1 bot is' : idle.length + ' bots are') + ' not in a room yet.' : 'Every bot is in a room. Add a bot in Settings › Discord bots.') + '">' + L.icon('plus', 's') + 'Room</button>';
     var sum = collapsed('lv-onair') ? (rs.length ? rs : [{ name: 'No room', mix: pb }]).map(function (r) { var c = r.mix.music; return esc(r.name) + ': ' + (c ? esc(L.title(L.track(c.id))) : 'silent'); }).join(' · ') : '';
     return '<div class="lv-dock">' + L.pane({ id: 'lv-onair', title: 'On air', icon: 'broadcast', kind: 'onair', size: 'auto', flush: true, noMax: true, keys: 'Alt+1', actions: add, summary: sum,
       body: undoStrip('onair') + '<div class="lv-rooms' + (parts.length > 1 ? ' many' : '') + '">' + parts.join('') + '</div>' }) + '</div>';
@@ -796,9 +796,10 @@
         (bs.length ? '<div class="lv-cur-pads"><div class="lv-pads-bar">' + (bs.length > 1 ? '<div class="seg s lv-bseg" role="group" aria-label="This scene\'s pad boards">' + bs.map(function (id) {
             return '<button data-act="lvboard" data-scope="sc" data-id="' + id + '" data-k="lv-bd-' + id + '" aria-pressed="' + (id === b.id) + '" title="' + esc(L.board(id).name) + '"><span class="ellipsis">' + esc(L.board(id).name) + '</span></button>';
           }).join('') + '</div>' : '<span class="lv-bd1"><span class="lane-dot fx" aria-hidden="true"></span>' + esc(b.name) + '</span>') + '<span class="grow"></span>' + (S.keys1 ? '' : '<span class="hint">Pad keys are off</span>') +
-          // BUG-20: Stop pads stops every pad sound, in every room; music and ambience go on. It shows while a pad sounds.
-          // Round 10 (table review M1): Stop pads keeps its place while hidden, so the pads do not move when it shows.
-          '<button class="btn s' + (padsOn ? '' : ' r10-keepplace') + '" data-act="lvpadstop" data-k="lv-padstop" title="Stop every pad, in every room (music and ambience go on)"' + (padsOn ? '' : ' tabindex="-1" aria-hidden="true"') + '>' + L.icon('stop', 's') + 'Stop pads</button></div>' +
+          // BUG-20: Stop pads stops every pad sound, in every room; music and ambience go on.
+          // Round 10 (T1; 0.6.0 usability test F-C1): Stop pads is always in the board's row, greyed while nothing sounds,
+          // so the pads never move.
+          '<button class="btn s" data-act="lvpadstop" data-k="lv-padstop" title="Stop every pad, in every room (music and ambience go on)"' + (padsOn ? '' : ' disabled') + '>' + L.icon('stop', 's') + 'Stop pads</button></div>' +
           padGrid(b, 'music', true) + '</div>' : '');
     }
     var more = sc ? '<button class="closer" data-act="lvcurmenu" data-k="lv-curmenu" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(sc.name) + '" title="More">' + L.icon('more') + '</button>' : '';
@@ -841,7 +842,7 @@
       // BUG-20: every pad says whether it plays (pressed), since pressing a playing pad stops it.
       return '<button class="lv-pad' + (on ? ' on' : '') + '" data-bid="' + b.id + '" data-pid="' + p.id + '" data-mode="' + p.mode + '" data-box="' + box + '"' + (p.mode === 'hold' ? '' : ' data-act="lvpad"') +
         ' data-k="lv-pad-' + box + '-' + b.id + '-' + p.id + '" style="--pad:' + (L.colors[p.color] || L.colors.bone) + '" aria-pressed="' + (many ? onHere : on) + '"' +
-        ' title="' + esc(p.label) + (key ? ' (key ' + String(p.key).toUpperCase() + ')' : '') + ': ' + L.modeName[p.mode] + (L.padDips && L.padDips(p) ? ', dips the music' : '') + inWhere(box) + (inRooms.length ? '. Sounding in ' + esc(inRooms.join(' and ')) : '') + '"' + (key ? ' aria-keyshortcuts="' + esc(p.key) + '"' : '') + '>' +
+        ' title="' + esc(p.label) + (key ? ' (key ' + String(p.key).toUpperCase() + ')' : '') + ' is a ' + L.modeName[p.mode] + ' pad' + (inWhere(box) ? ' that plays' + inWhere(box) : '') + '.' + (L.padDips && L.padDips(p) ? ' It dips the music while it plays.' : '') + (inRooms.length ? ' It is playing in ' + esc(inRooms.join(' and ')) + '.' : '') + '"' + (key ? ' aria-keyshortcuts="' + esc(p.key) + '"' : '') + '>' +
         L.icon(p.icon, 's') + '<span class="lv-pad-l ellipsis">' + esc(p.label) + '</span>' +
         (inRooms.length ? '<span class="lv-pad-rm" aria-hidden="true">' + inRooms.map(function (n) { return esc(n.charAt(0)); }).join('') + '</span><span class="sr-only">, sounding in ' + esc(inRooms.join(' and ')) + '</span>' : '') +
         (on && !many ? '<span class="lv-pad-on">On</span>' : p.mode === 'oneshot' || on ? '' : '<span class="lv-pad-mode" title="' + L.modeName[p.mode] + '">' + L.icon(L.modeIcon[p.mode], 's') + '<span class="sr-only">' + L.modeName[p.mode] + '</span></span>') +
@@ -900,7 +901,7 @@
   }
   function tagChip(g, v) { var gn = D.tagGroups.filter(function (x) { return x.id === g; })[0]; return '<button class="chip lv-mood" data-act="lvtag" data-g="' + g + '" data-v="' + esc(v) + '" data-k="lv-tag-' + g + '-' + esc(v) + '" aria-pressed="' + tagOn(g, v) + '" title="' + esc(gn ? gn.name : '') + '">' + (tagOn(g, v) ? L.icon('check', 's') : '') + esc(v) + '</button>'; }
   function find() {
-    var field = '<div class="search lv-find-f">' + L.icon('search') + '<input class="input" type="search" data-input="lvq" data-k="lv-q" value="' + esc(S.q) + '" placeholder="Find a track or playlist" aria-label="Find a track or playlist in the whole library"' + (S.findOpen ? ' aria-controls="lv-found"' : '') + '' + (S.keys1 ? ' aria-keyshortcuts="/"><span class="kbd" aria-hidden="true">/</span>' : '>') + '</div>';
+    var field = '<div class="search lv-find-f">' + L.icon('search') + '<input class="input" type="text" role="searchbox" data-input="lvq" data-k="lv-q" value="' + esc(S.q) + '" placeholder="Find a track or playlist" aria-label="Find a track or playlist in the whole library"' + (S.findOpen ? ' aria-controls="lv-found"' : '') + '' + (S.keys1 ? ' aria-keyshortcuts="/"><span class="kbd" aria-hidden="true">/</span>' : '>') + '</div>';
     return '<div class="lv-find">' + field + (S.findOpen ? found() : '') + '</div>';
   }
   function found() {
@@ -1155,7 +1156,7 @@
       (others.length ? '<div class="sep"></div>' + others.map(function (r) { return '<button role="menuitem" data-act="lvcopyroom" data-from="' + r.bots[0].id + '" data-to="' + b.id + '">' + L.icon('loop', 's') + 'Copy what ' + esc(r.name) + ' is playing</button>'; }).join('') : '') +
       '<div class="sep"></div><button role="menuitem" data-act="lvkick" data-id="' + b.id + '">' + L.icon('leave', 's') + 'Make ' + esc(b.name) + ' leave ' + esc(name) + '</button>' +
       '<div class="sep"></div><div class="item faint r9-via">' + L.icon('users', 's') + 'via ' + esc(b.name) + '</div>' +
-      free.map(function (f) { return '<button role="menuitem" data-act="lvbotswap" data-from="' + b.id + '" data-to="' + f.id + '">' + L.icon('users', 's') + 'Use ' + esc(f.name) + ' instead</button>'; }).join(''), 'Room ' + name);
+      free.map(function (f) { return '<button role="menuitem" data-act="lvbotswap" data-from="' + b.id + '" data-to="' + f.id + '">' + L.icon('users', 's') + 'Use ' + esc(f.name) + ' instead of ' + esc(b.name) + '</button>'; }).join(''), 'Move or change ' + name);
   };
   /* Must 2 (b): moving a bot from the room menu takes one click and asks nothing, so it gets the same 8-second Undo
      as Kick when the players there were hearing something. */
@@ -1196,9 +1197,9 @@
     // starts, else the first free). With none free, the list is greyed and one line says where bots are added.
     var pick = idle[0];
     // 0.6.0 (g60-room, the app's newRoomEntries): a link in a menu has to be one of its items (axe: a menu holds only
-    // items), so Settings › Discord bots is a menu item.
-    L.menu(el, pick ? '<div class="group">New room in</div>' + channelItems(pick, 'lvaddjoin').replace(/data-id="[^"]*"/g, 'data-id="auto"') :
-      '<p class="item faint r9-nobot">Every bot is in a room. Add a bot in <a href="#/settings" role="menuitem" tabindex="-1" data-k="lv-addbot-link">Settings › Discord bots</a>.</p>', 'New room');
+    // items), so Settings › Discord bots is a menu item. Language review D6: the menu is "Add a room".
+    L.menu(el, pick ? '<div class="group">Add a room in</div>' + channelItems(pick, 'lvaddjoin').replace(/data-id="[^"]*"/g, 'data-id="auto"') :
+      '<p class="item faint r9-nobot">Every bot is in a room. Add a bot in <a href="#/settings" role="menuitem" tabindex="-1" data-k="lv-addbot-link">Settings › Discord bots</a>.</p>', 'Add a room');
   };
   // Add a bot… opens Settings' three steps over Live; once connected, the new bot joins from Add a room.
   L.acts.lvaddbot = function () { if (L.acts.stadd) L.acts.stadd(); else L.route('#/settings'); };

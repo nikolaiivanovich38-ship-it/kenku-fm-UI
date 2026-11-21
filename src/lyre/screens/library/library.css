@@ -270,3 +270,9 @@ body .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
 /* 0.5.2 item 7: the file's length, and under it the length its Audio profile plays. */
 .view .lb-len { display: flex; flex-direction: column; line-height: 1.1; }
 .view .lb-played { font-size: var(--fs-xs); color: var(--ink-3); }
+
+/* The 0.6.0 usability test (F-P16): the Filters header had room for one letter of its summary ("n…" beside "1 filter
+   on"); the summary goes on a line of its own under the header's first row and wraps, so it shows whole. */
+.lb-filters > header { flex-wrap: wrap; }
+.lb-filters > header > .pane-summary { order: 10; flex: 1 0 100%; white-space: normal; overflow-wrap: anywhere; padding: 0 0 2px 30px; }
+.lb-filters > header > .pane-summary:empty { display: none; }

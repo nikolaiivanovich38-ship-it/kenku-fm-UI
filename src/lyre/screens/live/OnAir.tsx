@@ -192,18 +192,20 @@ function RoomPart({ r, short }: { r: LiveRoom; short: boolean }) {
         <PlayedButton r={r} />
         <RoomControls r={r} />
       </div>
-      {r.bot?.room?.status === "reconnecting" ? <ConnectionLost r={r} /> : r.nobody && r.view && <NobodyThere r={r} />}
-      <PlayedList r={r} />
+      {r.bot?.room?.status !== "reconnecting" && r.nobody && r.view && <NobodyThere r={r} />}
       {/* Round 10 (table review M1): the room keeps its height whatever plays: Music and Ambience keep their places
           (blank when silent), the Effects line is always there, and Up next keeps room for its first line. So
-          starting a scene or firing a pad moves nothing under the pointer. */}
+          starting a scene or firing a pad moves nothing under the pointer. The 0.6.0 usability test (F-C2, F-C3):
+          What played and Connection lost lie over the lines instead of pushing them down. */}
       <div className="lv-rm-b">
         <div className="lv-rm-lanes">
           <Lane lane="music" room={room} roomName={r.name} />
           <Lane lane="ambience" room={room} roomName={r.name} />
           <Effects room={room} roomName={r.name} />
+          {r.bot?.room?.status === "reconnecting" && <ConnectionLost r={r} />}
         </div>
         <div className="lv-rm-up">{showUp && <UpNext roomId={r.roomId} room={room} />}</div>
+        <PlayedList r={r} />
       </div>
     </div>
   );
@@ -211,15 +213,19 @@ function RoomPart({ r, short }: { r: LiveRoom; short: boolean }) {
 
 /**
  * 0.5.2 (round 9 review M3): the bot's connection dropped and it is trying again: the players hear nothing, whatever the
- * music line counts. Said once to screen readers (role alert), in the place and style of Players hear nothing, with
- * Try again (the bot reconnects now).
+ * music line counts. Said once to screen readers (role alert), in the style of Players hear nothing, with Try again (the
+ * bot reconnects now) and, round 10 (T5), a bot that is not in a room yet to take the room over. The 0.6.0 usability
+ * test: it lies over the room's Effects line (F-C3), so Music and Ambience stay where they were; it offers the other bot
+ * (F-C4); after Try again, focus goes to the room's name (F-C5) instead of falling to the page.
  */
 function ConnectionLost({ r }: { r: LiveRoom }) {
-  const { client } = useLive();
+  const { client, outputs } = useLive();
   const { say } = useAnnounce();
+  const swap = useSwapBot();
   const bot = r.bot!;
+  const spare = addRoomChoices(outputs).map((x) => x.bot)[0];
   return (
-    <div className="lv-noroom" role="alert">
+    <div className="lv-noroom lv-lostover" role="alert">
       <Icon name="warn" size="s" />
       <span className="grow">Connection lost · players hear nothing</span>
       {client && (
@@ -230,13 +236,37 @@ function ConnectionLost({ r }: { r: LiveRoom }) {
           onClick={() => {
             client.retry(bot.id);
             say(`${bot.name} is trying again`);
+            focusLive(`room-${lk(r.roomId)}`);
           }}
         >
           Try again
         </button>
       )}
+      {client && spare && (
+        <button type="button" className="btn s ghost" onClick={() => swap(r, spare)}>
+          Use {spare.name} instead of {bot.name}
+        </button>
+      )}
     </div>
   );
+}
+
+/** Another bot takes over this room's channel: the old one leaves, the new one joins at the old one's volume, and what
+ *  played goes on from where it was. From the room's menu, and from Connection lost (round 10, T5). */
+function useSwapBot(): (r: LiveRoom, to: { id: string; name: string }) => void {
+  const { client, audio } = useLive();
+  const { say } = useAnnounce();
+  return (r, to) => {
+    const view = r.view;
+    if (!client || !view?.bot.room) return;
+    touched();
+    const what = roomToRestore(view, r.room ?? undefined);
+    client.leave(view.bot.id);
+    if (what) void restoreRoom({ ...what, botId: to.id }, { client, audio });
+    // The room keeps its name, so focus goes back to it once the new bot is there.
+    focusLiveSoon([`room-${lk(r.roomId)}`], { move: true });
+    say(`${to.name} now plays in ${r.name}`);
+  };
 }
 
 /** Must 2: a room nobody is in: the one-click fix moves its bot to where the players are. */
@@ -393,10 +423,11 @@ function RoomVolume({ name, saved, onChange }: { name: string; saved: number; on
  */
 function RoomButton({ r, headId }: { r: LiveRoom; headId: string }) {
   const d = useLive();
-  const { rooms, outputs, client, audio } = d;
+  const { rooms, outputs, client } = d;
   const { say } = useAnnounce();
   const move = useMoveBot();
   const kick = useKick();
+  const swap = useSwapBot();
   const bot = r.bot!;
   const items = (): PopMenuEntry[] => {
     const entries: PopMenuEntry[] = [];
@@ -470,30 +501,21 @@ function RoomButton({ r, headId }: { r: LiveRoom; headId: string }) {
         content: (
           <>
             <Icon name="users" size="s" />
-            Use {f.name} instead
+            Use {f.name} instead of {bot.name}
           </>
         ),
-        onSelect: () => {
-          const view = r.view;
-          if (!view?.bot.room) return;
-          touched();
-          // Another bot takes over this channel: the old one leaves, the new one joins at the old one's volume, and what
-          // played goes on from where it was.
-          const what = roomToRestore(view, r.room ?? undefined);
-          client.leave(bot.id);
-          if (what) void restoreRoom({ ...what, botId: f.id }, { client, audio });
-          say(`${f.name} now plays in ${r.name}`);
-        },
+        onSelect: () => swap(r, f),
       });
     }
     return entries;
   };
   return (
+    // 0.6.0 language review D1 to D3: the name starts with the words shown, and the menu says what its items do.
     <PopMenuButton
-      label={`Room ${r.name}`}
+      label={`Move or change ${r.name}`}
       className="lv-roombtn"
-      ariaLabel={`Room ${r.name}: move or change`}
-      title={`${r.name} (via ${bot.name}): move it to another voice channel`}
+      ariaLabel={`${r.name}: move or change this room`}
+      title={`Move ${r.name} to another voice channel. ${bot.name} plays there now.`}
       dataK={`room-${lk(r.roomId)}`}
       items={items}
     >
@@ -588,7 +610,8 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
     const lib = showLibraryOf(index, campaigns, overrides, orders);
     const step = sceneSteps(lib, o.scene, o.seed ?? 0)[o.at];
     const n = lib.scene(o.scene)?.music.length ?? 0;
-    if (step) pos = `Item ${step.itemIndex + 1} of ${n}`;
+    // 0.6.0 usability test (F-P4): no "Item 1 of 1" for a scene with one music item.
+    if (step && n > 1) pos = `Item ${step.itemIndex + 1} of ${n}`;
   }
   const waiting = state.aq[room.roomId] ?? [];
   const canNext = !single || (isMusic && room.upNextList.length > 0) || (!isMusic && waiting.length > 0);
@@ -977,19 +1000,34 @@ function deleteKey(remove: () => void): (event: React.KeyboardEvent) => void {
   };
 }
 
-/** PLY-1: What played, opened in the room itself (Live never covers its controls). */
+/**
+ * PLY-1: What played, opened in the room itself. The 0.6.0 usability test (F-C2): it opens as a popover over the room's
+ * lines (round 10: On air keeps its height, so nothing moves out of view), focus goes into it, and Esc closes it with
+ * focus back on this button.
+ */
 function PlayedButton({ r }: { r: LiveRoom }) {
   const { state } = useLive();
   const open = !!state.playedOpen[r.roomId];
+  const k = lk(r.roomId);
   return (
     <button
       type="button"
       className={cx("btn s icon lv-rm-played", open && "on")}
-      data-lv={`played-${lk(r.roomId)}`}
+      data-lv={`played-${k}`}
       aria-expanded={open}
+      aria-controls={open ? `lv-played-${k}` : undefined}
       aria-label="What played"
       title={`What played in ${r.name}, with Play again`}
-      onClick={() => updateLive((s) => ({ playedOpen: { ...s.playedOpen, [r.roomId]: !open } }))}
+      onClick={() => {
+        updateLive((s) => ({ playedOpen: { ...s.playedOpen, [r.roomId]: !open } }));
+        if (!open) focusLiveSoon([`pa-0-${k}`, `played-l-${k}`], { move: true });
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !open || event.shiftKey) return;
+        event.preventDefault();
+        event.stopPropagation();
+        updateLive((s) => ({ playedOpen: { ...s.playedOpen, [r.roomId]: false } }));
+      }}
     >
       <Icon name="history" size="s" />
     </button>
@@ -1002,12 +1040,24 @@ function PlayedList({ r }: { r: LiveRoom }) {
   if (!d.state.playedOpen[r.roomId]) return null;
   const played = (r.room?.played ?? []).slice(0, PLAYED_SHOWN);
   const target = { room: r.roomId };
+  const k = lk(r.roomId);
   const close = () => {
     updateLive((s) => ({ playedOpen: { ...s.playedOpen, [r.roomId]: false } }));
-    focusLive(`played-${lk(r.roomId)}`);
+    focusLive(`played-${k}`);
   };
   return (
-    <div className="lv-played">
+    <div
+      className="lv-played lv-over"
+      id={`lv-played-${k}`}
+      data-lv={`played-l-${k}`}
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || event.shiftKey) return;
+        event.preventDefault();
+        event.stopPropagation();
+        close();
+      }}
+    >
       <ol className="lv-played-l" aria-label={`What played in ${r.name}`}>
         {played.length ? (
           played.map((x, i) => {
@@ -1023,6 +1073,7 @@ function PlayedList({ r }: { r: LiveRoom }) {
                   <button
                     type="button"
                     className="btn s icon lv-hov"
+                    data-lv={`pa-${i}-${k}`}
                     aria-label={`Play again: ${name}`}
                     title="Play again now"
                     onClick={() => {
@@ -1081,7 +1132,7 @@ function newRoomEntries(outputs: LiveData["outputs"], add: (botId: string, c: { 
     ];
   }
   return [
-    { group: "New room in" },
+    { group: "Add a room in" },
     ...servers.flatMap(({ server, items }): PopMenuEntry[] => [
       { group: server },
       ...items.map(
@@ -1124,10 +1175,10 @@ function AddRoom() {
   const free = addRoomChoices(outputs).length;
   return (
     <PopMenuButton
-      label="New room"
+      label="Add a room"
       className="btn s"
       ariaLabel="Add a room"
-      title={free ? `Play into another voice channel (${free} bot${free === 1 ? "" : "s"} free)` : "Every bot is in a room"}
+      title={free ? `Add a room in another voice channel. ${free === 1 ? "1 bot is" : `${free} bots are`} not in a room yet.` : "Every bot is in a room. Add a bot in Settings › Discord bots."}
       dataK="addroom"
       items={() => newRoomEntries(outputs, add)}
     >

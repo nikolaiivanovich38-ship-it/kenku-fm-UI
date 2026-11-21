@@ -1053,3 +1053,42 @@ test.describe("round 9: Columns, filters that show or hide, and the Play… pick
     await expect(details(page).getByRole("group", { name: "At its end" })).toContainText("Play: Crypt ambush");
   });
 });
+
+/* 0.6.0 usability test (/root/kenku-wt/R60-USABILITY.md): F-P16 and F-P18. */
+test.describe("0.6.0 usability test: the Track library", () => {
+  test("F-P16: a hidden tag is read out as hidden, and the open Filters header shows no cut word", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "library");
+    await openFilters(page);
+    const heroic = () => filters(page).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Heroic/ });
+    await expect(heroic()).toHaveAccessibleName(/^Heroic \d+$/);
+    await heroic().click();
+    await heroic().click();
+    await expect(heroic()).toHaveAccessibleName(/^Heroic \d+ \(hidden\)$/);
+    const cut = await filters(page)
+      .getByRole("heading", { level: 2 })
+      .evaluate((h) => {
+        const head = h.closest("header") ?? h.parentElement!;
+        return Array.from(head.querySelectorAll<HTMLElement>("*")).filter((e) => !e.children.length && (e.textContent ?? "").trim() && e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent);
+      });
+    expect(cut).toEqual([]);
+  });
+
+  test("F-P18: Tab from the search field stops on the track rows, where the arrow keys work", async ({ page }) => {
+    await openRoute(page, "library");
+    await page.getByRole("searchbox", { name: "Search tracks" }).focus();
+    let onRow = false;
+    for (let i = 0; i < 12 && !onRow; i++) {
+      await page.keyboard.press("Tab");
+      onRow = await page.evaluate(() => {
+        const a = document.activeElement as HTMLElement | null;
+        return !!a && a.closest("[role=grid]") !== null && (a.tagName === "TR" || a.getAttribute("role") === "row") && !a.closest("thead");
+      });
+    }
+    expect(onRow, "a track row has focus within twelve presses of Tab").toBe(true);
+    const focusedRow = () => page.evaluate(() => (document.activeElement?.closest("tr,[role=row]")?.textContent ?? "").trim().slice(0, 40));
+    const first = await focusedRow();
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(focusedRow).not.toBe(first);
+  });
+});

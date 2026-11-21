@@ -1,7 +1,7 @@
 import type { TrackShape } from "../../common/domain";
 import { matchesShapes, ShapeFilter } from "./ShapeFilter";
 import type { ShapedTrack } from "./ShapeGlyph";
-import React, { useRef, useState } from "react";
+import React, { useId, useRef, useState } from "react";
 import { Button, Segmented } from "./Button";
 import { Dialog } from "./Dialog";
 import { PanelDialog } from "./PanelDialog";
@@ -188,6 +188,7 @@ function PickerBody({
 
   // Round 10: the name of the thing being made, while the foot asks it (null: the usual foot).
   const [naming, setNaming] = useState<string | null>(null);
+  const nameId = useId();
   const makeButton = useRef<HTMLButtonElement>(null);
   const startMaking = () => {
     if (!makeNew) return;
@@ -211,9 +212,11 @@ function PickerBody({
   const footer =
     makeNew && naming !== null ? (
       <>
-        <label className="pk-mk">
-          <span>{makeNew.field}</span>
+        {/* The 0.6.0 usability test (F-C8): the field is named by its label, for a screen reader too. */}
+        <span className="pk-mk">
+          <label htmlFor={nameId}>{makeNew.field}</label>
           <input
+            id={nameId}
             className="input"
             autoComplete="off"
             value={naming}
@@ -232,7 +235,7 @@ function PickerBody({
               }
             }}
           />
-        </label>
+        </span>
         <span className="grow" />
         <Button onClick={stopMaking}>Back</Button>
         <Button variant="primary" onClick={() => void finishMaking()}>

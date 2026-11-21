@@ -1005,3 +1005,29 @@ From the round 10 prototype (design/prototype/ROUND9.md §3, §7–§10, ROUND10
   no "joins when Lyre starts" channel to prefer, unlike the prototype). With every bot in a room, a note says where bots
   are added, with Settings › Discord bots as a link that is one of the menu's items (`kit/PopMenu.tsx` moves the arrows
   between `a[href]` items too), since axe allows only items in a menu.
+
+## 0.6.0: x60-usab (the usability test of 0.6.0, R60-USABILITY.md)
+
+- On air (`screens/live/OnAir.tsx`): What played opens as a popover over the room's lines (`PlayedList`, absolute in
+  `.lv-rm-b`; focus goes to its first Play again, Esc closes it and gives focus back to the clock button). Connection
+  lost lies over the Effects line (`.lv-lostover` in `.lv-rm-lanes`), offers Use <bot> instead of <bot> for a bot in no
+  room (`useSwapBot`, shared with the room's menu), and after Try again focus goes to the room's name. So On air keeps
+  its height whatever happens (round 10, T1). "Item n of m" is read only when the scene has more than one music item. Pads and channel items keep the words shown as
+  their names (no aria-label).
+- Current scene: Stop pads is always drawn, disabled while no pad sounds. A pad's hover says "dips the music" when its
+  While it plays dips (`Pads.tsx` `padDipsNow`, the engine's rule, and never with Dip the music under effects off).
+- Live's top bar: the Undo place has one width, Undo or not (280 px of app from 1400 px, 250 px below, a 24 px icon below
+  1100 px), so nothing moves when Undo shows. F6 goes round the top bar, the boxes, each open side panel and the menu
+  (`LiveScreen.tsx` `f6Stops`). Esc while arranging is Done.
+- Side panels (`kit/SidePanel.tsx`): when the room rule closes a panel, a pop-up (read out) says so (`gaveWayWords`).
+- Add music (`campaigns/SessionScreen.tsx`, `pickers.tsx` `musicAfterAdding`): the panel starts with nothing ticked and
+  adds what is ticked at the end of the scene's music; the scene's own items say "in this scene". A playlist made there
+  takes the ticked tracks; one the scene had already leaves the scene and the playlist takes its place. The name field
+  has a real label (`kit/Picker.tsx`). Below 480 px of panel the tags are not drawn (`round10.css`, container `pdbody`).
+- A playlist unfolded in a scene: Preview, Play on air, Audio profile ("Audio profile in this scene: …"), Repeat, ⋯; a
+  dynamic playlist's tracks have no ⋯ (round 10 §1) (`PlaceTracks.tsx`).
+- Track library filter chips are read "Heroic 14 (hidden)" (`FiltersBody.tsx`, a hidden span after the count; no
+  aria-label, as axe's label-in-name rule fails a name that differs from the words shown); the Filters summary has a
+  line of its own. The Audio profile's end box is At its end; Split into parts names parts from the track's title in Lyre.
+- Room button words after the language review (D1 to D10): "<room>: move or change this room", menu "Move or change
+  <room>", "Use <bot> instead of <bot>", + Room's menu "Add a room".

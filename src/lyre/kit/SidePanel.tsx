@@ -18,6 +18,7 @@ import React, { createContext, useCallback, useContext, useLayoutEffect, useMemo
 import { createPortal } from "react-dom";
 import { NARROW_WINDOW_PX, panelToGiveWay, placeInOrder, type SidePanelEdge, type SidePanelKind, type SidePanelRoom } from "./sidePanelRoom";
 import { trackDetailsHref } from "./trackName";
+import { useAnnounce } from "../shell/Announcer";
 
 export type { SidePanelEdge, SidePanelKind, SidePanelRoom } from "./sidePanelRoom";
 
@@ -99,6 +100,9 @@ export interface SidePanelProviderProps {
 export function SidePanelProvider({ children, openTrackPanel = goToTrackLibrary, measureRoom = measureShellRoom }: SidePanelProviderProps) {
   const [entries, setEntries] = useState<readonly Entry[]>([]);
   const [slots, setSlots] = useState<Shown["slots"]>({});
+  const { toast, say } = useAnnounce();
+  const toastRef = useRef({ toast, say });
+  toastRef.current = { toast, say };
   const opener = useRef(openTrackPanel);
   opener.current = openTrackPanel;
   const measure = useRef(measureRoom);
@@ -192,6 +196,16 @@ export function SidePanelProvider({ children, openTrackPanel = goToTrackLibrary,
     const closed = open.find((e) => e.kind === gives);
     setEntries((current) => current.filter((e) => e.kind !== gives));
     closed?.onClosedByHost?.();
+    // The 0.6.0 usability test (F-P11): a panel going away by itself is confusing, so a short line, shown and read out,
+    // says why.
+    const left = open.filter((e) => e.kind !== gives);
+    const kept = left[left.length - 1];
+    if (kept) {
+      // Said as well as shown: the panel that opened has just been announced, and a pop-up that soon after is not read.
+      const words = gaveWayWords(gives, kept.kind);
+      toastRef.current.say(words);
+      toastRef.current.toast(words);
+    }
     // Focus stays where Nik is working (the panel he just opened).
     if (focused instanceof HTMLElement && focused !== document.body && document.contains(focused)) focused.focus({ preventScroll: true });
   }, []);
@@ -283,6 +297,20 @@ export function SidePanel({ kind, edge, width, onClosedByHost, children }: SideP
   const mine = shown?.entries.find((e) => e.kind === kind)?.owner === owner;
   const slot = shown?.slots[kind];
   return mine && slot ? createPortal(children, slot) : null;
+}
+
+/** The panels' names, at the start of a sentence and inside one. */
+const PANEL_WORDS: Record<SidePanelKind, [string, string]> = {
+  addMusic: ["Add music", "Add music"],
+  find: ["Find", "Find"],
+  queue: ["The queue", "the queue"],
+  trackPanel: ["The track details", "the track details"],
+  help: ["Help", "Help"],
+};
+
+/** F-P11: "The track details closed to make room for Help." (the panel's name on screen, language review E4) */
+export function gaveWayWords(closed: SidePanelKind, kept: SidePanelKind): string {
+  return `${PANEL_WORDS[closed][0]} closed to make room for ${PANEL_WORDS[kept][1]}.`;
 }
 
 /** Open and close panels by kind. Without a provider (a component test) nothing opens. */

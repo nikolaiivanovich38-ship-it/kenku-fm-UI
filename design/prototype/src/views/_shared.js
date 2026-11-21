@@ -134,7 +134,7 @@
           (inScene && p.lane === 'music' ? L.repeatOneButton(inScene, t.id, 'r1-' + (did || id) + '-' + t.id, nm) : '') +
           // Round 10 fixes (R10-FIX §1): a manual playlist's track comes out of the playlist from here too (r10remove.js).
           // 0.6.0 (f-prep item 32, as the app): every playlist's track has the ⋯, with Add to… first.
-          (L.acts.r10xpmore ? '<button type="button" class="btn s icon r10-xpmore" data-act="r10xpmore" data-pid="' + esc(id) + '" data-tid="' + t.id + '" data-row="' + i + '"' + (p.kind === 'manual' ? ' data-manual="1"' : '') + ' data-k="xpm-' + esc(did || id) + '-' + t.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(nm) + '" title="More">' + L.icon('more', 's') + '</button>' : '') +
+          (L.acts.r10xpmore && p.kind === 'manual' ? '<button type="button" class="btn s icon r10-xpmore" data-act="r10xpmore" data-pid="' + esc(id) + '" data-tid="' + t.id + '" data-row="' + i + '"' + (p.kind === 'manual' ? ' data-manual="1"' : '') + ' data-k="xpm-' + esc(did || id) + '-' + t.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(nm) + '" title="More">' + L.icon('more', 's') + '</button>' : '') +
           (ron ? '<span class="ro-btns"><button type="button" class="closer" data-act="romove" data-d="-1" data-k="roup-' + did + '-' + t.id + '" aria-label="Move up: ' + esc(nm) + '" title="Move up (Alt+Up)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + '</button>' +
             '<button type="button" class="closer" data-act="romove" data-d="1" data-k="rodn-' + did + '-' + t.id + '" aria-label="Move down: ' + esc(nm) + '" title="Move down (Alt+Down)"' + (i === ts.length - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + '</button></span>' : '') + '</li>';
       }).join('') + '</ol>';
@@ -161,7 +161,7 @@
     L.saved('order of ' + L.playlist(pid).name + ' ' + placeWords(key), { key: 'tro-' + key + pid }); return true;
   };
   L.state.reordering = L.state.reordering || {};
-  L.acts.rotoggle = function (el) { var g = el.dataset.g; L.state.reordering[g] = !L.state.reordering[g]; L.render(); var b = document.querySelector('[data-k="' + el.dataset.k + '"]'); if (b) b.focus(); L.say(L.state.reordering[g] ? 'Move up and Move down shown on each track' : 'Done reordering'); };
+  L.acts.rotoggle = function (el) { var g = el.dataset.g; L.state.reordering[g] = !L.state.reordering[g]; L.render(); var b = document.querySelector('[data-k="' + el.dataset.k + '"]'); if (b) b.focus(); L.say(L.state.reordering[g] ? 'Move up and Move down are now on each track.' : 'Move up and Move down are hidden again.'); };
   // A Move up / Move down button: the row moves, and focus stays on the same button in its new place (or on the
   // other one when it reaches the top or the bottom).
   L.acts.romove = function (el) {
@@ -299,7 +299,7 @@
     if (pk.namingBoard) return '<label class="r10-mkpl" for="pk-bdname" title="An empty 4 × 3 board; you give it pads, and change its size, on its own page"><span>New board</span><input class="input" id="pk-bdname" data-k="pk-bdname" autocomplete="off" value="' + esc(pk.namingBoard) + '"></label>' +
       '<span class="grow"></span><button class="btn" data-act="pkbdcancel" data-k="pk-bdcancel">Back</button><button class="btn primary" data-act="pkbdok" data-k="pk-bdok">Make it and add it</button>';
     return '<span id="pk-count" class="muted grow">' + count() + '</span>' +
-      (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in their place.">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
+      (pk.makePl ? '<button class="btn" data-act="pkmkpl" data-k="pk-mkpl" title="Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in place of those tracks.">' + L.icon('playlist', 's') + 'Make a playlist of these…</button>' : '') +
       (pk.makeBoard ? '<button class="btn" data-act="pkmkbd" data-k="pk-mkbd" title="Make an empty pad board and put it in this scene. You give it pads on its page.">' + L.icon('plus', 's') + 'New board…</button>' : '') +
       '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="pkdone">' + esc(pk.okLabel) + '</button>';
   }

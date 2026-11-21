@@ -17,7 +17,7 @@ import { SHAPE_WORDS, type TrackShape } from "../../../common/domain";
 
 /** Round 9 (item 34): the one line that says how the chips work; each chip is described by it. */
 const HINT_ID = "lb-fhint";
-const SAID: Record<ChipState, string> = { off: "", show: ", shown", hide: ", hidden" };
+const SAID: Record<ChipState, string> = { off: "", show: "(shown)", hide: "(hidden)" };
 const NEXT_TIP: Record<ChipState, string> = { off: "click to show only these", show: "click to hide these instead", hide: "click to clear" };
 const SAY_NOW: Record<ChipState, string> = { off: "cleared", show: "shown", hide: "hidden" };
 
@@ -34,8 +34,10 @@ function Chip3({ state, words, count, glyph, onClick }: { state: ChipState; word
     >
       {state === "show" ? <Icon name="check" size="s" /> : state === "hide" ? <Icon name="close" size="s" /> : glyph}
       <span className="r9-c3-w">{words}</span>
-      <span className="sr-only">{SAID[state]}</span>
       <span className="lb-n num">{count}</span>
+      {/* The 0.6.0 usability test (F-P16): the state is in the name, "Heroic 14 (hidden)", as a hidden tag is not pressed,
+          as an unused one is not. The name stays the words shown plus this (axe: label in name), so no aria-label. */}
+      {SAID[state] && <span className="sr-only"> {SAID[state]}</span>}
     </button>
   );
 }

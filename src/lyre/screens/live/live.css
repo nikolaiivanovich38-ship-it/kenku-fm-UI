@@ -552,7 +552,9 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
    to expand the page and make me scroll the whole thing"): the trays (This session, Whole campaign) do the same: their
    boxes grow with what they hold, nothing scrolls inside them, the page scrolls. */
 .lv-top { padding: 6px 12px; min-height: 44px; }
-.lv-dock { order: 0; max-height: 40%; padding: 8px 8px 0; }
+/* 0.6.0 usability test (F-P14): half the height, not 40 %, so On air with Up next under its lines (Find open at half a
+   1920 screen) does not scroll inside; Scenes still starts in view. */
+.lv-dock { order: 0; max-height: 50%; padding: 8px 8px 0; }
 .lv-cols.c3 { grid-template-rows: auto; align-items: start; }
 .lv-cols.c3 > .col { display: flex; flex-direction: column; min-height: 0; }
 .lv-cols.c3 > .col > .pane:not(.collapsed), .lv-cols .lv-grp > .pane:not(.collapsed) { flex: none; min-height: 0; }
@@ -720,3 +722,35 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 /* Round 10 (R10-FIX §3): Find's results are a side panel beside Live (kit/SidePanel), not over On air. */
 .side-panel .lv-found { position: static; width: auto; max-height: none; height: 100%; border: 0; border-radius: 0; box-shadow: none; overflow-y: auto; }
 .side-panel .lv-found .lv-off-f { position: sticky; top: 0; z-index: 1; background: var(--surface); flex-wrap: wrap; }
+
+/* ---------- 0.6.0 usability test (R60-USABILITY.md; the prototype's r60usab.css) ----------
+   F-C2: What played lies over the room's lines (round 10: On air keeps its height), scrolling inside when long.
+   F-C3: Connection lost lies over the room's Effects line, so Music and Ambience stay where they were. */
+.lv-rm-b { position: relative; }
+.lv-played.lv-over { position: absolute; inset: 0; z-index: 3; overflow: auto; margin: 0; padding: 4px 10px 6px; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 6px 18px rgb(0 0 0 / .35); }
+.lv-played.lv-over:focus { outline: none; }
+.lv-played.lv-over .lv-played-l { border-top: 0; }
+.lv-rm-lanes { position: relative; container: lvlanes / inline-size; }
+.lv-noroom.lv-lostover { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; flex-wrap: wrap; row-gap: 4px; border-top: 1px solid var(--warn); border-bottom: 0;
+  background: color-mix(in srgb, var(--warn) 14%, var(--surface)); }
+/* F-P1, F-P2: the Undo place keeps one width whether Undo shows or not, so nothing in the top bar moves, and the words
+   have room for a scene's name. Below 1100 px of app it is a 24 px icon (Nik, round 10 answer 2). */
+/* The same flex whatever it holds (min-width 0, so its contents never size it): it gives way a little, after Find, when
+   the bar is short of room, and keeps its width when Undo shows or goes. */
+.lv-undoplace, .lv-undoplace:empty, .lv-undoplace:not(:empty) { flex: 0 1 var(--lv-undo-w, 260px); min-width: 0; }
+/* F-P2: the words wrap onto a second line (12 px, 13 px apart) instead of being cut to "Started …". */
+.lv-undoplace .lv-undo-t { white-space: normal; overflow-wrap: anywhere; line-height: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: clip; }
+@container app (max-width: 1399px) { .lv-top { --lv-undo-w: 200px; } }
+@container app (max-width: 1099px) {
+  .lv-undoplace, .lv-undoplace:empty, .lv-undoplace:not(:empty) { flex: 0 0 calc(var(--ctl-s) + 6px); }
+  .lv-undoplace .lv-undo { justify-content: center; }
+}
+/* F-P8: a narrow room's playing title takes the lane's whole width; Up next goes under the lines below 760 px. */
+@container lvlanes (max-width: 640px) {
+  .lv-lane { grid-template-areas: "l t t" "l p c" "l e e" "l s s"; }
+  /* The title has a row of its own, so each lane keeps room for it, playing or not (round 10: nothing moves). */
+  .lv-lane.lv-m { min-height: 134px; }
+  .lv-lane.lv-a { min-height: 104px; }
+}
+@container lvrm (min-width: 620px) and (max-width: 759px) { .lv-rm-b { grid-template-columns: minmax(0, 1fr); } .lv-rm-up { border-left: 0; border-top: 1px solid var(--line); } }
+

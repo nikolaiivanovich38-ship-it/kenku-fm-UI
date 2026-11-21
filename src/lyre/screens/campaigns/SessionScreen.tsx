@@ -51,7 +51,7 @@ import { TagStrip } from "../../kit/TagStrip";
 import { trackNameAt, useTrackNames } from "../../kit/trackName";
 import type { TagGroup } from "../../../common/lyre/api";
 import { NameInSceneDialog, TrackUseInDialog } from "./trackDialogs";
-import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
+import { keyOfRef, LibraryPicker, musicAfterAdding, playlistKey, refOfKey, trackKey } from "./pickers";
 import type { PickerMakeNew } from "../../kit/Picker";
 import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { DeleteSessionDialog } from "./deleting";
@@ -294,7 +294,8 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
     if (!p || !scene) return;
     if (p.kind === "music") {
       ctx.focusLater(`am-${scene.id}`);
-      const music = ids.map(refOfKey);
+      const music = musicAfterAdding(scene.music.map(keyOfRef), ids, madeFrom.current).map(refOfKey);
+      madeFrom.current = null;
       if (!(await ctx.saveScene(scene, { music }))) return;
       const first = music[0] && soundInfo(music[0], index);
       say(`${plural(music.length, "music item")} in this scene${first ? `; ${first.name} starts it` : ""}`);
@@ -314,7 +315,10 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
   };
 
   /* Round 10 (Nik, 18 Nov 08:36, answer 1a): Make a playlist of these… in Add music makes a manual playlist of the
-     ticked tracks, in the order ticked, and the scene gets it in their place. */
+     ticked tracks, in the order ticked, and the scene gets it. The 0.6.0 usability test (F-C10): Add music starts with
+     nothing ticked and adds what is ticked; a track the scene had already, once ticked, goes into the new playlist, which
+     takes its place in the scene. */
+  const madeFrom = useRef<{ key: string; tracks: readonly string[] } | null>(null);
   const freeName = (base: string, taken: readonly string[]) => {
     let n = 1;
     while (taken.includes(`${base} ${n}`)) n++;
@@ -324,7 +328,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
   const makePlaylist: PickerMakeNew = {
     label: "Make a playlist of these…",
     icon: "playlist",
-    hint: "Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in their place.",
+    hint: "Lyre makes a manual playlist of the ticked tracks, in the order you ticked them, and puts it in the scene in place of those tracks.",
     field: "New playlist",
     suggest: () => freeName("New playlist", index.playlists.map((p) => p.name)),
     refuse: (chosen) => (tickedTracks(chosen).length ? null : "Tick the tracks first. They go into the new playlist."),
@@ -333,6 +337,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
       const keys = tickedTracks(chosen);
       const made = await write(api.playlists.create({ name, lane: "music", kind: "manual", trackIds: keys.map((key) => refOfKey(key).id) }));
       if (!made) return null;
+      madeFrom.current = { key: playlistKey(made.value.id), tracks: keys };
       const at = chosen.indexOf(keys[0]);
       const rest = chosen.filter((key) => !keys.includes(key));
       rest.splice(Math.max(0, Math.min(at, rest.length)), 0, playlistKey(made.value.id));
@@ -554,14 +559,16 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
           title={`${picking.kind === "music" ? "Music" : picking.kind === "ambience" ? "Ambience" : "Pad boards"} for "${pickedScene.name || "this scene"}"`}
           intro={
             picking.kind === "music"
-              ? "Tick playlists, single tracks or both. They play in the scene in the order you tick them; you can reorder them afterwards."
+              ? "Tick playlists, single tracks or both. They are added at the end of the scene’s music, in the order you tick them."
               : picking.kind === "ambience"
                 ? "One ambience track, or an ambience playlist that moves from bed to bed."
                 : "Tick the boards to have in this scene. New ones are added at the end; the first one shows when the scene starts."
           }
+          // F-C10: Add music starts with nothing ticked (Done adds what is ticked); the scene's own items say so.
+          inScene={picking.kind === "music" ? pickedScene.music.map(keyOfRef) : undefined}
           selected={
             picking.kind === "music"
-              ? pickedScene.music.map((r) => (r.kind === "track" ? trackKey(r.id) : playlistKey(r.id)))
+              ? []
               : picking.kind === "ambience"
                 ? pickedScene.ambience
                   ? [pickedScene.ambience.kind === "track" ? trackKey(pickedScene.ambience.id) : playlistKey(pickedScene.ambience.id)]
@@ -953,8 +960,8 @@ function ItemRow({
             className="btn s icon cp-prof"
             href={`#/profile/${info.id}/${placeKey}`}
             data-k={`prof-${scene.id}-music-${info.id}`}
-            title={`Waveform, end and fades of ${shown} in this scene`}
-            aria-label={`Waveform, end and fades in this scene: ${shown}`}
+            title={`Open the Audio profile of ${shown} in this scene to see its waveform and change how it ends and fades.`}
+            aria-label={`Audio profile in this scene: ${shown}`}
           >
             <Icon name="wave" size="s" />
           </a>

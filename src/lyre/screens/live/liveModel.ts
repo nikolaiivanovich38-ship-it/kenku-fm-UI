@@ -137,7 +137,14 @@ function channelsIn(outputs: LyreOutputs, server: LyreOutputs["servers"][number]
     const here = view.bots.some((b) => b.bot.id === bot.id && b.inRoom && b.bot.room?.channelId === c.id);
     const taken = view.bots.some((b) => b.bot.id !== bot.id && b.inRoom && b.bot.room?.channelId === c.id);
     const most = !!players && players.people > 0 && players.channelId === c.id;
-    return { channelId: c.id, name: c.name, here, taken, empty: c.members.length === 0, sub: taken ? "a room already" : `${peopleWords(c.members.length)}${most ? " · players" : ""}` };
+    return {
+      channelId: c.id,
+      name: c.name,
+      here,
+      taken,
+      empty: c.members.length === 0,
+      sub: taken ? "a room already" : `${peopleWords(c.members.length)}${most ? " · players" : ""}`,
+    };
   });
 }
 

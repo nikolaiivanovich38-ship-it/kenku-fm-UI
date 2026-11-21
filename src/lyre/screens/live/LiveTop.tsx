@@ -151,7 +151,7 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession, undo, se
         className="btn s danger lv-stop"
         data-lv="stop"
         aria-label="Stop all"
-        title="Stop all: everything stops at once, your preview too"
+        title="Stop everything at once, your preview too."
         onClick={() => stopAllWithUndo(live)}
       >
         <Icon name="stop" size="s" />

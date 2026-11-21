@@ -194,7 +194,7 @@ function ProfileBody({ editor }: { editor: ProfileEditor }) {
           <Pane id="ap-wave" title="Audio profile" icon="wave" className="ap-wavepane" noMax kind="music" status={listenStatus(c)}>
             <ListenBox c={c} />
           </Pane>
-          <Pane id="ap-end" title="At the end" icon="loop" className="ap-endpane" noMax kind="plain" status={{ text: endStatus(c), tone: "idle" }}>
+          <Pane id="ap-end" title="At its end" icon="loop" className="ap-endpane" noMax kind="plain" status={{ text: endStatus(c), tone: "idle" }}>
             <EndBox c={c} />
           </Pane>
           <Pane id="ap-fades" title="Fades" icon="fade" className="ap-fadepane" noMax kind="plain" status={{ text: fadesStatus(c), tone: "idle" }}>

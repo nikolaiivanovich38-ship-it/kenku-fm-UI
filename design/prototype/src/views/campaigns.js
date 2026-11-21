@@ -250,7 +250,7 @@
   /* Round 8 (Nik, 11 Nov: "I need to be able to drag and drop to rearrange the order campaigns are displayed in in the
      campaigns view"): each card has a handle (greyed at rest) to drag it before or after another card; dropping on a
      card's left half puts it before, on its right half after (the cards run left to right, then down). The keyboard's
-     way, and one click's (WCAG 2.5.7): the Reorder switch in the top bar shows Move earlier and Move later on each card
+     way, and one click's (WCAG 2.5.7): the Reorder switch in the top bar shows Move up and Move down on each card
      while it is on; Alt+Left or Alt+Up and Alt+Right or Alt+Down move the card that has focus. The order is saved. */
   var reorderingCards = false;
   function card(c, i, all) {
@@ -288,7 +288,7 @@
     if (!b || b.disabled) b = document.querySelector('[data-k="' + (d < 0 ? 'cpcdn-' : 'cpcup-') + c.id + '"]');
     if (b) b.focus();
   };
-  L.acts.cpreorder = function (el) { reorderingCards = !reorderingCards; L.render(); var b = document.querySelector('[data-k="cpreorder"]'); if (b) b.focus(); L.say(reorderingCards ? 'Move up and Move down shown on each campaign' : 'Done reordering'); };
+  L.acts.cpreorder = function (el) { reorderingCards = !reorderingCards; L.render(); var b = document.querySelector('[data-k="cpreorder"]'); if (b) b.focus(); L.say(reorderingCards ? 'Move up and Move down are now on each campaign.' : 'Move up and Move down are hidden again.'); };
   document.addEventListener('keydown', function (e) {
     if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].indexOf(e.key) < 0) return;
     var w = e.target && e.target.closest && e.target.closest('[data-drag="campaigns"]'); if (!w || L.typing(e.target)) return;
@@ -506,7 +506,7 @@
       // Repeat one, then ⋯. The Audio profile has one name everywhere (prep S1).
       L.previewButton(it.kind, it.id) +
       (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id, list === 'music' ? key : '', '', shown) : '') +
-      (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Audio profile of ' + esc(shown) + ' in this scene: its waveform, end and fades" aria-label="Audio profile in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
+      (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Open the Audio profile of ' + esc(shown) + ' in this scene to see its waveform and change how it ends and fades." aria-label="Audio profile in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       // Round 6 part 3 (decision 4): Repeat one, saved with the scene; the same button as on the track in Live.
       (isTrack ? L.repeatOneButton(key, it.id, 'r1-' + k, shown) : '') +
       moreBtn('im-' + k, nm, 'data-menu="item" data-list="' + list + '" data-sc="' + sc.id + '" data-idx="' + i + '"') +

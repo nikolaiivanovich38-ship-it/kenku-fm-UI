@@ -27,6 +27,30 @@ export function refOfKey(key: string): { kind: "track" | "playlist"; id: string 
   return { kind: key.slice(0, at) as "track" | "playlist", id: key.slice(at + 1) };
 }
 
+/** The item id of a scene's music item. */
+export function keyOfRef(ref: { kind: string; id: string }): string {
+  return ref.kind === "playlist" ? playlistKey(ref.id) : trackKey(ref.id);
+}
+
+/**
+ * The 0.6.0 usability test (F-C10): a scene's music after Add music. The panel starts with nothing ticked and adds what
+ * was ticked, at the end, in the order ticked; what the scene has already stays where it is and is not added twice. A
+ * playlist made in the panel (`made`) takes the tracks ticked for it out of the scene and goes where the first of them
+ * was, or at the end when none was the scene's.
+ */
+export function musicAfterAdding(had: readonly string[], ticked: readonly string[], made: { key: string; tracks: readonly string[] } | null): string[] {
+  let list = [...had];
+  for (const key of ticked) {
+    if (made && key === made.key) {
+      const own = made.tracks.filter((t) => list.includes(t));
+      const at = own.length ? Math.min(...own.map((t) => list.indexOf(t))) : list.length;
+      list = list.filter((x) => !own.includes(x));
+      list.splice(Math.min(at, list.length), 0, key);
+    } else if (!list.includes(key)) list.push(key);
+  }
+  return list;
+}
+
 interface Entry {
   item: PickerItem;
   playlist?: PlaylistInfo;
@@ -48,9 +72,11 @@ export interface LibraryPickerProps {
   panelPlace?: string;
   /** Round 10: Make a playlist of these… / New board… in the foot. */
   makeNew?: PickerMakeNew;
+  /** The 0.6.0 usability test (F-C10): what the scene has already; those items say "in this scene" in their second line. */
+  inScene?: readonly string[];
 }
 
-export function LibraryPicker({ open, kind, index, title, intro, selected, onDone, onClose, panelPlace, makeNew }: LibraryPickerProps) {
+export function LibraryPicker({ open, kind, index, title, intro, selected, onDone, onClose, panelPlace, makeNew, inScene = [] }: LibraryPickerProps) {
   const audio = useLyreAudio();
   // Leaving a picker stops a preview started in it, so nothing it began keeps playing in the headphones afterwards.
   // A preview that was already playing when the picker opened is the game master's own: preparing never stops it
@@ -146,7 +172,7 @@ export function LibraryPicker({ open, kind, index, title, intro, selected, onDon
       makeNew={makeNew}
       title={title}
       intro={intro}
-      items={entries.map((e) => e.item)}
+      items={entries.map((e) => (inScene.includes(e.item.id) ? { ...e.item, sub: `${e.item.sub ? `${e.item.sub} · ` : ""}in this scene` } : e.item))}
       selected={selected}
       multi={kind !== "ambience"}
       filters={filters}

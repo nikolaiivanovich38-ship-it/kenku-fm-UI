@@ -180,7 +180,7 @@
   };
   L.arrangeBar = function (mode) {
     if (!A.on) return '';
-    return '<div class="r9-arrbar" role="region" aria-label="Arrange"><span class="grow"><b>Arrange the boxes</b> <span class="faint">· Drag a box by its header to move it, or by its bottom edge to resize it. You can also use its Move… button. The layout is kept for ' + (mode === 3 ? 'a whole window' : mode === 2 ? 'half a screen' : 'a narrow window') + '.</span></span>' +
+    return '<div class="r9-arrbar" role="region" aria-label="Arrange"><span class="grow"><b>Arrange the boxes</b> <span class="faint">· Drag a box by its header to move it, or by its bottom edge to resize it. You can also use its Move… button. The layout is kept for this window size.</span></span>' +
       '<button class="btn s ghost" data-act="r9arrreset" data-k="r9-arr-reset">' + L.icon('restart', 's') + 'Put back the usual layout</button><button class="btn s primary" data-act="r9arrange" data-k="r9-arr-done">Done</button></div>';
   };
   L.arrangeWrap = function (id, html, ci, mode) {

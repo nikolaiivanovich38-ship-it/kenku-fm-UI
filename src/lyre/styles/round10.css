@@ -51,3 +51,9 @@ body :is(.tray, .lv-grp) { border: 0; background: none; }
 .oab-row.you { box-shadow: inset 5px 0 0 var(--preview); background: color-mix(in srgb, var(--preview) 7%, transparent); }
 .r9-queue.air { box-shadow: inset 4px 0 0 var(--onair); }
 /* --- end f-live --- */
+
+/* The 0.6.0 usability test (F-C7; R10-FIX §3: "a narrow picker hides a track's tags"): docked at 1280 px Add music is
+   about 460 px wide, and the tags took the row, leaving four letters of each name. Below 480 px of panel the tags are not
+   drawn; they are in the Track panel (the prototype's r10fix.css, container sheetpanel). */
+.panel-dialog > .body { container: pdbody / inline-size; }
+@container pdbody (max-width: 480px) { .pk-row > .tagstrip, .pk-item .tagstrip { display: none; } }

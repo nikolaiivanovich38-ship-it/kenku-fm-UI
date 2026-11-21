@@ -127,10 +127,10 @@
   }
   // Round 9 (item 34): a filter chip with three states, in words for screen readers as well as the look.
   function chip3(act, attrs, state, words, n, glyph) {
-    var said = state === 'show' ? ', shown' : state === 'hide' ? ', hidden' : '';
+    var said = state === 'show' ? '(shown)' : state === 'hide' ? '(hidden)' : '';
     return '<button class="chip lb-fchip r9-c3' + (state === 'hide' ? ' is-hide' : '') + '" data-act="' + act + '" ' + attrs + ' data-state="' + state + '" aria-pressed="' + (state === 'show') + '" aria-describedby="r9-fhint"' +
       ' title="' + esc(words) + ': ' + (state === 'off' ? 'click to show only these' : state === 'show' ? 'click to hide these instead' : 'click to clear') + '">' +
-      (state === 'show' ? L.icon('check', 's') : state === 'hide' ? L.icon('close', 's') : glyph || '') + '<span class="r9-c3-w">' + esc(words) + '</span><span class="sr-only">' + said + '</span><span class="lb-n num">' + n + '</span></button>';
+      (state === 'show' ? L.icon('check', 's') : state === 'hide' ? L.icon('close', 's') : glyph || '') + '<span class="r9-c3-w">' + esc(words) + '</span><span class="lb-n num">' + n + '</span>' + (said ? '<span class="sr-only"> ' + said + '</span>' : '') + '</button>';
   }
   var FORDERS = [['vocab', 'Tag list order'], ['az', 'A to Z'], ['za', 'Z to A'], ['count', 'Most tracks first']];
   function filterSummary() {
@@ -238,12 +238,15 @@
       th('title', 'Title', 'lb-c-title') + cols.map(function (c) { return COL_SORT[c[0]] ? th(c[0], c[1], 'lb-c-' + c[0] + ' r9-col') : '<th class="lb-c-' + c[0] + ' r9-col">' + c[1] + '</th>'; }).join('') +
       '<th class="lb-c-pv"><span class="sr-only">Preview, play on air, more</span></th></tr></thead><tbody>';
     if (!list.length) h += '<tr class="lb-emptyrow"><td colspan="' + (cols.length + 3) + '"><div class="empty">' + (st.q || filtersOn() ? 'No track matches. <button class="btn s" data-act="lbclearall" data-k="lb-clearall2">Clear search and filters</button>' : '<b>Your library is empty.</b> Add music, ambience and sound effects with <b>Add tracks</b>, or drop audio files or a folder here.') + '</div></td></tr>';
+    // 0.6.0 usability test (F-P18): one row is always in the Tab order, the cursor's or else the first, so Tab from the
+    // search field lands on the list (as in the app).
+    var tabRow = list.some(function (x) { return x.id === st.cursor; }) ? st.cursor : (list[0] && list[0].id);
     list.forEach(function (t) {
       var sel = st.sel.indexOf(t.id) > -1, open = t.id === openId;
       var own = t.title, meta = t.metaTitle, shown = own || meta || t.file;
       var air = (onAirNow(t) ? L.destTag('air', '') : '') + (L.previewing(t.id) ? L.destTag('you', '') : '');
       var tip = (own ? '' : 'No title of your own yet. ') + (meta && meta !== own ? 'In the file: ' + meta + '. ' : '') + t.artist + (t.album ? ', ' + t.album : '');
-      h += '<tr data-tid="' + t.id + '" data-act="lbopen" data-k="lbrow-' + t.id + '" tabindex="' + (t.id === st.cursor ? 0 : -1) + '" aria-selected="' + sel + '"' + (open ? ' class="lb-open" aria-current="true"' : '') + '>' +
+      h += '<tr data-tid="' + t.id + '" data-act="lbopen" data-k="lbrow-' + t.id + '" tabindex="' + (t.id === tabRow ? 0 : -1) + '" aria-selected="' + sel + '"' + (open ? ' class="lb-open" aria-current="true"' : '') + '>' +
         '<td class="lb-c-ck" data-act="lbsel" data-tid="' + t.id + '"><span class="lb-ckl"><input type="checkbox" tabindex="-1" aria-label="Select ' + esc(L.title(t)) + '"' + (sel ? ' checked' : '') + '></span></td>' +
         '<td class="lb-c-title" title="' + esc(shown + ' — ' + tip) + '"><div class="lb-tl" ' + dragAttrs(t) + '>' + kindMark(t) + '<span class="lb-t1' + (own ? '' : ' untitled') + '">' + esc(shown) + '</span>' +
           (own && meta && meta !== own && open ? '<span class="lb-t2">' + esc(meta) + '</span>' : '') + air + (t.isNew ? '<span class="badge lb-newb">New</span>' : '') +

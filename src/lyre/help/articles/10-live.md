@@ -5,7 +5,7 @@ words: live run session scene next space undo keys shortcuts find track playlist
 ---
 Press **Run this session** on a campaign or session page to load it into Live.
 
-- **On air**, at the top, has a part for each room: what it plays and how it loops, **Up next**, its volume and its bot.
+- **On air**, at the top, has a part for each room: what it plays and how it loops, **Up next**, its volume and **Leave**.
 - **Scenes**: press `Space`, or **Next scene**, to start the next scene. Click a scene's name to look inside it and play anything in it without starting the scene.
 - **Current scene**: the running scene's music in play order, its ambience and its pads, which you can play with their keys.
 - **This session** and **Whole campaign**: their playlists and pads.
@@ -13,7 +13,7 @@ Press **Run this session** on a campaign or session page to load it into Live.
 - **Fade all** (`Shift+Esc`) fades everything out over 5 seconds. **Stop all** stops everything at once, your preview too.
 - **Undo** is in the top bar. Press it, or `Ctrl+Z`, within 8 seconds to take back a new scene, **Play on air**, **Fade all**, **Stop all**, **Leave** or a room you moved.
 
-A room is a voice channel with one of your bots in it. Press the room's name to move it to another channel or make it leave. To add a room, press **+ Room**. Scenes start in the first room. With two rooms or more, use **To:** on a box to choose where it plays. **No room**, **Nobody there** or **Connection lost** means the players hear nothing.
+A room is a voice channel with one of your bots in it. Press a room's name to move the room to another channel or make its bot leave. To add a room, press **+ Room**. Scenes start in the first room. With two rooms or more, use **To:** on a box to choose where it plays. **No room**, **Nobody there** or **Connection lost** means the players hear nothing.
 
 Press **‹** (Back), at the top left, or `Alt+Left` to go back to the screen before. To jump to the boxes, from On air down, use `Alt+1` to `Alt+7`.
 

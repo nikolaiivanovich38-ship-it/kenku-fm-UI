@@ -120,9 +120,10 @@ export const TOURS: Record<TourKey, TourDef> = {
       { title: "Add a room", text: "A room is a Discord voice channel that Lyre plays into. Pick a channel here, and Lyre uses a bot that is not in a room yet.", target: control(/^Add a room/) },
       {
         title: "Move a room",
-        text: "Press the room’s name to move it to another channel or make it leave. From the same menu you can copy what another room plays.",
-        // Round 9 (item 56): the room's name is the button with its menu ("Room Table: move or change").
-        target: control(/^Room .+: move or change$/),
+        text: "Press the room’s name to move the room to another channel or make its bot leave. From the same menu you can copy what another room plays.",
+        // Round 9 (item 56): the room's name is the button with its menu ("Table: move or change this room", language
+        // review D1).
+        target: control(/: move or change this room$/),
       },
       { title: "Mute and volume", text: "Each room has its own volume and mute.", target: control(/^(Mute|Volume)/) },
     ],
