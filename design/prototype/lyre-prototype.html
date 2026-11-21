@@ -3094,9 +3094,11 @@ a.r9-dragname:hover, a.r9-dragname:focus-visible { text-decoration: underline; }
    have room for a scene's name. Below 1100 px it is an icon, at least 24 px (the target size). */
 /* The same flex whatever it holds (min-width 0, so its contents never size it): it gives way a little, after Find, when
    the bar is short of room, and keeps its width when Undo shows or goes. */
-.r10-undo-slot, .r10-undo-slot:empty, .r10-undo-slot:not(:empty) { flex: 0 0.4 var(--r60-undo-w, 280px); min-width: 0; }
+.r10-undo-slot, .r10-undo-slot:empty, .r10-undo-slot:not(:empty) { flex: 0 1 var(--r60-undo-w, 260px); min-width: 0; }
+/* F-P2: the words wrap onto a second line (12 px, 13 px apart) instead of being cut to "Started …". */
+.r10-undo-slot .lv-undo > .ellipsis { white-space: normal; overflow-wrap: anywhere; line-height: 13px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-overflow: clip; }
 .r10-undo-slot .lv-undo .btn { max-width: none; min-width: var(--ctl-s); }
-@container app (max-width: 1399px) { .lv-top { --r60-undo-w: 260px; } }
+@container app (max-width: 1399px) { .lv-top { --r60-undo-w: 200px; } }
 @container app (max-width: 1099px) {
   .r10-undo-slot, .r10-undo-slot:empty, .r10-undo-slot:not(:empty) { flex: 0 0 calc(var(--ctl-s) + 6px); }
   .r10-undo-slot .lv-undo { justify-content: center; }
