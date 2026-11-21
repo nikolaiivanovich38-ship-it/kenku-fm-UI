@@ -8,8 +8,8 @@ const fonts = '<style>' + [
   ff('Atkinson Hyperlegible', 'atkinson-hyperlegible-latin-400-italic.woff2', 400, 'italic'), ff('Barlow Condensed', 'barlow-condensed-latin-600-normal.woff2', 600),
   ff('Lora', 'lora-latin-600-normal.woff2', 600), ff('Cinzel', 'cinzel-latin-600-normal.woff2', 600),
   ff('Cormorant Garamond', 'cormorant-garamond-latin-600-normal.woff2', 600), ff('Cormorant Garamond', 'cormorant-garamond-latin-600-italic.woff2', 600, 'italic')].join('\n') + '</style>';
-// Round 7: its files (r7*.js) come last, as they add to what core.js and the screens define; round 8's after them, then round 9's (r9*.js, ROUND9.md), round 10's (r10.js) and its fixes after Nik's first look (r10fix.js, R10-FIX).
-const order = ['_shared', 'look', 'campaigns', 'library', 'boards', 'live', 'r7shell', 'r7tags', 'r7org', 'r7play', 'r8window', 'r8findings', 'r9nav', 'r9track', 'r9lists', 'r9live', 'r9guide', 'r9', 'r10', 'r10fix', 'r10remove'];
+// Round 7: its files (r7*.js) come last, as they add to what core.js and the screens define; round 8's after them, then round 9's (r9*.js, ROUND9.md), round 10's (r10.js) and its fixes after Nik's first look (r10fix.js, R10-FIX), and the 0.6.0 usability test's fixes (r60usab.js) last.
+const order = ['_shared', 'look', 'campaigns', 'library', 'boards', 'live', 'r7shell', 'r7tags', 'r7org', 'r7play', 'r8window', 'r8findings', 'r9nav', 'r9track', 'r9lists', 'r9live', 'r9guide', 'r9', 'r10', 'r10fix', 'r10remove', 'r60usab'];
 const views = fs.readdirSync(path.join(src, 'views')).sort((a, b) => (order.indexOf(a.split('.')[0]) - order.indexOf(b.split('.')[0])) || a.localeCompare(b));
 const css = ['tokens.css', 'ui.css'].map(rd).concat(views.filter(f => f.endsWith('.css')).map(f => rd('views/' + f))).join('\n');
 // FND-8: the help articles are the app's own (src/lyre/help/articles/*.md), so the prototype shows the words Lyre ships.

@@ -1,7 +1,7 @@
 /**
  * Current scene (live.js currentScene, round 6 part 3: "the current playing scene, with all the details of that scene
  * expanded"): the running scene's notes, its music in the order it plays (each row with the row's buttons and Repeat
- * one, saved with the scene, PLY-17), its ambience, and its pad boards with Stop pads while a pad sounds (BUG-20). The
+ * one, saved with the scene, PLY-17), its ambience, and its pad boards with Stop pads, greyed while no pad sounds (BUG-20, round 10 T1). The
  * board shown here is the one whose keys are the live keys. Before a scene starts it says "No scene yet". Its ⋯ holds
  * the rare things: play its music from the top, open it in the planner, edit its pad board. Sound goes to its room
  * (To:); scenes themselves always start in the first room.
@@ -162,13 +162,13 @@ export function CurrentScenePane() {
                 )}
                 <span className="grow" />
                 {!keys1 && <span className="hint">Pad keys are off</span>}
-                {/* BUG-20: Stop pads stops every pad sound, in every room; music and ambience go on. It shows while a pad sounds. */}
-                {sounding > 0 && (
-                  <button type="button" className="btn s" data-lv="padstop" title="Stop every pad, in every room (music and ambience go on)" onClick={stopPads}>
-                    <Icon name="stop" size="s" />
-                    Stop pads
-                  </button>
-                )}
+                {/* BUG-20: Stop pads stops every pad sound, in every room; music and ambience go on. Round 10 (T1), built after
+                    the 0.6.0 usability test (F-C1): always in the board's row, greyed while nothing sounds, so the pads never
+                    move when it would appear. */}
+                <button type="button" className="btn s" data-lv="padstop" title="Stop every pad, in every room (music and ambience go on)" disabled={sounding === 0} onClick={stopPads}>
+                  <Icon name="stop" size="s" />
+                  Stop pads
+                </button>
               </div>
               <PadGrid board={board} box="music" keysOn />
             </div>

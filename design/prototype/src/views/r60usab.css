@@ -1,0 +1,38 @@
+/* 0.6.0 usability test (R60-USABILITY.md): the prototype brought up with the app's fixes (r60usab.js). */
+
+/* F-C2: What played lies over the room's lines (round 10: On air keeps its height), scrolling inside when long. */
+.lv-rm-b { position: relative; }
+.lv-played.r60-over { position: absolute; inset: 0; z-index: 3; overflow: auto; margin: 0; padding: 4px 10px 6px; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 6px 18px rgb(0 0 0 / .35); }
+.lv-played.r60-over .lv-played-l { border-top: 0; }
+
+/* F-C3: Connection lost lies over the room's Effects line, at the bottom of its music and ambience, which stay put. */
+.lv-rm-lanes { position: relative; }
+.lv-noroom.r60-lostover { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; flex-wrap: wrap; row-gap: 4px; border-top: 1px solid var(--warn); border-bottom: 0;
+  background: color-mix(in srgb, var(--warn) 14%, var(--surface)); }
+.lv-rm.r10-lost .lv-rm-lanes { opacity: 1; filter: none; }
+.lv-rm.r10-lost .lv-rm-lanes > :not(.r60-lostover) { opacity: .55; filter: grayscale(1); }
+
+/* F-P1, F-P2: the Undo place keeps one width whether Undo shows or not, so nothing in the top bar moves; the words
+   have room for a scene's name. Below 1100 px it is an icon, at least 24 px (the target size). */
+.r10-undo-slot, .r10-undo-slot:empty, .r10-undo-slot:not(:empty) { flex: 0 0 var(--r60-undo-w, 280px); min-width: 0; }
+.r10-undo-slot .lv-undo .btn { max-width: none; min-width: var(--ctl-s); }
+@container app (max-width: 1399px) { .lv-top { --r60-undo-w: 260px; } }
+@container app (max-width: 1099px) {
+  .r10-undo-slot, .r10-undo-slot:empty, .r10-undo-slot:not(:empty) { flex: 0 0 calc(var(--ctl-s) + 6px); }
+  .r10-undo-slot .lv-undo { justify-content: center; }
+}
+
+/* F-P8: a narrow room's playing title takes the lane's whole width; Up next goes under the lines below 760 px. */
+.lv-rm-lanes { container: lvlanes / inline-size; }
+@container lvlanes (max-width: 640px) { .lv-lane { grid-template-areas: "l t t" "l p c" "l e e" "l s s"; } }
+@container lvrm (min-width: 620px) and (max-width: 759px) { .lv-rm-b { grid-template-columns: minmax(0, 1fr); } .lv-rm-up { border-left: 0; border-top: 1px solid var(--line); } }
+
+/* F-P10: the browser's own × is not drawn in Find (it ran into the words); Esc and Clear in the results empty it. */
+.lv-find-f input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+
+/* The 0.6.0 usability test (F-P16): the Filters header had room for one letter of its summary ("n…" beside "1 filter
+   on"); the summary goes on a line of its own under the header's first row and wraps, so it shows whole. */
+.lb-filters > header { flex-wrap: wrap; }
+.lb-filters > header > .pane-summary { order: 10; flex: 1 0 100%; white-space: normal; overflow-wrap: anywhere; padding: 0 0 2px 30px; }
+.lb-filters > header > .pane-summary:empty { display: none; }
+

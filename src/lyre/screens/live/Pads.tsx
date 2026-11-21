@@ -17,6 +17,7 @@ import { MODE_ICON, MODE_NAME, PAD_COLOUR } from "../boards/boardModel";
 import { useBoxTarget, useLive } from "./liveData";
 import { noSoundWords, padHasNoSound, padStepWords, type LiveBox, type LiveRoom } from "./liveModel";
 import { useAnnounce } from "../../shell/Announcer";
+import { useDip } from "../settings/dipSettings";
 
 /** Whether a pad sounds in a room. */
 function padOnIn(now: NowPlaying, roomId: string, key: string): boolean {
@@ -38,10 +39,19 @@ export function firePads(audio: LyreAudio, now: NowPlaying, targets: RoomTarget[
   for (const t of targets) audio.firePad(board.id, pad.id, phase, t);
 }
 
+/**
+ * Round 9 §11 (item 47): whether the music dips while this pad plays: its While it plays, else the usual for its play
+ * mode (a one-shot or Restart on press pad dips; the engine's padDips), and never with Dip the music under effects off.
+ */
+export function padDipsNow(pad: Pick<Pad, "mode" | "dip">, dipOff: boolean): boolean {
+  return !dipOff && (pad.dip ?? (pad.mode === "oneshot" || pad.mode === "retrigger"));
+}
+
 /** A board's pads in a box (its rooms are the box's To:). `keysOn`: its pad keys play it (Current scene's board). */
 export function PadGrid({ board, box, keysOn }: { board: PadBoard; box: LiveBox; keysOn: boolean }) {
   const { audio, now, rooms, keys1 } = useLive();
   const { toast, warn } = useAnnounce();
+  const dipOff = useDip().amount === "off";
   const target = useBoxTarget(box);
   const held = useRef<Pad | null>(null);
   const latest = useRef({ audio, now, targets: target.targets });
@@ -86,6 +96,7 @@ export function PadGrid({ board, box, keysOn }: { board: PadBoard; box: LiveBox;
           rooms={rooms}
           now={now}
           keys={keysOn && keys1}
+          dips={padDipsNow(pad, dipOff)}
           inWhere={target.inWhere}
           mine={target.targets.flatMap((t) => (t === "all" ? [] : [t.room]))}
           press={(phase) => {
@@ -121,6 +132,8 @@ interface PadTileProps {
   now: NowPlaying;
   /** Its key plays it, so the key is shown on the tile. */
   keys: boolean;
+  /** The music dips while it plays (said in its hover text; no mark on its face, round 10). */
+  dips: boolean;
   inWhere: string;
   /** The rooms this box plays in. */
   mine: string[];
@@ -129,7 +142,7 @@ interface PadTileProps {
   hold: () => void;
 }
 
-function PadTile({ board, pad, box, rooms, now, keys, inWhere, mine, press, hold }: PadTileProps) {
+function PadTile({ board, pad, box, rooms, now, keys, dips, inWhere, mine, press, hold }: PadTileProps) {
   const key = `${board.id}/${pad.id}`;
   const many = rooms.length > 1;
   const on = now.rooms.some((r) => r.effects.some((e) => e.padKey === key));
@@ -147,7 +160,10 @@ function PadTile({ board, pad, box, rooms, now, keys, inWhere, mine, press, hold
       style={{ ["--pad" as string]: (PAD_COLOUR[pad.color] ?? PAD_COLOUR.bone).hex }}
       aria-pressed={many ? onHere : on}
       aria-keyshortcuts={pad.key && keys ? pad.key : undefined}
-      title={none ? noSoundWords(pad) : `${pad.label}${pad.key && keys ? ` (key ${pad.key.toUpperCase()})` : ""}: ${MODE_NAME[pad.mode]}${inWhere}${inRooms.length ? `. Sounding in ${inRooms.join(" and ")}` : ""}`}
+      // 0.6.0 usability test (F-P4): a pad with no sound is read "Owl, No sound", with no stray space before the comma.
+      aria-label={none ? `${pad.label}, No sound` : undefined}
+      // F-C9: the hover says when the music dips while it plays (round 10: no mark on the pad's face).
+      title={none ? noSoundWords(pad) : `${pad.label}${pad.key && keys ? ` (key ${pad.key.toUpperCase()})` : ""}: ${MODE_NAME[pad.mode]}${dips ? ", dips the music" : ""}${inWhere}${inRooms.length ? `. Sounding in ${inRooms.join(" and ")}` : ""}`}
       onClick={isHold ? undefined : () => press("down")}
       onPointerDown={
         isHold
@@ -193,11 +209,7 @@ function PadTile({ board, pad, box, rooms, now, keys, inWhere, mine, press, hold
     >
       <Icon name={icon} size="s" />
       <span className="lv-pad-l ellipsis">{pad.label}</span>
-      {none && (
-        <span className="lv-pad-nosound">
-          <span className="sr-only">, </span>No sound
-        </span>
-      )}
+      {none && <span className="lv-pad-nosound">No sound</span>}
       {inRooms.length > 0 && (
         <>
           {/* 0.5.2 (round 8 finding 15): the letters are the rooms' first letters; their hover says so in words. */}

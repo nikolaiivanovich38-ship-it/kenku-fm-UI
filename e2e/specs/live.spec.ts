@@ -881,7 +881,7 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
     await startAbbey(page);
     await page.getByRole("button", { name: ROOM_TABLE }).click();
     const menu = page.getByRole("menu", { name: "Move or change Table" });
-    await expect(menu.getByRole("menuitemradio", { name: /^Side room\s*empty$/ })).toBeVisible();
+    await expect(menu.getByRole("menuitemradio", { name: /^Side room,?\s*empty$/ })).toBeVisible();
     await expect(menu.getByRole("menuitemradio", { name: /players/ })).toHaveCount(1);
     await menu.getByRole("menuitemradio", { name: /^Side room/ }).click();
     await expect(room(page, "Side room").getByText("Nobody there", { exact: true })).toBeVisible();
@@ -2042,7 +2042,7 @@ test.describe("0.6.0 usability test: Live", () => {
     await page.setViewportSize({ width: 700, height: 900 });
     await openRoute(page, "live");
     await startFirstScene(page);
-    const title = room(page, "Table").getByRole("link", { name: /^Open road, wonder/ }).first();
+    const title = room(page, "Table").getByText(/^Open road, wonder/).first();
     await expect(title).toBeVisible();
     const roomBox = await box(room(page, "Table"));
     expect((await box(title)).width, "the title runs across most of the room").toBeGreaterThan(roomBox.width * 0.6);

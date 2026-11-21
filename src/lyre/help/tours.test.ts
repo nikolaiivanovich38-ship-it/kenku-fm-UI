@@ -23,14 +23,14 @@ afterEach(() => {
 describe("the tours' finders", () => {
   it("Move a room points at the room's name, the button with the room's menu (round 9, item 56), and says so", () => {
     screenWith(`
-      <div role="group" aria-labelledby="h"><h3><button aria-haspopup="menu" aria-label="Room Table: move or change" title="Table (via Lyre Table): move it to another voice channel"><span id="h">Table</span></button></h3>
+      <div role="group" aria-labelledby="h"><h3><button aria-haspopup="menu" aria-label="Table: move or change this room" title="Move Table to another voice channel. Lyre Table plays there now."><span id="h">Table</span></button></h3>
         <button aria-label="Mute Table">m</button>
         <input type="range" aria-label="Volume in Table">
         <button aria-label="Make Lyre Table leave Table">Leave</button>
       </div>`);
     const move = step(TOURS.rooms, "Move a room");
-    expect(move.target()).toHaveAccessibleName("Room Table: move or change");
-    expect(move.text).toBe("Press the room’s name to move it to another channel or make it leave. From the same menu you can copy what another room plays.");
+    expect(move.target()).toHaveAccessibleName("Table: move or change this room");
+    expect(move.text).toBe("Press the room’s name to move the room to another channel or make its bot leave. From the same menu you can copy what another room plays.");
   });
 
   it("a field is known by its label: Starting volume and Your title", () => {

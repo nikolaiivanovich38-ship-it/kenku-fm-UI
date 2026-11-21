@@ -365,27 +365,32 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   /** 0.5.2 (round 9 review M4): the text box last typed into, and when (its own Ctrl+Z, until something plays). */
   const lastTyped = useRef<{ el: EventTarget | null; at: number }>({ el: null, at: 0 });
   // The latest callbacks, so the key listeners are added once and a held pad is never let go by a redraw.
-  const calls = useRef({ nextScene, undo, say, toast, warn, setKeysOpen });
-  calls.current = { nextScene, undo, say, toast, warn, setKeysOpen };
+  const calls = useRef({ nextScene, undo, say, toast, warn, setKeysOpen, setArranging });
+  calls.current = { nextScene, undo, say, toast, warn, setKeysOpen, setArranging };
   const heldKeys = useRef(new Map<string, () => void>());
   useEffect(() => {
     const onTab = (event: KeyboardEvent) => {
       if (event.key === "Tab") keyNav.current = true;
       // UX-12: F6 goes through the seven boxes in their order (Alt+1 to 7), whatever the columns; it is Live's, not the
-      // shell's, unless a pad of Current scene's board has F6 as its key (pad keys F1 to F12 win in Live).
+      // shell's, unless a pad of Current scene's board has F6 as its key (pad keys F1 to F12 win in Live). The 0.6.0
+      // usability test (F-P13): it goes round the whole window, the top bar first, then the boxes, each side panel that is
+      // open and the menu, so the keyboard reaches all of them.
       if (event.key === "F6" && !event.ctrlKey && !event.altKey && !document.querySelector('[role="menu"], [role="dialog"][aria-modal="true"]')) {
         const d = dataRef.current;
         const board = d && currentBoard(getLiveState().boards.sc, d.scene, d.index);
         if (d?.keys1 && board && padForKey(board, "f6")) return;
-        // Round 10: in the boxes' order on screen, as Arrange left them.
-        const heads = boxesInOrder();
-        if (!heads.length) return;
+        // Round 10: the boxes in their order on screen, as Arrange left them.
+        const stops = f6Stops();
+        if (!stops.length) return;
         event.preventDefault();
         event.stopImmediatePropagation();
-        const inBox = (document.activeElement as HTMLElement | null)?.closest?.("[data-pane]")?.getAttribute("data-pane");
-        const at = heads.findIndex((b) => b.id === inBox);
-        const next = heads[(at + (event.shiftKey ? -1 : 1) + heads.length) % heads.length];
-        const words = focusBox(next.id);
+        const active = document.activeElement as HTMLElement | null;
+        let at = -1;
+        stops.forEach((stop, i) => {
+          if (active && stop.root.contains(active)) at = i;
+        });
+        const next = stops[(at + (event.shiftKey ? -1 : 1) + stops.length) % stops.length];
+        const words = next.go();
         if (words) calls.current.say(words);
       }
     };
@@ -454,6 +459,11 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
         keys: d.keys,
       });
       const handled = () => event.preventDefault();
+      // The 0.6.0 usability test (F-P7): Esc while arranging ends it, as Done does (no menu or dialog is open here).
+      if (s.arranging && event.key === "Escape" && !event.shiftKey && !event.ctrlKey && !event.altKey && !keysOpenRef.current) {
+        calls.current.setArranging(false);
+        return handled();
+      }
       switch (decision.kind) {
         case "none":
           return;
@@ -613,7 +623,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     <LiveDataProvider value={data}>
       <div className="lv">
         <LiveTop keysOpen={keysOpen} setKeysOpen={setKeysOpen} setKeys1={setKeys1} loadSession={loadSession} undo={undo} setArranging={setArranging} />
-        {arranging && <ArrangeBar columns={columns} reset={resetLayout} done={() => setArranging(false)} dropTop={dropTop} />}
+        {arranging && <ArrangeBar reset={resetLayout} done={() => setArranging(false)} dropTop={dropTop} />}
         {onAirTop && place("onair", -1, 0, onAir(false))}
         <div className={`lv-cols c${Math.min(3, cols.length)}${arranging ? " lv-arranging" : ""}`} data-scroll="lv-page" style={template ? { gridTemplateColumns: template } : undefined}>
           {cols.map((ids, ci) => {
@@ -664,6 +674,46 @@ function keyOrder(): LiveBoxEntry[] {
 /** The boxes drawn now, in key order: F6 goes through these. */
 function boxesInOrder(): LiveBoxEntry[] {
   return keyOrder().filter((b) => document.querySelector(`#view [data-pane="${b.id}"] .pane-toggle`));
+}
+
+/** One place F6 goes to: everything inside `root` counts as being there; `go` focuses it and gives its words. */
+interface F6Stop {
+  root: Element;
+  go: () => string | null;
+}
+
+/** The first control in `root` that Tab would reach. */
+function firstControl(root: Element | null): HTMLElement | null {
+  if (!root) return null;
+  return Array.from(root.querySelectorAll<HTMLElement>('button, a[href], input, select, textarea, [tabindex="0"]')).find((e) => !e.matches(":disabled") && e.offsetParent !== null) ?? null;
+}
+
+/**
+ * The 0.6.0 usability test (F-P13): where F6 goes in Live, in order: the top bar (its first control), each box drawn
+ * (its header), each side panel that is open (its first control), and the menu (the screen it is on).
+ */
+function f6Stops(): F6Stop[] {
+  const stops: F6Stop[] = [];
+  const control = (root: Element | null, el: HTMLElement | null) => {
+    if (root && el)
+      stops.push({
+        root,
+        go: () => {
+          el.focus();
+          return (el.getAttribute("aria-label") ?? el.textContent ?? "").trim() || null;
+        },
+      });
+  };
+  const top = document.querySelector("#view .lv-top");
+  control(top, firstControl(top));
+  for (const box of boxesInOrder()) {
+    const pane = document.querySelector(`#view [data-pane="${box.id}"]`);
+    if (pane) stops.push({ root: pane, go: () => focusBox(box.id) });
+  }
+  for (const panel of Array.from(document.querySelectorAll("#work .side-panel"))) control(panel, firstControl(panel));
+  const menu = document.querySelector("#app nav");
+  control(menu, menu?.querySelector<HTMLElement>('[aria-current="page"]') ?? firstControl(menu));
+  return stops;
 }
 
 /** The box Alt+n goes to (a box not shown keeps its place in the count). */

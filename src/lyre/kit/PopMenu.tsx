@@ -24,6 +24,9 @@ export type PopMenuEntry =
       checked?: boolean;
       /** The menu stays open after it is chosen, with focus on it (the play order menu's Shuffle and repeats). */
       keepOpen?: boolean;
+      /** Its name for a screen reader, when the content's words would be read with a stray space ("Table, a room
+       *  already"); it must contain the words shown. */
+      label?: string;
     }
   | { separator: true }
   | { group: React.ReactNode }
@@ -142,6 +145,7 @@ export function PopMenu({ id, label, items, anchor, onClose, top }: PopMenuProps
             type="button"
             role={item.role ?? "menuitem"}
             aria-checked={item.role ? !!item.checked : undefined}
+            aria-label={item.label}
             disabled={item.disabled}
             className={item.className}
             tabIndex={-1}

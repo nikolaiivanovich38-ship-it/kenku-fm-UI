@@ -121,7 +121,7 @@
       ['[data-k="st-rooms"]', 'Rooms', 'The Rooms screen shows which bot is in which voice channel.']] },
     rooms: { route: '#/live', name: 'Rooms in Live', steps: [
       ['[data-k="lv-addroom"]', 'Add a room', 'A room is a Discord voice channel that Lyre plays into. Pick a channel here, and Lyre uses a bot that is not in a room yet.'],
-      ['.r9-roombtn', 'Move a room', 'Press the room’s name to move it to another channel or make it leave. From the same menu you can copy what another room plays.'],
+      ['.r9-roombtn', 'Move a room', 'Press the room’s name to move the room to another channel or make its bot leave. From the same menu you can copy what another room plays.'],
       ['.lv-mute, .lv-vol', 'Mute and volume', 'Each room has its own volume and mute.']] },
     library: { route: '#/library', name: 'Track library', steps: [
       ['[data-k="lb-add"]', 'Add tracks', 'Add files or a folder. With Watch a folder…, new files in that folder are added by themselves. You can also drop files on the page.'],

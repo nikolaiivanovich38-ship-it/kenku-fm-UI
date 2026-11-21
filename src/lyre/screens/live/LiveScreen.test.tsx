@@ -568,19 +568,19 @@ describe("rooms from Live: the room's name is its button (item 56)", () => {
     await startAbbey();
     await playOn(sound);
     expect(screen.queryByRole("button", { name: /: change$/ })).toBeNull();
-    const button = room("Table").getByRole("button", { name: "Room Table: move or change" });
+    const button = room("Table").getByRole("button", { name: "Table: move or change this room" });
     expect(button).toHaveTextContent(/^Table$/);
-    expect(button).toHaveAttribute("title", "Table (via Lyre Table): move it to another voice channel");
+    expect(button).toHaveAttribute("title", "Move Table to another voice channel. Lyre Table plays there now.");
     await userEvent.click(button);
-    const menu = within(screen.getByRole("menu", { name: "Room Table" }));
-    const text = screen.getByRole("menu", { name: "Room Table" }).textContent ?? "";
+    const menu = within(screen.getByRole("menu", { name: "Move or change Table" }));
+    const text = screen.getByRole("menu", { name: "Move or change Table" }).textContent ?? "";
     expect(text.indexOf("Move Table to")).toBe(0);
     expect(text.indexOf("Make Lyre Table leave Table")).toBeLessThan(text.indexOf("via Lyre Table"));
-    expect(text.indexOf("via Lyre Table")).toBeLessThan(text.indexOf("Use Lyre Side instead"));
+    expect(text.indexOf("via Lyre Table")).toBeLessThan(text.indexOf("Use Lyre Side instead of Lyre Table"));
     expect(menu.getByRole("menuitemradio", { name: /^Table/ })).toHaveAttribute("aria-checked", "true");
     expect(menu.queryByRole("menuitem", { name: /Add a (room|bot)/ })).toBeNull();
     expect(text).not.toContain("Add a room");
-    await expectNoAxeViolations(screen.getByRole("menu", { name: "Room Table" }));
+    await expectNoAxeViolations(screen.getByRole("menu", { name: "Move or change Table" }));
     // Leave from the menu, with Undo.
     await userEvent.click(menu.getByRole("menuitem", { name: "Make Lyre Table leave Table" }));
     await act(async () => outputs.settle());
@@ -592,11 +592,11 @@ describe("rooms from Live: the room's name is its button (item 56)", () => {
     await startAbbey();
     await playOn(sound);
     const title = sound.audio.getNowPlaying().rooms[0].music!.title;
-    await userEvent.click(room("Table").getByRole("button", { name: "Room Table: move or change" }));
-    await userEvent.click(within(screen.getByRole("menu", { name: "Room Table" })).getByRole("menuitem", { name: "Use Lyre Side instead" }));
+    await userEvent.click(room("Table").getByRole("button", { name: "Table: move or change this room" }));
+    await userEvent.click(within(screen.getByRole("menu", { name: "Move or change Table" })).getByRole("menuitem", { name: "Use Lyre Side instead of Lyre Table" }));
     await act(async () => outputs.settle());
     await playOn(sound);
-    await waitFor(() => expect(room("Table").getByRole("button", { name: "Room Table: move or change" })).toHaveAttribute("title", "Table (via Lyre Side): move it to another voice channel"));
+    await waitFor(() => expect(room("Table").getByRole("button", { name: "Table: move or change this room" })).toHaveAttribute("title", "Move Table to another voice channel. Lyre Side plays there now."));
     expect(outputs.state.bots.find((b) => b.id === TABLE_BOT)?.room).toBeFalsy();
     expect(sound.audio.getNowPlaying().rooms.find((r) => r.roomId === SIDE_BOT)?.music?.title).toBe(title);
   });
@@ -606,14 +606,14 @@ describe("rooms from Live: the room's name is its button (item 56)", () => {
     const add = screen.getByRole("button", { name: "Add a room" });
     expect(add).toHaveTextContent(/^Room$/);
     await userEvent.click(add);
-    const menuEl = screen.getByRole("menu", { name: "New room" });
-    expect(menuEl).toHaveTextContent(/^New room in/);
+    const menuEl = screen.getByRole("menu", { name: "Add a room" });
+    expect(menuEl).toHaveTextContent(/^Add a room in/);
     expect(menuEl.textContent).not.toContain("Lyre Side");
     expect(within(menuEl).getByRole("menuitemradio", { name: /^Table/ })).toBeDisabled();
     await userEvent.click(within(menuEl).getByRole("menuitemradio", { name: /^Side room/ }));
     await act(async () => outputs.settle());
     const side = await findRoom("Side room");
-    expect(side.getByRole("button", { name: "Room Side room: move or change" })).toHaveAttribute("title", "Side room (via Lyre Side): move it to another voice channel");
+    expect(side.getByRole("button", { name: "Side room: move or change this room" })).toHaveAttribute("title", "Move Side room to another voice channel. Lyre Side plays there now.");
     expect(outputs.state.bots.find((b) => b.id === SIDE_BOT)?.room).toBeTruthy();
   });
 
@@ -621,14 +621,14 @@ describe("rooms from Live: the room's name is its button (item 56)", () => {
     const { outputs } = await openLive();
     await addSideRoom(outputs);
     await userEvent.click(screen.getByRole("button", { name: "Add a room" }));
-    const menu = within(screen.getByRole("menu", { name: "New room" }));
+    const menu = within(screen.getByRole("menu", { name: "Add a room" }));
     expect(menu.getByText(/Every bot is in a room\. Add a bot in/)).toHaveTextContent("Every bot is in a room. Add a bot in Settings › Discord bots.");
     expect(menu.queryAllByRole("menuitemradio")).toHaveLength(0);
     // The link is one of the menu's items, so arrows reach it and the menu holds only items.
     const link = menu.getByRole("menuitem", { name: "Settings › Discord bots" });
     expect(link).toHaveAttribute("href", "#/settings");
     await waitFor(() => expect(link).toHaveFocus());
-    await expectNoAxeViolations(screen.getByRole("menu", { name: "New room" }));
+    await expectNoAxeViolations(screen.getByRole("menu", { name: "Add a room" }));
     await userEvent.click(link);
     expect(window.location.hash).toBe("#/settings");
   });
@@ -698,11 +698,12 @@ describe("BUG-20: the scene's pads in Current scene", () => {
     expect(letter).toHaveAttribute("title", "Sounding in Table");
   });
 
-  it("Stop pads shows while a pad sounds, stops every pad and leaves the music and ambience; focus goes to the first pad", async () => {
+  it("Stop pads is greyed until a pad sounds, stops every pad and leaves the music and ambience; focus goes to the first pad", async () => {
     const { sound } = await openLive();
     await startAbbey();
     await playOn(sound);
-    expect(current().queryByRole("button", { name: "Stop pads" })).toBeNull();
+    // Round 10 (T1), the 0.6.0 usability test F-C1: always there, so the pads never move when it would appear.
+    expect(current().getByRole("button", { name: "Stop pads" })).toBeDisabled();
     blur();
     press("r");
     press("f");
@@ -1200,8 +1201,8 @@ describe("rooms", () => {
     await userEvent.click(screen.getByRole("menuitemradio", { name: "Side room" }));
     await userEvent.click(box.getAllByRole("button", { name: /^Play on air in Side room: / })[0]);
     await playOn(sound);
-    await userEvent.click(screen.getByRole("button", { name: "Room Table: move or change" }));
-    const menu = within(screen.getByRole("menu", { name: "Room Table" }));
+    await userEvent.click(screen.getByRole("button", { name: "Table: move or change this room" }));
+    const menu = within(screen.getByRole("menu", { name: "Move or change Table" }));
     expect(menu.getByText("Move Table to")).toBeInTheDocument();
     expect(menu.getByRole("menuitem", { name: /Copy what Side room is playing/ })).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
@@ -1266,9 +1267,9 @@ describe("rooms", () => {
     const { outputs, sound } = await openLive();
     await startAbbey();
     await playOn(sound);
-    await userEvent.click(screen.getByRole("button", { name: "Room Table: move or change" }));
-    const menu = within(screen.getByRole("menu", { name: "Room Table" }));
-    expect(menu.getByRole("menuitemradio", { name: /^Side room\s*empty$/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Table: move or change this room" }));
+    const menu = within(screen.getByRole("menu", { name: "Move or change Table" }));
+    expect(menu.getByRole("menuitemradio", { name: /^Side room,?\s*empty$/ })).toBeInTheDocument();
     expect(menu.getAllByRole("menuitemradio", { name: /players/ })).toHaveLength(1);
     await userEvent.click(menu.getByRole("menuitemradio", { name: /^Side room/ }));
     await act(async () => outputs.settle());
@@ -1341,7 +1342,7 @@ describe("UX-R4: focus after the control in use goes", () => {
   it("Add a room moves focus to the new room's button (its name)", async () => {
     const { outputs } = await openLive();
     await addSideRoom(outputs);
-    await waitFor(() => expect(focusName()).toBe("Room Side room: move or change"));
+    await waitFor(() => expect(focusName()).toBe("Side room: move or change this room"));
   });
 
   it("Undo after Kick puts focus back on the room's button (its name)", async () => {
@@ -1353,7 +1354,7 @@ describe("UX-R4: focus after the control in use goes", () => {
     await userEvent.click(within(undoPlace()).getByRole("button", { name: "Undo" }));
     await act(async () => outputs.settle());
     await playOn(sound);
-    await waitFor(() => expect(focusName()).toBe("Room Table: move or change"));
+    await waitFor(() => expect(focusName()).toBe("Table: move or change this room"));
   });
 });
 
